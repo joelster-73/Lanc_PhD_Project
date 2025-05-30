@@ -13,7 +13,7 @@ from src.plotting.shocks import plot_all_shocks
 
 
 shocks = import_processed_data(PROC_CFA_DIR)
-shocks.loc[(shocks['spacecraft']=='dscover') | (shocks['spacecraft']=='dscovr'),'spacecraft'] = 'dsc' # consistency with rest of naming conventions
+#shocks.loc[(shocks['spacecraft']=='dscover') | (shocks['spacecraft']=='dscovr'),'spacecraft'] = 'dsc' # consistency with rest of naming conventions
 #shocks.attrs
 
 script_dir = os.getcwd() # change to location of script __file__
@@ -28,7 +28,7 @@ if create_csv:
 # %%
 time_shock = datetime(2013,3,17)
 
-plot_all_shocks(shocks, parameter='B_mag', time=None, start_printing=datetime(2017,9,7))
+plot_all_shocks(shocks, parameter='B_mag', time=datetime(2017,1,5,21,55), start_printing=None)
 
 
 # %%

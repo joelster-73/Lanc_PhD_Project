@@ -13,7 +13,7 @@ from spacepy import pycdf
 
 
 from .dataframes import set_df_indices
-from .utils import datetime_to_cdf_epoch, add_unit
+from .utils import datetime_to_cdf_epoch, add_unit, create_directory
 from .handling import get_processed_files
 from .reading import read_spacepy_object
 
@@ -44,6 +44,8 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
     if column_lengths.nunique() > 1:
         raise ValueError(f'Columns have different lengths: {column_lengths.to_dict()}')
 
+    create_directory(os.path.dirname(output_file))
+
     with pycdf.CDF(output_file, create=not os.path.exists(output_file)) as cdf:
         cdf.readonly(False)
         if attributes is not None:
@@ -59,9 +61,9 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
             new_data = df[column].to_numpy()
             if column not in cdf:
                 try:
-                    if column == 'epoch':
+                    if column == 'epoch' or df.attrs['units'][column] == 'datetime':
                         new_data = datetime_to_cdf_epoch(new_data)
-                        cdf.new('epoch', data=new_data, type=pycdf.const.CDF_EPOCH)
+                        cdf.new(column, data=new_data, type=pycdf.const.CDF_EPOCH)
 
                     elif isinstance(new_data[0], str):  # Check if data is a string (unicode or bytes)
                         max_len = max(len(s) for s in new_data)

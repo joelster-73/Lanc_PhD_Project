@@ -23,6 +23,7 @@ WIND_DIR               = f'{PROCESSED_DATA_DIR}/WIND'
 OMNI_DIR               = f'{PROCESSED_DATA_DIR}/OMNI'
 THEMIS_DIR             = f'{PROCESSED_DATA_DIR}/THEMIS'
 CFA_DIR                = f'{PROCESSED_DATA_DIR}/CFA'
+SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 
 # LUNA Directories
@@ -57,6 +58,7 @@ PROC_THEMIS_DIR        = THEMIS_DIR
 
 # Processed Shocks Data
 PROC_CFA_DIR           = CFA_DIR
+PROC_SHOCKS_DIR        = SHOCKS_DIR
 
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'

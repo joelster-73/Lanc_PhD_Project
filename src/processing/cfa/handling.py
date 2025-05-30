@@ -12,7 +12,7 @@ from ..writing import write_to_cdf
 from ..dataframes import add_df_units
 
 
-def get_all_shocks(tag_strings, tag_labels, tags_uncertainty, shock_directory, spacecraft=('wind','ace','dscovr'), year=None, time_col='epoch', overwrite=True):
+def get_all_shocks(tag_strings, tag_labels, tags_uncertainty, tags_up_dw, shock_directory, spacecraft=('wind','ace','dsc'), year=None, time_col='epoch', overwrite=True):
 
     all_shocks = []
     for sc in spacecraft:
@@ -23,7 +23,7 @@ def get_all_shocks(tag_strings, tag_labels, tags_uncertainty, shock_directory, s
 
         yearly_list = []
         for y in all_years:
-            yearly_list.append(get_shocks_for_year(y, tag_strings, tag_labels, tags_uncertainty, sc))
+            yearly_list.append(get_shocks_for_year(y, tag_strings, tag_labels, tags_uncertainty, tags_up_dw, sc))
 
         df_sc = pd.concat(yearly_list, axis=0) # axis=0 stacks rows together
         try:
@@ -53,7 +53,7 @@ def get_shock_years(spacecraft='wind'):
         spacecraft_url = f'{cfa_url}/wi_data'
     elif spacecraft == 'ace':
         spacecraft_url = f'{cfa_url}/ac_master_data'
-    elif spacecraft == 'dscovr':
+    elif spacecraft == 'dsc':
         spacecraft_url = f'{cfa_url}/dsc_data'
     else:
         raise ValueError(f'{spacecraft} not valid.')
@@ -78,7 +78,7 @@ def get_shock_years(spacecraft='wind'):
 
     return shock_years
 
-def get_shocks_for_year(year, tag_strings, tag_labels, tags_uncertainty, spacecraft='wind'):
+def get_shocks_for_year(year, tag_strings, tag_labels, tags_uncertainty, tags_up_dw, spacecraft='wind'):
     """
     Scrapes shock data from CFA Shock Database for a given year and returns it as a DataFrame.
 
@@ -98,7 +98,7 @@ def get_shocks_for_year(year, tag_strings, tag_labels, tags_uncertainty, spacecr
     elif spacecraft == 'ace':
         spacecraft_url = f'{cfa_url}/ac_master_data'
         overview_url = f'{spacecraft_url}/ac_master_{year}.html'
-    elif spacecraft == 'dscovr':
+    elif spacecraft == 'dsc':
         spacecraft_url = f'{cfa_url}/dsc_data'
         overview_url = f'{spacecraft_url}/dsc_data_{year}.html'
 
@@ -157,7 +157,7 @@ def get_shocks_for_year(year, tag_strings, tag_labels, tags_uncertainty, spacecr
             if cell:
                 # Extract the next cell's text, normalising whitespace and line breaks
                 values.append(cell.find_next('td').get_text(separator=' ').strip())
-                if pattern in ('Ni [n/cc]', 'Vx GSE [km/s]', 'Vy GSE [km/s]', 'Vz GSE [km/s]'):
+                if pattern in tags_up_dw:
                     values.append(cell.find_next('td').find_next('td').get_text(separator=' ').strip())
             else:
                 print(f'Pattern not found: {pattern}')

@@ -68,6 +68,10 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
     time_col = df.attrs['global'].get('time_col','epoch')
     set_df_indices(df, time_col)  # Sets the index as datetime
 
+    # Removes any placeholder dates
+    placeholder_date = pd.Timestamp('9999-12-13 23:59:59.999')
+    df = df.mask(df == placeholder_date)
+
     if bad_data is not None:
         exclude_days(df, bad_data)
     if date_range is not None:

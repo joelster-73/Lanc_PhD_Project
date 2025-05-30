@@ -18,8 +18,8 @@ OMNI_CDA_TREE = cda_tree.OMNI_Combined_1AU_IP_Data__Magnetic_and_Solar_Indices.O
 
 # To find product, type in the console "cda_tree." and then tab, and keep doing this to find product
 
-all_spacecraft = {'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THA','THB','THC','THD','THE'),
-                  'L1': ('ACE','DSC','WIND')}
+all_spacecraft = {'L1': ('ACE','DSC','WIND'),
+                  'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THA','THB','THC','THD','THE')}
 
 data_availability = {
     'C1':   (datetime(2000, 8, 22),          datetime(2024, 10, 3, 20, 35)),
@@ -34,7 +34,25 @@ data_availability = {
     'ACE':  (datetime(1997, 9, 2),           datetime(2025, 5, 13)),
     'DSC':  (datetime(2015, 3, 9, 0, 25),    datetime(2023, 5, 28, 23)),
     'GEO':  (datetime(1992, 9, 18),          datetime(2006, 11, 22, 23, 59)),
-    'IMP8': (datetime(1973, 10, 30),         datetime(2004, 6, 30, 23, 48)),
+    'IMP8': (datetime(1973, 10, 30),         datetime(2000, 6, 10, 23, 59)),
+    'WIND': (datetime(1994, 11, 1),          datetime(2024, 9, 29)),
+    'OMNI': (datetime(1995, 1, 1),           datetime(2025, 1, 9))
+}
+
+data_availability_mag = {
+    'C1':   (datetime(2000, 12, 3, 0, 56),   datetime(2023, 12, 31, 23, 59)),
+    'C2':   (datetime(2000, 12, 2, 14, 1),   datetime(2023, 12, 31, 23, 59)),
+    'C3':   (datetime(2000, 12, 2, 15, 11),  datetime(2023, 12, 31, 23, 59)),
+    'C4':   (datetime(2001, 1, 7),           datetime(2023, 12, 31, 23, 59)),
+    'THA':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 17, 23, 59)),
+    'THB':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 10, 23, 59)),
+    'THC':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 9, 23, 59)),
+    'THD':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 17, 23, 59)),
+    'THE':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 16, 23, 59)),
+    'ACE':  (datetime(1997, 9, 2),           datetime(2025, 5, 13)),
+    'DSC':  (datetime(2016, 8, 1),           datetime(2025, 5, 27, 23, 59)),
+    'GEO':  (datetime(1992, 9, 18),          datetime(2006, 11, 22, 23, 59)),
+    'IMP8': (datetime(1973, 10, 30),         datetime(2000, 6, 10, 23, 59)),
     'WIND': (datetime(1994, 11, 1),          datetime(2024, 9, 29)),
     'OMNI': (datetime(1995, 1, 1),           datetime(2025, 1, 9))
 }
@@ -163,7 +181,7 @@ colour_dict = {
     'ACE':  'darkviolet',
     'DSC':  'deeppink',
     'GEO':  'teal',
-    'IMP8': 'pink',
+    'IMP8': 'crimson',
     'WIND': 'magenta'
 }
 

@@ -1,4 +1,4 @@
-Log created on 2025-05-26 08:43:04
+Log created on 2025-05-29 18:00:44
 1995-03-01 07:10:17 not added (WIND): Shock speed (791.6) is smaller than uncertainty (959.2).
 1998-02-18 07:53:01 not added (ACE): Shock speed is negative/zero (0.0).
 1998-03-04 11:02:46 not added (WIND): Shock speed is negative/zero (-52.9).
@@ -7,6 +7,7 @@ Log created on 2025-05-26 08:43:04
 2000-04-24 08:51:58 not added (ACE): Shock speed (2.4) is smaller than uncertainty (10.3).
 2000-07-13 09:19:00 not added (ACE): Shock speed (9.1) is smaller than uncertainty (25.9).
 2000-11-10 06:19:31 not added (WIND): Shock speed (1000.5) is smaller than uncertainty (8357.7).
+2001-08-31 23:59:55 not added (WIND): cannot reindex on an axis with duplicate labels
 2001-09-25 20:17:16 not added (WIND): Shock speed uncertainty is NaN.
 2002-03-22 03:23:01 not added (ACE): Shock speed (67.1) is smaller than uncertainty (2899.4).
 2002-05-30 02:20:16 not added (WIND): Shock speed (475.9) is smaller than uncertainty (1123.2).
@@ -17,3 +18,16 @@ Log created on 2025-05-26 08:43:04
 2014-05-03 16:37:46 not added (WIND): Shock speed is negative/zero (0.0).
 2016-07-19 22:55:00 not added (DSC): No DSC data available.
 2017-09-06 23:07:59 not added (DSC): Shock speed (776.7) is smaller than uncertainty (3325.3).
+1995-03-01 07:10:17 not added (WIND): cannot convert float NaN to integer
+1998-02-18 07:53:01 not added (ACE): cannot convert float NaN to integer
+1998-03-04 11:02:46 not added (WIND): cannot convert float NaN to integer
+1998-08-10 00:31:16 not added (WIND): cannot convert float NaN to integer
+2000-01-30 18:44:56 not added (ACE): cannot convert float NaN to integer
+2000-04-24 08:51:58 not added (ACE): cannot convert float NaN to integer
+2000-07-13 09:19:00 not added (ACE): cannot convert float NaN to integer
+2000-11-10 06:19:31 not added (WIND): cannot convert float NaN to integer
+2001-08-31 23:59:55 not added (WIND): cannot convert float NaN to integer
+2001-09-25 20:17:16 not added (WIND): cannot convert float NaN to integer
+2002-03-22 03:23:01 not added (ACE): cannot convert float NaN to integer
+2002-05-30 02:20:16 not added (WIND): cannot convert float NaN to integer
+2005-05-29 08:59:31 not added (WIND): cannot convert float NaN to integer
