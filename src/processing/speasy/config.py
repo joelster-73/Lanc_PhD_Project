@@ -167,6 +167,17 @@ V_dict_gse = {
     'OMNI': 'omni_hro2_1min_sw_vgse' # Bulk Velocitity
 }
 
+
+speasy_variables = {
+    'B_GSE': B_dict_gse,
+    'B_GSM': B_dict_gsm,
+    'B_mag': B_dict_tot,
+    'R_GSE': R_dict_gse,
+    'P_dyn': P_dict_dyn,
+    'V_GSE': V_dict_gse,
+    'OMNI_sc': OMNI_CDA_TREE.IMF
+}
+
 colour_dict = {
     'OMNI': 'orange',
     'C1':   'blue',
@@ -183,15 +194,4 @@ colour_dict = {
     'GEO':  'teal',
     'IMP8': 'crimson',
     'WIND': 'magenta'
-}
-
-
-speasy_variables = {
-    'B_GSE': B_dict_gse,
-    'B_GSM': B_dict_gsm,
-    'B_mag': B_dict_tot,
-    'R_GSE': R_dict_gse,
-    'P_dyn': P_dict_dyn,
-    'V_GSE': V_dict_gse,
-    'OMNI_sc': OMNI_CDA_TREE.IMF
 }

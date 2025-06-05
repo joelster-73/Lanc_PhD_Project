@@ -63,7 +63,7 @@ def find_time_lag(parameter, source1, source2, source1_time, source2_time):
     if source2 in ('WIND','ACE','DSC'):
         source2_time = source1_time
 
-    buffer_size = 15
+    buffer_size = 90
     try_start = source1_time-timedelta(minutes=buffer_size)
     try_end = source2_time+timedelta(minutes=buffer_size)
 

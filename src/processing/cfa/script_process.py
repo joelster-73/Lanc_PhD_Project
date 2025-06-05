@@ -32,7 +32,7 @@ output_file = os.path.join(PROC_SHOCKS_DIR, 'cfa_shocks_intercepts.cdf')
 shocks_with_intercepts = find_all_shocks(shocks,'B_mag')
 shocks_with_intercepts.reset_index(inplace=True)
 
-write_to_cdf(shocks_with_intercepts,output_file)
+#write_to_cdf(shocks_with_intercepts,output_file)
 
 # %%
 from src.config import PROC_SHOCKS_DIR
@@ -42,3 +42,5 @@ from src.plotting.shocks import plot_all_shocks
 shocks_intercepts = import_processed_data(PROC_SHOCKS_DIR)
 
 plot_all_shocks(shocks_intercepts, 'B_mag', plot_in_sw=True, plot_positions=True)
+
+# %%

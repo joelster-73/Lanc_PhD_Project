@@ -62,7 +62,6 @@ def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
         return shock
 
     else:
-
         script_dir = os.getcwd() # change to location of script __file__
         file_name = 'Shocks_not_processed.txt'
         file_path = os.path.join(script_dir, file_name)
@@ -70,10 +69,7 @@ def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
             with open(file_path, 'w') as my_file:
                 my_file.write(f'Log created on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
 
-
         for index, shock in shocks.iterrows():
-
-            # find_shock(shock, parameter, time_window, position_var, R_E)
 
             try:
                 sc_dict = find_shock(shock, parameter, time_window, position_var, R_E)
@@ -82,7 +78,7 @@ def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
                     shocks.at[index, key] = value
 
             except Exception as e:
-                print(f'Issue with shock at time {index}.')
+                print(f'Issue with shock at time {index}: {e}')
                 with open(file_path, 'a') as my_file:
                     sc = shock['spacecraft'].upper()
                     my_file.write(f'{index.strftime("%Y-%m-%d %H:%M:%S")} not added ({sc}): {e}\n')
@@ -116,12 +112,15 @@ def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     shock_time_unc = shock['time_s_unc']
     if np.isnan(shock_time_unc):
         shock_time_unc = 0
-    sc_L1 = shock['spacecraft'].upper()
 
-    try:
-        arrival_time     = shock_time + timedelta(seconds=shock['delay_s'])
-    except:
-        arrival_time     = shock_time + timedelta(hours=1)
+    sc_L1 = shock['spacecraft'].upper()
+    if sc_L1=='ACE' and shock_time.year<2004: # odd entries in database
+        arrival_time = shock_time + timedelta(hours=1)
+    else:
+        try:
+            arrival_time = shock_time + timedelta(seconds=shock['delay_s'])
+        except:
+            arrival_time = shock_time + timedelta(hours=1)
 
     start_time_up = shock_time-timedelta(minutes=time_window)
     end_time_up   = shock_time+timedelta(minutes=time_window)
@@ -137,19 +136,28 @@ def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
 
     return_dict[f'{sc_L1}_time'] = pd.to_datetime(shock_time)
     return_dict[f'{sc_L1}_time_unc_s'] = shock_time_unc
-    return_dict[f'{sc_L1}_coeff'] = 1
+    return_dict[f'{sc_L1}_coeff'] = 1.1 # >1 to be clear this is an exact match
 
-    for comp in ('x','y','z'):
-        return_dict[f'{sc_L1}_r_{comp}_GSE'] = shock[f'r_{comp}_GSE']
+    sc_pos, sc_pos_unc = retrieve_position_unc(sc_L1, speasy_variables, shock_time, shock_time_unc, shock_time_unc)
 
-    _, sc_pos_unc = retrieve_position_unc(sc_L1, speasy_variables, shock_time, shock_time_unc, shock_time_unc)
+    if sc_L1=='ACE' and shock_time.year<2004:
+        if sc_pos is not None: # odd entries in database
+            return_dict[f'{sc_L1}_r_x_GSE'], return_dict[f'{sc_L1}_r_y_GSE'], return_dict[f'{sc_L1}_r_z_GSE'] = sc_pos
+        else:
+            return_dict[f'{sc_L1}_r_x_GSE'] = 250
+            return_dict[f'{sc_L1}_r_y_GSE'] = 0
+            return_dict[f'{sc_L1}_r_z_GSE'] = 0
+    else:
+        for comp in ('x','y','z'):
+            return_dict[f'{sc_L1}_r_{comp}_GSE'] = shock[f'r_{comp}_GSE']
+
     if sc_pos_unc is not None:
         return_dict[f'{sc_L1}_r_x_GSE_unc'], return_dict[f'{sc_L1}_r_y_GSE_unc'], return_dict[f'{sc_L1}_r_z_GSE_unc'] = sc_pos_unc
-
 
     ###-------------------OTHER SPACECRAFT-------------------###
     for region in ['L1', 'Earth']:
         for source in all_spacecraft.get(region, []):
+            approx_time = arrival_time
             if source == sc_L1:
                 continue
             elif source == 'OMNI':
@@ -157,6 +165,7 @@ def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
                 end   = max(end_time_up,end_time_dw)
             elif region == 'L1':
                 start, end = start_time_up, end_time_up
+                approx_time = shock_time
             elif region == 'Earth':
                 start, end = start_time_dw, end_time_dw
             else:
@@ -177,7 +186,7 @@ def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
                 if np.any(~in_sw):
                     continue
 
-            time_lag, lag_unc, lag_coeff = find_time_lag(parameter, sc_L1, source, shock_time, arrival_time)
+            time_lag, lag_unc, lag_coeff = find_time_lag(parameter, sc_L1, source, shock_time, approx_time)
             if np.isnan(time_lag):
                 continue
 

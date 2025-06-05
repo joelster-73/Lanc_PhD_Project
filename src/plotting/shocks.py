@@ -23,7 +23,6 @@ from ..processing.speasy.retrieval import retrieve_data, retrieve_datum
 from ..processing.omni.config import omni_spacecraft
 
 from ..analysing.shocks.in_sw import is_in_solar_wind, approximate_pressure
-from ..analysing.shocks.dot_product import sort_positions
 from ..coordinates.boundaries import msh_boundaries
 
 
@@ -54,7 +53,7 @@ def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', u
 
     ax.axvline(x=time, c=colour, ls='--', lw=0.5, label=line_label)
 
-def plot_all_shocks(shocks, parameter, time=None, time_window=15, position_var='R_GSE', R_E=6370, shock_colour='red', start_printing=None, plot_positions=False, plot_in_sw=False):
+def plot_all_shocks(shocks, parameter, time=None, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', start_printing=None, plot_positions=False, plot_in_sw=False):
 
     if isinstance(shocks, pd.Series):
         plot_shock_times(shocks, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
@@ -75,13 +74,6 @@ def plot_all_shocks(shocks, parameter, time=None, time_window=15, position_var='
 
     else:
 
-        script_dir = os.getcwd() # change to location of script __file__
-        file_name = 'Shocks_not_processed.txt'
-        file_path = os.path.join(script_dir, file_name)
-        if not os.path.exists(file_path):
-            with open(file_path, 'w') as my_file:
-                my_file.write(f'Log created on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
-
         for index, shock in shocks.iterrows():
 
             if start_printing is not None and index < start_printing: # where printing got up to
@@ -94,13 +86,10 @@ def plot_all_shocks(shocks, parameter, time=None, time_window=15, position_var='
                 if plot_positions:
                     plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
 
-            except Exception as e:
+            except Exception:
                 print(f'Issue with shock at time {index}.')
-                with open(file_path, 'a') as my_file:
-                    sc = shock['spacecraft'].upper()
-                    my_file.write(f'{index.strftime("%Y-%m-%d %H:%M:%S")} not added ({sc}): {e}\n')
 
-def plot_shock_times(shock, parameter, time_window=15, position_var='R_GSE', R_E=6370, shock_colour='red', plot_in_sw=False):
+def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', plot_in_sw=False):
 
 
     shock_time = shock.name.to_pydatetime()
@@ -115,23 +104,15 @@ def plot_shock_times(shock, parameter, time_window=15, position_var='R_GSE', R_E
         arrival_time     = shock_time + timedelta(hours=1)
         arrival_time_unc = 0
 
-    start_time_up = shock_time-timedelta(minutes=time_window)
-    end_time_up   = shock_time+timedelta(minutes=time_window)
+    start_times   = []
+    end_times     = []
 
-    start_time_dw = arrival_time-timedelta(minutes=time_window)
-    end_time_dw   = arrival_time+timedelta(minutes=time_window)
-
-    ###-------------------SHOCK DATA-------------------###
-    fig, ax = plt.subplots(figsize=(12,8))
-
-    plot_vertical_line_unc(ax, shock_time, shock_time_unc, 'Shock Detected')
-    plot_vertical_line_unc(ax, arrival_time, arrival_time_unc, 'Predict at Earth')
+    spacecraft_times = {}
 
     for region in ['L1', 'Earth']:
         for source in all_spacecraft.get(region, []):
 
             time = shock[f'{source}_time']
-            time_unc = shock[f'{source}_time_unc_s']
 
             plot_data = False
             plot_vertical = False
@@ -164,32 +145,49 @@ def plot_shock_times(shock, parameter, time_window=15, position_var='R_GSE', R_E
                 plot_data = True
                 plot_vertical = True
 
-
             if plot_data:
-                start = time-timedelta(minutes=time_window)
-                end   = time+timedelta(minutes=time_window)
+                spacecraft_times[source] = (time, plot_vertical)
 
-                if source in(sc_L1,'OMNI'):
-                    lw = 1.2
+    spacecraft_times = dict(sorted(
+        spacecraft_times.items(),
+        key=lambda item: (not item[1][1], item[1][0])  # Sort by boolean (True first), then by time
+    ))
 
-                df_param = retrieve_data(parameter, source, speasy_variables, start, end, downsample=True)
-                if df_param.empty:
-                    continue
+    ###-------------------SHOCK DATA-------------------###
+    fig, ax = plt.subplots(figsize=(12,8))
 
-                sc_label = f'{source}'
-                if source != sc_L1:
-                    if source == 'OMNI':
-                        omni_sc = omni_spacecraft.get(int(shock['OMNI_sc']),int(shock['OMNI_sc']))
-                        sc_label += f' [{omni_sc}]'
+    plot_vertical_line_unc(ax, shock_time, shock_time_unc, 'Shock Detected')
+    plot_vertical_line_unc(ax, arrival_time, arrival_time_unc, 'Predict at Earth')
 
-                    coeff = shock[f'{source}_coeff']
-                    if ~np.isnan(coeff):
-                        sc_label += f' ({coeff:.2f})'
+    for source, (time, plot_vertical) in spacecraft_times.items():
+        start = time-timedelta(minutes=time_window)
+        end   = time+timedelta(minutes=time_window)
+        time_unc = shock[f'{source}_time_unc_s']
 
-                    if plot_vertical:
-                        sc_label = plot_vertical_line_unc(ax, time, time_unc, sc_label, colour_dict.get(source), return_label=True)
+        if source in(sc_L1,'OMNI'):
+            lw = 1.2
 
-                plot_segments(ax, df_param, colour_dict.get(source), sc_label, parameter, lw=lw, marker='.')
+        df_param = retrieve_data(parameter, source, speasy_variables, start, end, downsample=True)
+        if df_param.empty:
+            continue
+
+        sc_label = f'{source}'
+        if source != sc_L1:
+            if source == 'OMNI':
+                omni_sc = omni_spacecraft.get(int(shock['OMNI_sc']),int(shock['OMNI_sc']))
+                sc_label += f' [{omni_sc}]'
+
+            coeff = shock[f'{source}_coeff']
+            if ~np.isnan(coeff):
+                sc_label += f' ({coeff:.2f})'
+
+            if plot_vertical:
+                sc_label = plot_vertical_line_unc(ax, time, time_unc, sc_label, colour_dict.get(source), return_label=True)
+
+        plot_segments(ax, df_param, colour_dict.get(source), sc_label, parameter, lw=lw, marker='.')
+
+        start_times.append(start)
+        end_times.append(end)
 
 
     ###-------------------SHOCK ARROW-------------------###
@@ -213,19 +211,25 @@ def plot_shock_times(shock, parameter, time_window=15, position_var='R_GSE', R_E
 
     formatter = FuncFormatter(custom_date_formatter)
     ax.xaxis.set_major_formatter(formatter)
-    ax.set_xlim(min(start_time_up,start_time_dw)-timedelta(minutes=5),
-                max(end_time_up,end_time_dw)+timedelta(minutes=5))
+    ax.set_xlim(min(start_times), max(end_times))
 
     ax2 = ax.twiny()
     ax2.set_xlim(ax.get_xlim())
 
-    min_time_diff = (pd.Timestamp(min(start_time_up,start_time_dw)) - pd.Timestamp(shock_time)).total_seconds()
-    max_time_diff = (pd.Timestamp(max(end_time_up,end_time_dw)) - pd.Timestamp(shock_time)).total_seconds()
+    min_time_diff = (pd.Timestamp(min(start_times)) - pd.Timestamp(shock_time)).total_seconds()
+    max_time_diff = (pd.Timestamp(max(end_times)) - pd.Timestamp(shock_time)).total_seconds()
 
-    min_time_diff = round(min_time_diff/600)*10
-    max_time_diff = round(max_time_diff/600)*10
+    time_range = max_time_diff - min_time_diff
+    if time_range < 60:
+        diff_step = 5
+    elif time_range > 120:
+        diff_step = 20
+    else:
+        diff_step = 10
+    min_time_diff = round(min_time_diff/600)*diff_step
+    max_time_diff = round(max_time_diff/600)*diff_step
 
-    time_diff_ticks = np.arange(min_time_diff, max_time_diff+1, 10)
+    time_diff_ticks = np.arange(min_time_diff, max_time_diff+1, diff_step)
 
     shock_time_numeric = mdates.date2num(shock_time)  # Convert shock_time to matplotlib's numeric format
     time_tick_positions = shock_time_numeric + time_diff_ticks / (24 * 60)  # Convert seconds to days for x-axis
@@ -281,7 +285,7 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
         Ni_OMNI = shock['ni_dw']
         Pd_OMNI = approximate_pressure(Ni_OMNI, Vsw_OMNI)
 
-    intercept_pos = {}
+    spacecraft_positions = {}
     for region in ['L1', 'Earth']:
         for source in all_spacecraft.get(region, []):
             if source in (sc_L1,'OMNI'):
@@ -291,17 +295,22 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
             coord = shock[[f'{source}_r_x_GSE',f'{source}_r_y_GSE',f'{source}_r_z_GSE']].to_numpy()
 
             if not pd.isnull(time):
-                intercept_pos[source] = {'x': coord[0], 'y': coord[1], 'z': coord[2]}
+                spacecraft_positions[source] = (time,{'x': coord[0], 'y': coord[1], 'z': coord[2]},True)
 
             # need way to make clear in legend, and sort by time not position?
             else:
-                pos, _ = retrieve_datum('R_GSE', source, speasy_variables, arrival_time)
+                if source in ('WIND','ACE','DSC'):
+                    time = shock_time
+                else:
+                    time = arrival_time
+                pos, _ = retrieve_datum('R_GSE', source, speasy_variables, time)
                 if pos is not None:
-                    intercept_pos[source] = {'x': pos[0], 'y': pos[1], 'z': pos[2]}
+                    spacecraft_positions[source] = (time,{'x': pos[0], 'y': pos[1], 'z': pos[2]},False)
 
-
-
-    positions = sort_positions(intercept_pos, shock)
+    positions = dict(sorted(
+        spacecraft_positions.items(),
+        key=lambda item: (not item[1][2], item[1][0])  # Sort by boolean (True first), then by time
+    ))
 
     orbits = {}
     for sc in ('C1','THA','THB'):
@@ -373,11 +382,15 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
 
         ###-------------------OTHER SPACECRAFT-------------------###
 
-        for ind, (sc, coord) in enumerate(positions.items()):
+        ind = 1
+        for sc, (time,coord,label_number) in positions.items():
             if sc in (sc_L1,'OMNI'):
                 continue
-
-            sc_label = f'{ind+1}. {sc}'
+            if label_number:
+                sc_label = f'{ind}. {sc}'
+                ind += 1
+            else:
+                sc_label = sc
 
             ax.scatter(coord.get(x_coord), coord.get(y_coord), marker='x', color=colour_dict.get(sc), label=sc_label)
 

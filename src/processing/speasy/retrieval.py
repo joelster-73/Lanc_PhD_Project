@@ -112,14 +112,15 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
     return df
 
 
-def retrieve_datum(parameter, source, speasy_variables, time):
+def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False):
 
     if time is None:
         return None, None
 
     available_start, available_end = data_availability.get(source)
     if time < available_start or time > available_end:
-        print(f'{source} outside available range: {available_start} to {available_end}')
+        if print_bounds:
+            print(f'{source} outside available range: {available_start} to {available_end}')
         return None, None
 
     data_id = speasy_variables.get(parameter).get(source)
