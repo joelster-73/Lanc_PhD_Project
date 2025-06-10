@@ -55,6 +55,8 @@ def is_in_solar_wind(spacecraft, speasy_variables, start, end, **kwargs):
     pos_var = kwargs.get('position_var','R_GSE')
     shock   = kwargs.get('shock',None)
 
+    shock = None # temporary fix as not passing shock info in
+
     if pos_df is None:
         pos_df = retrieve_data(pos_var, spacecraft, speasy_variables, start, end, upsample=True)
     if pos_df is None:

@@ -4,70 +4,43 @@ Created on Thu May  8 18:33:37 2025
 
 @author: richarj2
 """
-# %%
-from src.config import PROC_CFA_DIR
-from src.processing.reading import import_processed_data
 
-shocks = import_processed_data(PROC_CFA_DIR)
 
 # %%
-import matplotlib.pyplot as plt
-import numpy as np
-fig, ax = plt.subplots()
+def find_closest(shocks):
 
-delay_times = shocks['delay_s'].to_numpy()/60
-delay_times_unc = shocks['delay_s_unc'].to_numpy()/60
-valids = ~np.isnan(delay_times) & ~np.isnan(delay_times_unc)
+    if 'closest' not in shocks.columns:
+        shocks['closest'] = None
 
-delay_times = delay_times[valids]
-delay_times_unc = delay_times_unc[valids]
-sorted_array1, sorted_array2 = zip(*sorted(zip(delay_times, delay_times_unc)))
-delay_times = np.array(list(sorted_array1))
-delay_times_unc = np.array(list(sorted_array2))
+    sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
 
-y_values = np.arange(1,2*len(delay_times)+1,2)
+    for index, shock in shocks.iterrows():
 
-booleans = (delay_times_unc>np.abs(delay_times))
-colours = ['r' if bol else 'grey' for bol in booleans]
-ax.errorbar(delay_times, y_values, xerr=delay_times_unc, yerr=0, fmt='k.', ecolor=colours, elinewidth=0.2, markersize=0.1)
+        omni_pos = np.array([shock[f'OMNI_r_{comp}_GSE'] for comp in ('x','y','z')])
+        for comp in omni_pos:
+            if np.isnan(comp):
+                continue
 
-ax.set_xlim(-60,120)
-ax.set_xlabel('Delay time [mins]')
-ax.set_ylabel('#')
-ax.set_title(f'CFA Delay times and errors {np.sum(booleans)}/{len(booleans)}')
-plt.show()
+        sc_distances = {}
+        for sc in sc_labels:
+            if sc == 'OMNI' or sc==shock['spacecraft']:
+                continue
 
-# %%
+            sc_pos = np.array([shock[f'{sc}_r_{comp}_GSE'] for comp in ('x','y','z')])
+            for comp in sc_pos:
+                if np.isnan(comp):
+                    continue
+            sc_distances[sc] = np.linalg.norm(sc_pos - omni_pos)
 
-fig, ax = plt.subplots()
-
-delay_times = shocks['v_sh'].to_numpy()
-delay_times_unc = shocks['v_sh_unc'].to_numpy()
-valids = ~np.isnan(delay_times) & ~np.isnan(delay_times_unc)
-
-delay_times = delay_times[valids]
-delay_times_unc = delay_times_unc[valids]
-sorted_array1, sorted_array2 = zip(*sorted(zip(delay_times, delay_times_unc)))
-delay_times = np.array(list(sorted_array1))
-delay_times_unc = np.array(list(sorted_array2))
-
-y_values = np.arange(1,2*len(delay_times)+1,2)
-
-booleans = (delay_times_unc>np.abs(delay_times))
-colours = ['r' if bol else 'grey' for bol in booleans]
-ax.errorbar(delay_times, y_values, xerr=delay_times_unc, yerr=0, fmt='k.', ecolor=colours, elinewidth=0.2, markersize=0.1)
-
-ax.set_xlim(-100,1000)
-ax.set_xlabel('Shock speed [km/s]')
-ax.set_ylabel('#')
-ax.set_title(f'CFA Shock speeds and errors {np.sum(booleans)}/{len(booleans)}')
-plt.show()
+        shocks.at[index,'closest'] = min(sc_distances, key=sc_distances.get)
 
 # %% Importing
 from src.config import PROC_SHOCKS_DIR
 from src.processing.reading import import_processed_data
 
+
 shocks_intercepts = import_processed_data(PROC_SHOCKS_DIR)
+find_closest(shocks_intercepts)
 
 # %%
 import numpy as np
@@ -77,7 +50,7 @@ columns = [col for col in shocks_intercepts if '_coeff' in col]
 
 all_coeffs = shocks_intercepts[columns].to_numpy().flatten()
 all_coeffs = all_coeffs[~np.isnan(all_coeffs)]
-all_coeffs = all_coeffs[(all_coeffs>=0)&(all_coeffs<1)]
+all_coeffs = all_coeffs[(all_coeffs>=0)&(all_coeffs<=1)]
 
 bin_width=0.01
 bins = np.arange(start=0, stop=1+bin_width, step=bin_width)
@@ -87,75 +60,39 @@ fig, ax = plt.subplots()
 ax.hist(all_coeffs, bins=bins, color='b')
 ax.set_xlabel('Cross Correlation [0,1)')
 ax.set_ylabel('Count')
+ax.set_title(f'{len(all_coeffs)} coefficients')
 
 plt.show()
 
 # %%
-import pandas as pd
+from uncertainties import unumpy as unp
+from uncertainties import ufloat
 
-shocks_closest = pd.DataFrame(index=shocks_intercepts.index)
+def vec_mag(vec):
 
-sc_labels      = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
-
-dist_columns   = {f'{sc}_dist_diff': np.nan for sc in sc_labels if sc!='OMNI'}
-time_columns   = {f'{sc}_time_diff': np.nan for sc in sc_labels if sc!='OMNI'}
-shocks_closest = shocks_closest.assign(**{**{'detector': None}, **dist_columns, **time_columns, **{'closest': None}})
-
-# %%
-
-#distance_choice = 'crow'
-distance_choice = 'path'
-
-for index, shock in shocks_intercepts.iterrows():
-    sc_xs = shock[[f'{sc}_r_x_GSE' for sc in sc_labels]]
-    sc_ys = shock[[f'{sc}_r_y_GSE' for sc in sc_labels]]
-    sc_zs = shock[[f'{sc}_r_z_GSE' for sc in sc_labels]]
-
-    sc_positions = {}
-    for sc in sc_labels:
-
-        x = sc_xs.get(f'{sc}_r_x_GSE',np.nan)
-        y = sc_ys.get(f'{sc}_r_y_GSE',np.nan)
-        z = sc_zs.get(f'{sc}_r_z_GSE',np.nan)
-        if np.isnan(x) or np.isnan(y) or np.isnan(z):
-            continue
-        sc_positions[sc] = np.array([x,y,z])
-
-    if 'OMNI' not in sc_positions:
-        continue
-
-    shocks_closest.at[index,'detector'] = shock['spacecraft']
-    detector_pos = np.array(shock[['r_x_GSE','r_y_GSE','r_z_GSE']])
-    bs_to_l1 = detector_pos-sc_positions['OMNI']
-
-    sc_distances = {}
-    for sc in sc_positions:
-        if sc == 'OMNI':
-            sc_distances[sc] = np.linalg.norm(detector_pos-sc_positions['OMNI'])
-            shocks_closest.at[index,f'{sc}_dist_diff'] = sc_distances[sc]
-            shocks_closest.at[index,f'{sc}_time_diff'] = (shock['OMNI_time']-index).total_seconds()
-            continue
-
-        bs_to_sc = sc_positions[sc]-sc_positions['OMNI']
-        if distance_choice == 'crow':
-            sc_distances[sc] = np.linalg.norm(bs_to_sc)
-        elif distance_choice == 'path':
-            try:
-                if sc=='ACE' and np.dot(bs_to_sc,bs_to_l1)<-150:
-                    print(shock['spacecraft'],detector_pos)
-                sc_distances[sc] = np.dot(bs_to_sc,bs_to_l1)/np.linalg.norm(bs_to_l1)
-            except:
-                sc_distances[sc] = 0
+    try:
+        return np.linalg.norm(vec)
+    except:
+        return unp.sqrt(np.sum(vec**2))
+    return np.nan
 
 
-        shocks_closest.at[index,f'{sc}_dist_diff'] = sc_distances[sc]
-        shocks_closest.at[index,f'{sc}_time_diff'] = (shock[f'{sc}_time']-shock['OMNI_time']).total_seconds()
+def get_position_u(shock, sc):
 
-    sc_distances_no_omni = sc_distances.copy()
-    del sc_distances_no_omni['OMNI']
-    shocks_closest.at[index,'closest'] = min(sc_distances_no_omni, key=sc_distances_no_omni.get)
+    x = shock[f'{sc}_r_x_GSE']
+    y = shock[f'{sc}_r_y_GSE']
+    z = shock[f'{sc}_r_z_GSE']
+    for comp in (x,y,z):
+        if np.isnan(comp):
+            return None
 
-# %%
+    x_u = shock[f'{sc}_r_x_GSE_unc']
+    y_u = shock[f'{sc}_r_x_GSE_unc']
+    z_u = shock[f'{sc}_r_x_GSE_unc']
+    for unc in (x_u,y_u,z_u):
+        if np.isnan(unc):
+            unc = 0
+    return unp.uarray([x,y,z],[x_u,y_u,z_u])
 
 
 colour_dict = {
@@ -176,114 +113,256 @@ colour_dict = {
     'WIND': 'magenta'
 }
 
-#plot_choice = 'closest'
-plot_choice = 'all'
-
-correlation_limit = 0.5
-
-distances  = []
-times      = []
-coeffs     = []
-spacecraft = []
-detector   = []
-dist_scale = []
-time_scale = []
-
-for index, shock in shocks_closest.iterrows():
-    if shock['detector'] is None:
-        continue
-    if plot_choice == 'closest':
-        sc_closest = shock['closest']
-        if sc_closest is None:
-            continue
-        sc_list = (sc_closest,)
-    elif plot_choice == 'all':
-        sc_list = [sc for sc in sc_labels if sc!='OMNI']
-
-    for sc in sc_list:
-        if sc==shock['detector']:
-            continue
-
-        corr_coeff = shocks_intercepts.loc[index,f'{sc}_coeff']
-        if np.isnan(corr_coeff) or corr_coeff<correlation_limit:
-            #==1 prevents exact matches
-            continue
-
-        detector.append(shock['detector'].upper())
-        spacecraft.append(sc)
-        distances.append(shock[f'{sc}_dist_diff'])
-        times.append(shock[f'{sc}_time_diff'])
-        coeffs.append(corr_coeff)
-        dist_scale.append(shock['OMNI_dist_diff'])
-        time_scale.append(shock['OMNI_time_diff'])
-
-distances = np.array(distances)
-times = np.array(times)
-coeffs = np.array(coeffs)
-spacecraft = np.array(spacecraft)
-detector = np.array(detector)
-dist_scale = np.array(dist_scale)
-time_scale = np.array(time_scale)
-
 # %%
+
+
+
+
+import pandas as pd
 from collections import Counter
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-colouring = 'coeff'
-show_best_fit = True
-closish = abs(distances)<100
+def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist', colouring='spacecraft', show_best_fit=True, show_errors=True, max_dist=100):
 
-xs = distances[closish]
-ys = times[closish]/60
+    # selection = closest, all
+    # x_axis    = dist, x_comp, earth_sun
+    # colouring = coeff, spacecraft, detector, none
 
-fig, ax = plt.subplots()
-ax.axhline(0,c='k',ls=':')
+    distances     = []
+    distances_unc = []
+    times         = []
+    times_unc     = []
+    coeffs        = []
+    spacecrafts   = []
+    detectors     = []
 
-if colouring == 'coeff':
+    sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
 
-    scatter = ax.scatter(xs, ys, c=coeffs[closish], cmap='coolwarm', vmin=correlation_limit, vmax=1, s=1)
-    cbar = plt.colorbar(scatter)
-    cbar.set_label('correlation coefficient')
+    for index, shock in shocks.iterrows():
+        detector = shock['spacecraft']
 
-elif colouring in ('spacecraft','detector'):
-    if colouring == 'spacecraft':
-        spacecraft_counts = Counter(spacecraft[closish])
-        spacecraft_series = pd.Series(spacecraft[closish])
+        BS_time     = shock['OMNI_time']
+        if pd.isnull(BS_time):
+            continue
+
+
+        BS_pos = get_position_u(shock,'OMNI')
+        if BS_pos is None and x_axis!='earth_sun':
+            continue
+
+        for sc in sc_labels:
+            if (selection=='closest' and sc!=shock['closest']) or sc in ('OMNI',detector):
+                continue
+
+            corr_coeff = shock[f'{sc}_coeff']
+            if isinstance(corr_coeff, (pd.Series, pd.DataFrame)) and len(corr_coeff) > 1:
+                corr_coeff = corr_coeff.iloc[0]  # Get the first value
+            else:
+                corr_coeff = corr_coeff
+
+            if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
+                #1.1 indicates exact matches
+                continue
+
+            if x_axis=='earth_sun':
+                L1_pos = get_position_u(shock,detector)
+                if L1_pos is None:
+                    continue
+                L1_rho = unp.sqrt(L1_pos[1]**2+L1_pos[2]**2)
+                distances.append(L1_rho.n)
+                distances_unc.append(L1_rho.s)
+
+            elif x_axis=='x_comp':
+                sc_x = ufloat(shock[f'{sc}_r_x_GSE'],shock[f'{sc}_r_x_GSE_unc'])
+                if np.isnan(sc_x.n):
+                    continue
+                bs_x = ufloat(shock['OMNI_r_x_GSE'] ,shock['OMNI_r_x_GSE_unc'])
+                distances.append((sc_x-bs_x).n)
+                distances_unc.append((sc_x-bs_x).s)
+
+            elif x_axis=='dist':
+                sc_pos = get_position_u(shock,sc)
+                if sc_pos is None:
+                    continue
+                dist_diff = vec_mag(sc_pos-BS_pos)
+                distances.append(unp.nominal_values(dist_diff))
+                distances_unc.append(unp.std_devs(dist_diff))
+            else:
+                raise Exception(f'{x_axis} not valid choice of "x_axis".')
+
+            detectors.append(detector.upper())
+            spacecrafts.append(sc)
+
+
+            time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
+            time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
+            times.append(time_diff)
+            times_unc.append(time_diff_unc.s)
+            coeffs.append(corr_coeff)
+
+    distances = np.array(distances)
+    times = np.array(times)
+    distances_unc = np.array(distances_unc)
+    times_unc = np.array(times_unc)
+    coeffs = np.array(coeffs)
+    spacecraft = np.array(spacecrafts)
+    detector = np.array(detectors)
+
+
+    closish = abs(distances)<max_dist
+
+    xs = distances[closish]
+    ys = times[closish]/60
+
+    xs_unc = distances_unc[closish]
+    ys_unc = times_unc[closish]/60
+
+    fig, ax = plt.subplots(figsize=(8,4),dpi=300)
+    if show_errors:
+        error_colour = 'k'
+
+    if show_errors:
+        error_colour = 'k' if colouring in ('coeff','spacecraft','detector') else 'r'
+        ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+
+
+    ax.axhline(0,c='grey',ls=':')
+
+    if colouring == 'coeff':
+
+        scatter = ax.scatter(xs, ys, c=coeffs[closish], cmap='coolwarm', vmin=coeff_lim, vmax=1, s=1)
+
+        cbar = plt.colorbar(scatter)
+        cbar.set_label('correlation coefficient')
+
+    elif colouring in ('spacecraft','detector'):
+        if colouring == 'spacecraft':
+            spacecraft_counts = Counter(spacecraft[closish])
+            spacecraft_series = pd.Series(spacecraft[closish])
+        else:
+            spacecraft_counts = Counter(detector[closish])
+            spacecraft_series = pd.Series(detector[closish])
+
+        colours = spacecraft_series.map(colour_dict).fillna('k').to_numpy()
+        scatter = ax.scatter(xs, ys, c=colours, s=1)
+
+        legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1,
+                              linestyle='None')
+                       for label, colour in colour_dict.items() if spacecraft_counts.get(label, 0) > 0
+        ]
+        plt.legend(handles=legend_elements, fontsize=6, loc='upper left', bbox_to_anchor=(1.01, 1.0))
+
     else:
-        spacecraft_counts = Counter(detector[closish])
-        spacecraft_series = pd.Series(detector[closish])
+        ax.scatter(distances[closish], times[closish]/60, c='k', s=1)
 
-    colours = spacecraft_series.map(colour_dict).fillna('k').to_numpy()
-    scatter = ax.scatter(xs, ys, c=colours, s=1)
+    from sklearn.metrics import r2_score
 
-    legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1,
-                          linestyle='None')
-                   for label, colour in colour_dict.items() if spacecraft_counts.get(label, 0) > 0
-    ]
-    plt.legend(handles=legend_elements, fontsize=6, loc='upper left', bbox_to_anchor=(1.01, 1.0))
+    if show_best_fit:
+        slope, intercept = np.polyfit(xs, ys, 1, w=1/ys_unc)
+        y_pred = slope * xs + intercept
+        ax.plot(xs,y_pred,c='k',lw=1,ls='--')
 
-else:
-    ax.scatter(distances[closish], times[closish]/60, c='k', s=1)
-
-if show_best_fit:
-    slope, intercept = np.polyfit(xs, ys, 1)
-    y_pred = slope * xs + intercept
-    ax.plot(xs,y_pred,c='r',lw=1,ls='--')
-
-    if intercept<0:
-        sign = '-'
-    else:
-        sign = '+'
-    ax.text(np.min(xs),np.max(ys),f'$\\Delta t$ = {slope:.2f}$\\Delta r$ {sign} {abs(intercept):.2f} mins')
+        if intercept<0:
+            sign = '-'
+        else:
+            sign = '+'
+        r2 = r2_score(ys, y_pred)
+        middle = (np.max(xs)+np.min(xs))/2
+        ax.text(middle,np.max(ys),f'$\\Delta t$ = {slope:.2f}$\\Delta r$ {sign} {abs(intercept):.2f} mins, $R^2$={r2:.3f}',horizontalalignment='center')
 
 
-if distance_choice=='path':
-    ax.set_xlabel(r'($r_{SC}$ - $r_{BSN}$) $\cdot$ ($r_{L1}$ - $r_{BSN}$)/|$r_{L1}$ - $r_{BSN}$| [$R_E$]')
-elif distance_choice=='crow':
-    ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$R_E$]')
-ax.set_ylabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
-ax.set_title(f'Closest spacecraft with coeff$\\geq${correlation_limit:.1f}, N={np.sum(closish)}')
+    if x_axis=='dist':
+        ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$R_E$]')
+    elif x_axis=='earth_sun':
+        ax.set_xlabel(r'$\rho_{L1}$ [$R_E$]')
+    elif x_axis=='x_comp':
+        ax.set_xlabel(r'$X_{sc}$ - $X_{BSN}$ [$R_E$]')
+        ax.invert_xaxis()
+    ax.set_ylabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
+    ax.set_title(f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist}; N={np.sum(closish):,}')
 
-plt.show()
-plt.close()
+    plt.show()
+    plt.close()
+
+# %%
+import numpy as np
+from src.analysing.fitting import gaussian, gaussian_fit
+
+
+def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=False, show_errors=True):
+
+    # selection = closest, all
+
+    times         = []
+    times_unc     = []
+
+    sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
+
+    for index, shock in shocks.iterrows():
+        detector = shock['spacecraft']
+
+        BS_time     = shock['OMNI_time']
+        if pd.isnull(BS_time):
+            continue
+
+        for sc in sc_labels:
+            if (selection=='closest' and sc!=shock['closest']) or sc in ('OMNI',detector):
+                continue
+
+            corr_coeff = shock[f'{sc}_coeff']
+            if isinstance(corr_coeff, (pd.Series, pd.DataFrame)) and len(corr_coeff) > 1:
+                corr_coeff = corr_coeff.iloc[0]  # Get the first value
+            else:
+                corr_coeff = corr_coeff
+
+            if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
+                #1.1 indicates exact matches
+                continue
+
+            sc_time = shock[f'{sc}_time']
+            if pd.isnull(sc_time):
+                continue
+
+            time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
+            time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
+            times.append(time_diff)
+            times_unc.append(time_diff_unc.s)
+
+    times = np.array(times)
+    times_unc = np.array(times_unc)
+
+
+    fig, ax = plt.subplots()
+
+    times_mins = times/60
+
+    step = 5
+    bin_edges = np.arange(np.floor(np.min(times_mins)/step)*step,np.ceil(np.max(times_mins/step)*step),step)
+    counts, bins, _ = ax.hist(times_mins,bin_edges,color='k')
+    mids = 0.5*(bins[1:]+bins[:-1])
+
+    ax.axvline(x=np.median(times_mins),ls='--',lw=1,c='c',label=f'Median: {np.median(times_mins):.3g} mins')
+    ax.axvline(x=0,ls=':',c='w',lw=1)
+
+    if show_best_fit:
+
+        A, mu, sig = gaussian_fit(mids,counts,detailed=True)
+        x_values = np.linspace(min(times_mins), max(times_mins), 1000)
+        y_values = gaussian(x_values, A.n, mu.n, sig.n)
+
+        ax.plot(x_values,y_values,c='r',label=f'Mean: ${mu:L}$ mins')
+
+    ax.set_xlabel(f'Time differences for {selection} spacecraft [mins]')
+    ax.set_ylabel('Counts / 5mins')
+    ax.set_title(f'Frequency histogram of {len(times_mins)} measurements')
+
+    ax.legend()
+
+    plt.show()
+
+# %%
+
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='x_comp', colouring='coeff')
+
+plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='closest', show_best_fit=False, show_errors=True)

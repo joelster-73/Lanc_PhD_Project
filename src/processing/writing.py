@@ -18,7 +18,7 @@ from .handling import get_processed_files
 from .reading import read_spacepy_object
 
 
-def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=False):
+def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=False, time_col='epoch',reset_index=False):
     """
     Adds columns from a DataFrame to an existing CDF file, creating new variables or extending existing ones.
 
@@ -46,6 +46,9 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
 
     create_directory(os.path.dirname(output_file))
 
+    if reset_index:
+        df.reset_index(inplace=True)
+
     with pycdf.CDF(output_file, create=not os.path.exists(output_file)) as cdf:
         cdf.readonly(False)
         if attributes is not None:
@@ -61,7 +64,7 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
             new_data = df[column].to_numpy()
             if column not in cdf:
                 try:
-                    if column == 'epoch' or df.attrs['units'][column] == 'datetime':
+                    if column == time_col or df.attrs['units'][column] == 'datetime':
                         new_data = datetime_to_cdf_epoch(new_data)
                         cdf.new(column, data=new_data, type=pycdf.const.CDF_EPOCH)
 

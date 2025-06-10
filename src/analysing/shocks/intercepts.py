@@ -20,7 +20,7 @@ from ...processing.speasy.config import speasy_variables, all_spacecraft
 from ...processing.utils import add_unit
 
 
-def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='R_GSE', R_E=6370):
+def find_all_shocks(shocks, parameter, time=None, time_window=60, position_var='R_GSE', R_E=6370):
 
     shocks = shocks.copy()
     shocks_attrs = shocks.attrs
@@ -54,7 +54,7 @@ def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
         nearest_idx = shocks.index.searchsorted(time_shock, side='right')
         nearest_time = shocks.index[nearest_idx]
         shock = shocks.loc[nearest_time].copy()
-        sc_dict = find_shock(shock, parameter, time_window, position_var, R_E)
+        sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
 
         for key, value in sc_dict.items():
             shock[key] = value
@@ -71,8 +71,10 @@ def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
 
         for index, shock in shocks.iterrows():
 
+            # sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
+
             try:
-                sc_dict = find_shock(shock, parameter, time_window, position_var, R_E)
+                sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
 
                 for key, value in sc_dict.items():
                     shocks.at[index, key] = value
@@ -85,74 +87,47 @@ def find_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
 
         return shocks
 
-def find_shock(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370):
 
-    shock_speed = shock['v_sh']
-    shock_speed_unc = shock['v_sh_unc'] # Likely issue with shock in database
-    if pd.isna(shock_speed):
-        e = 'Shock speed is NaN.'
-        raise Exception(e)
-    elif pd.isna(shock_speed_unc):
-        e = 'Shock speed uncertainty is NaN.'
-        raise Exception(e)
-    elif shock_speed <= 0:
-        e = f'Shock speed is negative/zero ({shock_speed}).'
-        raise Exception(e)
-    elif shock_speed <= shock_speed_unc:
-        e = f'Shock speed ({shock_speed}) is smaller than uncertainty ({shock_speed_unc}).'
-        raise Exception(e)
+def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E=6370):
 
-    return find_shock_times(shock, parameter, time_window, position_var, R_E)
-
-
-def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370):
+    #time_window is to check position data and whether in the solar wind or not
 
     return_dict = {}
     shock_time = shock.name.to_pydatetime()
-    shock_time_unc = shock['time_s_unc']
-    if np.isnan(shock_time_unc):
-        shock_time_unc = 0
-
-    sc_L1 = shock['spacecraft'].upper()
-    if sc_L1=='ACE' and shock_time.year<2004: # odd entries in database
-        arrival_time = shock_time + timedelta(hours=1)
-    else:
-        try:
-            arrival_time = shock_time + timedelta(seconds=shock['delay_s'])
-        except:
-            arrival_time = shock_time + timedelta(hours=1)
 
     start_time_up = shock_time-timedelta(minutes=time_window)
     end_time_up   = shock_time+timedelta(minutes=time_window)
 
-    start_time_dw = arrival_time-timedelta(minutes=time_window)
-    end_time_dw   = arrival_time+timedelta(minutes=time_window)
+    sc_L1 = shock['spacecraft'].upper()
 
-    ###----------Detector Data----------###
+    ###----------SHOCK TIME----------###
     df_detect = retrieve_data(parameter, sc_L1, speasy_variables, start_time_up, end_time_up, downsample=True)
     if df_detect.empty: # In case issue with retrieving data
-        e = f'No {sc_L1} data available.'
+        e = f'No {sc_L1} {parameter} data available.'
         raise Exception(e)
+
+    shock_time_unc = shock['time_s_unc']
+    if np.isnan(shock_time_unc):
+        shock_time_unc = 0
 
     return_dict[f'{sc_L1}_time'] = pd.to_datetime(shock_time)
     return_dict[f'{sc_L1}_time_unc_s'] = shock_time_unc
     return_dict[f'{sc_L1}_coeff'] = 1.1 # >1 to be clear this is an exact match
 
+    ###----------DETECTOR POSITION----------###
     sc_pos, sc_pos_unc = retrieve_position_unc(sc_L1, speasy_variables, shock_time, shock_time_unc, shock_time_unc)
+    if sc_pos is None:
+        e = f'No location data for detector {sc_L1}.'
+        raise Exception(e)
 
-    if sc_L1=='ACE' and shock_time.year<2004:
-        if sc_pos is not None: # odd entries in database
-            return_dict[f'{sc_L1}_r_x_GSE'], return_dict[f'{sc_L1}_r_y_GSE'], return_dict[f'{sc_L1}_r_z_GSE'] = sc_pos
-        else:
-            return_dict[f'{sc_L1}_r_x_GSE'] = 250
-            return_dict[f'{sc_L1}_r_y_GSE'] = 0
-            return_dict[f'{sc_L1}_r_z_GSE'] = 0
-    else:
-        for comp in ('x','y','z'):
-            return_dict[f'{sc_L1}_r_{comp}_GSE'] = shock[f'r_{comp}_GSE']
+    delay_time = np.linalg.norm(sc_pos)*R_E/320 # roughly 320 km/s for slow sw speed
+    arrival_time = shock_time + timedelta(seconds=int(delay_time))
 
-    if sc_pos_unc is not None:
-        return_dict[f'{sc_L1}_r_x_GSE_unc'], return_dict[f'{sc_L1}_r_y_GSE_unc'], return_dict[f'{sc_L1}_r_z_GSE_unc'] = sc_pos_unc
+    start_time_dw = arrival_time-timedelta(minutes=time_window)
+    end_time_dw   = arrival_time+timedelta(minutes=time_window)
+
+    return_dict[f'{sc_L1}_r_x_GSE'], return_dict[f'{sc_L1}_r_y_GSE'], return_dict[f'{sc_L1}_r_z_GSE'] = sc_pos
+    return_dict[f'{sc_L1}_r_x_GSE_unc'], return_dict[f'{sc_L1}_r_y_GSE_unc'], return_dict[f'{sc_L1}_r_z_GSE_unc'] = sc_pos_unc
 
     ###-------------------OTHER SPACECRAFT-------------------###
     for region in ['L1', 'Earth']:
@@ -161,16 +136,14 @@ def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
             if source == sc_L1:
                 continue
             elif source == 'OMNI':
-                start = min(start_time_up,start_time_dw)
-                end   = max(end_time_up,end_time_dw)
+                start, end = start_time_up, end_time_dw
             elif region == 'L1':
                 start, end = start_time_up, end_time_up
-                approx_time = shock_time
+                approx_time = shock_time + timedelta(minutes=1)
             elif region == 'Earth':
                 start, end = start_time_dw, end_time_dw
             else:
                 continue
-
             if source == 'OMNI':
                 df_omni = retrieve_data(parameter, 'OMNI', speasy_variables, start, end)
                 if ~df_omni.empty:
@@ -191,15 +164,13 @@ def find_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
                 continue
 
             front_time = shock_time + timedelta(seconds=time_lag)
-            front_time_u = ufloat(time_lag, lag_unc) - ufloat(0,shock_time_unc)
-            front_time_u = front_time_u.s
+            front_time_unc = (ufloat(time_lag, lag_unc) - ufloat(0,shock_time_unc)).s
 
             return_dict[f'{source}_time'] = front_time
-            return_dict[f'{source}_time_unc_s'] = front_time_u
+            return_dict[f'{source}_time_unc_s'] = front_time_unc
             return_dict[f'{source}_coeff'] = lag_coeff
 
-            sc_pos, sc_pos_unc = retrieve_position_unc(source, speasy_variables, front_time, front_time_u, front_time_u)
-
+            sc_pos, sc_pos_unc = retrieve_position_unc(source, speasy_variables, front_time, front_time_unc, front_time_unc)
             if sc_pos is not None:
                 return_dict[f'{source}_r_x_GSE'], return_dict[f'{source}_r_y_GSE'], return_dict[f'{source}_r_z_GSE'] = sc_pos
                 return_dict[f'{source}_r_x_GSE_unc'], return_dict[f'{source}_r_y_GSE_unc'], return_dict[f'{source}_r_z_GSE_unc'] = sc_pos_unc

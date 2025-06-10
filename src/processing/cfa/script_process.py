@@ -19,8 +19,11 @@ get_all_shocks(HTML_TAG_STRINGS, HTML_TAG_LABELS, HTML_TAGS_UNCERTAINTY, HTML_TA
 from src.config import PROC_CFA_DIR
 from src.processing.reading import import_processed_data
 
-shocks = import_processed_data(PROC_CFA_DIR)
+cfa_shocks = import_processed_data(PROC_CFA_DIR)
+# %% Donki
+from src.processing.cfa.donki import combine_cfa_donki
 
+shocks = combine_cfa_donki(cfa_shocks)
 # %% Intercept spacecraft
 
 import os
@@ -29,18 +32,21 @@ from src.analysing.shocks.intercepts import find_all_shocks
 from src.processing.writing import write_to_cdf
 
 output_file = os.path.join(PROC_SHOCKS_DIR, 'cfa_shocks_intercepts.cdf')
-shocks_with_intercepts = find_all_shocks(shocks,'B_mag')
-shocks_with_intercepts.reset_index(inplace=True)
 
-#write_to_cdf(shocks_with_intercepts,output_file)
+shocks_with_intercepts = find_all_shocks(shocks,'B_mag')
+
+write_to_cdf(shocks_with_intercepts,output_file,reset_index=True)
+
 
 # %%
 from src.config import PROC_SHOCKS_DIR
 from src.processing.reading import import_processed_data
 from src.plotting.shocks import plot_all_shocks
 
+from datetime import datetime
+
 shocks_intercepts = import_processed_data(PROC_SHOCKS_DIR)
 
-plot_all_shocks(shocks_intercepts, 'B_mag', plot_in_sw=True, plot_positions=True)
+plot_all_shocks(shocks_intercepts, 'B_mag', plot_in_sw=True, plot_positions=True, start_printing=datetime(2011,12,31))
 
 # %%

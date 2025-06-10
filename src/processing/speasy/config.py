@@ -32,7 +32,7 @@ data_availability = {
     'THD':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 17, 23, 59)),
     'THE':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 16, 23, 59)),
     'ACE':  (datetime(1997, 9, 2),           datetime(2025, 5, 13)),
-    'DSC':  (datetime(2015, 3, 9, 0, 25),    datetime(2023, 5, 28, 23)),
+    'DSC':  (datetime(2015, 2, 11, 23, 48),  datetime(2025, 7, 1, 12)),
     'GEO':  (datetime(1992, 9, 18),          datetime(2006, 11, 22, 23, 59)),
     'IMP8': (datetime(1973, 10, 30),         datetime(2000, 6, 10, 23, 59)),
     'WIND': (datetime(1994, 11, 1),          datetime(2024, 9, 29)),
@@ -50,7 +50,7 @@ data_availability_mag = {
     'THD':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 17, 23, 59)),
     'THE':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 16, 23, 59)),
     'ACE':  (datetime(1997, 9, 2),           datetime(2025, 5, 13)),
-    'DSC':  (datetime(2016, 8, 1),           datetime(2025, 5, 27, 23, 59)),
+    'DSC':  (datetime(2015, 6, 8),           datetime(2025, 5, 3)),
     'GEO':  (datetime(1992, 9, 18),          datetime(2006, 11, 22, 23, 59)),
     'IMP8': (datetime(1973, 10, 30),         datetime(2000, 6, 10, 23, 59)),
     'WIND': (datetime(1994, 11, 1),          datetime(2024, 9, 29)),
@@ -106,7 +106,8 @@ B_dict_tot = {
     'THD':  'thd_bl_tot',
     'THE':  'the_bl_tot',
     'ACE':  'imf_mag',           # 16s resolution
-    'DSC':  'dsc_b_mag',         # 1m resolution (1s res only for 2025+)
+    'DSC':  cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1,  # 1s resolution
+    #'DSC':  'dsc_b_mag',         # 1m resolution (1s res only for 2025+)
     'GEO':  'gtl_bmag_edb',      # 3s resolution
     'IMP8': 'imp8_btot',         # 15s resolution
     'WIND': 'wnd_bmagh',         # 3s resolution
@@ -124,7 +125,8 @@ R_dict_gse = { # Re
     'THD':  'thd_xyz',
     'THE':  'the_xyz',
     'ACE':  'ace_xyz_gse',           # 12m resolution
-    'DSC':  'dsc_xyz_gse',           # 1h resolution
+    'DSC':  ssc_tree.Trajectories.dscovr, #12m resolution, in km not Re
+    #'DSC':  'dsc_xyz_gse', # 1h resolution   - amda id is 'dsc_xyz_gse'
     'GEO':  'gtl_xyz',               # 10m resolution
     'IMP8': 'imp8_xyz',              # 12m resolution
     'WIND': 'wnd_xyz_gse',           # 10m resolution

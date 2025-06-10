@@ -13,6 +13,7 @@ from datetime import timedelta
 
 from .config import data_availability, data_availability_mag
 from ..dataframes import resample_data
+from ...config import R_E
 
 def clean_retrieved_data(spz_data, upsample_data=None):
     if spz_data is None or len(spz_data.time) == 0:
@@ -30,7 +31,7 @@ def clean_retrieved_data(spz_data, upsample_data=None):
     return spz_data
 
 
-def retrieve_data(parameter, source, speasy_variables, start_time, end_time, downsample=False, upsample=False, print_bounds=False, resolution='1min'):
+def retrieve_data(parameter, source, speasy_variables, start_time, end_time, downsample=False, upsample=False, print_bounds=False, resolution='1min', add_omni_sc=True):
     if 'B_' in parameter:
         data_range = data_availability_mag
     else:
@@ -46,13 +47,16 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
             print(f'{source} outside available range: {available_start} to {available_end}')
         return pd.DataFrame()
 
-    data_id = speasy_variables.get(parameter).get(source)
+    data_path = speasy_variables.get(parameter,None)
+    if data_path is None:
+        print(f'{parameter} not valid parameter variable.')
+    data_id = data_path.get(source, None)
     if data_id is None:
-        print(f'No {parameter} data fpr {source}.')
+        print(f'No {parameter} data for {source}.')
         return pd.DataFrame()
 
     upsample_data = None
-    if upsample:
+    if upsample: # used to upsample to 1-minute resolution
         upsample_data = amda.get_data(speasy_variables.get('B_mag').get('OMNI'), start_time, end_time)
 
     if isinstance(data_id, list):
@@ -82,6 +86,10 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
         # seems to be problem with the fill value, metadata says 9999.9, but seems to be about double
         values[values>=9999.9] = np.nan
 
+    if unit=='km':
+        values /= R_E
+        unit = 'Re'
+
     times = pd.to_datetime(times, unit='ms')
 
     df = pd.DataFrame()
@@ -95,10 +103,11 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
         column_names = [f'{parameter}_x', f'{parameter}_y', f'{parameter}_z']
         df = pd.DataFrame(values, columns=column_names, index=times)
         df.attrs['units'] = {}
+        df.attrs['units'][parameter] = unit
         for col in column_names:
             df.attrs['units'][col] = unit
 
-    if source == 'OMNI':
+    if add_omni_sc and source == 'OMNI':
         sc_ID = speasy_variables.get('OMNI_sc')
         id_data = spz.get_data(sc_ID, start_time, end_time)
         _, ids, _ = id_data.time, id_data.values, id_data.unit
@@ -112,7 +121,7 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
     return df
 
 
-def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False):
+def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False, add_omni_sc=False):
 
     if time is None:
         return None, None
@@ -123,41 +132,27 @@ def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False
             print(f'{source} outside available range: {available_start} to {available_end}')
         return None, None
 
-    data_id = speasy_variables.get(parameter).get(source)
     window = 1 # minutes
     max_attempts = 60
     for counter in range(1, max_attempts + 1):
         interval = timedelta(minutes=window*counter)
-        spz_data = amda.get_data(data_id, time-interval, time+interval)
-        if spz_data:
-            spz_data.replace_fillval_by_nan(inplace=True)
+        df = retrieve_data(parameter, source, speasy_variables, time-interval, time+interval, add_omni_sc=add_omni_sc)
+        df.dropna(inplace=True)
+        if df.empty:
+            continue
 
-            times, values, unit = spz_data.time, spz_data.values, spz_data.unit
-            times = pd.to_datetime(times, unit='ms')
+        if time not in df.index and (len(df) > 1 and df.index.min() <= time <= df.index.max()):
+            df = df.reindex(df.index.union([time])).sort_index()
+            df = df.interpolate(method='linear')
+            df = df.loc[~df.index.duplicated(keep='first')]
 
-            if values.ndim == 1 or values.shape[1] == 1:
-                values = values.flatten()
-                df = pd.DataFrame(values, columns=[parameter], index=times)
-            else:
-                column_names = [f'{parameter}_x', f'{parameter}_y', f'{parameter}_z']
-                df = pd.DataFrame(values, columns=column_names, index=times)
-
-            df.dropna(inplace=True)
-            if not df.empty:
-                if time in df.index:
-                    datum = df.loc[time]
-                    if isinstance(datum, pd.DataFrame):
-                        datum = datum.iloc[0]
-                    datum_values = datum.values
-                    return datum_values.item() if datum_values.size == 1 else datum_values, unit
-                elif len(df) > 1 and df.index.min() <= time <= df.index.max():
-                    df = df.reindex(df.index.union([time])).sort_index()
-                    df = df.interpolate(method='linear')
-                    df = df.loc[~df.index.duplicated(keep='first')]
-                    if time in df.index:
-                        datum = df.loc[time]
-                        datum_values = datum.values
-                        return datum_values.item() if datum_values.size == 1 else datum_values, unit
+        if time in df.index:
+            datum = df.loc[time]
+            if isinstance(datum, pd.DataFrame):
+                datum = datum.iloc[0]
+            datum_values = datum.values
+            unit = df.attrs['units'].get(parameter,None)
+            return datum_values.item() if datum_values.size == 1 else datum_values, unit
 
     return None, None
 
@@ -165,22 +160,25 @@ def retrieve_position_unc(source, speasy_variables, time, left_unc, right_unc):
 
     position_var = 'R_GSE'
 
-    position, _ = retrieve_datum(position_var, source, speasy_variables, time)
+    position, _ = retrieve_datum(position_var, source, speasy_variables, time, add_omni_sc=False)
     if position is None:
         return None, None
 
-    pos_left, _ = retrieve_datum(position_var, source, speasy_variables, time-timedelta(seconds=left_unc))
-    pos_right, _ = retrieve_datum(position_var, source, speasy_variables, time+timedelta(seconds=right_unc))
+    pos_left, _ = retrieve_datum(position_var, source, speasy_variables, time-timedelta(seconds=left_unc), add_omni_sc=False)
+    pos_right, _ = retrieve_datum(position_var, source, speasy_variables, time+timedelta(seconds=right_unc), add_omni_sc=False)
     for arr in (position, pos_left, pos_right):
         arr = np.array(arr)
 
-    sum_squared = 0
-    if pos_left is not None:
-        sum_squared += (position-pos_left)**2
-    if pos_right is not None:
-        sum_squared += (position-pos_right)**2
 
-    unc = np.sqrt(sum_squared)
+    if pos_left is not None and pos_right is not None:
+        unc = (pos_right - pos_left) / 2
+    elif pos_left is not None:
+        unc = (position - pos_left)
+    elif pos_right is not None:
+        unc = (pos_right - position)
+    else:
+        unc = np.zeros(3)
 
-    return position, unc
+
+    return position, np.abs(unc)
 

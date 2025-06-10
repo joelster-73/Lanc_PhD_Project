@@ -4,11 +4,9 @@ Created on Fri May 16 10:20:40 2025
 
 @author: richarj2
 """
-import os
 import numpy as np
 import pandas as pd
-from datetime import timedelta, datetime
-from uncertainties import ufloat
+from datetime import timedelta
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -22,7 +20,7 @@ from ..processing.speasy.config import speasy_variables, colour_dict, all_spacec
 from ..processing.speasy.retrieval import retrieve_data, retrieve_datum
 from ..processing.omni.config import omni_spacecraft
 
-from ..analysing.shocks.in_sw import is_in_solar_wind, approximate_pressure
+from ..analysing.shocks.in_sw import is_in_solar_wind
 from ..coordinates.boundaries import msh_boundaries
 
 
@@ -79,15 +77,17 @@ def plot_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
             if start_printing is not None and index < start_printing: # where printing got up to
                 continue
 
-            #plot_shock(shock, parameter, time_window, R_E, show_verticals, shock_colour, position_var, plot_positions)
+            plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
+            if plot_positions:
+                plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
 
-            try:
-                plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
-                if plot_positions:
-                    plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
+            # try:
+            #     plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
+            #     if plot_positions:
+            #         plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
 
-            except Exception:
-                print(f'Issue with shock at time {index}.')
+            # except Exception as e:
+            #     print(f'Issue with shock at time {index}: {e}.')
 
 def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', plot_in_sw=False):
 
@@ -95,14 +95,6 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     shock_time = shock.name.to_pydatetime()
     shock_time_unc = shock['time_s_unc']
     sc_L1 = shock['spacecraft'].upper()
-    shock_type = shock['type']
-
-    try:
-        arrival_time     = shock_time + timedelta(seconds=shock['delay_s'])
-        arrival_time_unc = shock['delay_s_unc']
-    except:
-        arrival_time     = shock_time + timedelta(hours=1)
-        arrival_time_unc = 0
 
     start_times   = []
     end_times     = []
@@ -123,7 +115,7 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
                 if source in ('WIND','ACE','DSC'):
                     time = shock_time
                 else:
-                    time = arrival_time
+                    time = shock_time + timedelta(hours=1)
 
                 if source == 'OMNI':
                     plot_data = True
@@ -157,7 +149,6 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     fig, ax = plt.subplots(figsize=(12,8))
 
     plot_vertical_line_unc(ax, shock_time, shock_time_unc, 'Shock Detected')
-    plot_vertical_line_unc(ax, arrival_time, arrival_time_unc, 'Predict at Earth')
 
     for source, (time, plot_vertical) in spacecraft_times.items():
         start = time-timedelta(minutes=time_window)
@@ -190,19 +181,19 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
         end_times.append(end)
 
 
-    ###-------------------SHOCK ARROW-------------------###
-    y_min, y_max = ax.get_ylim()
-    arrow_height = y_min+0.94*(y_max-y_min)
-    text_height  = y_min+0.96*(y_max-y_min)
+    # ###-------------------SHOCK ARROW-------------------###
+    # y_min, y_max = ax.get_ylim()
+    # arrow_height = y_min+0.94*(y_max-y_min)
+    # text_height  = y_min+0.96*(y_max-y_min)
 
-    #shock_duration = timedelta(seconds=int(shock['v_sh']/2))
-    shock_duration = timedelta(seconds=300)
-    ax.annotate('',  xy=(shock_time + shock_duration, arrow_height), xytext=(shock_time, arrow_height),
-            arrowprops=dict(facecolor=shock_colour, edgecolor=shock_colour, headwidth=8, headlength=10, width=2))
-    shock_speed = ufloat(shock['v_sh'],shock['v_sh_unc'])
-    shock_speed_label = f'${shock_speed:L}$ $\\mathrm{{km\\,s^{{-1}}}}$'
-    ax.text(shock_time+timedelta(seconds=30), text_height, shock_speed_label,
-        color=shock_colour, fontsize=10, ha='left', va='bottom')
+    # #shock_duration = timedelta(seconds=int(shock['v_sh']/2))
+    # shock_duration = timedelta(seconds=300)
+    # ax.annotate('',  xy=(shock_time + shock_duration, arrow_height), xytext=(shock_time, arrow_height),
+    #         arrowprops=dict(facecolor=shock_colour, edgecolor=shock_colour, headwidth=8, headlength=10, width=2))
+    # shock_speed = ufloat(shock['v_sh'],shock['v_sh_unc'])
+    # shock_speed_label = f'${shock_speed:L}$ $\\mathrm{{km\\,s^{{-1}}}}$'
+    # ax.text(shock_time+timedelta(seconds=30), text_height, shock_speed_label,
+    #     color=shock_colour, fontsize=10, ha='left', va='bottom')
 
 
     ###-------------------AXES LABELS AND TICKS-------------------###
@@ -239,7 +230,7 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
 
     add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.1), cols=3)
 
-    add_figure_title(fig, title=f'{shock_type} Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}')
+    add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}')
     plt.tight_layout()
     save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d'), sub_directory='shocks')
     plt.show()
@@ -251,39 +242,36 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
 
     shock_time = shock.name.to_pydatetime()
     sc_L1 = shock['spacecraft'].upper()
-    shock_type = shock['type']
 
-    arrival_time = shock_time + timedelta(seconds=shock['delay_s'])
     start_time_orbit = shock_time-timedelta(hours=24)
     end_time_orbit   = shock_time+timedelta(hours=24)
 
+    omni_time = shock['OMNI_time']
+    if pd.isnull(omni_time):
+        omni_time = shock_time+timedelta(hours=1)
+
     #-----------POSITIONS IN X,Y,Z-----------#
 
-    try:
-        arrival_time     = shock_time + timedelta(seconds=shock['delay_s'])
-    except:
-        arrival_time     = shock_time + timedelta(hours=1)
-
-    pos_L1    = np.array([shock['r_x_GSE'],shock['r_y_GSE'],shock['r_z_GSE']])
+    pos_L1    = np.array([shock[f'{sc_L1}_r_x_GSE'],shock[f'{sc_L1}_r_y_GSE'],shock[f'{sc_L1}_r_z_GSE']])
     pos_L1_dict = {'x': pos_L1[0], 'y': pos_L1[1], 'z': pos_L1[2]}
 
-    shock_normal    = np.array([shock['Nx'], shock['Ny'], shock['Nz']])
-    shock_direction = {'x': shock_normal[0], 'y': shock_normal[1], 'z': shock_normal[2]}
-    shock_velocity  = {key: shock['v_sh'] * value/R_E for key, value in shock_direction.items()}
+    # shock_normal    = np.array([shock['Nx'], shock['Ny'], shock['Nz']])
+    # shock_direction = {'x': shock_normal[0], 'y': shock_normal[1], 'z': shock_normal[2]}
+    # shock_velocity  = {key: shock['v_sh'] * value/R_E for key, value in shock_direction.items()}
 
-    pos_BS, _ = retrieve_datum('R_GSE', 'OMNI', speasy_variables, arrival_time)
+    pos_BS, _ = retrieve_datum('R_GSE', 'OMNI', speasy_variables, omni_time)
 
     #-----------OMNI PARAMETERS AND SPACECRAFT REGIONS-----------#
 
-    Vsw_OMNI, _  = retrieve_datum('V_GSE', 'OMNI', speasy_variables, arrival_time)
-    if Vsw_OMNI is None:
-        Vsw_OMNI = np.array([shock['v_x_GSE_dw'],shock['v_y_GSE_dw'],shock['v_z_GSE_dw']])
+    Vsw_OMNI, _  = retrieve_datum('V_GSE', 'OMNI', speasy_variables, omni_time)
+    # if Vsw_OMNI is None:
+    #     Vsw_OMNI = np.array([shock['v_x_GSE_dw'],shock['v_y_GSE_dw'],shock['v_z_GSE_dw']])
     vx, vy, vz   = Vsw_OMNI
 
-    Pd_OMNI, _   = retrieve_datum('P_dyn', 'OMNI', speasy_variables, arrival_time)
-    if Pd_OMNI is None:
-        Ni_OMNI = shock['ni_dw']
-        Pd_OMNI = approximate_pressure(Ni_OMNI, Vsw_OMNI)
+    Pd_OMNI, _   = retrieve_datum('P_dyn', 'OMNI', speasy_variables, omni_time)
+    # if Pd_OMNI is None:
+    #     Ni_OMNI = shock['ni_dw']
+    #     Pd_OMNI = approximate_pressure(Ni_OMNI, Vsw_OMNI)
 
     spacecraft_positions = {}
     for region in ['L1', 'Earth']:
@@ -297,12 +285,11 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
             if not pd.isnull(time):
                 spacecraft_positions[source] = (time,{'x': coord[0], 'y': coord[1], 'z': coord[2]},True)
 
-            # need way to make clear in legend, and sort by time not position?
             else:
                 if source in ('WIND','ACE','DSC'):
                     time = shock_time
                 else:
-                    time = arrival_time
+                    time = omni_time
                 pos, _ = retrieve_datum('R_GSE', source, speasy_variables, time)
                 if pos is not None:
                     spacecraft_positions[source] = (time,{'x': pos[0], 'y': pos[1], 'z': pos[2]},False)
@@ -332,6 +319,7 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
         y0 = pos_L1_dict.get(y_coord)
 
         ax.scatter(x0, y0, marker='x', color=colour_dict.get(sc_L1), label=f'{sc_L1}: {array_to_string(pos_L1)} $R_E$')
+        ax.plot([0,x0], [0,y0], color=colour_dict.get(sc_L1), lw=0.5, ls=':', zorder=1)
 
         if pos_BS is not None:
             pos_BS_dict = {'x': pos_BS[0], 'y': pos_BS[1], 'z': pos_BS[2]}
@@ -339,25 +327,25 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
                        marker='x', color=colour_dict.get('OMNI'), label=f'BS Nose: {array_to_string(pos_BS)} $R_E$')
 
         ###-----SHOCK FRONT-----###
-        num_secs = 300 # 5 minutes of shock travel
+        # num_secs = 300 # 5 minutes of shock travel
 
-        dx = shock_velocity.get(x_coord) * num_secs
-        dy = shock_velocity.get(y_coord) * num_secs
+        # dx = shock_velocity.get(x_coord) * num_secs
+        # dy = shock_velocity.get(y_coord) * num_secs
 
-        perp_dx, perp_dy = -dy, dx
-        scale = 0.5  # Scale the length of the perpendicular line
-        perp_dx *= scale
-        perp_dy *= scale
+        # perp_dx, perp_dy = -dy, dx
+        # scale = 0.5  # Scale the length of the perpendicular line
+        # perp_dx *= scale
+        # perp_dy *= scale
 
-        ax.arrow(x0, y0, dx, dy,
-                 head_width=2, head_length=1, fc='red', ec=shock_colour)
+        # ax.arrow(x0, y0, dx, dy,
+        #          head_width=2, head_length=1, fc='red', ec=shock_colour)
 
-        ax.plot([x0 - perp_dx, x0 + perp_dx], [y0 - perp_dy, y0 + perp_dy], c=shock_colour, ls='--')
+        # ax.plot([x0 - perp_dx, x0 + perp_dx], [y0 - perp_dy, y0 + perp_dy], c=shock_colour, ls='--')
 
-        speed_info = f'v = {int(shock["v_sh"])} $\\mathrm{{km\\,s^{{-1}}}}$'
-        normal_info = f'$\\boldsymbol{{n}}$ = ({shock_direction["x"]:.1f}, {shock_direction["y"]:.1f}, {shock_direction["z"]:.1f})'
-        ax.text(x0 + dx - 5, y0 + dy, speed_info+'\n'+normal_info,
-                fontsize=12, color=shock_colour, ha='left', va='center')
+        # speed_info = f'v = {int(shock["v_sh"])} $\\mathrm{{km\\,s^{{-1}}}}$'
+        # normal_info = f'$\\boldsymbol{{n}}$ = ({shock_direction["x"]:.1f}, {shock_direction["y"]:.1f}, {shock_direction["z"]:.1f})'
+        # ax.text(x0 + dx - 5, y0 + dy, speed_info+'\n'+normal_info,
+        #         fontsize=12, color=shock_colour, ha='left', va='center')
 
         ###-----MAGNETOSHEATH-----###
         for surface, style in zip(('bs','mp'), ('-','--')):
@@ -392,7 +380,7 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
             else:
                 sc_label = sc
 
-            ax.scatter(coord.get(x_coord), coord.get(y_coord), marker='x', color=colour_dict.get(sc), label=sc_label)
+            ax.scatter(coord.get(x_coord), coord.get(y_coord), marker='+', color=colour_dict.get(sc), label=sc_label)
 
             orbit = orbits.get(sc, None)
             if orbit is None:
@@ -429,7 +417,7 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
 
         add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.25), rows=3)
 
-        add_figure_title(fig, title=f'{shock_type} Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}', ax=ax)
+        add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}', ax=ax)
         plt.tight_layout()
         save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_'+plane, sub_directory='shocks')
         plt.show()
