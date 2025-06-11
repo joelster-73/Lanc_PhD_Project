@@ -31,7 +31,7 @@ from src.config import PROC_SHOCKS_DIR
 from src.analysing.shocks.intercepts import find_all_shocks
 from src.processing.writing import write_to_cdf
 
-output_file = os.path.join(PROC_SHOCKS_DIR, 'cfa_shocks_intercepts.cdf')
+output_file = os.path.join(PROC_SHOCKS_DIR, 'cfa_donki_shocks.cdf')
 
 shocks_with_intercepts = find_all_shocks(shocks,'B_mag')
 

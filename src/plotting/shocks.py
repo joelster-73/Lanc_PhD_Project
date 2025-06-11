@@ -77,17 +77,17 @@ def plot_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
             if start_printing is not None and index < start_printing: # where printing got up to
                 continue
 
-            plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
-            if plot_positions:
-                plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
+            # plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
+            # if plot_positions:
+            #     plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
 
-            # try:
-            #     plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
-            #     if plot_positions:
-            #         plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
+            try:
+                plot_shock_times(shock, parameter, time_window, position_var, R_E, shock_colour, plot_in_sw)
+                if plot_positions:
+                    plot_shock_positions(shock, parameter, position_var, R_E, shock_colour)
 
-            # except Exception as e:
-            #     print(f'Issue with shock at time {index}: {e}.')
+            except Exception as e:
+                print(f'Issue with shock at time {index}: {e}.')
 
 def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', plot_in_sw=False):
 
@@ -150,9 +150,16 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
 
     plot_vertical_line_unc(ax, shock_time, shock_time_unc, 'Shock Detected')
 
+    min_time = min(value[0] for value in spacecraft_times.values())
+    max_time = max(value[0] for value in spacecraft_times.values())
+
     for source, (time, plot_vertical) in spacecraft_times.items():
-        start = time-timedelta(minutes=time_window)
-        end   = time+timedelta(minutes=time_window)
+        if source == 'OMNI':
+            start = min_time-timedelta(minutes=time_window)
+            end   = max_time+timedelta(minutes=time_window)
+        else:
+            start = time-timedelta(minutes=time_window)
+            end   = time+timedelta(minutes=time_window)
         time_unc = shock[f'{source}_time_unc_s']
 
         if source in(sc_L1,'OMNI'):
@@ -210,15 +217,15 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     min_time_diff = (pd.Timestamp(min(start_times)) - pd.Timestamp(shock_time)).total_seconds()
     max_time_diff = (pd.Timestamp(max(end_times)) - pd.Timestamp(shock_time)).total_seconds()
 
-    time_range = max_time_diff - min_time_diff
+    time_range = (max_time_diff - min_time_diff)/60
     if time_range < 60:
         diff_step = 5
     elif time_range > 120:
         diff_step = 20
     else:
         diff_step = 10
-    min_time_diff = round(min_time_diff/600)*diff_step
-    max_time_diff = round(max_time_diff/600)*diff_step
+    min_time_diff = int(min_time_diff/(diff_step*60))*diff_step
+    max_time_diff = int(max_time_diff/(diff_step*60))*diff_step
 
     time_diff_ticks = np.arange(min_time_diff, max_time_diff+1, diff_step)
 
@@ -232,7 +239,7 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
 
     add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}')
     plt.tight_layout()
-    save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d'), sub_directory='shocks')
+    save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_t', sub_directory='shocks')
     plt.show()
     plt.close()
 
@@ -264,14 +271,8 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
     #-----------OMNI PARAMETERS AND SPACECRAFT REGIONS-----------#
 
     Vsw_OMNI, _  = retrieve_datum('V_GSE', 'OMNI', speasy_variables, omni_time)
-    # if Vsw_OMNI is None:
-    #     Vsw_OMNI = np.array([shock['v_x_GSE_dw'],shock['v_y_GSE_dw'],shock['v_z_GSE_dw']])
-    vx, vy, vz   = Vsw_OMNI
 
     Pd_OMNI, _   = retrieve_datum('P_dyn', 'OMNI', speasy_variables, omni_time)
-    # if Pd_OMNI is None:
-    #     Ni_OMNI = shock['ni_dw']
-    #     Pd_OMNI = approximate_pressure(Ni_OMNI, Vsw_OMNI)
 
     spacecraft_positions = {}
     for region in ['L1', 'Earth']:
@@ -354,8 +355,13 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
             if y_coord == 'z':
                 phi = 0
 
-            surface_coords = msh_boundaries('jelinek', surface, Pd=Pd_OMNI,
-                                            v_sw_x=vx, v_sw_y=vy, v_sw_z=vz, phi=phi)
+            kwargs = {'phi': phi}
+            if Pd_OMNI is not None:
+                kwargs['Pd'] = Pd_OMNI
+            if Vsw_OMNI is not None:
+                kwargs['v_sw_x'], kwargs['v_sw_x'], kwargs['v_sw_x'] = Vsw_OMNI
+
+            surface_coords = msh_boundaries('jelinek', surface, **kwargs)
             surface_x = surface_coords.get(x_coord)
             surface_y = surface_coords.get(y_coord)
 

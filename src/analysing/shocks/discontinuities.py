@@ -63,14 +63,17 @@ def find_time_lag(parameter, source1, source2, source1_time, source2_time):
     if source2 in ('WIND','ACE','DSC'):
         source2_time = source1_time
 
-    buffer_size = 90
-    try_start = source1_time-timedelta(minutes=buffer_size)
-    try_end = source2_time+timedelta(minutes=buffer_size)
+    buffer_size = 20
 
-    window_start, window_end = min(try_start,try_end), max(try_start,try_end)
+    window_start = source1_time - timedelta(minutes=buffer_size)
+    window_end   = source1_time + timedelta(minutes=buffer_size)
 
     data1 = retrieve_data(parameter, source1, speasy_variables,
                               window_start, window_end, downsample=True, resolution=sampling_interval)
+
+
+    window_start = min(source1_time,source2_time) - timedelta(minutes=4*buffer_size)
+    window_end   = max(source1_time,source2_time) + timedelta(minutes=4*buffer_size)
 
     data2 = retrieve_data(parameter, source2, speasy_variables,
                               window_start, window_end, downsample=True, resolution=sampling_interval)
@@ -78,36 +81,32 @@ def find_time_lag(parameter, source1, source2, source1_time, source2_time):
     if data1.empty or data2.empty:
         return np.nan, np.nan, np.nan
 
-    min_compare_size = int((buffer_size + 3)/resolution) # to ensure shock front is captured
-
     aligned = pd.merge(data1[[parameter]].rename(columns={parameter: source1}),
                        data2[[parameter]].rename(columns={parameter: source2}),
                        left_index=True, right_index=True, how='outer')
+
     series1 = aligned[source1]
     series2 = aligned[source2]
 
-    approx_lag = int((source2_time - source1_time).total_seconds() / 60)
-
-    start_lag = int((approx_lag - buffer_size)/resolution)
-    end_lag = int((approx_lag + buffer_size)/resolution)
+    start_lag = int((window_start-source1_time).total_seconds()/(60*resolution))
+    end_lag   = int((window_end-source1_time).total_seconds()/(60*resolution))
 
     lags = range(start_lag, end_lag+1)
     correlations = []
     for lag in lags:
         corr = np.nan
 
-        if lag < 0:
-            series1_slice = series1[-lag:].values
-            series2_slice = series2[:lag].values
-        elif lag > 0:
-            series1_slice = series1[:-lag].values
-            series2_slice = series2[lag:].values
-        else:
-            series1_slice = series1.values
-            series2_slice = series2.values
-
-        if len(series1_slice) < min_compare_size or len(series2_slice) < min_compare_size:
-            correlations.append(np.nan)
+        try:
+            if lag < 0:
+                series1_slice = series1[-lag:].values
+                series2_slice = series2[:lag].values
+            elif lag > 0:
+                series1_slice = series1[:-lag].values
+                series2_slice = series2[lag:].values
+            else:
+                series1_slice = series1.values
+                series2_slice = series2.values
+        except: # in case index out of range
             continue
 
         mask = ~np.isnan(series1_slice) & ~np.isnan(series2_slice)

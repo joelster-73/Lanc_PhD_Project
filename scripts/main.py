@@ -7,6 +7,8 @@ Created on Thu May  8 18:33:37 2025
 
 
 # %%
+import numpy as np
+
 def find_closest(shocks):
 
     if 'closest' not in shocks.columns:
@@ -42,27 +44,6 @@ from src.processing.reading import import_processed_data
 shocks_intercepts = import_processed_data(PROC_SHOCKS_DIR)
 find_closest(shocks_intercepts)
 
-# %%
-import numpy as np
-import matplotlib.pyplot as plt
-
-columns = [col for col in shocks_intercepts if '_coeff' in col]
-
-all_coeffs = shocks_intercepts[columns].to_numpy().flatten()
-all_coeffs = all_coeffs[~np.isnan(all_coeffs)]
-all_coeffs = all_coeffs[(all_coeffs>=0)&(all_coeffs<=1)]
-
-bin_width=0.01
-bins = np.arange(start=0, stop=1+bin_width, step=bin_width)
-
-fig, ax = plt.subplots()
-
-ax.hist(all_coeffs, bins=bins, color='b')
-ax.set_xlabel('Cross Correlation [0,1)')
-ax.set_ylabel('Count')
-ax.set_title(f'{len(all_coeffs)} coefficients')
-
-plt.show()
 
 # %%
 from uncertainties import unumpy as unp
@@ -115,8 +96,7 @@ colour_dict = {
 
 # %%
 
-
-
+from src.analysing.fitting import gaussian, gaussian_fit
 
 import pandas as pd
 from collections import Counter
@@ -206,8 +186,8 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
     distances_unc = np.array(distances_unc)
     times_unc = np.array(times_unc)
     coeffs = np.array(coeffs)
-    spacecraft = np.array(spacecrafts)
-    detector = np.array(detectors)
+    spacecrafts = np.array(spacecrafts)
+    detectors = np.array(detectors)
 
 
     closish = abs(distances)<max_dist
@@ -238,11 +218,11 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
 
     elif colouring in ('spacecraft','detector'):
         if colouring == 'spacecraft':
-            spacecraft_counts = Counter(spacecraft[closish])
-            spacecraft_series = pd.Series(spacecraft[closish])
+            spacecraft_counts = Counter(spacecrafts[closish])
+            spacecraft_series = pd.Series(spacecrafts[closish])
         else:
-            spacecraft_counts = Counter(detector[closish])
-            spacecraft_series = pd.Series(detector[closish])
+            spacecraft_counts = Counter(detectors[closish])
+            spacecraft_series = pd.Series(detectors[closish])
 
         colours = spacecraft_series.map(colour_dict).fillna('k').to_numpy()
         scatter = ax.scatter(xs, ys, c=colours, s=1)
@@ -285,17 +265,16 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
     plt.show()
     plt.close()
 
-# %%
-import numpy as np
-from src.analysing.fitting import gaussian, gaussian_fit
 
-
-def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=False, show_errors=True):
+def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=False, show_errors=True, colouring='none'):
 
     # selection = closest, all
+    # colouring = spacecraft, detector, none
 
     times         = []
     times_unc     = []
+    spacecrafts   = []
+    detectors     = []
 
     sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
 
@@ -304,6 +283,11 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
 
         BS_time     = shock['OMNI_time']
         if pd.isnull(BS_time):
+            continue
+
+        BS_coeff = shock['OMNI_coeff']
+        if np.isnan(BS_coeff) or BS_coeff<coeff_lim or BS_coeff>1:
+            #1.1 indicates exact matches
             continue
 
         for sc in sc_labels:
@@ -329,40 +313,127 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
             times.append(time_diff)
             times_unc.append(time_diff_unc.s)
 
-    times = np.array(times)
-    times_unc = np.array(times_unc)
+            spacecrafts.append(sc)
+            detectors.append(detector.upper())
 
+    times       = np.array(times)/60
+    times_unc   = np.array(times_unc)
+    spacecrafts = np.array(spacecrafts)
+    detectors   = np.array(detectors)
 
     fig, ax = plt.subplots()
 
-    times_mins = times/60
-
     step = 5
-    bin_edges = np.arange(np.floor(np.min(times_mins)/step)*step,np.ceil(np.max(times_mins/step)*step),step)
-    counts, bins, _ = ax.hist(times_mins,bin_edges,color='k')
+    bin_edges = np.arange(np.floor(np.min(times)/step)*step,np.ceil(np.max(times/step)*step),step)
+
+    counts, bins = np.histogram(times, bin_edges)
     mids = 0.5*(bins[1:]+bins[:-1])
 
-    ax.axvline(x=np.median(times_mins),ls='--',lw=1,c='c',label=f'Median: {np.median(times_mins):.3g} mins')
+    if colouring in ('spacecraft','detector'):
+        if colouring=='spacecraft':
+            sc_array = spacecrafts
+        elif colouring=='detector':
+            sc_array = detectors
+        else:
+            raise Exception(f'{colouring} not valid choice for "colouring".')
+
+        grouped_counts = np.zeros((len(sc_labels), len(bin_edges) - 1))
+
+        for i, sc in enumerate(sc_labels):
+            grouped_counts[i], _ = np.histogram(times[sc_array == sc], bins=bin_edges)
+        bottom = np.zeros(len(bin_edges) - 1)
+
+        for i, sc in enumerate(sc_labels):
+            plt.bar(mids, grouped_counts[i], width=np.diff(bin_edges), bottom=bottom, color=colour_dict[sc], label=sc)
+            bottom += grouped_counts[i]
+    else:
+        ax.hist(times, bin_edges, color='k')
+
+
+
+    ax.axvline(x=np.median(times),ls='--',lw=1,c='c',label=f'Median: {np.median(times):.3g} mins')
     ax.axvline(x=0,ls=':',c='w',lw=1)
 
     if show_best_fit:
 
         A, mu, sig = gaussian_fit(mids,counts,detailed=True)
-        x_values = np.linspace(min(times_mins), max(times_mins), 1000)
+        x_values = np.linspace(min(times), max(times), 1000)
         y_values = gaussian(x_values, A.n, mu.n, sig.n)
 
         ax.plot(x_values,y_values,c='r',label=f'Mean: ${mu:L}$ mins')
 
     ax.set_xlabel(f'Time differences for {selection} spacecraft [mins]')
     ax.set_ylabel('Counts / 5mins')
-    ax.set_title(f'Frequency histogram of {len(times_mins)} measurements')
+    ax.set_title(f'Frequency histogram of {len(times)} measurements')
 
-    ax.legend()
+    #ax.legend()
 
     plt.show()
 
 # %%
 
-plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='x_comp', colouring='coeff')
 
-plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='closest', show_best_fit=False, show_errors=True)
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='x_comp', colouring='spacecraft')
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='closest', x_axis='x_comp', colouring='coeff')
+
+plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='all', show_best_fit=False, show_errors=True, colouring='none')
+plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='closest', show_best_fit=False, show_errors=True, colouring='none')
+
+
+# %%
+from src.plotting.shocks import plot_shock_times, plot_shock_positions
+
+coeff_lim = 0.7
+sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
+
+indices = []
+for index, shock in shocks_intercepts.iterrows():
+    if index.year < 2007:
+        continue
+    detector = shock['spacecraft']
+
+    BS_time     = shock['OMNI_time']
+    if pd.isnull(BS_time):
+        continue
+    BS_coeff = shock['OMNI_coeff']
+    if np.isnan(BS_coeff) or BS_coeff<coeff_lim or BS_coeff>1:
+        #1.1 indicates exact matches
+        continue
+    print_shock = False
+    for sc in sc_labels:
+        if sc in ('OMNI',detector):
+            continue
+
+        corr_coeff = shock[f'{sc}_coeff']
+        if isinstance(corr_coeff, (pd.Series, pd.DataFrame)) and len(corr_coeff) > 1:
+            corr_coeff = corr_coeff.iloc[0]  # Get the first value
+        else:
+            corr_coeff = corr_coeff
+
+        if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
+            #1.1 indicates exact matches
+            continue
+
+        sc_time = shock[f'{sc}_time']
+        if pd.isnull(sc_time):
+            continue
+        time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
+        if time_diff>=(45*60):
+            print_shock = True
+    if print_shock:
+        indices.append(index)
+        plot_shock_times(shock, 'B_mag', time_window=30)
+        #plot_shock_positions(shock, 'B_mag')
+
+# %%
+
+from src.analysing.shocks.intercepts import find_all_shocks
+from src.plotting.shocks import plot_all_shocks
+from datetime import datetime
+
+chosen_time = None
+chosen_time = datetime(1996,2,6)
+chosen_time = datetime(2013,2,5)
+
+test_shocks = find_all_shocks(shocks_intercepts, 'B_mag', time=chosen_time)
+plot_all_shocks(shocks_intercepts, 'B_mag', time=chosen_time, time_window=30)

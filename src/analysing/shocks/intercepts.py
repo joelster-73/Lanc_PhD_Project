@@ -120,6 +120,7 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
         e = f'No location data for detector {sc_L1}.'
         raise Exception(e)
 
+    # NEED TO CHANGE TO ACCOUNT FOR SPACECRAFT POSITIONS
     delay_time = np.linalg.norm(sc_pos)*R_E/320 # roughly 320 km/s for slow sw speed
     arrival_time = shock_time + timedelta(seconds=int(delay_time))
 
@@ -148,7 +149,10 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
                 df_omni = retrieve_data(parameter, 'OMNI', speasy_variables, start, end)
                 if ~df_omni.empty:
                     df_omni_sc = df_omni['spacecraft']
-                    return_dict['OMNI_sc'] = stats.mode(df_omni_sc).mode
+                    modal_sc = stats.mode(df_omni_sc).mode
+                    return_dict['OMNI_sc'] = modal_sc
+                    if modal_sc==99:
+                        continue
 
             else:
                 df_sc_pos = retrieve_data(position_var, source, speasy_variables, start, end, upsample=True)

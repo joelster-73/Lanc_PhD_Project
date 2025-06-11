@@ -41,6 +41,7 @@ def msh_boundaries(model, surface='bs', **kwargs):
     v_y = kwargs.get('v_sw_y',0)
     v_z = kwargs.get('v_sw_z',0)
 
+
     # Rotation about Z
     v_Earth  = 29.78
     v_y_rest = (v_y + v_Earth)
