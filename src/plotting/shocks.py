@@ -16,7 +16,7 @@ from .additions import create_half_circle_marker, plot_segments
 from .formatting import custom_date_formatter, add_legend, array_to_string, add_figure_title, create_label
 from .utils import save_figure
 
-from ..processing.speasy.config import speasy_variables, colour_dict, all_spacecraft
+from ..processing.speasy.config import speasy_variables, colour_dict, few_spacecraft
 from ..processing.speasy.retrieval import retrieve_data, retrieve_datum
 from ..processing.omni.config import omni_spacecraft
 
@@ -89,12 +89,14 @@ def plot_all_shocks(shocks, parameter, time=None, time_window=20, position_var='
             except Exception as e:
                 print(f'Issue with shock at time {index}: {e}.')
 
-def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', plot_in_sw=False):
+def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', plot_in_sw=False, plot_full_range=False):
 
 
     shock_time = shock.name.to_pydatetime()
     shock_time_unc = shock['time_s_unc']
     sc_L1 = shock['spacecraft'].upper()
+    source_code = shock['source']
+    database = 'CFA' if source_code=='C' else 'Donki'
 
     start_times   = []
     end_times     = []
@@ -102,14 +104,14 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     spacecraft_times = {}
 
     for region in ['L1', 'Earth']:
-        for source in all_spacecraft.get(region, []):
+        for source in few_spacecraft.get(region, []):
 
             time = shock[f'{source}_time']
 
             plot_data = False
             plot_vertical = False
             lw = 0.8
-
+            
             if pd.isnull(time):
 
                 if source in ('WIND','ACE','DSC'):
@@ -154,7 +156,7 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     max_time = max(value[0] for value in spacecraft_times.values())
 
     for source, (time, plot_vertical) in spacecraft_times.items():
-        if source == 'OMNI':
+        if source == 'OMNI' or plot_full_range:
             start = min_time-timedelta(minutes=time_window)
             end   = max_time+timedelta(minutes=time_window)
         else:
@@ -237,9 +239,9 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
 
     add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.1), cols=3)
 
-    add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}')
+    add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")} ({database})')
     plt.tight_layout()
-    save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_t', sub_directory='shocks')
+    #save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_t', sub_directory='shocks')
     plt.show()
     plt.close()
 
@@ -249,6 +251,8 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
 
     shock_time = shock.name.to_pydatetime()
     sc_L1 = shock['spacecraft'].upper()
+    source_code = shock['source']
+    database = 'CFA' if source_code=='C' else 'Donki'
 
     start_time_orbit = shock_time-timedelta(hours=24)
     end_time_orbit   = shock_time+timedelta(hours=24)
@@ -276,13 +280,13 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
 
     spacecraft_positions = {}
     for region in ['L1', 'Earth']:
-        for source in all_spacecraft.get(region, []):
+        for source in few_spacecraft.get(region, []):
             if source in (sc_L1,'OMNI'):
                 continue
 
             time = shock[f'{source}_time']
             coord = shock[[f'{source}_r_x_GSE',f'{source}_r_y_GSE',f'{source}_r_z_GSE']].to_numpy()
-
+            
             if not pd.isnull(time):
                 spacecraft_positions[source] = (time,{'x': coord[0], 'y': coord[1], 'z': coord[2]},True)
 
@@ -359,7 +363,7 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
             if Pd_OMNI is not None:
                 kwargs['Pd'] = Pd_OMNI
             if Vsw_OMNI is not None:
-                kwargs['v_sw_x'], kwargs['v_sw_x'], kwargs['v_sw_x'] = Vsw_OMNI
+                kwargs['v_sw_x'], kwargs['v_sw_y'], kwargs['v_sw_z'] = Vsw_OMNI
 
             surface_coords = msh_boundaries('jelinek', surface, **kwargs)
             surface_x = surface_coords.get(x_coord)
@@ -423,8 +427,8 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
 
         add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.25), rows=3)
 
-        add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")}', ax=ax)
+        add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")} ({database})', ax=ax)
         plt.tight_layout()
-        save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_'+plane, sub_directory='shocks')
+        #save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_'+plane, sub_directory='shocks')
         plt.show()
         plt.close()

@@ -41,8 +41,110 @@ def find_step_direction(df, disc_time, shock_type=None):
     else:
         return None
 
-
 def find_time_lag(parameter, source1, source2, source1_time, source2_time):
+    # lag > 0 implies source2 measures later than source1
+    # lag < 0 implies source2 measures before source1
+
+
+    if set(['OMNI','DSC']).intersection([source1,source2]):
+        resolution = 1
+    elif set(['ACE','IMP8']).intersection([source1,source2]):
+        resolution = 0.5
+    else:
+        resolution = 0.25
+
+    # either smarter way
+    # or check for up/downsample clever
+    sampling = {0.25: '15s', 0.5: '30s', 1: '1min'}
+    sampling_interval = sampling.get(resolution)
+    res_s = int(60*resolution)
+
+    # needs improving to take into account proximity to shock spacecraft
+    buffer_size_up = 20
+    window_start_up = source1_time - timedelta(minutes=buffer_size_up)
+    window_end_up   = source1_time + timedelta(minutes=buffer_size_up)
+    
+    data1 = retrieve_data(parameter, source1, speasy_variables,
+                              window_start_up, window_end_up, downsample=True, resolution=sampling_interval)
+    
+    buffer_size_dw = 80
+    if source2 in ('WIND','ACE','DSC'):
+        buffer_size_dw = 50
+
+    window_start = source2_time - timedelta(minutes=buffer_size_dw)
+    window_end   = source2_time + timedelta(minutes=buffer_size_dw)
+
+    data2 = retrieve_data(parameter, source2, speasy_variables,
+                              window_start, window_end, downsample=True, resolution=sampling_interval)
+
+    if data1.empty or data2.empty:
+        return np.nan, np.nan, np.nan
+
+    aligned = pd.merge(data1[[parameter]].rename(columns={parameter: source1}),
+                       data2[[parameter]].rename(columns={parameter: source2}),
+                       left_index=True, right_index=True, how='outer')
+
+    series1 = aligned[source1]
+    series2 = aligned[source2]
+    
+    start_lag = int(np.floor((aligned.index.min() - source1_time).total_seconds())/res_s)*res_s
+    end_lag = int(np.floor((aligned.index.max() - source1_time).total_seconds())/res_s)*res_s
+    lags = range(start_lag, end_lag + 1, res_s)
+
+    correlations = []
+    
+    for lag in lags:
+        
+        # lag>0 means series2 is lag seconds ahead
+        # need to use -lag to bring backwards
+        series2_shifted = series2.shift(periods=-lag, freq='s')
+
+        valid_indices = (~series1.isna()) & (~series2_shifted.isna())
+        
+        # Need at least 2 degrees of freedom
+        #print(series2_shifted)
+        if np.sum(valid_indices) < buffer_size_up/resolution:
+            corr = np.nan
+        else:
+            series1_valid = series1[valid_indices]
+            series2_valid = series2_shifted[valid_indices]
+    
+            # Need at least 2 degrees of freedom
+            corr = series1_valid.corr(series2_valid)
+            
+        
+        correlations.append(corr)
+
+    # Cross-correlation values
+    corr_series = pd.Series(correlations, index=np.array(lags)/60).dropna()
+
+    #############################
+    #pdb.set_trace() ### remove
+    #############################
+
+    try:
+        best_lag = corr_series.idxmax()
+        best_value = corr_series[best_lag]
+
+        # if best_value<0.6:
+        #     print(f'No suitable lag found, best coeff: {best_value:.2f}')
+        #     return np.nan, np.nan, best_value
+
+        best_lag_time = int(60*best_lag) # seconds
+        time_lag_unc = res_s
+
+        # print(f'Lag from {source1} to {source2}: {best_lag_time} s; coeff: {best_value:.2f}')
+        # print(source1_time,source2_time)
+        # if source2=='C1':
+        #     corr_series.plot()
+
+        return best_lag_time, time_lag_unc, best_value
+
+    except:
+        #print(f'No shock front between {source1} and {source2}.')
+        return np.nan, np.nan, np.nan
+
+def find_time_lag_curr(parameter, source1, source2, source1_time, source2_time):
     # lag > 0 implies source2 measures later than source1
     # lag < 0 implies source2 measures before source1
 
@@ -72,8 +174,8 @@ def find_time_lag(parameter, source1, source2, source1_time, source2_time):
                               window_start, window_end, downsample=True, resolution=sampling_interval)
 
 
-    window_start = min(source1_time,source2_time) - timedelta(minutes=4*buffer_size)
-    window_end   = max(source1_time,source2_time) + timedelta(minutes=4*buffer_size)
+    window_start = source2_time - timedelta(minutes=3*buffer_size)
+    window_end   = source2_time + timedelta(minutes=4*buffer_size)
 
     data2 = retrieve_data(parameter, source2, speasy_variables,
                               window_start, window_end, downsample=True, resolution=sampling_interval)

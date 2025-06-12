@@ -16,7 +16,7 @@ from .discontinuities import find_time_lag
 from .in_sw import is_in_solar_wind
 
 from ...processing.speasy.retrieval import retrieve_data, retrieve_position_unc
-from ...processing.speasy.config import speasy_variables, all_spacecraft
+from ...processing.speasy.config import speasy_variables, few_spacecraft
 from ...processing.utils import add_unit
 
 
@@ -28,7 +28,7 @@ def find_all_shocks(shocks, parameter, time=None, time_window=60, position_var='
     new_columns = {}
 
     for region in ['L1', 'Earth']:
-        for sc in all_spacecraft.get(region, []):
+        for sc in few_spacecraft.get(region, []):
 
             new_columns[f'{sc}_time'] = pd.NaT
             new_columns[f'{sc}_time_unc_s'] = np.nan
@@ -120,7 +120,7 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
         e = f'No location data for detector {sc_L1}.'
         raise Exception(e)
 
-    # NEED TO CHANGE TO ACCOUNT FOR SPACECRAFT POSITIONS
+    # NEED TO CHANGE TO ACCOUNT FOR BOTH SPACECRAFT POSITIONS
     delay_time = np.linalg.norm(sc_pos)*R_E/320 # roughly 320 km/s for slow sw speed
     arrival_time = shock_time + timedelta(seconds=int(delay_time))
 
@@ -132,7 +132,7 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
 
     ###-------------------OTHER SPACECRAFT-------------------###
     for region in ['L1', 'Earth']:
-        for source in all_spacecraft.get(region, []):
+        for source in few_spacecraft.get(region, []):
             approx_time = arrival_time
             if source == sc_L1:
                 continue
@@ -145,6 +145,7 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
                 start, end = start_time_dw, end_time_dw
             else:
                 continue
+            
             if source == 'OMNI':
                 df_omni = retrieve_data(parameter, 'OMNI', speasy_variables, start, end)
                 if ~df_omni.empty:
@@ -158,10 +159,11 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
                 df_sc_pos = retrieve_data(position_var, source, speasy_variables, start, end, upsample=True)
                 if df_sc_pos.empty:
                     continue
-
+                
                 in_sw = is_in_solar_wind(source, speasy_variables, start, end, pos_df=df_sc_pos)
                 if np.any(~in_sw):
                     continue
+                
 
             time_lag, lag_unc, lag_coeff = find_time_lag(parameter, sc_L1, source, shock_time, approx_time)
             if np.isnan(time_lag):

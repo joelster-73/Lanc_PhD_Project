@@ -76,25 +76,9 @@ def get_position_u(shock, sc):
     return unp.uarray([x,y,z],[x_u,y_u,z_u])
 
 
-colour_dict = {
-    'OMNI': 'orange',
-    'C1':   'blue',
-    'C2':   'cornflowerblue',
-    'C3':   'lightskyblue',
-    'C4':   'lightblue',
-    'THA':  'forestgreen',
-    'THB':  'seagreen',
-    'THC':  'mediumseagreen',
-    'THD':  'lightgreen',
-    'THE':  'palegreen',
-    'ACE':  'darkviolet',
-    'DSC':  'deeppink',
-    'GEO':  'teal',
-    'IMP8': 'crimson',
-    'WIND': 'magenta'
-}
 
 # %%
+from src.processing.speasy.config import colour_dict
 
 from src.analysing.fitting import gaussian, gaussian_fit
 
@@ -167,6 +151,15 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
                     continue
                 dist_diff = vec_mag(sc_pos-BS_pos)
                 distances.append(unp.nominal_values(dist_diff))
+                distances_unc.append(unp.std_devs(dist_diff))
+
+            elif x_axis=='signed_dist':
+                sc_pos = get_position_u(shock,sc)
+                if sc_pos is None:
+                    continue
+                sign = np.sign(shock[f'{sc}_r_x_GSE'])
+                dist_diff = vec_mag(sc_pos-BS_pos)
+                distances.append(sign*unp.nominal_values(dist_diff))
                 distances_unc.append(unp.std_devs(dist_diff))
             else:
                 raise Exception(f'{x_axis} not valid choice of "x_axis".')
@@ -254,6 +247,9 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
 
     if x_axis=='dist':
         ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$R_E$]')
+    elif x_axis=='signed_dist':
+        ax.set_xlabel(r'sgn(x) $\cdot$ |$r_{SC}$ - $r_{BSN}$| [$R_E$]')
+        ax.invert_xaxis()
     elif x_axis=='earth_sun':
         ax.set_xlabel(r'$\rho_{L1}$ [$R_E$]')
     elif x_axis=='x_comp':
@@ -376,12 +372,27 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
 plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='x_comp', colouring='spacecraft')
 plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='closest', x_axis='x_comp', colouring='coeff')
 
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='signed_dist', colouring='spacecraft')
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='closest', x_axis='signed_dist', colouring='coeff')
+
+
 plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='all', show_best_fit=False, show_errors=True, colouring='none')
 plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='closest', show_best_fit=False, show_errors=True, colouring='none')
 
 
 # %%
 from src.plotting.shocks import plot_shock_times, plot_shock_positions
+from src.config import PROC_CFA_DIR
+from src.processing.reading import import_processed_data
+
+cfa_shocks = import_processed_data(PROC_CFA_DIR)
+
+from src.processing.cfa.donki import combine_cfa_donki
+
+shocks = combine_cfa_donki(cfa_shocks)
+# %%
+from src.analysing.shocks.intercepts import find_all_shocks
+from datetime import timedelta
 
 coeff_lim = 0.7
 sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
@@ -422,18 +433,21 @@ for index, shock in shocks_intercepts.iterrows():
             print_shock = True
     if print_shock:
         indices.append(index)
-        plot_shock_times(shock, 'B_mag', time_window=30)
+        #plot_shock_times(shock, 'B_mag', time_window=30)
+
+        test_shock = find_all_shocks(shocks, 'B_mag', time=index-timedelta(minutes=5))
+        #plot_shock_times(test_shock, 'B_mag', time_window=30)
         #plot_shock_positions(shock, 'B_mag')
+
 
 # %%
 
-from src.analysing.shocks.intercepts import find_all_shocks
-from src.plotting.shocks import plot_all_shocks
 from datetime import datetime
 
-chosen_time = None
-chosen_time = datetime(1996,2,6)
-chosen_time = datetime(2013,2,5)
+#chosen_time = None
+#chosen_time = datetime(1996,2,6)
+chosen_time = datetime(2007,3,18)
 
-test_shocks = find_all_shocks(shocks_intercepts, 'B_mag', time=chosen_time)
-plot_all_shocks(shocks_intercepts, 'B_mag', time=chosen_time, time_window=30)
+# test_shock = find_all_shocks(shocks, 'B_mag', time=chosen_time)
+# plot_shock_times(test_shock, 'B_mag', time_window=30)
+# plot_shock_positions(test_shock, 'B_mag')
