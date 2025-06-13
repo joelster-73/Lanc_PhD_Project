@@ -50,14 +50,18 @@ def get_donki_shocks(start_date='1995-01-01',end_date='2024-12-31',print_stuff=F
 
     df_donki['time_s_unc'] = 30
 
+    # Option 1
     # # One row only, taking the first spacecraft
-    # df_donki['spacecraft'] = df_donki['spacecraft_list'].apply(lambda x: x[0].lower() if isinstance(x, list) and x else None)
-    # df_donki.drop(columns=['spacecraft_list'],inplace=True)
+    df_donki['spacecraft'] = df_donki['spacecraft_list'].apply(lambda x: x[0].lower() if isinstance(x, list) and x else None)
+    df_donki.drop(columns=['spacecraft_list'],inplace=True)
 
+    # Option 2
     # "Explodes" the dataframe, a row created for each element in the list
-    df_donki = df_donki.explode('spacecraft_list')
-    df_donki.rename(columns={'spacecraft_list':'spacecraft'},inplace=True)
-    df_donki['spacecraft'] = df_donki['spacecraft'].str.lower()
+    # df_donki = df_donki.explode('spacecraft_list')
+    # df_donki.rename(columns={'spacecraft_list':'spacecraft'},inplace=True)
+    # df_donki['spacecraft'] = df_donki['spacecraft'].str.lower()
+
+    # For both options
     df_donki['spacecraft'] = df_donki['spacecraft'].str.replace('dscovr', 'dsc', regex=False)
     return df_donki
 

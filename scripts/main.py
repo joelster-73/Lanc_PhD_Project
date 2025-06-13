@@ -87,6 +87,8 @@ from collections import Counter
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
+database_colour_dict = {'CFA': 'b', 'Donki': 'r'}
+
 def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist', colouring='spacecraft', show_best_fit=True, show_errors=True, max_dist=100):
 
     # selection = closest, all
@@ -100,6 +102,7 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
     coeffs        = []
     spacecrafts   = []
     detectors     = []
+    databases     = []
 
     sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
 
@@ -166,6 +169,7 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
 
             detectors.append(detector.upper())
             spacecrafts.append(sc)
+            databases.append('CFA' if shock['source']=='C' else 'Donki')
 
 
             time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
@@ -174,13 +178,15 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
             times_unc.append(time_diff_unc.s)
             coeffs.append(corr_coeff)
 
-    distances = np.array(distances)
-    times = np.array(times)
+
+    distances     = np.array(distances)
+    times         = np.array(times)
     distances_unc = np.array(distances_unc)
-    times_unc = np.array(times_unc)
-    coeffs = np.array(coeffs)
-    spacecrafts = np.array(spacecrafts)
-    detectors = np.array(detectors)
+    times_unc     = np.array(times_unc)
+    coeffs        = np.array(coeffs)
+    spacecrafts   = np.array(spacecrafts)
+    detectors     = np.array(detectors)
+    databases     = np.array(databases)
 
 
     closish = abs(distances)<max_dist
@@ -209,20 +215,24 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
         cbar = plt.colorbar(scatter)
         cbar.set_label('correlation coefficient')
 
-    elif colouring in ('spacecraft','detector'):
+    elif colouring in ('spacecraft','detector','database'):
+        plot_colour_dict = colour_dict
         if colouring == 'spacecraft':
             spacecraft_counts = Counter(spacecrafts[closish])
-            spacecraft_series = pd.Series(spacecrafts[closish])
-        else:
+            colours = pd.Series(spacecrafts[closish]).map(colour_dict).fillna('k').to_numpy()
+        elif colouring == 'detector':
             spacecraft_counts = Counter(detectors[closish])
-            spacecraft_series = pd.Series(detectors[closish])
+            colours = pd.Series(detectors[closish]).map(colour_dict).fillna('k').to_numpy()
+        elif colouring == 'database':
+            spacecraft_counts = Counter(databases[closish])
+            colours = pd.Series(databases[closish]).map(database_colour_dict).fillna('k').to_numpy()
+            plot_colour_dict = database_colour_dict
 
-        colours = spacecraft_series.map(colour_dict).fillna('k').to_numpy()
         scatter = ax.scatter(xs, ys, c=colours, s=1)
 
         legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1,
                               linestyle='None')
-                       for label, colour in colour_dict.items() if spacecraft_counts.get(label, 0) > 0
+                       for label, colour in plot_colour_dict.items() if spacecraft_counts.get(label, 0) > 0
         ]
         plt.legend(handles=legend_elements, fontsize=6, loc='upper left', bbox_to_anchor=(1.01, 1.0))
 
@@ -372,6 +382,10 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
 plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='x_comp', colouring='spacecraft')
 plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='closest', x_axis='x_comp', colouring='coeff')
 
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='x_comp', colouring='database')
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='closest', x_axis='x_comp', colouring='database')
+
+
 plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='all', x_axis='signed_dist', colouring='spacecraft')
 plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='closest', x_axis='signed_dist', colouring='coeff')
 
@@ -399,7 +413,7 @@ sc_labels = [col.split('_')[0] for col in shocks_intercepts if '_coeff' in col]
 
 indices = []
 for index, shock in shocks_intercepts.iterrows():
-    if index.year < 2007:
+    if index.year < 2009:
         continue
     detector = shock['spacecraft']
 
@@ -431,12 +445,13 @@ for index, shock in shocks_intercepts.iterrows():
         time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
         if time_diff>=(45*60):
             print_shock = True
+
     if print_shock:
         indices.append(index)
         #plot_shock_times(shock, 'B_mag', time_window=30)
 
-        test_shock = find_all_shocks(shocks, 'B_mag', time=index-timedelta(minutes=5))
-        #plot_shock_times(test_shock, 'B_mag', time_window=30)
+        test_shock = find_all_shocks(shocks, 'field', time=index-timedelta(minutes=5))
+        plot_shock_times(test_shock, 'B_mag', time_window=30)
         #plot_shock_positions(shock, 'B_mag')
 
 
