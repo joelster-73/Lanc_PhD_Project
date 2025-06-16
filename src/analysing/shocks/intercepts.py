@@ -20,7 +20,7 @@ from ...processing.speasy.config import speasy_variables, few_spacecraft
 from ...processing.utils import add_unit
 
 
-def find_all_shocks(shocks, parameter, time=None, time_window=60, position_var='R_GSE', R_E=6370):
+def find_all_shocks(shocks, parameter, time=None, **kwargs):
 
     shocks = shocks.copy()
     shocks_attrs = shocks.attrs
@@ -54,7 +54,7 @@ def find_all_shocks(shocks, parameter, time=None, time_window=60, position_var='
         nearest_idx = shocks.index.searchsorted(time_shock, side='right')
         nearest_time = shocks.index[nearest_idx]
         shock = shocks.loc[nearest_time].copy()
-        sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
+        sc_dict = find_shock_times(shock, parameter, **kwargs)
 
         for key, value in sc_dict.items():
             shock[key] = value
@@ -74,7 +74,7 @@ def find_all_shocks(shocks, parameter, time=None, time_window=60, position_var='
             # sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
 
             try:
-                sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
+                sc_dict = find_shock_times(shock, parameter, **kwargs)
 
                 for key, value in sc_dict.items():
                     shocks.at[index, key] = value
@@ -88,17 +88,20 @@ def find_all_shocks(shocks, parameter, time=None, time_window=60, position_var='
         return shocks
 
 
-def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E=6370):
+def find_shock_times(shock, parameter, **kwargs):
+
+    R_E            = kwargs.get('R_E',6370)
+    position_var   = kwargs.get('position_var','R_GSE')
+    time_window_up = kwargs.get('time_window_up',60)
+    time_window_dw = kwargs.get('time_window_up',40)
+
 
     #time_window is to check position data and whether in the solar wind or not
 
     return_dict = {}
     shock_time = shock.name.to_pydatetime()
 
-    print(shock_time)
-
     # Time around shock front
-    time_window_up = time_window
     start_time_up = shock_time-timedelta(minutes=time_window_up)
     end_time_up   = shock_time+timedelta(minutes=time_window_up)
 
@@ -139,20 +142,24 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
                 continue
 
             if region == 'L1':
-                buffer_dw = 40
+                buffer_dw = time_window_dw
                 start = shock_time-timedelta(minutes=buffer_dw)
                 end   = shock_time+timedelta(minutes=buffer_dw)
 
             elif region == 'Earth':
+                start = shock_time
+
                 arrival_time = shock_time + timedelta(seconds=int(delay_time))
-                buffer_dw = 120 # large search window
-                start = arrival_time-timedelta(minutes=buffer_dw)
-                end   = arrival_time+timedelta(minutes=buffer_dw)
-                start = max(start, shock_time) # can't arrive downstream before shock measured
+
+                buffer_dw = time_window_dw/2
+                end   = arrival_time + timedelta(minutes=buffer_dw)
+                end   = max(end, shock_time + timedelta(minutes=time_window_up))
+
+                #start = max(start, shock_time) # can't arrive downstream before shock measured
             else:
                 continue
 
-            df_sc_pos = retrieve_data(position_var, source, speasy_variables, start, end, upsample=True)
+            df_sc_pos = retrieve_data(position_var, source, speasy_variables, start, end, upsample=source!='OMNI')
             if df_sc_pos.empty:
                 continue
 
@@ -206,30 +213,32 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
                 data2 = retrieve_data(param, source, speasy_variables,
                                           start, end, downsample=True, resolution=sampling_interval, add_omni_sc=False)
 
-                if not data1.empty and not data2.empty:
+                if data1.empty or data2.empty:
+                    continue
 
-                    for comp in ('x','y','z'):
-                        param_comp = f'{param}_{comp}'
+                for comp in ('x','y','z'):
+                    param_comp = f'{param}_{comp}'
 
-                        data1_comp = data1[[param_comp]]
-                        data2_comp = data2[[param_comp]]
+                    data1_comp = data1[[param_comp]]
+                    data2_comp = data2[[param_comp]]
 
-                        lag, unc, coeff = find_time_lag(param_comp, data1_comp, data2_comp, sc_L1, source, shock_time, resolution, sampling_interval, buffer_dw)
-                        if not np.isnan(lag):
-                            time_lags.append(ufloat(lag,unc))
-                            lag_coeffs.append(coeff)
+                    lag, unc, coeff = find_time_lag(param_comp, data1_comp, data2_comp, sc_L1, source, shock_time, resolution, sampling_interval, buffer_dw)
+                    if not np.isnan(lag):
+                        time_lags.append(ufloat(lag,unc))
+                        lag_coeffs.append(coeff)
+
 
                 ###-------------------FIND MAX-------------------###
                 if len(time_lags)==0:
                     continue
-                else:
-                    time_lags = np.array(time_lags)
-                    lag_coeffs = np.array(lag_coeffs)
 
-                    time_lag_u = time_lags[lag_coeffs.argmax()]
-                    time_lag = time_lag_u.n
-                    lag_unc  = time_lag_u.s
-                    lag_coeff = np.max(lag_coeffs)
+                time_lags = np.array(time_lags)
+                lag_coeffs = np.array(lag_coeffs)
+
+                time_lag_u = time_lags[lag_coeffs.argmax()]
+                time_lag = time_lag_u.n
+                lag_unc  = time_lag_u.s
+                lag_coeff = np.max(lag_coeffs)
 
             else:
                 data1 = retrieve_data(param, sc_L1, speasy_variables,
@@ -239,12 +248,12 @@ def find_shock_times(shock, parameter, time_window=60, position_var='R_GSE', R_E
                 data2 = retrieve_data(param, source, speasy_variables,
                                           start, end, downsample=True, resolution=sampling_interval, add_omni_sc=False)
 
-                if not data1.empty and not data2.empty:
+                if data1.empty or data2.empty:
+                    continue
 
-                    time_lag, lag_unc, lag_coeff = find_time_lag(param, data1, data2, sc_L1, source, shock_time, resolution, sampling_interval, buffer_dw)
-                    if np.isnan(time_lag):
-                        continue
-
+                time_lag, lag_unc, lag_coeff = find_time_lag(param, data1, data2, sc_L1, source, shock_time, resolution, sampling_interval, buffer_dw)
+                if np.isnan(time_lag):
+                    continue
 
             front_time = shock_time + timedelta(seconds=time_lag)
             front_time_unc = (ufloat(time_lag, lag_unc) - ufloat(0,shock_time_unc)).s

@@ -26,7 +26,7 @@ all_spacecraft = {'L1': ('ACE','DSC','WIND'),
                   'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THA','THB','THC','THD','THE')}
 
 few_spacecraft = {'L1': ('ACE','DSC','WIND'),
-                  'Earth': ('OMNI','GEO','IMP8','C1','THA','THB')}
+                  'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THB','THC')}
 
 data_availability = {
     'C1':   (datetime(2000, 8, 22),          datetime(2024, 10, 3, 20, 35)),

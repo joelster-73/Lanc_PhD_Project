@@ -61,7 +61,7 @@ def straight_best_fit(x, y, yerr=None, name='', detailed=False, print_text=False
             f'R²: {r_squared:.3g}\n')
     if print_text:
         print(text)
-    save_statistics(text)
+    #save_statistics(text)
 
     if detailed:
         return a_unc, b_unc, r_squared

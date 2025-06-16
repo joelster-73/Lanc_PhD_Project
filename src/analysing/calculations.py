@@ -7,6 +7,7 @@ Created on Thu May  8 17:11:13 2025
 import numpy as np
 import pandas as pd
 
+from uncertainties import unumpy as unp
 from uncertainties import ufloat
 
 def calc_mean_error(series,start=None,end=None):
@@ -102,3 +103,29 @@ def circular_standard_deviation(angles, dof=1):
     n = len(angles) - dof
     R = np.sqrt((np.sum(np.cos(angles)) / n)**2 + (np.sum(np.sin(angles)) / n)**2)
     return np.sqrt(-2 * np.log(R))
+
+def vec_mag(vec):
+
+    try:
+        return np.linalg.norm(vec)
+    except:
+        return unp.sqrt(np.sum(vec**2))
+    return np.nan
+
+
+def get_position_u(shock, sc):
+
+    x = shock[f'{sc}_r_x_GSE']
+    y = shock[f'{sc}_r_y_GSE']
+    z = shock[f'{sc}_r_z_GSE']
+    for comp in (x,y,z):
+        if np.isnan(comp):
+            return None
+
+    x_u = shock[f'{sc}_r_x_GSE_unc']
+    y_u = shock[f'{sc}_r_x_GSE_unc']
+    z_u = shock[f'{sc}_r_x_GSE_unc']
+    for unc in (x_u,y_u,z_u):
+        if np.isnan(unc):
+            unc = 0
+    return unp.uarray([x,y,z],[x_u,y_u,z_u])

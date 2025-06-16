@@ -7,25 +7,24 @@ Created on Tue May 27 14:48:48 2025
 
 import numpy as np
 import pandas as pd
-from datetime import timedelta
-
-from src.processing.speasy.retrieval import retrieve_data
-from src.processing.speasy.config import speasy_variables
+# from datetime import timedelta
+# from src.processing.speasy.retrieval import retrieve_data
+# from src.processing.speasy.config import speasy_variables
 
 def find_time_lag(parameter, data1, data2, source1, source2, shock_time, resolution, sampling_interval, time_window_dw):
 
-    step_dir = find_step_direction(data1, shock_time)
-    approx_time = find_discontinuity_approx(data2, step_dir) # finding largest jump
+    # step_dir = find_step_direction(data1, shock_time)
+    # approx_time = find_discontinuity_approx(data2, step_dir) # finding largest jump
 
-    start_refined = approx_time-timedelta(minutes=time_window_dw)
-    end_refined   = approx_time+timedelta(minutes=time_window_dw)
+    # start = approx_time-timedelta(minutes=time_window_dw)
+    # end   = approx_time+timedelta(minutes=time_window_dw)
 
-    param = parameter
-    if 'GSE' in parameter:
-        param = '_'.join(parameter.split('_')[:2])
-    data2 = retrieve_data(param, source2, speasy_variables,
-                              start_refined, end_refined, downsample=True, resolution=sampling_interval, add_omni_sc=False)
-    data2 = data2[[parameter]]
+    # param = parameter
+    # if 'GSE' in parameter:
+    #     param = '_'.join(parameter.split('_')[:2])
+    # data2 = retrieve_data(param, source2, speasy_variables,
+    #                           start, end, downsample=True, resolution=sampling_interval, add_omni_sc=False)
+    # data2 = data2[[parameter]]
 
     lag, unc, coeff = find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution)
 
@@ -42,8 +41,8 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
     series1 = aligned[source1]
     series2 = aligned[source2]
 
-    start_lag = int(np.floor((data2.index.min() - data1.index.max()).total_seconds())/resolution)*resolution
-    end_lag = int(np.floor((data2.index.max() - data1.index.min()).total_seconds())/resolution)*resolution
+    start_lag = int(np.floor((data2.index.min() - shock_time).total_seconds())/resolution)*resolution
+    end_lag = int(np.floor((data2.index.max() - shock_time).total_seconds())/resolution)*resolution
     lags = range(start_lag, end_lag + 1, resolution)
 
     correlations = []
@@ -57,7 +56,7 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         valid_indices = (~series1.isna()) & (~series2_shifted.isna())
 
         # Need at least 2 degrees of freedom
-        if np.sum(valid_indices) < int(len(data1)/2):
+        if np.sum(valid_indices) < 20/resolution: # at least 10-minutes overlap
             corr = np.nan
         else:
             series1_valid = series1[valid_indices]
@@ -80,12 +79,12 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         best_lag_time = int(60*best_lag) # seconds
         time_lag_unc = resolution
 
-        print(f'Lag from {source1} to {source2} for {parameter}: {best_lag_time} s; coeff: {best_value:.2f}')
+        #print(f'Lag from {source1} to {source2} for {parameter}: {best_lag_time} s; coeff: {best_value:.2f}')
 
         return best_lag_time, time_lag_unc, best_value
 
     except:
-        print(f'No shock front between {source1} and {source2}.')
+        #print(f'No shock front between {source1} and {source2}.')
         return np.nan, np.nan, np.nan
 
 
@@ -122,3 +121,30 @@ def find_discontinuity_approx(df, shock_direction='inc'):
         time_guess = differences.stack().idxmin()
 
     return time_guess[0]
+
+def find_closest(shocks):
+
+    if 'closest' not in shocks.columns:
+        shocks['closest'] = None
+
+    sc_labels = [col.split('_')[0] for col in shocks if '_coeff' in col]
+
+    for index, shock in shocks.iterrows():
+
+        omni_pos = np.array([shock[f'OMNI_r_{comp}_GSE'] for comp in ('x','y','z')])
+        for comp in omni_pos:
+            if np.isnan(comp):
+                continue
+
+        sc_distances = {}
+        for sc in sc_labels:
+            if sc == 'OMNI' or sc==shock['spacecraft']:
+                continue
+
+            sc_pos = np.array([shock[f'{sc}_r_{comp}_GSE'] for comp in ('x','y','z')])
+            for comp in sc_pos:
+                if np.isnan(comp):
+                    continue
+            sc_distances[sc] = np.linalg.norm(sc_pos - omni_pos)
+
+        shocks.at[index,'closest'] = min(sc_distances, key=sc_distances.get)
