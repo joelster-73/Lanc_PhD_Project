@@ -4,6 +4,9 @@ Created on Fri May 16 10:38:41 2025
 
 @author: richarj2
 """
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
 def plot_freq_hist(df, *columns, **kwargs):
     """

@@ -6,6 +6,7 @@ Created on Fri May 16 10:20:40 2025
 """
 import numpy as np
 import pandas as pd
+from uncertainties import ufloat, unumpy as unp
 from datetime import timedelta
 
 import matplotlib.pyplot as plt
@@ -25,6 +26,8 @@ from ..processing.omni.config import omni_spacecraft
 from ..analysing.fitting import gaussian, gaussian_fit
 from ..analysing.shocks.in_sw import is_in_solar_wind
 from ..coordinates.boundaries import msh_boundaries
+
+from ..analysing.calculations import get_position_u, vec_mag
 
 
 
@@ -443,14 +446,22 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
         plt.show()
         plt.close()
 
-from uncertainties import ufloat, unumpy as unp
-from ..analysing.calculations import get_position_u, vec_mag
 
-def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist', colouring='spacecraft', show_best_fit=True, show_errors=True, max_dist=100, R_E=6370):
+def plot_time_differences(shocks, **kwargs):
 
     # selection = closest, all
     # x_axis    = dist, x_comp, earth_sun
     # colouring = coeff, spacecraft, detector, none
+
+
+    coeff_lim     = kwargs.get('coeff_lim',0.7)
+    selection     = kwargs.get('selection','all')
+    x_axis        = kwargs.get('x_axis','dist')
+    colouring     = kwargs.get('colouring','spacecraft')
+    show_best_fit = kwargs.get('show_best_fit',True)
+    show_errors   = kwargs.get('show_errors',True)
+    max_dist      = kwargs.get('max_dist',100)
+    R_E           = kwargs.get('R_E',6370)
 
     distances     = []
     distances_unc = []
@@ -619,13 +630,16 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
         else:
             sign = '+'
         middle = (np.max(xs)+np.min(xs))/2
-        ax.text(middle,np.max(ys),f'$\\Delta t$ = (${slope:L}$)$\\Delta r$ {sign} (${abs(intercept):L}$) mins\n$R^2$={r2:.3f}, ($v={slope_speed:L}$ km/s)',
-                ha='center',va='top')
+        location = np.max(np.abs(ys))
+        ax.text(middle,location,f'$\\Delta t$ = (${slope:L}$)$\\Delta r$ {sign} (${abs(intercept):L}$) mins\n$R^2$={r2:.3f}, $v={slope_speed:L}$ km/s',
+                ha='center',va='center')
 
-        ax.axhline(y=-45,c='grey',ls=':')
-        ax.axhline(y=45, c='grey',ls=':')
+        ax.axhline(y=-40,c='grey',ls=':')
+        ax.axhline(y=40, c='grey',ls=':')
 
 
+    ylim = np.max(np.abs(ax.get_ylim()))
+    ax.set_ylim(-ylim,ylim)
     if x_axis=='dist':
         ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$R_E$]')
     elif x_axis=='signed_dist':
@@ -637,7 +651,11 @@ def plot_time_differences(shocks, coeff_lim=0.7, selection='all', x_axis='dist',
         ax.set_xlabel(r'$X_{sc}$ - $X_{BSN}$ [$R_E$]')
         ax.invert_xaxis()
     ax.set_ylabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
-    ax.set_title(f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist}; N={np.sum(closish):,}')
+
+
+    add_figure_title(fig, title=f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist}; N={np.sum(closish):,}', ax=ax)
+    plt.tight_layout()
+    save_figure(fig)
 
     plt.show()
     plt.close()
@@ -669,9 +687,16 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
             continue
 
         for sc in sc_labels:
-            if (selection=='closest' and sc!=shock['closest']) or sc in ('OMNI',detector):
+            if sc==detector:
                 continue
-            elif (selection=='earth') and sc in ('WIND','ACE','DSC'):
+            elif selection == 'omni':
+                if sc!='OMNI':
+                    continue
+            elif sc == 'OMNI':
+                continue
+            elif selection == 'closest' and sc != shock['closest']:
+                continue
+            elif selection == 'earth' and sc in ('WIND', 'ACE', 'DSC'):
                 continue
 
             corr_coeff = shock[f'{sc}_coeff']
@@ -680,16 +705,22 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
             else:
                 corr_coeff = corr_coeff
 
+
             if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
                 #1.1 indicates exact matches
                 continue
 
-            sc_time = shock[f'{sc}_time']
-            if pd.isnull(sc_time):
-                continue
+            if selection=='omni':
+                time_diff     = (BS_time - index).total_seconds()
+                time_diff_unc = ufloat(time_diff,shock['OMNI_time_unc_s']) - ufloat(0,shock['time_s_unc'])
+            else:
+                sc_time = shock[f'{sc}_time']
+                if pd.isnull(sc_time):
+                    continue
 
-            time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
-            time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
+                time_diff     = (sc_time - BS_time).total_seconds()
+                time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
+
             times.append(time_diff)
             times_unc.append(time_diff_unc.s)
 
@@ -727,7 +758,8 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
             plt.bar(mids, grouped_counts[i], width=np.diff(bin_edges), bottom=bottom, color=colour_dict[sc], label=sc)
             bottom += grouped_counts[i]
     else:
-        ax.hist(times, bin_edges, color='k')
+        bar_colour = 'orange' if selection=='omni' else 'k'
+        ax.hist(times, bin_edges, color=bar_colour)
 
 
 
@@ -744,8 +776,12 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
 
     ax.set_xlabel(f'Time differences for {selection} spacecraft [mins]')
     ax.set_ylabel('Counts / 5mins')
-    ax.set_title(f'Frequency histogram of {len(times)} measurements')
 
-    ax.legend()
+    add_legend(fig,ax)
+    add_figure_title(fig, title=f'Frequency histogram of {len(times)} measurements', ax=ax)
+
+    plt.tight_layout()
+    save_figure(fig)
 
     plt.show()
+    plt.close()

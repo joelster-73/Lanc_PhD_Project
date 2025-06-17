@@ -37,6 +37,10 @@ shocks_with_intercepts = find_all_shocks(shocks,'field')
 
 write_to_cdf(shocks_with_intercepts,output_file,reset_index=True)
 
+# %%
+from src.plotting.shocks import plot_time_differences
+
+plot_time_differences(shocks_with_intercepts, coeff_lim=0.8, selection='earth', x_axis='x_comp', colouring='spacecraft')
 
 # %%
 from src.config import PROC_SHOCKS_DIR

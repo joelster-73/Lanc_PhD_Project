@@ -25,6 +25,7 @@ shocks_intercepts = import_processed_data(PROC_SHOCKS_DIR)
 find_closest(shocks_intercepts)
 
 
+# %% OMNI
 
 # %%
 from src.plotting.shocks import plot_time_differences, plot_time_histogram
@@ -79,7 +80,7 @@ for index, shock in shocks_intercepts.iterrows():
         if pd.isnull(sc_time):
             continue
         time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
-        if np.abs(time_diff)>=(45*60): # positive or engative
+        if np.abs(time_diff)>=(40*60): # positive or engative
             add_shock = True
 
     if add_shock:
@@ -93,14 +94,25 @@ from datetime import timedelta, datetime
 
 ## CHANGE TO PRINT VEC COMPONENTS
 
+shocks_updated = shocks_intercepts.copy()
 
 for shock_index in indices:
-    shock = shocks_intercepts.loc[shock_index]
 
-    plot_shock_times(shock, 'B_mag', time_window=30)
+    print(shock_index)
+    #shock = shocks_intercepts.loc[shock_index]
+
+    #plot_shock_times(shock, 'B_mag', time_window=30)
 
     test_shock = find_all_shocks(shocks, 'field', time=shock_index-timedelta(seconds=1))
-    plot_shock_times(test_shock, 'B_mag', time_window=30)
+    #plot_shock_times(test_shock, 'B_mag', time_window=30)
+
+    shocks_updated.loc[shock_index] = test_shock
 
     #plot_shock_positions(shock, 'B_mag')
 
+# %%
+
+plot_time_differences(shocks_intercepts, coeff_lim=0.7, selection='earth', x_axis='x_comp', colouring='spacecraft', limit_times=100)
+plot_time_differences(shocks_updated, coeff_lim=0.7, selection='earth', x_axis='x_comp', colouring='spacecraft', limit_times=100)
+
+plot_time_histogram(shocks_intercepts, coeff_lim=0.7, selection='omni', show_best_fit=False, show_errors=True, colouring='none')

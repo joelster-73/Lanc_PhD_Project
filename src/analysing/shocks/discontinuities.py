@@ -56,7 +56,7 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         valid_indices = (~series1.isna()) & (~series2_shifted.isna())
 
         # Need at least 2 degrees of freedom
-        if np.sum(valid_indices) < 20/resolution: # at least 10-minutes overlap
+        if np.sum(valid_indices) < 20*60/resolution: # at least 20-minutes overlap
             corr = np.nan
         else:
             series1_valid = series1[valid_indices]
