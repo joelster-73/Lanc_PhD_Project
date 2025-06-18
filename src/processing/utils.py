@@ -15,24 +15,30 @@ from spacepy import pycdf
 def add_unit(key):
     if any(keyword in key for keyword in ['theta','phi','alpha', 'pitch', 'clock', 'cone', 'angle']): # angles
         return 'rad'
-    elif '_s' in key:
-        return 's'
-    elif '_time' in key:
-        return 'datetime'
-    elif 'r_' in key:
-        return 'Re'
-    elif 'v_' in key:
+    elif any(keyword in key for keyword in ['v_','V_']):
         return 'km/s'
-    elif 'B_' in key:
-        return 'nT'
-    elif 'epoch' in key:
-        return 'cdf_epoch'
-    elif 'p_' in key:
-        return 'nPa'
     elif any(keyword in key for keyword in ['ni','np','n_i','n_p']): # densities
         return 'n/cc'
-    elif 'Nx' in key or 'Ny' in key or 'Nz' in key:
+    elif any(keyword in key for keyword in ['N_x','N_y','N_z', 'M_']):
         return '1'
+    elif 'ratio' in key:
+        return '1'
+    elif 'Beta_' in key:
+        return 'bool'
+    elif '_time' in key:
+        return 'datetime'
+    elif '_s' in key:
+        return 's'
+    elif 'r_' in key:
+        return 'Re'
+    elif 'B_' in key:
+        return 'nT'
+    elif 'T_' in key:
+        return 'K'
+    elif 'epoch' in key:
+        return 'cdf_epoch'
+    elif 'P_' in key:
+        return 'nPa'
     else:
         return ''
 

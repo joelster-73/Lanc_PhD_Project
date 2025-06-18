@@ -6,7 +6,7 @@ Created on Fri May 16 10:20:40 2025
 """
 import numpy as np
 import pandas as pd
-from uncertainties import ufloat, unumpy as unp
+from uncertainties import ufloat
 from datetime import timedelta
 
 import matplotlib.pyplot as plt
@@ -23,11 +23,11 @@ from ..processing.speasy.config import speasy_variables, colour_dict, few_spacec
 from ..processing.speasy.retrieval import retrieve_data, retrieve_datum
 from ..processing.omni.config import omni_spacecraft
 
-from ..analysing.fitting import gaussian, gaussian_fit
+from ..analysing.fitting import gaussian, gaussian_fit, straight_best_fit
 from ..analysing.shocks.in_sw import is_in_solar_wind
+from ..analysing.shocks.statistics import get_time_dist_differences
 from ..coordinates.boundaries import msh_boundaries
 
-from ..analysing.calculations import get_position_u, vec_mag
 
 
 
@@ -462,103 +462,25 @@ def plot_time_differences(shocks, **kwargs):
     show_errors   = kwargs.get('show_errors',True)
     max_dist      = kwargs.get('max_dist',100)
     R_E           = kwargs.get('R_E',6370)
+    cfa_shocks    = kwargs.get('cfa_shocks',None)
 
-    distances     = []
-    distances_unc = []
-    times         = []
-    times_unc     = []
-    coeffs        = []
-    spacecrafts   = []
-    detectors     = []
-    databases     = []
+    distances     = kwargs.get('distances',None)
+    distances_unc = kwargs.get('distances_unc',None)
+    times         = kwargs.get('times',None)
+    times_unc     = kwargs.get('times_unc',None)
+    z_values      = kwargs.get('z_values',None)
+
+    for data in (distances,distances_unc,times,times_unc,z_values):
+        if data is None:
+            distances, distances_unc, times, times_unc, z_values = get_time_dist_differences(shocks,**kwargs)
+            break
+
+    if colouring == 'angle' and cfa_shocks is None:
+        raise Exception('Need CFA shocks to calculate angle.')
+
+
 
     database_colour_dict = {'CFA': 'b', 'Donki': 'r'}
-
-    sc_labels = [col.split('_')[0] for col in shocks if '_coeff' in col]
-
-    for index, shock in shocks.iterrows():
-        detector = shock['spacecraft']
-
-        BS_time     = shock['OMNI_time']
-        if pd.isnull(BS_time):
-            continue
-
-
-        BS_pos = get_position_u(shock,'OMNI')
-        if BS_pos is None and x_axis!='earth_sun':
-            continue
-
-        for sc in sc_labels:
-            if (selection=='closest' and sc!=shock['closest']) or sc in ('OMNI',detector):
-                continue
-            elif (selection=='earth') and sc in ('WIND','ACE','DSC'):
-                continue
-
-            corr_coeff = shock[f'{sc}_coeff']
-            if isinstance(corr_coeff, (pd.Series, pd.DataFrame)) and len(corr_coeff) > 1:
-                corr_coeff = corr_coeff.iloc[0]  # Get the first value
-            else:
-                corr_coeff = corr_coeff
-
-            if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
-                #1.1 indicates exact matches
-                continue
-
-            if x_axis=='earth_sun':
-                L1_pos = get_position_u(shock,detector)
-                if L1_pos is None:
-                    continue
-                L1_rho = unp.sqrt(L1_pos[1]**2+L1_pos[2]**2)
-                distances.append(L1_rho.n)
-                distances_unc.append(L1_rho.s)
-
-            elif x_axis=='x_comp':
-                sc_x = ufloat(shock[f'{sc}_r_x_GSE'],shock[f'{sc}_r_x_GSE_unc'])
-                if np.isnan(sc_x.n):
-                    continue
-                bs_x = ufloat(shock['OMNI_r_x_GSE'] ,shock['OMNI_r_x_GSE_unc'])
-                distances.append((sc_x-bs_x).n)
-                distances_unc.append((sc_x-bs_x).s)
-
-            elif x_axis=='dist':
-                sc_pos = get_position_u(shock,sc)
-                if sc_pos is None:
-                    continue
-                dist_diff = vec_mag(sc_pos-BS_pos)
-                distances.append(unp.nominal_values(dist_diff))
-                distances_unc.append(unp.std_devs(dist_diff))
-
-            elif x_axis=='signed_dist':
-                sc_pos = get_position_u(shock,sc)
-                if sc_pos is None:
-                    continue
-                sign = np.sign(shock[f'{sc}_r_x_GSE'])
-                dist_diff = vec_mag(sc_pos-BS_pos)
-                distances.append(sign*unp.nominal_values(dist_diff))
-                distances_unc.append(unp.std_devs(dist_diff))
-            else:
-                raise Exception(f'{x_axis} not valid choice of "x_axis".')
-
-            detectors.append(detector.upper())
-            spacecrafts.append(sc)
-            databases.append('CFA' if shock['source']=='C' else 'Donki')
-
-
-            time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
-            time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
-            times.append(time_diff)
-            times_unc.append(time_diff_unc.s)
-            coeffs.append(corr_coeff)
-
-
-    distances     = np.array(distances)
-    times         = np.array(times)
-    distances_unc = np.array(distances_unc)
-    times_unc     = np.array(times_unc)
-    coeffs        = np.array(coeffs)
-    spacecrafts   = np.array(spacecrafts)
-    detectors     = np.array(detectors)
-    databases     = np.array(databases)
 
     if selection=='earth':
         max_dist=250
@@ -571,53 +493,61 @@ def plot_time_differences(shocks, **kwargs):
     ys_unc = times_unc[closish]/60
 
     fig, ax = plt.subplots()
-    if show_errors:
-        error_colour = 'k'
 
     if show_errors:
-        error_colour = 'k' if colouring in ('coeff','spacecraft','detector') else 'r'
+        error_colour = 'k' if colouring in ('coeff','sun_earth','angle','spacecraft','detector') else 'r'
         ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
 
 
     #ax.axhline(0,c='grey',ls=':')
     #ax.axvline(0,c='grey',ls=':')
 
-    if colouring == 'coeff':
+    if colouring in ('coeff','sun_earth','angle'):
+        if colouring == 'coeff':
+            zmin   = coeff_lim
+            zmax   = 1
+            zlabel = 'correlation coefficient'
+        elif colouring == 'sun_earth':
+            zmin   = 0
+            zmax   = 100
+            zlabel = r'$\sqrt{Y^2+Z^2}$ [$\mathrm{R_E}$]'
+        elif colouring == 'angle':
+            zmin   = 0
+            zmax   = 135
+            zlabel = r'angle [$^\circ$]'
+            z_values = np.degrees(z_values)
 
-        scatter = ax.scatter(xs, ys, c=coeffs[closish], cmap='plasma_r', vmin=coeff_lim, vmax=1, s=1)
+        scatter = ax.scatter(xs, ys, c=z_values[closish], cmap='plasma_r', vmin=zmin, vmax=zmax, s=1)
 
         cbar = plt.colorbar(scatter)
-        cbar.set_label('correlation coefficient')
+        cbar.set_label(zlabel)
+
 
     elif colouring in ('spacecraft','detector','database'):
-        plot_colour_dict = colour_dict
-        if colouring == 'spacecraft':
-            spacecraft_counts = Counter(spacecrafts[closish])
-            colours = pd.Series(spacecrafts[closish]).map(colour_dict).fillna('k').to_numpy()
-        elif colouring == 'detector':
-            spacecraft_counts = Counter(detectors[closish])
-            colours = pd.Series(detectors[closish]).map(colour_dict).fillna('k').to_numpy()
-        elif colouring == 'database':
-            spacecraft_counts = Counter(databases[closish])
-            colours = pd.Series(databases[closish]).map(database_colour_dict).fillna('k').to_numpy()
-            plot_colour_dict = database_colour_dict
+        sc_colour_dict = colour_dict
+        if colouring == 'database':
+            sc_colour_dict = database_colour_dict
+
+        spacecraft_counts = Counter(z_values[closish])
+        colours = pd.Series(z_values[closish]).map(sc_colour_dict).fillna('k').to_numpy()
+
 
         scatter = ax.scatter(xs, ys, c=colours, s=1)
 
         legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1,
                               linestyle='None')
-                       for label, colour in plot_colour_dict.items() if spacecraft_counts.get(label, 0) > 0
+                       for label, colour in sc_colour_dict.items() if spacecraft_counts.get(label, 0) > 0
         ]
 
         ax.legend(handles=legend_elements, fontsize=6, loc='upper left', bbox_to_anchor=(1.01, 1.0))
     else:
-        ax.scatter(distances[closish], times[closish]/60, c='k', s=1)
+        ax.scatter(xs, ys, c='k', s=1)
 
 
 
     if show_best_fit:
 
-        from ..analysing.fitting import straight_best_fit
+
 
         slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
 

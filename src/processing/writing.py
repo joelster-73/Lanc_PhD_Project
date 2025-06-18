@@ -49,6 +49,9 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
     if reset_index:
         df.reset_index(inplace=True)
 
+    if overwrite and os.path.exists(output_file):
+        os.remove(output_file)
+
     with pycdf.CDF(output_file, create=not os.path.exists(output_file)) as cdf:
         cdf.readonly(False)
         if attributes is not None:
@@ -81,8 +84,6 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
                     print(f'Cannot add {column} to cdf file.')
                 else:
                     cdf[column].attrs['units'] = df.attrs['units'].get(column,add_unit(column))
-            elif overwrite:
-                cdf[column] = new_data
 
             elif append_rows:
                 # If the column already exists, extend the existing data

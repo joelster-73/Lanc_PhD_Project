@@ -66,7 +66,7 @@ def get_donki_shocks(start_date='1995-01-01',end_date='2024-12-31',print_stuff=F
     return df_donki
 
 
-def combine_cfa_donki(cfa_shocks,donki_shocks=None):
+def combine_cfa_donki(cfa_shocks, donki_shocks=None):
     attrs_dict = cfa_shocks.attrs
 
     cfa_shocks = cfa_shocks.copy()

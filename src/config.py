@@ -23,6 +23,7 @@ WIND_DIR               = f'{PROCESSED_DATA_DIR}/WIND'
 OMNI_DIR               = f'{PROCESSED_DATA_DIR}/OMNI'
 THEMIS_DIR             = f'{PROCESSED_DATA_DIR}/THEMIS'
 CFA_DIR                = f'{PROCESSED_DATA_DIR}/CFA'
+HELSINKI_DIR           = f'{PROCESSED_DATA_DIR}/HELSINKI'
 SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 
@@ -56,9 +57,11 @@ PROC_WIND_DIR_3SEC     = f'{WIND_DIR}/3_sec/'
 # Processed THEMIS Data
 PROC_THEMIS_DIR        = THEMIS_DIR
 
-# Processed Shocks Data
+# Processed CFA Data
 PROC_CFA_DIR           = CFA_DIR
-PROC_SHOCKS_DIR        = SHOCKS_DIR
+
+# Processed Shocks Data
+PROC_SHOCKS_DIR        = f'{PROCESSED_DATA_DIR}/SHOCKS'
 
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'
