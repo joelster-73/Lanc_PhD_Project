@@ -7,30 +7,72 @@ Created on Tue May 27 14:48:48 2025
 
 import numpy as np
 import pandas as pd
-# from datetime import timedelta
-# from src.processing.speasy.retrieval import retrieve_data
-# from src.processing.speasy.config import speasy_variables
+from datetime import timedelta
 
-def find_time_lag(parameter, data1, data2, source1, source2, shock_time, resolution, sampling_interval, time_window_dw):
 
-    # step_dir = find_step_direction(data1, shock_time)
-    # approx_time = find_discontinuity_approx(data2, step_dir) # finding largest jump
 
-    # start = approx_time-timedelta(minutes=time_window_dw)
-    # end   = approx_time+timedelta(minutes=time_window_dw)
+from src.processing.speasy.retrieval import retrieve_data
+from src.processing.speasy.config import speasy_variables
 
-    # param = parameter
-    # if 'GSE' in parameter:
-    #     param = '_'.join(parameter.split('_')[:2])
-    # data2 = retrieve_data(param, source2, speasy_variables,
-    #                           start, end, downsample=True, resolution=sampling_interval, add_omni_sc=False)
-    # data2 = data2[[parameter]]
 
-    lag, unc, coeff = find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution)
 
-    return lag, unc, coeff
+def get_average_interval(time, where='up', shock_type='FF'):
+    if where=='up' and shock_type=='FF':
+        return time-timedelta(minutes=9), time-timedelta(minutes=1)
+    elif where=='up' and shock_type=='FR':
+        return time+timedelta(minutes=1), time+timedelta(minutes=9)
+    elif where=='dw' and shock_type=='FF':
+        return time+timedelta(minutes=2), time+timedelta(minutes=10)
+    elif where=='dw' and shock_type=='FR':
+        return time-timedelta(minutes=10), time-timedelta(minutes=2)
 
-def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution):
+def sufficient_compression(parameter, detector, interceptor, shock_time, intercept_time):
+
+    shock_type = 'FF'
+    while True:
+        data1_up_start, data1_up_end = get_average_interval(shock_time, 'up', shock_type)
+        data1_dw_start, data1_dw_end = get_average_interval(shock_time, 'dw', shock_type)
+
+        data1_up = retrieve_data(parameter, detector, speasy_variables, data1_up_start, data1_up_end, add_omni_sc=False).dropna()
+
+        data1_dw = retrieve_data(parameter, detector, speasy_variables, data1_dw_start, data1_dw_end, add_omni_sc=False).dropna()
+
+        if data1_up.empty or data1_dw.empty:
+            return False
+
+        # better one
+        data1_up_avg = np.mean(data1_up.to_numpy())
+        data1_dw_avg = np.mean(data1_dw.to_numpy())
+
+        B1_ratio = data1_dw_avg/data1_up_avg
+
+        if B1_ratio<1: # have an FR shock
+            shock_type='FR'
+        else:
+            break
+
+    data2_up_start, data2_up_end = get_average_interval(intercept_time, 'up', shock_type)
+    data2_dw_start, data2_dw_end = get_average_interval(intercept_time, 'dw', shock_type)
+
+    data2_up = retrieve_data(parameter, interceptor, speasy_variables, data2_up_start, data2_up_end, add_omni_sc=False).dropna()
+
+    data2_dw = retrieve_data(parameter, interceptor, speasy_variables, data2_dw_start, data2_dw_end, add_omni_sc=False).dropna()
+
+    if data2_up.empty or data2_dw.empty:
+        return False
+
+    data2_up_avg = np.mean(data2_up.to_numpy())
+    data2_dw_avg = np.mean(data2_dw.to_numpy())
+
+    B2_ratio = data2_dw_avg/data2_up_avg
+    min_B_comp = max(1.1,0.75*B1_ratio)
+
+    if B2_ratio >= min_B_comp:
+        return True
+    return False
+
+
+def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution, check_compression=True, overlap_mins=10):
     # lag > 0 implies source2 measures later than source1
     # lag < 0 implies source2 measures before source1
 
@@ -56,7 +98,7 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         valid_indices = (~series1.isna()) & (~series2_shifted.isna())
 
         # Need at least 2 degrees of freedom
-        if np.sum(valid_indices) < 20*60/resolution: # at least 20-minutes overlap
+        if np.sum(valid_indices) < overlap_mins*60/resolution: # at least 10-minutes overlap
             corr = np.nan
         else:
             series1_valid = series1[valid_indices]
@@ -66,25 +108,24 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         correlations.append(corr)
 
     # Cross-correlation values
-    corr_series = pd.Series(correlations, index=np.array(lags)/60).dropna()
+    corr_series = pd.Series(correlations, index=np.array(lags)).dropna()
 
     try:
-        best_lag = corr_series.idxmax()
-        best_value = corr_series[best_lag]
+        if check_compression:
+            for lag, corr in corr_series.sort_values(ascending=False).items():
+                lagged_time = shock_time + timedelta(seconds=lag)
+                if sufficient_compression(parameter, source1, source2, shock_time, lagged_time):
+                    return lag, resolution, corr
 
-        # if best_value<0.6:
-        #     print(f'No suitable lag found, best coeff: {best_value:.2f}')
-        #     return np.nan, np.nan, best_value
+            return np.nan, np.nan, np.nan
 
-        best_lag_time = int(60*best_lag) # seconds
-        time_lag_unc = resolution
+        else:
+            best_lag = corr_series.idxmax()
+            best_value = corr_series[best_lag]
 
-        #print(f'Lag from {source1} to {source2} for {parameter}: {best_lag_time} s; coeff: {best_value:.2f}')
-
-        return best_lag_time, time_lag_unc, best_value
+            return best_lag, resolution, best_value
 
     except:
-        #print(f'No shock front between {source1} and {source2}.')
         return np.nan, np.nan, np.nan
 
 
