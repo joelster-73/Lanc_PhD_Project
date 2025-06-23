@@ -100,7 +100,6 @@ def train_propagation_time(shock_time, detector, interceptor, parameter, positio
     region         = kwargs.get('region','Earth')
     resolution     = kwargs.get('resolution',None)
     intercept_pos  = kwargs.get('intercept_pos',None)
-    overlap_mins   = buffer_up
 
 
 
@@ -183,7 +182,7 @@ def train_propagation_time(shock_time, detector, interceptor, parameter, positio
             data1_comp = data1[[param_comp]]
             data2_comp = data2[[param_comp]]
 
-            lag, unc, coeff = find_peak_cross_corr(param_comp, data1_comp, data2_comp, detector, interceptor, shock_time, resolution, overlap_mins=overlap_mins)
+            lag, unc, coeff = find_peak_cross_corr(param_comp, data1_comp, data2_comp, detector, interceptor, shock_time, resolution)
             if not np.isnan(lag):
                 time_lags.append(ufloat(lag,unc))
                 lag_coeffs.append(coeff)
@@ -199,7 +198,7 @@ def train_propagation_time(shock_time, detector, interceptor, parameter, positio
     if data1.empty or data2.empty:
         return None, None, None
 
-    lag, unc, coeff = find_peak_cross_corr(parameter, data1, data2, detector, interceptor, shock_time, resolution, overlap_mins=overlap_mins)
+    lag, unc, coeff = find_peak_cross_corr(parameter, data1, data2, detector, interceptor, shock_time, resolution)
     if not np.isnan(lag):
         time_lags.insert(0,ufloat(lag,unc))
         lag_coeffs.insert(0,coeff)

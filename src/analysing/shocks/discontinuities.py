@@ -72,7 +72,7 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
     return False
 
 
-def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution, check_compression=True, overlap_mins=10):
+def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution, check_compression=True, overlap_mins=3):
     # lag > 0 implies source2 measures later than source1
     # lag < 0 implies source2 measures before source1
 

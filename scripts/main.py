@@ -72,83 +72,16 @@ print(event_list)
 
 
 # %%
-plt.rcParams['figure.figsize'] = [12, 8]
-plt.rcParams['figure.dpi'] = 400
-plt.rcParams['font.size'] = 12
-plt.rcParams['figure.titlesize'] = 18
-plt.rcParams['legend.frameon'] = True
-plt.rcParams['legend.fontsize'] = 12
-plt.rcParams['legend.facecolor'] = 'w'
-plt.rcParams['legend.edgecolor'] = 'k'
-plt.rcParams['axes.titlesize'] = 16
-plt.rcParams['axes.labelsize'] = 15
-
+from src.analysing.shocks.intercepts import train_propagation_time
 from src.analysing.fitting import straight_best_fit
 
-marker_dict = {'B_mag': 'x', 'B_GSE_x': 's', 'B_GSE_y': 'o', 'B_GSE_z': '+'}
-
-def plot_comparison(xs, ys, ys_unc, params, zs, title, total):
-    fig, ax = plt.subplots()
-
-    slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
-
-    ax.errorbar(xs, ys, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
-
-    for param, marker in marker_dict.items():
-        ms    = 20 if marker in ('x','+') else 10
-        mask  = params == param
-        count = np.sum(mask)
-        if count==0:
-            continue
-
-        ax.scatter(xs[mask], ys[mask], c=zs[mask], s=ms, marker=marker, cmap='plasma_r', vmin=corr_lim, vmax=1)
-
-        ax.scatter([], [], c='k', s=ms, marker=marker, label=f'{param}: {count} / {total}')
-
-    scatter = ax.scatter(xs, ys, c=zs, s=0, cmap='plasma_r', vmin=corr_lim, vmax=1)
-    cbar = plt.colorbar(scatter)
-    cbar.set_label('Correlation Coeff')
-
-    ax.axline(slope=1,xy1=[0,0],c='k',ls=':')
-    ax.axline([0,intercept.n],slope=slope.n,c='r',ls='--',lw=1)
-
-    ax.axhline(y=0,c='grey',lw=0.2, ls='--')
-    ax.axvline(x=0,c='grey',lw=0.2, ls='--')
-
-    if intercept.n<0:
-        sign = '-'
-    else:
-        sign = '+'
-
-    x_lim = max(np.abs(ax.get_xlim()))+10
-    y_lim = max(np.abs(ax.get_ylim()))+10
-
-    middle = 0
-    height = y_lim-10
-
-    ax.text(middle,height,f'$\\Delta t_c$ = (${slope:L}$)$\\cdot$$\\Delta t_H$ {sign} (${abs(intercept):L}$) mins\n$R^2$={r2:.3f}', ha='center',va='center')
-
-    ax.set_xlabel('Helsinki delays [mins]')
-    ax.set_ylabel('Correlated delays [mins]')
-
-
-    ax.set_xlim(-x_lim,x_lim)
-    ax.set_ylim(-y_lim,y_lim)
-    ax.set_title(title)
-
-    ax.legend(loc='upper left', fontsize=10)
-    plt.show()
-    plt.close()
-
-# %%
-from src.analysing.shocks.intercepts import train_propagation_time
 import numpy as np
 R_E = 6370
 
 # Only parameter left to train is minimum compression and min overlap maybe - don't bother testing below buffer up
 
-buffer_up_values = range(10, 61)
-buffer_dw_values = range(10, 61)
+buffer_up_values = list(range(15, 31))
+buffer_dw_values = list(range(20, 51))
 
 slopes = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
 counts = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
@@ -156,10 +89,10 @@ r2_val = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
 
 for i, buffer_dw in enumerate(buffer_dw_values):
     for j, buffer_up in enumerate(buffer_up_values):
-        # if buffer_dw <= buffer_up:
-        #     for struc in (slopes,counts,r2_val):
-        #         struc[i, j] = np.nan
-        #     continue
+        if buffer_dw <= buffer_up:
+            for struc in (slopes,counts,r2_val):
+                struc[i, j] = np.nan
+            continue
 
 
         correlated_times = []
@@ -167,25 +100,22 @@ for i, buffer_dw in enumerate(buffer_dw_values):
         coefficients     = []
         correlated_uncs  = []
 
-        total_num_events = 0
         total_num_diffs  = 0
         for event in event_list:
 
             for upstream in ('ACE','WIND'):
+                up_time = event.get(upstream,None)
+                if up_time is None:
+                    continue
+                up_pos  = helsinki_shocks.loc[up_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
                 for downstream in ('OMNI','C1','C3','C4'):
-                    up_time = event.get(upstream,None)
                     dw_time = event.get(downstream,None)
-                    if up_time is None or dw_time is None:
+                    if dw_time is None:
                         continue
                     total_num_diffs += 1
 
-                    up_pos  = helsinki_shocks.loc[up_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+
                     dw_pos  = helsinki_shocks.loc[dw_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
-
-
-                    if np.sum(np.abs(up_pos)>=9999)>1: # Bad data flag
-                        up_pos = None
-
                     if np.sum(np.abs(dw_pos)>=9999)>1: # Bad data flag
                         dw_pos = None
 
@@ -211,8 +141,10 @@ for i, buffer_dw in enumerate(buffer_dw_values):
             # look at documentation - then need to propagate
 
         if len(correlated_times)<=2:
+            for struc in (slopes,counts,r2_val):
+                struc[i, j] = np.nan
             continue
-        total_num_events += 1
+
 
         helsinki_times   = np.array(helsinki_times)/60
         correlated_times = np.array(correlated_times)/60
@@ -235,33 +167,268 @@ for i, buffer_dw in enumerate(buffer_dw_values):
         counts[i, j] = len(x_vals)
         r2_val[i, j] = r2
 
-        #title = f'Buffer up: {buffer_up} mins; Buffer dw: {buffer_dw} mins'
 
-        #plot_comparison(x_vals, y_vals, y_uncs, y_params, z_vals, title, total_num)
-
-
-
-        # when get some good idea for values, then do ace and wind as different markers
-        # and omni and cluster as different colours
-        # then plot comparison
 # %%
-for name, struc in zip(('slopes', 'counts', 'R2'), (slopes,counts,r2_val)):
-    # Plot heatmap
+
+for limits in (None,((23,28),(27,32))):
+
+    if limits is not None:
+
+        limits_ind = ((buffer_dw_values.index(limits[1][0]),buffer_dw_values.index(limits[1][1])),
+                      (buffer_up_values.index(limits[0][0]),buffer_up_values.index(limits[0][1])))
+
+        up_lims = range(limits[0][0],limits[0][1])
+        dw_lims = range(limits[1][0],limits[1][1])
+
+    else:
+        up_lims = buffer_up_values
+        dw_lims = buffer_dw_values
+
+    for name, struc in zip(('slopes', 'counts', r'$R^2$'), (slopes,counts,r2_val)):
+        # Plot heatmap
+        fig, ax = plt.subplots()
+        ax.set_facecolor('k')
+
+        structure = struc
+        if limits is not None:
+            structure = struc[limits_ind[0][0]:limits_ind[0][1],limits_ind[1][0]:limits_ind[1][1]].copy()
+
+        struc_zeros = structure.copy()
+        struc_zeros[np.isnan(struc_zeros)] = 0
+        best = np.max(struc_zeros)
+
+        max_coords = np.unravel_index(np.argmax(struc_zeros), struc_zeros.shape)
+        x_coord = up_lims[max_coords[1]]+0.5
+        y_coord = dw_lims[max_coords[0]]+0.5
+
+        heat = ax.imshow(structure, cmap='Blues_r', aspect='auto',
+                  extent=[min(up_lims), max(up_lims)+1,
+                          max(dw_lims)+1, min(dw_lims)])
+
+        if limits is not None:
+            min_val = np.min(structure[~np.isnan(structure)])
+            max_val = np.max(structure[~np.isnan(structure)])
+            mid_val = (min_val+max_val)/2
+
+            for i in range(len(structure)):
+                for j in range(len(structure[0])):
+                    value = structure[i, j]
+
+                    x = up_lims[j]+0.5
+                    y = dw_lims[i]+0.5
+
+                    if np.isnan(value):
+                        tc = 'k'
+                    elif value == best:
+                        tc = 'r'
+                    elif value < mid_val:
+                        tc = 'w'
+                    else:
+                        tc = 'k'
+
+                    ax.text(x, y, f'{value:.4g}', color=tc, ha='center', va='center', fontsize=12)
+        else:
+            ax.scatter(x_coord, y_coord, color='red', label=f"Max: {best:.2f}")
+
+
+        cbar = plt.colorbar(heat)
+        cbar.set_label(name)
+        ax.invert_yaxis()
+
+        ax.set_xticks(np.array(up_lims)+0.5)
+        ax.set_xticklabels(up_lims)
+
+        ax.set_yticks(np.array(dw_lims)+0.5)
+        ax.set_yticklabels(dw_lims)
+
+        ax.get_xticklabels()[max_coords[1]].set_color('red')
+        ax.get_yticklabels()[max_coords[0]].set_color('red')
+
+
+        if limits is not None:
+            ax.set_xlim(limits[0])
+            ax.set_ylim(limits[1])
+
+        ax.set_aspect('equal')
+
+        ax.set_xlabel('Buffer up [mins]')
+        ax.set_ylabel('Buffer dw [mins]')
+        ax.set_title(f'Best fit {name} of {total_num_diffs} differences; $\\rho\\geq${coeff_lim}')
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+# %%
+plt.rcParams['figure.figsize'] = [12, 8]
+plt.rcParams['figure.dpi'] = 400
+plt.rcParams['font.size'] = 12
+plt.rcParams['figure.titlesize'] = 18
+plt.rcParams['legend.frameon'] = True
+plt.rcParams['legend.fontsize'] = 12
+plt.rcParams['legend.facecolor'] = 'w'
+plt.rcParams['legend.edgecolor'] = 'k'
+plt.rcParams['axes.titlesize'] = 16
+plt.rcParams['axes.labelsize'] = 15
+
+import pandas as pd
+
+marker_dict = {'WIND': 'x', 'ACE': '+'}
+colour_dict = {'OMNI': 'orange', 'C1': 'b', 'C3': 'b', 'C4': 'b'}
+
+def plot_comparison(xs, ys, ys_unc, zs, title, total, sc_ups, sc_dws, colouring='coeff', coeff_lim=0.7):
     fig, ax = plt.subplots()
-    ax.set_facecolor('k')
-    heat = ax.imshow(struc, cmap='viridis', aspect='auto',
-              extent=[min(buffer_up_values), max(buffer_up_values),
-                      max(buffer_dw_values), min(buffer_dw_values)])  # Flip y-axis
-    cbar = plt.colorbar(heat)
-    cbar.set_label(name)
-    ax.invert_yaxis()
+
+    slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
+
+    ax.errorbar(xs, ys, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+
+    if colouring=='coeff':
+        ax.scatter(xs, ys, c=zs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
+        ax.scatter([], [], c='k', s=20, marker='x', label=total)
+
+        scatter = ax.scatter(xs, ys, c=zs, s=0, cmap='plasma_r', vmin=coeff_lim, vmax=1)
+        cbar = plt.colorbar(scatter)
+        cbar.set_label('Correlation Coeff')
+    elif colouring=='sc':
+
+        for sc_up in ('WIND','ACE'):
+            for sc_dw in ('OMNI','Cluster'):
+                if sc_dw=='Cluster':
+                    sc_mask = (sc_ups==sc_up)&(np.isin(sc_dws, ('C1','C3','C4')))
+                    sc_c=colour_dict['C1']
+                else:
+                    sc_mask = (sc_ups==sc_up)&(sc_dws==sc_dw)
+                    sc_c=colour_dict[sc_dw]
+                count = np.sum(sc_mask)
+                ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=20, marker=marker_dict[sc_up], label=f'{sc_up} | {sc_dw}: {count}')
+
+
+    ax.axline(slope=1,xy1=[0,0],c='k',ls=':')
+    ax.axline([0,intercept.n],slope=slope.n,c='r',ls='--',lw=1)
+
+    ax.axhline(y=0,c='grey',lw=0.2, ls='--')
+    ax.axvline(x=0,c='grey',lw=0.2, ls='--')
+
+    if intercept.n<0:
+        sign = '-'
+    else:
+        sign = '+'
+
+    low_lim = min(ax.get_xlim()[0],ax.get_ylim()[0])
+    high_lim = max(ax.get_xlim()[1],ax.get_ylim()[1])
+
+    middle = (low_lim+high_lim)/2
+    height = ax.get_ylim()[1]-10
+
+    ax.text(middle,height,f'$\\Delta t_c$ = (${slope:L}$)$\\cdot$$\\Delta t_H$\n{sign} (${abs(intercept):L}$) mins, $R^2$={r2:.3f}', ha='center',va='center')
+
+    ax.set_xlabel('Helsinki delays [mins]')
+    ax.set_ylabel('Correlated delays [mins]')
+
+    ax.set_xlim(low_lim,high_lim)
+    ax.set_ylim(low_lim,high_lim)
+    ax.set_title(title)
     ax.set_aspect('equal')
-    ax.set_xlabel('Buffer up [mins]')
-    ax.set_ylabel('Buffer dw [mins]')
-    ax.set_title(f'Best fit {name} for range of buffers for {total_num_events} events / {total_num_diffs} pairs. $\\rho\\geq${coeff_lim}')
-    plt.tight_layout()
+
+    ax.legend(loc='upper left', fontsize=8)
     plt.show()
     plt.close()
+
+ # %%
+
+buffer_up = 26
+buffer_dw = 28
+
+shock_times      = []
+correlated_times = []
+helsinki_times   = []
+coefficients     = []
+correlated_uncs  = []
+detectors        = []
+interceptors     = []
+
+total_num_diffs  = 0
+for event in event_list:
+
+    for upstream in ('ACE','WIND'):
+        up_time = event.get(upstream,None)
+        if up_time is None:
+            continue
+        up_pos  = helsinki_shocks.loc[up_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+        for downstream in ('OMNI','C1','C3','C4'):
+            dw_time = event.get(downstream,None)
+            if dw_time is None:
+                continue
+            total_num_diffs += 1
+
+
+            dw_pos  = helsinki_shocks.loc[dw_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+            if np.sum(np.abs(dw_pos)>=9999)>1: # Bad data flag
+                dw_pos = None
+
+            helsinki_delay = (dw_time-up_time).total_seconds()
+
+            delay, coeff, _ = train_propagation_time(up_time, upstream, downstream, 'B_mag', position=up_pos, buffer_up=buffer_up, buffer_dw=buffer_dw, intercept_pos=dw_pos)
+
+            if delay is None:
+                #print('None')
+                continue
+
+            shock_times.append((up_time,dw_time))
+
+            correlated_times.append(delay.n)
+            correlated_uncs.append(delay.s)
+            helsinki_times.append(helsinki_delay)
+            coefficients.append(coeff)
+
+            detectors.append(upstream)
+            interceptors.append(downstream)
+
+
+    # for erros, neeed to consider what the shock time in helsinki database uncertainty is
+    # look at documentation - then need to propagate
+
+shock_times      = np.array(shock_times)
+
+helsinki_times   = np.array(helsinki_times)/60
+correlated_times = np.array(correlated_times)/60
+correlated_uncs  = np.array(correlated_uncs)/60
+coefficients     = np.array(coefficients)
+
+detectors        = np.array(detectors)
+interceptors     = np.array(interceptors)
+
+
+
+
+# %%
+bad_time = shock_times[correlated_times<=-50]
+
+
+###-------------------CLOSEST-------------------###
+coeff_lim = 0.7
+coeff_mask = coefficients>=coeff_lim
+
+x_vals  = helsinki_times[coeff_mask]
+y_vals  = correlated_times[coeff_mask]
+z_vals  = coefficients[coeff_mask]
+y_uncs  = correlated_uncs[coeff_mask]
+
+sc_ups  = detectors[coeff_mask]
+sc_dws  = interceptors[coeff_mask]
+
+slope, intercept, r2 = straight_best_fit(x_vals,y_vals,y_uncs,detailed=True)
+
+slopes[i, j] = slope.n
+counts[i, j] = len(x_vals)
+r2_val[i, j] = r2
+
+title = f'Buffer up: {buffer_up} mins; Buffer dw: {buffer_dw} mins'
+
+for colour_style in ('coeff','sc'):
+
+    plot_comparison(x_vals, y_vals, y_uncs, z_vals, title, total_num_diffs, sc_ups, sc_dws, colouring=colour_style)
+
 # %%
 omni_and_L1 = 0
 omni_and_wind = 0
