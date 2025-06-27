@@ -10,9 +10,9 @@ import pandas as pd
 from datetime import timedelta
 
 
-
-from src.processing.speasy.retrieval import retrieve_data
-from src.processing.speasy.config import speasy_variables
+from ..calculations import calc_mean_error
+from ...processing.speasy.retrieval import retrieve_data
+from ...processing.speasy.config import speasy_variables
 
 
 
@@ -26,7 +26,10 @@ def get_average_interval(time, where='up', shock_type='FF'):
     elif where=='dw' and shock_type=='FR':
         return time-timedelta(minutes=10), time-timedelta(minutes=2)
 
-def sufficient_compression(parameter, detector, interceptor, shock_time, intercept_time):
+def sufficient_compression(parameter, detector, interceptor, shock_time, intercept_time, **kwargs):
+
+    min_ratio_change = kwargs.get('min_ratio_change',0.8)
+    min_points       = kwargs.get('min_points',3)
 
     shock_type = 'FF'
     while True:
@@ -37,10 +40,10 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
 
         data1_dw = retrieve_data(parameter, detector, speasy_variables, data1_dw_start, data1_dw_end, add_omni_sc=False).dropna()
 
-        if data1_up.empty or data1_dw.empty:
+        if len(data1_up)<min_points or len(data1_dw)<min_points:
             return False
 
-        # better one
+        # Use calc_mean_error and incorporate errors/uncertainties
         data1_up_avg = np.mean(data1_up.to_numpy())
         data1_dw_avg = np.mean(data1_dw.to_numpy())
 
@@ -58,34 +61,22 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
 
     data2_dw = retrieve_data(parameter, interceptor, speasy_variables, data2_dw_start, data2_dw_end, add_omni_sc=False).dropna()
 
-    if data2_up.empty or data2_dw.empty:
+    if len(data2_up)<min_points or len(data2_dw)<min_points:
         return False
 
     data2_up_avg = np.mean(data2_up.to_numpy())
     data2_dw_avg = np.mean(data2_dw.to_numpy())
 
     B2_ratio = data2_dw_avg/data2_up_avg
-    min_B_comp = max(1.1,0.75*B1_ratio)
+    min_B_comp = max(1.2,min_ratio_change*B1_ratio)
 
-    if B2_ratio >= min_B_comp:
-        return True
-    return False
+    return (B2_ratio >= min_B_comp)
 
 
-def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, resolution, check_compression=True, overlap_mins=3):
+def find_peak_cross_corr(parameter, series1, series2, source1, source2, shock_time, lags, check_compression=True, overlap_mins=3, **kwargs):
     # lag > 0 implies source2 measures later than source1
     # lag < 0 implies source2 measures before source1
 
-    aligned = pd.merge(data1[[parameter]].rename(columns={parameter: source1}),
-                       data2[[parameter]].rename(columns={parameter: source2}),
-                       left_index=True, right_index=True, how='outer')
-
-    series1 = aligned[source1]
-    series2 = aligned[source2]
-
-    start_lag = int(np.floor((data2.index.min() - shock_time).total_seconds())/resolution)*resolution
-    end_lag = int(np.floor((data2.index.max() - shock_time).total_seconds())/resolution)*resolution
-    lags = range(start_lag, end_lag + 1, resolution)
 
     correlations = []
 
@@ -94,11 +85,10 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         # lag>0 means series2 is lag seconds ahead
         # need to use -lag to bring backwards
         series2_shifted = series2.shift(periods=-lag, freq='s')
-
         valid_indices = (~series1.isna()) & (~series2_shifted.isna())
 
         # Need at least 2 degrees of freedom
-        if np.sum(valid_indices) < overlap_mins*60/resolution: # at least 10-minutes overlap
+        if np.sum(valid_indices) < overlap_mins:
             corr = np.nan
         else:
             series1_valid = series1[valid_indices]
@@ -114,19 +104,19 @@ def find_peak_cross_corr(parameter, data1, data2, source1, source2, shock_time, 
         if check_compression:
             for lag, corr in corr_series.sort_values(ascending=False).items():
                 lagged_time = shock_time + timedelta(seconds=lag)
-                if sufficient_compression(parameter, source1, source2, shock_time, lagged_time):
-                    return lag, resolution, corr
+                if sufficient_compression(parameter, source1, source2, shock_time, lagged_time, **kwargs):
+                    return lag, corr
 
-            return np.nan, np.nan, np.nan
+            return np.nan, np.nan
 
         else:
             best_lag = corr_series.idxmax()
             best_value = corr_series[best_lag]
 
-            return best_lag, resolution, best_value
+            return best_lag, best_value
 
     except:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan
 
 
 def find_step_direction(df, shock_time):

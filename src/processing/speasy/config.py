@@ -14,7 +14,7 @@ amda_tree = spz.inventories.tree.amda
 cda_tree = spz.inventories.tree.cda
 ssc_tree = spz.inventories.tree.ssc
 
-OMNI_CDA_TREE = cda_tree.OMNI_Combined_1AU_IP_Data__Magnetic_and_Solar_Indices.OMNI_1AU_IP_Data.IMF_and_Plasma_data.OMNI_HRO_1MIN
+OMNI_CDA_TREE = cda_tree.OMNI_Combined_1AU_IP_Data__Magnetic_and_Solar_Indices.OMNI_1AU_IP_Data.IMF_and_Plasma_data.OMNI_HRO2_1MIN
 
 # To find product, type in the console "cda_tree." and then tab, and keep doing this to find product
 
@@ -118,7 +118,26 @@ B_dict_tot = {
     'GEO':  'gtl_bmag_edb',      # 3s resolution
     'IMP8': 'imp8_btot',         # 15s resolution
     'WIND': 'wnd_bmagh',         # 3s resolution
-    'OMNI': 'omni_hro2_1min_mag' # 1m resolution
+    'OMNI': 'omni_hro2_1min_b_amag' # 1m resolution    - omni_hro2_1min_mag is magnitude of avg (I think)
+}
+
+B_dict_tot = {
+    'C1':   'c1_btot_5vps',      # 0.2s resolution
+    'C2':   'c2_btot_5vps',
+    'C3':   'c3_btot_5vps',
+    'C4':   'c4_btot_5vps',
+    'THA':  'tha_bl_tot',        # only in low (0.25s) resolution
+    'THB':  'thb_bl_tot',
+    'THC':  'thc_bl_tot',
+    'THD':  'thd_bl_tot',
+    'THE':  'the_bl_tot',
+    'ACE':  'imf_mag',           # 16s resolution
+    'DSC':  cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1,  # 1s resolution
+    #'DSC':  'dsc_b_mag',         # 1m resolution (1s res only for 2025+)
+    'GEO':  'gtl_bmag_edb',      # 3s resolution
+    'IMP8': 'imp8_btot',         # 15s resolution
+    'WIND': 'wnd_bmagh',         # 3s resolution
+    'OMNI': 'omni_hro2_1min_b_amag' # 1m resolution    - omni_hro2_1min_mag is magnitude of avg (I think)
 }
 
 R_dict_gse = { # Re

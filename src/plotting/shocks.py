@@ -20,7 +20,7 @@ from .formatting import custom_date_formatter, add_legend, array_to_string, add_
 from .utils import save_figure
 
 from ..processing.speasy.config import speasy_variables, colour_dict, few_spacecraft
-from ..processing.speasy.retrieval import retrieve_data, retrieve_datum
+from ..processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc
 from ..processing.omni.config import omni_spacecraft
 
 from ..analysing.fitting import gaussian, gaussian_fit, straight_best_fit
@@ -31,7 +31,7 @@ from ..coordinates.boundaries import msh_boundaries
 
 
 
-def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', uncertainty_tuple=None, return_label=False):
+def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', linestyle='--', uncertainty_tuple=None, return_label=False):
 
     minutes, seconds = divmod(int(uncertainty), 60) # uncertainty in seconds
 
@@ -53,10 +53,10 @@ def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', u
     ax.axvspan(time-dt_left, time+dt_right, color=colour, alpha=0.08)
 
     if return_label:
-        ax.axvline(x=time, c=colour, ls='--', lw=0.5)
+        ax.axvline(x=time, c=colour, ls=linestyle, lw=0.5)
         return line_label
 
-    ax.axvline(x=time, c=colour, ls='--', lw=0.5, label=line_label)
+    ax.axvline(x=time, c=colour, ls=linestyle, lw=0.5, label=line_label)
 
 def plot_all_shocks(shocks, parameter, time=None, time_window=20, position_var='R_GSE', R_E=6370, shock_colour='red', start_printing=None, plot_positions=False, plot_in_sw=False):
 
@@ -203,21 +203,6 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
         end_times.append(end)
 
 
-    # ###-------------------SHOCK ARROW-------------------###
-    # y_min, y_max = ax.get_ylim()
-    # arrow_height = y_min+0.94*(y_max-y_min)
-    # text_height  = y_min+0.96*(y_max-y_min)
-
-    # #shock_duration = timedelta(seconds=int(shock['v_sh']/2))
-    # shock_duration = timedelta(seconds=300)
-    # ax.annotate('',  xy=(shock_time + shock_duration, arrow_height), xytext=(shock_time, arrow_height),
-    #         arrowprops=dict(facecolor=shock_colour, edgecolor=shock_colour, headwidth=8, headlength=10, width=2))
-    # shock_speed = ufloat(shock['v_sh'],shock['v_sh_unc'])
-    # shock_speed_label = f'${shock_speed:L}$ $\\mathrm{{km\\,s^{{-1}}}}$'
-    # ax.text(shock_time+timedelta(seconds=30), text_height, shock_speed_label,
-    #     color=shock_colour, fontsize=10, ha='left', va='bottom')
-
-
     ###-------------------AXES LABELS AND TICKS-------------------###
     _, param_unit = retrieve_datum(parameter, sc_L1, speasy_variables, shock_time)
     ax.set_ylabel(create_label(parameter, param_unit))
@@ -253,6 +238,109 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
     add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.1), cols=3)
 
     add_figure_title(fig, title=f'Shock recorded by {sc_L1} on {shock_time.strftime("%Y-%m-%d")} ({database})')
+    plt.tight_layout()
+    #save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_t', sub_directory='shocks')
+    plt.show()
+    plt.close()
+
+def plot_dict_times(spacecraft_times, detector, parameter, time_window=20, plot_in_sw=False, plot_full_range=False):
+
+    # Once algorithm is trained, and decide on structure, figure out how best to incorporate this into/replace previous functions
+
+    shock_time = spacecraft_times[detector]['time']
+    shock_time_unc = spacecraft_times[detector]['time_unc']
+    database = 'Helsinki'
+
+    start_times   = []
+    end_times     = []
+
+    ###-------------------SHOCK DATA-------------------###
+    fig, ax = plt.subplots(figsize=(12,8))
+
+    plot_vertical_line_unc(ax, shock_time, shock_time_unc, 'Shock Detected')
+    #plot_vertical_line_unc(ax, approx_time, 0)
+
+    min_time = min(value['time'] for value in spacecraft_times.values())
+    max_time = max(value['time'] for value in spacecraft_times.values())
+
+    for source, time_dict in spacecraft_times.items():
+        time = time_dict.get('time')
+        time_unc = time_dict.get('time_unc')
+        coeff = time_dict.get('coeff',np.nan)
+
+        if 'Guess' in source:
+            sc_label = source
+            if not np.isnan(coeff):
+                sc_label += f' ({coeff:.2f})'
+            plot_vertical_line_unc(ax, time, time_unc, sc_label, 'r', linestyle='-')
+            continue
+
+        if source == 'OMNI' or plot_full_range:
+            start = min_time-timedelta(minutes=time_window)
+            end   = max_time+timedelta(minutes=time_window)
+        else:
+            start = time-timedelta(minutes=time_window)
+            end   = time+timedelta(minutes=time_window)
+
+        if source in(detector,'OMNI'):
+            lw = 1.2
+
+        df_param = retrieve_data(parameter, source, speasy_variables, start, end, downsample=(source!='OMNI'))
+        if df_param.empty:
+            continue
+
+        sc_label = f'{source}'
+        if source != detector:
+            if source == 'OMNI':
+                omni_sc = retrieve_modal_omni_sc(speasy_variables,time,time)
+                sc_label += f' [{omni_sc}]'
+
+
+            if not np.isnan(coeff):
+                sc_label += f' ({coeff:.2f})'
+
+            sc_label = plot_vertical_line_unc(ax, time, time_unc, sc_label, colour_dict.get(source), return_label=True)
+
+        plot_segments(ax, df_param, colour_dict.get(source), sc_label, parameter, lw=lw, marker='.')
+
+        start_times.append(start)
+        end_times.append(end)
+
+    ###-------------------AXES LABELS AND TICKS-------------------###
+    _, param_unit = retrieve_datum(parameter, detector, speasy_variables, shock_time)
+    ax.set_ylabel(create_label(parameter, param_unit))
+
+    formatter = FuncFormatter(custom_date_formatter)
+    ax.xaxis.set_major_formatter(formatter)
+    ax.set_xlim(min(start_times), max(end_times))
+
+    ax2 = ax.twiny()
+    ax2.set_xlim(ax.get_xlim())
+
+    min_time_diff = (pd.Timestamp(min(start_times)) - pd.Timestamp(shock_time)).total_seconds()
+    max_time_diff = (pd.Timestamp(max(end_times)) - pd.Timestamp(shock_time)).total_seconds()
+
+    time_range = (max_time_diff - min_time_diff)/60
+    if time_range < 60:
+        diff_step = 5
+    elif time_range > 120:
+        diff_step = 20
+    else:
+        diff_step = 10
+    min_time_diff = int(min_time_diff/(diff_step*60))*diff_step
+    max_time_diff = int(max_time_diff/(diff_step*60))*diff_step
+
+    time_diff_ticks = np.arange(min_time_diff, max_time_diff+1, diff_step)
+
+    shock_time_numeric = mdates.date2num(shock_time)  # Convert shock_time to matplotlib's numeric format
+    time_tick_positions = shock_time_numeric + time_diff_ticks / (24 * 60)  # Convert seconds to days for x-axis
+
+    ax2.set_xticks(time_tick_positions)
+    ax2.set_xticklabels([f'{"+" if t > 0 else ""}{t}m' if t != 0 else '0' for t in time_diff_ticks])
+
+    add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.1), cols=3)
+
+    add_figure_title(fig, title=f'Shock recorded by {detector} on {shock_time.strftime("%Y-%m-%d")} ({database})')
     plt.tight_layout()
     #save_figure(fig, file_name=shock_time.strftime('%Y-%m-%d')+'_t', sub_directory='shocks')
     plt.show()
@@ -343,27 +431,6 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
             pos_BS_dict = {'x': pos_BS[0], 'y': pos_BS[1], 'z': pos_BS[2]}
             ax.scatter(pos_BS_dict.get(x_coord), pos_BS_dict.get(y_coord),
                        marker='x', color=colour_dict.get('OMNI'), label=f'BS Nose: {array_to_string(pos_BS)} $R_E$')
-
-        ###-----SHOCK FRONT-----###
-        # num_secs = 300 # 5 minutes of shock travel
-
-        # dx = shock_velocity.get(x_coord) * num_secs
-        # dy = shock_velocity.get(y_coord) * num_secs
-
-        # perp_dx, perp_dy = -dy, dx
-        # scale = 0.5  # Scale the length of the perpendicular line
-        # perp_dx *= scale
-        # perp_dy *= scale
-
-        # ax.arrow(x0, y0, dx, dy,
-        #          head_width=2, head_length=1, fc='red', ec=shock_colour)
-
-        # ax.plot([x0 - perp_dx, x0 + perp_dx], [y0 - perp_dy, y0 + perp_dy], c=shock_colour, ls='--')
-
-        # speed_info = f'v = {int(shock["v_sh"])} $\\mathrm{{km\\,s^{{-1}}}}$'
-        # normal_info = f'$\\boldsymbol{{n}}$ = ({shock_direction["x"]:.1f}, {shock_direction["y"]:.1f}, {shock_direction["z"]:.1f})'
-        # ax.text(x0 + dx - 5, y0 + dy, speed_info+'\n'+normal_info,
-        #         fontsize=12, color=shock_colour, ha='left', va='center')
 
         ###-----MAGNETOSHEATH-----###
         for surface, style in zip(('bs','mp'), ('-','--')):

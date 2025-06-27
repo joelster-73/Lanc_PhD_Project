@@ -95,3 +95,42 @@ def process_helsinki_shocks(directory, file_name, time_col='epoch'):
         df.attrs['units'][col] = 's'
 
     return df
+
+
+# %%
+def get_list_of_events(df_shocks):
+    event_list = []
+    iterator = df_shocks.iterrows()
+
+    prev_index, prev_shock = next(iterator)
+    prev_sc    = prev_shock['spacecraft']
+    prev_unc   = 0.5*np.max(prev_shock[['res_B','res_p']]) # database averages to lower resolution between B and p
+    event_dict = {prev_sc: (prev_index, prev_unc)}
+
+    while True:
+        try:
+            index, shock = next(iterator)
+            sc  = shock['spacecraft']
+            unc = 0.5*np.max(shock[['res_B','res_p']])
+
+            if sc in event_dict:
+                same_event = False
+            elif (index-prev_index).total_seconds()>=(90*60):
+                same_event = False
+            else:
+                same_event = True
+
+            if same_event:
+                event_dict[sc] = (index,unc)
+
+            else:
+                event_list.append(event_dict)
+                event_dict = {sc: (index,unc)}
+                prev_index = index
+
+        except StopIteration:
+            break
+
+    event_list = event_list[::-1] # reverses order so begins with most recent
+
+    return event_list

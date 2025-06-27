@@ -19,6 +19,9 @@ from ...processing.speasy.retrieval import retrieve_data, retrieve_datum
 from ...processing.speasy.config import speasy_variables, few_spacecraft
 from ...processing.utils import add_unit
 
+from ...config import R_E
+
+
 
 def find_all_shocks(shocks, parameter, time=None, **kwargs):
 
@@ -89,18 +92,36 @@ def find_all_shocks(shocks, parameter, time=None, **kwargs):
 
 # check find_times and move some stuff into parent function
 
-def train_propagation_time(shock_time, detector, interceptor, parameter, position=None, **kwargs):
+def find_shock_times():
+
+    # in this function, go through all possible spacecraft or keys
+    # decide if in solar wind or other things like this
+    # then call find_propagation_time
+
+    return
+
+def find_propagation_time(shock_time, detector, interceptor, parameter, position=None, **kwargs):
 
     # Function is specifically to find time and do nothing else
 
-    R_E            = kwargs.get('R_E',6370)
     position_var   = kwargs.get('position_var','R_GSE')
     buffer_up      = kwargs.get('buffer_up',15)
     buffer_dw      = kwargs.get('buffer_dw',30)
-    region         = kwargs.get('region','Earth')
     resolution     = kwargs.get('resolution',None)
     intercept_pos  = kwargs.get('intercept_pos',None)
 
+    distance_buff  = kwargs.get('distance_buff',60)
+    max_neg_delay  = kwargs.get('max_neg_delay',40)
+    max_pos_delay  = kwargs.get('max_neg_delay',90)
+
+    if resolution is None:
+        if set(['OMNI','DSC']).intersection([detector,interceptor]):
+            resolution = 60
+        elif set(['ACE','IMP8']).intersection([detector,interceptor]):
+            resolution = 30
+        else:
+            resolution = 15
+    sampling_interval = f'{resolution}s'
 
 
     # Time around shock front
@@ -113,112 +134,54 @@ def train_propagation_time(shock_time, detector, interceptor, parameter, positio
         if position is None:
             raise Exception(f'No location data for detector {detector}.')
 
-
-    if position is None:
-        delay_time = 3600 # if no position, take delay time as an hour
-    else:
-        displacement = position
-        if intercept_pos is not None:
-            displacement = position-intercept_pos
-
-        delay_time = np.linalg.norm(displacement)*R_E/500
-        delay_time *= np.sign(displacement[0]) #if downstream, assume negative delay
+    r_diff = position
+    if intercept_pos is not None:
+        r_diff = (position-intercept_pos)
+    x_diff = r_diff[0]
 
     # Start/end at shock
-    if region == 'Earth' and delay_time>buffer_up*60:
-        start_dw = shock_time
-        end_dw   = shock_time + timedelta(seconds=int(delay_time)) + timedelta(minutes=buffer_dw)
-    elif region == 'Earth' and delay_time<-buffer_up*60:
-        start_dw = shock_time + timedelta(seconds=int(delay_time)) - timedelta(minutes=buffer_dw)
-        end_dw   = shock_time
+    if x_diff > distance_buff:         # confident positive delay
+        start_dw_mins = 10
+        end_dw_mins   = max_pos_delay
+    elif x_diff < -distance_buff:      # confident negative delay
+        start_dw_mins = -max_neg_delay
+        end_dw_mins   = 0
     else:
-        start_dw = shock_time-timedelta(minutes=buffer_dw)
-        end_dw   = shock_time+timedelta(minutes=buffer_dw)
+        start_dw_mins = -buffer_dw
+        end_dw_mins   = buffer_dw
+
+    # Possible lags from shock time
+    start_lag = int(start_dw_mins*60/resolution)*resolution
+    end_lag   = int(end_dw_mins*60/resolution)*resolution
+    lags      = range(start_lag, end_lag+1, resolution)
+
+    # Data needed to compare
+    start_dw = shock_time + timedelta(minutes=start_dw_mins) - timedelta(minutes=buffer_up)
+    end_dw   = shock_time + timedelta(minutes=end_dw_mins)   + timedelta(minutes=buffer_up)
 
 
-     # Buffer around delay only
-    # if region == 'Earth' and delay_time>buffer_up*60:
-    #     start_dw = shock_time + timedelta(seconds=int(delay_time)) - timedelta(minutes=buffer_dw)
-    #     start_dw = max(shock_time, start_dw)
-    #     end_dw   = shock_time + timedelta(seconds=int(delay_time)) + timedelta(minutes=buffer_dw)
-    # elif region == 'Earth' and delay_time<-buffer_up*60:
-    #     start_dw = shock_time + timedelta(seconds=int(delay_time)) - timedelta(minutes=buffer_dw)
-    #     end_dw   = shock_time + timedelta(seconds=int(delay_time)) + timedelta(minutes=buffer_dw)
-    #     end_dw   = min(shock_time, end_dw)
-    # else:
-    #     start_dw = shock_time-timedelta(minutes=buffer_dw)
-    #     end_dw   = shock_time+timedelta(minutes=buffer_dw)
 
-    ### Alternative: consider the quadrant of 3D space and whether infinite plane would have to intercept first or not - use only spacecraft positions
-
-    if resolution is None:
-        if set(['OMNI','DSC']).intersection([detector,interceptor]):
-            resolution = 60
-        elif set(['ACE','IMP8']).intersection([detector,interceptor]):
-            resolution = 30
-        else:
-            resolution = 15
-    sampling_interval = f'{resolution}s'
-
-    parameters = []
-    time_lags  = []
-    lag_coeffs = []
-
-    if parameter=='field':
-
-        ###-------------------VECTOR-------------------###
-        parameter = 'B_GSE'
-
-        data1 = retrieve_data(parameter, detector, speasy_variables, start_up, end_up, downsample=True, resolution=sampling_interval, add_omni_sc=False)
-
-        data2 = retrieve_data(parameter, interceptor, speasy_variables, start_dw, end_dw, downsample=True, resolution=sampling_interval, add_omni_sc=False)
-
-        if data1.empty or data2.empty:
-            return None, None, None
-
-        for comp in ('x','y','z'):
-            param_comp = f'{parameter}_{comp}'
-
-            data1_comp = data1[[param_comp]]
-            data2_comp = data2[[param_comp]]
-
-            lag, unc, coeff = find_peak_cross_corr(param_comp, data1_comp, data2_comp, detector, interceptor, shock_time, resolution)
-            if not np.isnan(lag):
-                time_lags.append(ufloat(lag,unc))
-                lag_coeffs.append(coeff)
-                parameters.append(param_comp)
-
-        parameter = 'B_mag'
-
-    ###-------------------MAGNITUDE OR OTHER-------------------###
+    ###-------------------PARAMETER-------------------###
     data1 = retrieve_data(parameter, detector, speasy_variables, start_up, end_up, downsample=True, resolution=sampling_interval, add_omni_sc=False)
 
     data2 = retrieve_data(parameter, interceptor, speasy_variables, start_dw, end_dw, downsample=True, resolution=sampling_interval, add_omni_sc=False)
 
     if data1.empty or data2.empty:
-        return None, None, None
+        return None
 
-    lag, unc, coeff = find_peak_cross_corr(parameter, data1, data2, detector, interceptor, shock_time, resolution)
+    aligned = pd.merge(data1[[parameter]].rename(columns={parameter: detector}),
+                       data2[[parameter]].rename(columns={parameter: interceptor}),
+                       left_index=True, right_index=True, how='outer')
+
+    series1 = aligned[detector]
+    series2 = aligned[interceptor]
+
+    lag, coeff = find_peak_cross_corr(parameter, series1, series2, detector, interceptor, shock_time, lags, resolution, **kwargs)
     if not np.isnan(lag):
-        time_lags.insert(0,ufloat(lag,unc))
-        lag_coeffs.insert(0,coeff)
-        parameters.insert(0,parameter)
+        return ufloat(lag,resolution), coeff
+
+    return None
 
 
-    ###-------------------FIND MAX-------------------###
-    if len(time_lags)==0:
-        return None, None, None
-
-    time_lags  = np.array(time_lags)
-    lag_coeffs = np.array(lag_coeffs)
-    parameters = np.array(parameters)
-
-    time_lag = time_lags[lag_coeffs.argmax()]
-    parameter = parameters[lag_coeffs.argmax()]
-    lag_coeff = np.max(lag_coeffs)
-
-
-
-    return time_lag, lag_coeff, parameter
 
 

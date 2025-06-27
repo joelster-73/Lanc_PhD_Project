@@ -7,6 +7,7 @@ Created on Mon May 12 12:02:37 2025
 import numpy as np
 import pandas as pd
 import speasy as spz
+import scipy
 from speasy import amda
 from speasy.signal.resampling import interpolate
 from datetime import timedelta
@@ -14,6 +15,8 @@ from datetime import timedelta
 from .config import data_availability, data_availability_mag
 from ..dataframes import resample_data
 from ...config import R_E
+
+from ..omni.config import omni_spacecraft
 
 def clean_retrieved_data(spz_data, upsample_data=None):
     if spz_data is None or len(spz_data.time) == 0:
@@ -181,4 +184,14 @@ def retrieve_position_unc(source, speasy_variables, time, left_unc, right_unc):
 
 
     return position, np.abs(unc)
+
+def retrieve_modal_omni_sc(speasy_variables, start_time, end_time):
+    if start_time==end_time:
+        start_time, end_time = start_time-timedelta(minutes=10), start_time+timedelta(minutes=10)
+    sc_ID = speasy_variables.get('OMNI_sc')
+    id_data = spz.get_data(sc_ID, start_time, end_time)
+    _, ids, _ = id_data.time, id_data.values, id_data.unit
+    modal_id = scipy.stats.mode(ids, axis=None)[0]
+
+    return omni_spacecraft.get(modal_id,modal_id)
 

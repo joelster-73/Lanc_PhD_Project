@@ -8,13 +8,14 @@ import numpy as np
 
 from scipy.stats import norm, lognorm
 from scipy.optimize import curve_fit
+from sklearn.metrics import r2_score
 
 from uncertainties import ufloat, umath
 
 from .utils import save_statistics
 
 
-def straight_best_fit(x, y, yerr=None, name='', detailed=False, print_text=False):
+def straight_best_fit(x, y, yerr=None, name='', detailed=False, print_text=False, origin=False):
     """
     Performs a straight-line (linear) best fit to the provided data points,
     returning the slope and intercept along with their uncertainties.
@@ -43,16 +44,27 @@ def straight_best_fit(x, y, yerr=None, name='', detailed=False, print_text=False
     """
     if name != '':
         name += ' '
-    if yerr is not None:
-        coeffs, cov = np.polyfit(x, y, 1, w=1/yerr, cov=True) # Weighted
+    if origin:
+        def func(xt,m):
+            return m*xt
+        popt, pcov = curve_fit(func,x,y,sigma=yerr,absolute_sigma=True)
+        a = popt[0]
+        b = 0
+        a_unc = ufloat(popt[0],pcov[0,0])
+        b_unc = ufloat(0,0)
+        y_fit = func(x,a)
     else:
-        coeffs, cov = np.polyfit(x, y, 1, cov=True)
+        if yerr is not None:
+            coeffs, cov = np.polyfit(x, y, 1, w=1/yerr, cov=True) # Weighted
+        else:
+            coeffs, cov = np.polyfit(x, y, 1, cov=True)
 
-    a, b = coeffs
-    a_unc = ufloat(a,np.sqrt(cov[0,0]))
-    b_unc = ufloat(b,np.sqrt(cov[1,1]))
+        a, b = coeffs
+        a_unc = ufloat(a,np.sqrt(cov[0,0]))
+        b_unc = ufloat(b,np.sqrt(cov[1,1]))
+        y_fit = np.poly1d(coeffs)(x)
 
-    r_squared = (np.corrcoef(x, y)[0, 1])**2
+    r_squared = r2_score(y,y_fit)
     minx, maxx = np.min(x), np.max(x)
     text = (f'{name}\n'
             f'Best Fit: y = ({a_unc:P})x + ({b_unc:P})\n'

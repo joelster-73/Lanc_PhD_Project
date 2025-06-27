@@ -12,5 +12,6 @@ omni_spacecraft = {
     60: 'Geotail',
     50: 'IMP 8',
     51: 'Wind',
+    52: 'Wind-v2',
     99: 'Bad Data'
 }
