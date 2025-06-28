@@ -67,9 +67,9 @@ def train_algorithm_param(df_shocks, event_list, vary='buffer_up', vary_array=No
     elif (vary=='buffer_dw') and (vary_array is None):
         vary_array = range(20,41)
     elif (vary=='dist_buff') and (vary_array is None):
-        vary_array = np.arange(10,61,5)
+        vary_array = np.arange(10,71,5)
     elif (vary=='min_ratio') and (vary_array is None):
-        vary_array = np.arange(0.65,0.91,0.01)
+        vary_array = np.arange(0.5,0.91,0.01)
     else:
         raise Exception(f'Not valid parameter for vary: {vary}')
 
@@ -336,8 +336,6 @@ def plot_comparison(xs_u, ys_u, coeffs, sc_ups, sc_dws, **kwargs):
     title_info_dict['coeff_lim'] = coeff_lim
     title_info_dict['colouring'] = colouring
 
-    marker_dict = {'WIND': 'x', 'ACE': '+', 'DSC': '^'}
-
     coeff_mask = coeffs>=coeff_lim
 
     xs      = unp.nominal_values(xs_u[coeff_mask])
@@ -359,13 +357,13 @@ def plot_comparison(xs_u, ys_u, coeffs, sc_ups, sc_dws, **kwargs):
     ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
 
     if colouring=='coeff':
-        ax.scatter(xs, ys, c=coeffs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
+        scatter = ax.scatter(xs, ys, c=coeffs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
         ax.scatter([], [], c='k', s=20, marker='x', label=f'{len(xs)}')
 
-        scatter = ax.scatter(xs, ys, c=coeffs, s=0, cmap='plasma_r', vmin=coeff_lim, vmax=1)
         cbar = plt.colorbar(scatter)
         cbar.set_label('Correlation Coeff')
     elif colouring=='sc':
+        marker_dict = {'WIND': 'x', 'ACE': '+', 'DSC': '^'}
 
         for sc_up in ('WIND','ACE','DSC'):
             for sc_dw in ('OMNI','Cluster'):
@@ -420,6 +418,83 @@ def plot_comparison(xs_u, ys_u, coeffs, sc_ups, sc_dws, **kwargs):
     plt.show()
     plt.close()
 
+import matplotlib.dates as mdates
+
+def plot_differences_over_time(xs_u, ys_u, times, coeffs, sc_ups, sc_dws, **kwargs):
+
+    coeff_lim       = kwargs.get('coeff_lim',0.7)
+    colouring       = kwargs.get('colouring','coeff')
+    modal_omni      = kwargs.get('modal_omni',None)
+    title_info_dict = kwargs.get('title_info_dict',{})
+
+    title_info_dict['coeff_lim'] = coeff_lim
+    title_info_dict['colouring'] = colouring
+
+    marker_dict = {'WIND': 'x', 'ACE': '+', 'DSC': '^'}
+
+    coeff_mask = coeffs>=coeff_lim
+
+    diffs   = (ys_u-xs_u)[coeff_mask]
+    ds      = unp.nominal_values(diffs)
+    ds_unc  = unp.std_devs(diffs)
+    ts      = np.array([t[0] for t in times[coeff_mask]])
+    ts_unc  = np.array([t[1] for t in times[coeff_mask]])
+
+    ts_unc = np.array(ts_unc) / (24 * 3600) # converts from s to days
+    ts = mdates.date2num(ts)
+
+    coeffs  = coeffs[coeff_mask]
+
+    sc_ups  = sc_ups[coeff_mask]
+    sc_dws  = sc_dws[coeff_mask]
+
+    omni_mode = np.char.upper(modal_omni[coeff_mask]) if modal_omni is not None else None
+
+    fig, ax = plt.subplots()
+
+    ax.errorbar(ts, ds, yerr=ds_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+
+    if colouring=='coeff':
+        scatter = ax.scatter(ts, ds, c=coeffs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
+        ax.scatter([], [], c='k', s=20, marker='x', label=f'{len(ds)}')
+
+        cbar = plt.colorbar(scatter)
+        cbar.set_label('Correlation Coeff')
+    elif colouring=='sc':
+
+        for sc_up in ('WIND','ACE','DSC'):
+            for sc_dw in ('OMNI','Cluster'):
+                if sc_dw=='Cluster':
+                    sc_mask = (sc_ups==sc_up)&(np.isin(sc_dws, ('C1','C3','C4')))
+                    sc_c    = colour_dict['C1']
+                elif sc_dw=='OMNI':
+                    sc_mask = (sc_ups==sc_up)&(sc_dws==sc_dw)
+                    sc_c    = colour_dict[sc_dw]
+                    if omni_mode is not None:
+                        sc_c = np.where(omni_mode[sc_mask]==sc_up,colour_dict[sc_dw],'r')
+                count = np.sum(sc_mask)
+                if count==0:
+                    continue
+                ax.scatter(ts[sc_mask], ds[sc_mask], c=sc_c, s=20, marker=marker_dict[sc_up], label=f'{sc_up} | {sc_dw}: {count}')
+
+
+    ax.axhline(y=0,c='k',ls=':')
+
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.AutoDateFormatter(mdates.AutoDateLocator()))
+    ax.set_xlabel('time')
+    ax.set_ylabel('Correlated - Helsinki delays [mins]')
+
+    ax.legend(loc='upper left', fontsize=8, title=f'{np.sum(coeff_mask)} times')
+
+    title = create_title('Comparing Delay Times', title_info_dict)
+    ax.set_title(title)
+    plt.tight_layout()
+
+    file_name = create_file_name('Comparing_Delay_Differences', title_info_dict)
+    save_figure(fig, file_name=file_name)
+    plt.show()
+    plt.close()
 
 def plot_single_param_vary(independent, slopes_fit=None, counts=None, slopes_R2=None, ind_var='Independent Variable', title_info_dict={}):
 
