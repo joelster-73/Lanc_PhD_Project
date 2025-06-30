@@ -32,7 +32,9 @@ possible_events = []
 
 for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_shocks.loc[x, 'eventNum'])):
     times = event.index.tolist()
+    uncs = event['time_unc'].tolist()
     detectors = event['spacecraft'].tolist()
+    detect_dict = dict(zip(detectors,list(zip(times,uncs))))
 
 
     start, end = min(times), max(times)+timedelta(minutes=90)
@@ -54,6 +56,8 @@ for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_s
             continue
         elif 'WIND-V2' in omni_spacecraft and interceptor=='WIND':
             continue
+        elif interceptor in detectors:
+            intercept_dict[interceptor] = detect_dict[interceptor]
 
         # Initial estimate
         intercept_pos_estimate, _ = retrieve_datum(position_var, interceptor, speasy_variables, times[0], add_omni_sc=False)
@@ -107,12 +111,40 @@ for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_s
 
     # MAKE FUNCTION TO DO THE SUBTRACT MIN TIME ETC
 
+
+
+    omni_detectors = {}
+    for omni_sc in omni_spacecraft:
+        if omni_sc=='WIND-V2' and 'WIND' in detectors:
+            omni_detectors['WIND'] = detect_dict['WIND']
+        elif omni_sc in detectors:
+            omni_detectors[omni_sc] = detect_dict[omni_sc]
+
+    if len(omni_detectors)==0:
+        print(f'Need to interpolate to find shock in OMNI detector for event #{eventID}')
+        continue
+        # need to do same looping as above
+        # to find the shock time in the omni detector
+        # and average over all the spacecraft by which a shock is detected
+
+
+        # for omni_sc in omni_spacecraft:
+        #     for i, row in event.iterrows():
+        #         detector = row['spacecraft']
+        #         if detector == interceptor: # Looking for when shock intercepts a different spacecraft
+        #             continue
+
     print(f'Will try to find OMNI time for event #{eventID}')
     print(f'Detectors: {detectors}\nOMNI sc: {omni_spacecraft}\nInterceptors:{list(intercept_dict.keys())}\n')
     possible_events.append(eventID)
     continue
 
-    for sc in spacecraft:
+    for omni_sc in omni_detectors:
+
+        # This section is just the inner loop of the one above
+        # For just OMNI
+        # To find the shock time in OMNI
+
         interceptor = sc if sc!='WIND-V2' else 'WIND'
         sc_row = event[event['spacecraft'] == interceptor]
         if row.empty:
