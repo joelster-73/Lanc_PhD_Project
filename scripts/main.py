@@ -5,27 +5,34 @@ Created on Thu May  8 18:33:37 2025
 @author: richarj2
 """
 
-
+from src.config import PROC_SHOCKS_DIR
 from src.processing.reading import import_processed_data
 
 all_processed_shocks = import_processed_data(PROC_SHOCKS_DIR)
 
 # %%
 from src.analysing.shocks.intercepts import find_propagation_time
-from src.processing.speasy.retrieval import retrieve_modal_omni_sc
+from src.processing.speasy.retrieval import retrieve_modal_omni_sc, retrieve_datum
 from src.analysing.shocks.in_sw import in_solar_wind
+from src.processing.speasy.config import speasy_variables
+
+
 from datetime import timedelta
 from uncertainties import ufloat
+from src.config import R_E
 
+position_var = 'R_GSE'
 coeff_lim = 0.7
 
-upstream = ('WIND','ACE','DSC')
-downstream = ('C1','C2','C3','C4','THB','THC','GEO')
+#upstream = ('WIND','ACE','DSC')
+#downstream = ('C1','C2','C3','C4','THB','THC','GEO')
+sw_monitors = ('WIND','ACE','DSC','C1','C2','C3','C4','THB','THC','GEO','IMP8')
 
 possible_events = []
 
 for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_shocks.loc[x, 'eventNum'])):
     times = event.index.tolist()
+    detectors = event['spacecraft'].tolist()
 
 
     start, end = min(times), max(times)+timedelta(minutes=90)
@@ -38,29 +45,38 @@ for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_s
         print(f'No good OMNI data for event #{eventID}')
         continue
     total_counts = sum(list(counts_dict.values()))
-    spacecraft = [key.upper() for key, value in counts_dict.items() if value/total_counts>0.2 and key!='Bad Data']
+    omni_spacecraft = [key.upper() for key, value in counts_dict.items() if value/total_counts>0.2 and key!='Bad Data']
 
-    sc_dw_dict = {}
-    for sc_dw in downstream:
-
-        # Approximate downstream location
-        approx_time = times[0]+timedelta(minutes=60)
-        pos_dw, _ = retrieve_datum(position_var, sc_dw, speasy_variables, approx_time, add_omni_sc=False)
-        if pos_dw is None:
+    intercept_dict = {}
+    for interceptor in sw_monitors:
+        # Don't want spacecraft that are used by OMNI - looking for those to compare with
+        if interceptor in omni_spacecraft:
             continue
-        elif not in_solar_wind(sc_dw, approx_time, speasy_variables):
+        elif 'WIND-V2' in omni_spacecraft and interceptor=='WIND':
             continue
 
-        # MAKE FUNCTION TO DO THE SUBTRACT MIN TIME ETC
+        # Initial estimate
+        intercept_pos_estimate, _ = retrieve_datum(position_var, interceptor, speasy_variables, times[0], add_omni_sc=False)
+        if intercept_pos_estimate is None:
+            continue
 
-        sc_dw_times = []
-        sc_dw_uncs  = []
+        intercept_times = []
+        intercept_uncs  = []
         for i, row in event.iterrows():
-            sc_up = row['spacecraft']
-            detector = sc_up if sc_up!='WIND-V2' else 'WIND'
-            sc_up_time = row.name
+            detector = row['spacecraft']
+            if detector == interceptor: # Looking for when shock intercepts a different spacecraft
+                continue
 
-            time_lag = find_propagation_time(sc_up_time, detector, sc_dw, 'B_mag', row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy(), intercept_pos=pos_dw)
+            detector_pos = row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+            detector_time = row.name
+
+            # Approximate downstream location
+            approx_time = detector_time + timedelta(seconds=((intercept_pos_estimate[0]-detector_pos[0])*R_E/500))
+            if not in_solar_wind(interceptor, approx_time, speasy_variables):
+                continue
+            intercept_pos, _ = retrieve_datum(position_var, interceptor, speasy_variables, approx_time, add_omni_sc=False)
+
+            time_lag = find_propagation_time(detector_time, detector, interceptor, 'B_mag', detector_pos, intercept_pos=intercept_pos)
             if time_lag is None:
                 continue
 
@@ -69,29 +85,30 @@ for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_s
                 continue
 
             lagged_unc = delay - ufloat(0,row['time_unc'])
-            sc_dw_times.append(sc_up_time + timedelta(seconds=delay.n))
-            sc_dw_uncs.append(lagged_unc.s)
+            intercept_times.append(detector_time + timedelta(seconds=delay.n))
+            intercept_uncs.append(lagged_unc.s)
 
-        if len(sc_dw_times)==0:
+        if len(intercept_times)==0:
             continue
-        elif len(sc_dw_times)==1:
-            sc_dw_dict[sc_dw] = (sc_dw_times[0],sc_dw_uncs[0])
+        elif len(intercept_times)==1:
+            intercept_dict[interceptor] = (intercept_times[0],intercept_uncs[0])
 
-        min_time = min(sc_dw_times)
-        times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(sc_dw_times,sc_dw_uncs)])
+        min_time = min(intercept_times)
+        times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(intercept_times,intercept_uncs)])
         avg_time = np.mean(times_u)
         pred_time = min_time + timedelta(seconds=avg_time.n)
         pred_unc = avg_time.s
 
-        sc_dw_dict[sc_dw] = (pred_time,pred_unc)
+        intercept_dict[interceptor] = (pred_time,pred_unc)
 
-    if len(sc_dw_dict)==0:
+    if len(intercept_dict)==0:
         print(f'No downstream monitors for event #{eventID}')
         continue
 
+    # MAKE FUNCTION TO DO THE SUBTRACT MIN TIME ETC
 
     print(f'Will try to find OMNI time for event #{eventID}')
-    print(sc_dw_dict)
+    print(f'Detectors: {detectors}\nOMNI sc: {omni_spacecraft}\nInterceptors:{list(intercept_dict.keys())}\n')
     possible_events.append(eventID)
     continue
 

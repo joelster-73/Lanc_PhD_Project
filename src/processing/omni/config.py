@@ -9,8 +9,8 @@ omni_variables = ('time','satellite','B_field','pressure','velocity','density','
 
 omni_spacecraft = {
     71: 'Ace',
-    60: 'Geotail',
-    50: 'IMP 8',
+    60: 'Geo',
+    50: 'IMP8',
     51: 'Wind',
     52: 'Wind-v2',
     99: 'Bad Data'
