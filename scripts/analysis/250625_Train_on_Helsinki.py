@@ -58,14 +58,14 @@ from src.analysing.shocks.training import train_algorithm_param, plot_single_par
 buffer_up = 33
 buffer_dw = 35
 
-distance_buff = 60
+distance_buff = 50
 min_ratio_change = 0.8
 
-for vary in ('min_ratio','dist_buff'):
+for vary in ('dist_buff','min_ratio'):
 
     slope_fits, num_shocks, slope_R2s, vary_array = train_algorithm_param(helsinki_shocks, event_list, vary=vary, vary_array=None, buffer_up=buffer_up, buffer_dw=buffer_dw, dist_buff=distance_buff, min_ratio_change=min_ratio_change, coeff_lim=coeff_lim)
 
 
-    plot_single_param_vary(vary_array, slopes_fit=slope_fits, counts=num_shocks, slopes_R2=slope_R2s, ind_var='min_ratio', title_info_dict={'buffer_up': buffer_up, 'buffer_dw': buffer_dw, 'dist_buff': distance_buff})
+    plot_single_param_vary(vary_array, slopes_fit=slope_fits, counts=num_shocks, slopes_R2=slope_R2s, ind_var=vary, title_info_dict={'buffer_up': buffer_up, 'buffer_dw': buffer_dw, 'dist_buff': distance_buff})
 
 # %%

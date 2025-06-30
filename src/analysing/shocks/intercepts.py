@@ -102,15 +102,14 @@ def find_shock_times():
 
 def find_propagation_time(shock_time, detector, interceptor, parameter, position=None, **kwargs):
 
-    # Function is specifically to find time and do nothing else
 
     position_var   = kwargs.get('position_var','R_GSE')
-    buffer_up      = kwargs.get('buffer_up',15)
-    buffer_dw      = kwargs.get('buffer_dw',30)
+    buffer_up      = kwargs.get('buffer_up',30)
+    buffer_dw      = kwargs.get('buffer_dw',35)
     resolution     = kwargs.get('resolution',None)
     intercept_pos  = kwargs.get('intercept_pos',None)
 
-    distance_buff  = kwargs.get('distance_buff',60)
+    distance_buff  = kwargs.get('distance_buff',50)
     max_neg_delay  = kwargs.get('max_neg_delay',40)
     max_pos_delay  = kwargs.get('max_neg_delay',90)
 

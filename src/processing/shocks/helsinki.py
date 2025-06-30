@@ -46,6 +46,11 @@ def process_helsinki_shocks(directory, file_name, time_col='epoch'):
     df.set_index(time_col,inplace=True)
     df.sort_index(inplace=True)
 
+    df = df.loc[
+        ~(df['spacecraft'] == df['spacecraft'].shift()) |
+        (df.index.to_series().diff() > pd.Timedelta(minutes=1))
+    ]
+
     df.drop(columns=['year','month','day','hour','minute','second'],inplace=True)
 
     for col in ('T_p_up','T_p_up_unc','T_p_dw','T_p_dw_unc'):
@@ -98,39 +103,48 @@ def process_helsinki_shocks(directory, file_name, time_col='epoch'):
 
 
 # %%
-def get_list_of_events(df_shocks):
+def get_list_of_events(df_shocks,reverse=False):
+
     event_list = []
     iterator = df_shocks.iterrows()
 
     prev_index, prev_shock = next(iterator)
-    prev_sc    = prev_shock['spacecraft']
-    prev_unc   = 0.5*np.max(prev_shock[['res_B','res_p']]) # database averages to lower resolution between B and p
-    event_dict = {prev_sc: (prev_index, prev_unc)}
+    prev_sc     = prev_shock['spacecraft']
+    prev_source = prev_shock['source']
+    prev_unc    = prev_shock['time_unc']
+    event_dict  = {prev_sc: (prev_index,prev_unc,prev_source)}
 
     while True:
+        new_event = False
         try:
             index, shock = next(iterator)
-            sc  = shock['spacecraft']
-            unc = 0.5*np.max(shock[['res_B','res_p']])
+            sc     = shock['spacecraft']
+            source = shock['source']
+            unc    = shock['time_unc']
 
-            if sc in event_dict:
-                same_event = False
-            elif (index-prev_index).total_seconds()>=(90*60):
-                same_event = False
+            if (index-prev_index).total_seconds()>=(90*60):
+                new_event = True
+
+            elif sc in event_dict:
+                if (index-event_dict[sc][0]).total_seconds()>300:
+                    new_event = True
+
+                elif unc<event_dict[sc][1]:
+                    event_dict[sc] = (index,unc,source)
+
             else:
-                same_event = True
+                event_dict[sc] = (index,unc,source)
 
-            if same_event:
-                event_dict[sc] = (index,unc)
-
-            else:
+            if new_event:
                 event_list.append(event_dict)
-                event_dict = {sc: (index,unc)}
+                event_dict = {sc: (index,unc,source)}
                 prev_index = index
+
 
         except StopIteration:
             break
 
-    event_list = event_list[::-1] # reverses order so begins with most recent
+    if reverse:
+        return event_list[::-1]
 
     return event_list

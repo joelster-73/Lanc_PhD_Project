@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import speasy as spz
 import scipy
+from collections import Counter
+
 from speasy import amda
 from speasy.signal.resampling import interpolate
 from datetime import timedelta
@@ -185,13 +187,21 @@ def retrieve_position_unc(source, speasy_variables, time, left_unc, right_unc):
 
     return position, np.abs(unc)
 
-def retrieve_modal_omni_sc(speasy_variables, start_time, end_time):
+def retrieve_modal_omni_sc(speasy_variables, start_time, end_time, return_counts=False):
     if start_time==end_time:
         start_time, end_time = start_time-timedelta(minutes=10), start_time+timedelta(minutes=10)
     sc_ID = speasy_variables.get('OMNI_sc')
     id_data = spz.get_data(sc_ID, start_time, end_time)
+    if id_data is None:
+        return None
     _, ids, _ = id_data.time, id_data.values, id_data.unit
-    modal_id = scipy.stats.mode(ids, axis=None)[0]
 
-    return omni_spacecraft.get(modal_id,modal_id)
+    modal_id = scipy.stats.mode(ids, axis=None)[0]
+    modal_sc = omni_spacecraft.get(modal_id,modal_id)
+
+    if return_counts:
+        counts_dict = Counter(np.ravel(ids))
+        return modal_sc, {omni_spacecraft.get(key,key): value for key, value in counts_dict.items()}
+
+    return modal_sc
 

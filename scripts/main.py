@@ -6,67 +6,121 @@ Created on Thu May  8 18:33:37 2025
 """
 
 
-
-# %% Imports
-from src.config import HELSINKI_DIR
 from src.processing.reading import import_processed_data
-from src.processing.shocks.helsinki import get_list_of_events
 
-helsinki_shocks = import_processed_data(HELSINKI_DIR)
-event_list = get_list_of_events(helsinki_shocks)
+all_processed_shocks = import_processed_data(PROC_SHOCKS_DIR)
 
-
-# %% Find_delays
-from src.analysing.shocks.training import analyse_all_events_more_info
-buffer_up = 33
-buffer_dw = 35
-
-distance_buff = 60
-min_ratio_change = 0.8
-
-helsinki_delays, correlated_delays, coefficients, shock_times, detectors, interceptors, modal_omni_sc = analyse_all_events_more_info(helsinki_shocks, event_list, buffer_up, buffer_dw, distance_buff=distance_buff, min_ratio_change=min_ratio_change)
-
-# %% Plot_comparison
-from src.analysing.shocks.training import plot_comparison, plot_differences_over_time
+# %%
+from src.analysing.shocks.intercepts import find_propagation_time
+from src.processing.speasy.retrieval import retrieve_modal_omni_sc
+from src.analysing.shocks.in_sw import in_solar_wind
+from datetime import timedelta
+from uncertainties import ufloat
 
 coeff_lim = 0.7
 
-for colour_style in ('coeff','sc'):
+upstream = ('WIND','ACE','DSC')
+downstream = ('C1','C2','C3','C4','THB','THC','GEO')
 
-    plot_comparison(helsinki_delays, correlated_delays, coefficients, detectors, interceptors, coeff_lim=coeff_lim, colouring=colour_style, modal_omni=modal_omni_sc, title_info_dict={'buffer_up': buffer_up, 'buffer_dw': buffer_dw, 'dist_buff': distance_buff, 'min_ratio': min_ratio_change})
+possible_events = []
 
-    plot_differences_over_time(helsinki_delays, correlated_delays, shock_times, coefficients, detectors, interceptors, coeff_lim=coeff_lim, colouring=colour_style, modal_omni=modal_omni_sc, title_info_dict={'buffer_up': buffer_up, 'buffer_dw': buffer_dw, 'dist_buff': distance_buff, 'min_ratio': min_ratio_change})
-
-# %% Odd_times
-
-from datetime import timedelta, datetime
-from src.plotting.shocks import plot_dict_times
+for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_shocks.loc[x, 'eventNum'])):
+    times = event.index.tolist()
 
 
+    start, end = min(times), max(times)+timedelta(minutes=90)
+    sc_info = retrieve_modal_omni_sc(speasy_variables, start, end, return_counts=True)
+    if sc_info is None:
+        print(f'No OMNI info for event #{eventID}')
+        continue
+    modal_sc, counts_dict = sc_info
+    if modal_sc == 'Bad Data':
+        print(f'No good OMNI data for event #{eventID}')
+        continue
+    total_counts = sum(list(counts_dict.values()))
+    spacecraft = [key.upper() for key, value in counts_dict.items() if value/total_counts>0.2 and key!='Bad Data']
 
-# Change slightly so that the same events are plotted together???
-# Do stats to find the min time difference when detector is upstream for rough restriction on time upstream
+    sc_dw_dict = {}
+    for sc_dw in downstream:
 
-bad_mask = (np.abs(helsinki_delays-correlated_delays)>=10) & (coefficients>=coeff_lim) # above coefficient threshold
+        # Approximate downstream location
+        approx_time = times[0]+timedelta(minutes=60)
+        pos_dw, _ = retrieve_datum(position_var, sc_dw, speasy_variables, approx_time, add_omni_sc=False)
+        if pos_dw is None:
+            continue
+        elif not in_solar_wind(sc_dw, approx_time, speasy_variables):
+            continue
 
-shock_times_bad = shock_times[bad_mask]
-corr_delays_bad  = correlated_delays[bad_mask]
-helsinki_delays_bad = helsinki_delays[bad_mask]
-coeffs_bad = coefficients[bad_mask]
+        # MAKE FUNCTION TO DO THE SUBTRACT MIN TIME ETC
 
-detectors_bad = detectors[bad_mask]
-interceptors_bad = interceptors[bad_mask]
+        sc_dw_times = []
+        sc_dw_uncs  = []
+        for i, row in event.iterrows():
+            sc_up = row['spacecraft']
+            detector = sc_up if sc_up!='WIND-V2' else 'WIND'
+            sc_up_time = row.name
+
+            time_lag = find_propagation_time(sc_up_time, detector, sc_dw, 'B_mag', row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy(), intercept_pos=pos_dw)
+            if time_lag is None:
+                continue
+
+            delay, coeff = time_lag
+            if coeff<=coeff_lim:
+                continue
+
+            lagged_unc = delay - ufloat(0,row['time_unc'])
+            sc_dw_times.append(sc_up_time + timedelta(seconds=delay.n))
+            sc_dw_uncs.append(lagged_unc.s)
+
+        if len(sc_dw_times)==0:
+            continue
+        elif len(sc_dw_times)==1:
+            sc_dw_dict[sc_dw] = (sc_dw_times[0],sc_dw_uncs[0])
+
+        min_time = min(sc_dw_times)
+        times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(sc_dw_times,sc_dw_uncs)])
+        avg_time = np.mean(times_u)
+        pred_time = min_time + timedelta(seconds=avg_time.n)
+        pred_unc = avg_time.s
+
+        sc_dw_dict[sc_dw] = (pred_time,pred_unc)
+
+    if len(sc_dw_dict)==0:
+        print(f'No downstream monitors for event #{eventID}')
+        continue
 
 
-for i in range(len(shock_times_bad)):
+    print(f'Will try to find OMNI time for event #{eventID}')
+    print(sc_dw_dict)
+    possible_events.append(eventID)
+    continue
 
-    shock_time  = shock_times_bad[i]
-    detector    = detectors_bad[i]
-    interceptor = interceptors_bad[i]
-    bad_time    = shock_time[0]+timedelta(minutes=corr_delays_bad[i].n)
-    good_time   = shock_time[0]+timedelta(minutes=helsinki_delays_bad[i].n)
+    for sc in spacecraft:
+        interceptor = sc if sc!='WIND-V2' else 'WIND'
+        sc_row = event[event['spacecraft'] == interceptor]
+        if row.empty:
+            predicted_times = []
+            time_uncertainties = []
+            for i, row in event.iterrows():
+                detector = row['spacecraft']
 
+                detect_pos, _ = retrieve_datum(position_var, source, speasy_variables, row.name, add_omni_sc=False)
+                time_lag = find_propagation_time(row.name, detector, interceptor, 'B_mag', row[['r_x_GSE','r_y_GSE','r_z_GSE']], intercept_pos=detect_pos)
+                if time_lag is None:
+                    continue
+                delay, coeff = time_lag
+                if coeff<=coeff_lim:
+                    continue
+                lagged_unc = delay - ufloat(0,row['time_unc'])
+                predicted_times.append(row.name+timedelta(seconds=delay.n))
+                time_uncertainties.append(lagged_unc)
+            min_time = min(predicted_times)
+            times_u = np.array([ufloat(time-min_time, unc) for time, unc in zip(predicted_times,time_uncertainties)])
+            avg_time = np.mean(time_u)
+            pred_time = min_time + avg_time.n
+            pred_unc = avg_time.s
+            print(pred_time,pred_unc)
+        else:
+            print(row)
 
-    bad_dict = {detector: {'time': shock_time[0], 'time_unc': shock_time[1]}, interceptor: {'time': good_time, 'time_unc': 60*helsinki_delays_bad[i].s}, interceptor+' [Guess]': {'time': bad_time, 'time_unc': 60*corr_delays_bad[i].s, 'coeff': coeffs_bad[i]}}
-
-    plot_dict_times(bad_dict, detector, 'B_mag', time_window=30, plot_in_sw=False, plot_full_range=True)
+print(possible_events)

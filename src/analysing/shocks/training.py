@@ -86,9 +86,9 @@ def train_algorithm_param(df_shocks, event_list, vary='buffer_up', vary_array=No
         elif vary=='dist_buff':
             dist_buff = ind
         elif vary=='min_ratio':
-            min_ratio = ind
+            min_ratio_change = ind
 
-        helsinki_delays, correlated_delays, coefficients, shock_times, detectors, interceptors, modal_omni_sc = analyse_all_events_more_info(df_shocks, event_list, buffer_up, buffer_dw, distance_buff=dist_buff, min_ratio_change=min_ratio)
+        helsinki_delays, correlated_delays, coefficients, shock_times, detectors, interceptors, modal_omni_sc = analyse_all_events_more_info(df_shocks, event_list, buffer_up, buffer_dw, distance_buff=dist_buff, min_ratio_change=min_ratio_change)
 
         ###-------------------MINIMUM CROSS-CORR-------------------###
 
@@ -510,6 +510,8 @@ def plot_single_param_vary(independent, slopes_fit=None, counts=None, slopes_R2=
     elif ind_var=='min_ratio':
         x_label = r'B-Ratio_{dw} $\geq x\cdot$ B-Ratio_{up}'
 
+    if ind_var in title_info_dict:
+        del title_info_dict[ind_var]
 
     fig, ax = plt.subplots()
 
