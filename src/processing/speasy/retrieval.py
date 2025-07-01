@@ -123,6 +123,9 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
         df = resample_data(df, 'index', sample_interval=resolution)
         df.attrs = attributes
 
+    # In case duplicate times are returned
+    df = df.loc[~df.index.duplicated(keep='first')]
+
     return df
 
 

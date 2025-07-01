@@ -28,14 +28,16 @@ coeff_lim = 0.7
 #downstream = ('C1','C2','C3','C4','THB','THC','GEO')
 sw_monitors = ('WIND','ACE','DSC','C1','C2','C3','C4','THB','THC','GEO','IMP8')
 
-possible_events = []
+event_IDs = []
+monitors = []
+
 
 for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_shocks.loc[x, 'eventNum'])):
+
     times = event.index.tolist()
     uncs = event['time_unc'].tolist()
     detectors = event['spacecraft'].tolist()
     detect_dict = dict(zip(detectors,list(zip(times,uncs))))
-
 
     start, end = min(times), max(times)+timedelta(minutes=90)
     sc_info = retrieve_modal_omni_sc(speasy_variables, start, end, return_counts=True)
@@ -109,10 +111,6 @@ for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_s
         print(f'No downstream monitors for event #{eventID}')
         continue
 
-    # MAKE FUNCTION TO DO THE SUBTRACT MIN TIME ETC
-
-
-
     omni_detectors = {}
     for omni_sc in omni_spacecraft:
         if omni_sc=='WIND-V2' and 'WIND' in detectors:
@@ -123,53 +121,99 @@ for eventID, event in all_processed_shocks.groupby(lambda x: int(all_processed_s
     if len(omni_detectors)==0:
         print(f'Need to interpolate to find shock in OMNI detector for event #{eventID}')
         continue
-        # need to do same looping as above
-        # to find the shock time in the omni detector
-        # and average over all the spacecraft by which a shock is detected
 
 
-        # for omni_sc in omni_spacecraft:
-        #     for i, row in event.iterrows():
-        #         detector = row['spacecraft']
-        #         if detector == interceptor: # Looking for when shock intercepts a different spacecraft
-        #             continue
+        for omni_sc in omni_spacecraft:
 
-    print(f'Will try to find OMNI time for event #{eventID}')
-    print(f'Detectors: {detectors}\nOMNI sc: {omni_spacecraft}\nInterceptors:{list(intercept_dict.keys())}\n')
-    possible_events.append(eventID)
-    continue
+            # Initial estimate
+            omni_pos_estimate, _ = retrieve_datum(position_var, 'OMNI', speasy_variables, times[0], add_omni_sc=False)
+            if omni_pos_estimate is None:
+                continue
 
-    for omni_sc in omni_detectors:
-
-        # This section is just the inner loop of the one above
-        # For just OMNI
-        # To find the shock time in OMNI
-
-        interceptor = sc if sc!='WIND-V2' else 'WIND'
-        sc_row = event[event['spacecraft'] == interceptor]
-        if row.empty:
-            predicted_times = []
-            time_uncertainties = []
+            intercept_times = []
+            intercept_uncs  = []
             for i, row in event.iterrows():
                 detector = row['spacecraft']
 
-                detect_pos, _ = retrieve_datum(position_var, source, speasy_variables, row.name, add_omni_sc=False)
-                time_lag = find_propagation_time(row.name, detector, interceptor, 'B_mag', row[['r_x_GSE','r_y_GSE','r_z_GSE']], intercept_pos=detect_pos)
+                detector_pos = row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+                detector_time = row.name
+
+                # Approximate BSN location
+                approx_time = detector_time + timedelta(seconds=((omni_pos_estimate[0]-detector_pos[0])*R_E/500))
+                omni_pos, _ = retrieve_datum(position_var, 'OMNI', speasy_variables, approx_time, add_omni_sc=False)
+
+                time_lag = find_propagation_time(detector_time, detector, 'OMNI', 'B_mag', detector_pos, intercept_pos=omni_pos)
                 if time_lag is None:
                     continue
+
                 delay, coeff = time_lag
                 if coeff<=coeff_lim:
                     continue
-                lagged_unc = delay - ufloat(0,row['time_unc'])
-                predicted_times.append(row.name+timedelta(seconds=delay.n))
-                time_uncertainties.append(lagged_unc)
-            min_time = min(predicted_times)
-            times_u = np.array([ufloat(time-min_time, unc) for time, unc in zip(predicted_times,time_uncertainties)])
-            avg_time = np.mean(time_u)
-            pred_time = min_time + avg_time.n
-            pred_unc = avg_time.s
-            print(pred_time,pred_unc)
-        else:
-            print(row)
 
-print(possible_events)
+                lagged_unc = delay - ufloat(0,row['time_unc'])
+                intercept_times.append(detector_time + timedelta(seconds=delay.n))
+                intercept_uncs.append(lagged_unc.s)
+
+            if len(intercept_times)==0:
+                continue
+            elif len(intercept_times)==1:
+                omni_detectors[omni_sc] = (intercept_times[0],intercept_uncs[0])
+
+            min_time = min(intercept_times)
+            times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(intercept_times,intercept_uncs)])
+            avg_time = np.mean(times_u)
+            pred_time = min_time + timedelta(seconds=avg_time.n)
+            pred_unc = avg_time.s
+
+            omni_detectors[omni_sc] = (pred_time,pred_unc)
+
+
+    # Initial estimate
+    omni_pos_estimate, _ = retrieve_datum(position_var, 'OMNI', speasy_variables, times[0], add_omni_sc=False)
+    if omni_pos_estimate is None:
+        continue
+
+    omni_times = []
+    omni_uncs  = []
+    for detector, (detect_time, detect_unc) in omni_detectors.items():
+        if detector in detectors:
+            detector_pos = event[event['spacecraft']==detector][['r_x_GSE','r_y_GSE','r_z_GSE']].iloc[0].to_numpy()
+        else:
+            detector_pos, _ = retrieve_datum(position_var, detector, speasy_variables, detect_time, add_omni_sc=False)
+
+        # Approximate BSN location
+        approx_time = detector_time + timedelta(seconds=((omni_pos_estimate[0]-detector_pos[0])*R_E/500))
+        omni_pos, _ = retrieve_datum(position_var, 'OMNI', speasy_variables, approx_time, add_omni_sc=False)
+
+        time_lag = find_propagation_time(detect_time, detector, 'OMNI', 'B_mag', detector_pos, intercept_pos=omni_pos)
+        if time_lag is None:
+            continue
+
+        delay, coeff = time_lag
+        if coeff<=coeff_lim:
+            continue
+
+        lagged_unc = delay - ufloat(0,detect_unc)
+        omni_times.append(detect_time + timedelta(seconds=delay.n))
+        omni_uncs.append(lagged_unc.s)
+
+    if len(omni_times)==0:
+        print(f'Could not find shock in OMNI for event #{eventID}')
+        continue
+    elif len(intercept_times)==1:
+        omni_time = (omni_times[0],omni_uncs[0])
+
+    min_time = min(omni_times)
+    times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(omni_times,omni_uncs)])
+    avg_time = np.mean(times_u)
+    pred_time = min_time + timedelta(seconds=avg_time.n)
+    pred_unc = avg_time.s
+
+    omni_time = (pred_time,pred_unc)
+
+    print(f'Found OMNI time for event #{eventID}')
+    intercept_dict['OMNI'] = omni_time
+    monitors.append(intercept_dict)
+
+# %%
+print(len(monitors))
