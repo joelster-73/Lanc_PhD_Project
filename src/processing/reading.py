@@ -44,7 +44,6 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
     # Find all .cdf files containing the specified keyword in their names and within the date range
     cdf_files = get_processed_files(directory, year)
 
-    # Merge the selected files
     merged_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
     df = read_spacepy_object(merged_data)
     for column in df.columns:
@@ -66,7 +65,8 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
             df.attrs['crossings'] = crossings_attrs
 
     time_col = df.attrs['global'].get('time_col','epoch')
-    set_df_indices(df, time_col)  # Sets the index as datetime
+    if time_col!='none':
+        set_df_indices(df, time_col)  # Sets the index as datetime
 
     # Removes any placeholder dates
     placeholder_date = pd.Timestamp('9999-12-13 23:59:59.999')

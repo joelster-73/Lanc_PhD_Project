@@ -13,7 +13,7 @@ from spacepy import pycdf
 
 
 from .dataframes import set_df_indices
-from .utils import datetime_to_cdf_epoch, add_unit, create_directory
+from .utils import datetime_to_cdf_epoch, add_unit, create_directory, cdf_epoch_to_datetime
 from .handling import get_processed_files
 from .reading import read_spacepy_object
 
@@ -62,6 +62,7 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
                 else:
                     # If it's not a dictionary, just assign the value
                     cdf.attrs[key] = value
+
         # Write each column in the DataFrame to the CDF file
         for column in df.columns:
             new_data = df[column].to_numpy()
@@ -71,9 +72,17 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
                         new_data = datetime_to_cdf_epoch(new_data)
                         cdf.new(column, data=new_data, type=pycdf.const.CDF_EPOCH)
 
-                    elif isinstance(new_data[0], str):  # Check if data is a string (unicode or bytes)
-                        max_len = max(len(s) for s in new_data)
+                    elif isinstance(new_data[0], str) or df.attrs['units'][column]=='STRING':  # Check if data is a string (unicode or bytes)
+                        max_len = max(len(s) for s in new_data if isinstance(s,str))
                         padded_data = np.array([s.ljust(max_len) for s in new_data], dtype=f'U{max_len}')
+                        # Store the data as CDF_CHAR with variable length
+                        cdf.new(column, data=padded_data, type=pycdf.const.CDF_CHAR)
+                        df.attrs['units'][column] = 'STRING'
+
+                    elif isinstance(new_data[0], list) or df.attrs['units'][column]=='LIST':  # Check if data is a list (unicode or bytes)
+                        new_data_str = np.array([','.join(lst) for lst in new_data])
+                        max_len = max(len(s) for s in new_data_str if isinstance(s,str))
+                        padded_data = np.array([s.ljust(max_len) for s in new_data_str], dtype=f'U{max_len}')
                         # Store the data as CDF_CHAR with variable length
                         cdf.new(column, data=padded_data, type=pycdf.const.CDF_CHAR)
                         df.attrs['units'][column] = 'STRING'

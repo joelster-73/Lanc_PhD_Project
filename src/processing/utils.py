@@ -50,29 +50,37 @@ def create_directory(directory):
 
 
 
-def datetime_to_cdf_epoch(datetimes):
+CDF_EPOCH_FILLVAL = -9223372036854775808
 
+def datetime_to_cdf_epoch(datetimes):
+    # Convert input to an array of Python datetime objects
     if isinstance(datetimes, (pd.Series, pd.DatetimeIndex)):
         datetimes = datetimes.to_pydatetime()
-
     elif isinstance(datetimes, np.ndarray):
         if np.issubdtype(datetimes.dtype, np.datetime64):
             datetimes = pd.to_datetime(datetimes).to_pydatetime()
         elif np.issubdtype(datetimes.dtype, np.object_):
+            # Assume array of datetime objects, no change needed
             pass
         else:
-            raise ValueError('Array must be of datetime64 type or an array of datetime objects.')
+            raise ValueError('Array must be datetime64 or array of datetime objects.')
     else:
-        raise ValueError('Input must be a pandas Series, DataFrame index, or a NumPy ndarray of datetime objects.')
+        raise ValueError('Input must be pandas Series, DatetimeIndex, or numpy array of datetime objects.')
 
+    # Create a mask for valid (non-NaT) entries
     valid_mask = pd.notna(datetimes)
-    result = np.full(datetimes.shape, np.nan, dtype=np.float64)
 
-    # Apply conversion only to valid values
+    # Prepare output array with fill values (int64)
+    result = np.full(len(datetimes), CDF_EPOCH_FILLVAL, dtype=np.int64)
+
+    # Convert valid datetimes using pycdf.lib.v_datetime_to_epoch
     if valid_mask.any():
-        valid_datetimes = datetimes[valid_mask]
-        # SpacePy's CDF epoch converter
-        result[valid_mask] = pycdf.lib.v_datetime_to_epoch(valid_datetimes)
+        valid_datetimes = np.array(datetimes)[valid_mask]
+        # Returns float64 microseconds
+        valid_epoch_floats = pycdf.lib.v_datetime_to_epoch(valid_datetimes)
+        # Convert to int64
+        valid_epoch_ints = valid_epoch_floats.astype(np.int64)
+        result[valid_mask] = valid_epoch_ints
 
     return result
 
