@@ -6,6 +6,9 @@ import pandas as pd
 from uncertainties import ufloat, unumpy as unp
 from ..calculations import get_position_u, vec_mag
 
+from src.processing.speasy.retrieval import retrieve_position_unc
+from src.processing.speasy.config import speasy_variables
+
 def find_outliers(shocks, threshold_time=40, coeff_lim=0.7):
 
     sc_labels = [col.split('_')[0] for col in shocks if '_coeff' in col]
@@ -58,11 +61,9 @@ def find_outliers(shocks, threshold_time=40, coeff_lim=0.7):
 
 def get_time_dist_differences(shocks, **kwargs):
 
-    coeff_lim     = kwargs.get('coeff_lim',0.7)
     selection     = kwargs.get('selection','all')
     x_axis        = kwargs.get('x_axis','dist')
     colouring     = kwargs.get('colouring','spacecraft')
-    cfa_shocks    = kwargs.get('cfa_shocks',None)
 
     distances     = []
     distances_unc = []
@@ -70,115 +71,108 @@ def get_time_dist_differences(shocks, **kwargs):
     times_unc     = []
     z_values      = []
 
-
-    sc_labels = [col.split('_')[0] for col in shocks if '_coeff' in col]
+    sc_labels = [col.split('_')[0] for col in shocks if '_time_unc_s' in col]
 
     for index, shock in shocks.iterrows():
-        detector = shock['spacecraft']
 
         BS_time     = shock['OMNI_time']
+        BS_time_unc = shock['OMNI_time_unc_s']
         if pd.isnull(BS_time):
             continue
+        try:
+            BS_pos = shock[[f'OMNI_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
+            BS_pos_unc = shock[[f'OMNI_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy()
+        except:
+            BS_pos, BS_pos_unc = retrieve_position_unc('OMNI', speasy_variables, BS_time, BS_time_unc)
 
+        if  x_axis!='earth_sun':
+            if BS_pos is None:
+                continue
+            elif np.isnan(BS_pos[0]):
+                continue
+            elif np.isnan(BS_pos_unc[0]):
+                BS_pos_unc = np.zeros(len(BS_pos))
+        BS_pos_u = unp.uarray(BS_pos,BS_pos_unc)
 
-        BS_pos = get_position_u(shock,'OMNI')
-        if BS_pos is None and x_axis!='earth_sun':
-            continue
-
+        all_distances = {}
+        all_dist_uncs = {}
         for sc in sc_labels:
-            if (selection=='closest' and sc!=shock['closest']) or sc in ('OMNI',detector):
+            sc_time = shock[f'{sc}_time']
+            sc_time_unc = shock[f'{sc}_time_unc_s']
+            if  sc=='OMNI':
                 continue
-            elif (selection=='earth') and sc in ('WIND','ACE','DSC'):
-                continue
-
-            corr_coeff = shock[f'{sc}_coeff']
-            if isinstance(corr_coeff, (pd.Series, pd.DataFrame)) and len(corr_coeff) > 1:
-                corr_coeff = corr_coeff.iloc[0]  # Get the first value
-            else:
-                corr_coeff = corr_coeff
-
-            if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
-                #1.1 indicates exact matches
+            elif pd.isnull(sc_time):
                 continue
 
+            try:
+                sc_pos = shock[[f'{sc}_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
+                sc_pos_unc = shock[[f'{sc}_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy()
+            except:
+                sc_pos, sc_pos_unc = retrieve_position_unc(sc, speasy_variables, sc_time, sc_time_unc)
+
+            if sc_pos is None:
+                continue
+            elif np.isnan(sc_pos[0]):
+                continue
+            elif np.isnan(sc_pos_unc[0]):
+                sc_pos_unc = np.zeros(len(sc_pos))
+
+            sc_pos_u = unp.uarray(sc_pos,sc_pos_unc)
             if x_axis=='earth_sun':
-                L1_pos = get_position_u(shock,detector)
-                if L1_pos is None:
-                    continue
-                L1_rho = unp.sqrt(L1_pos[1]**2+L1_pos[2]**2)
+                sc_rho = unp.sqrt(sc_pos_u[1]**2+sc_pos_u[2]**2)
 
-                distance     = L1_rho.n
-                distance_unc = L1_rho.s
+                distance     = sc_rho.n
+                distance_unc = sc_rho.s
 
             elif x_axis=='x_comp':
-                sc_x = ufloat(shock[f'{sc}_r_x_GSE'],shock[f'{sc}_r_x_GSE_unc'])
+                sc_x = sc_pos_u[0]
                 if np.isnan(sc_x.n):
                     continue
-                bs_x = ufloat(shock['OMNI_r_x_GSE'] ,shock['OMNI_r_x_GSE_unc'])
+                bs_x = BS_pos_u[0]
 
                 distance     = (sc_x-bs_x).n
                 distance_unc = (sc_x-bs_x).s
 
-
             elif x_axis=='dist':
-                sc_pos = get_position_u(shock,sc)
-                if sc_pos is None:
-                    continue
-                dist_diff = vec_mag(sc_pos-BS_pos)
+                dist_diff = vec_mag(sc_pos_u-BS_pos_u)
                 distance     = unp.nominal_values(dist_diff)
                 distance_unc = unp.std_devs(dist_diff)
 
             elif x_axis=='signed_dist':
-                sc_pos = get_position_u(shock,sc)
-                if sc_pos is None:
-                    continue
-                sign         = np.sign(shock[f'{sc}_r_x_GSE'])
-                dist_diff    = vec_mag(sc_pos-BS_pos)
+                sign         = np.sign(sc_pos_u[0].n)
+                dist_diff    = vec_mag(sc_pos_u-BS_pos_u)
                 distance     = sign*unp.nominal_values(dist_diff)
                 distance_unc = unp.std_devs(dist_diff)
             else:
                 raise Exception(f'{x_axis} not valid choice of "x_axis".')
 
-            if colouring=='coeff':
-                z_value = corr_coeff
+            all_distances[sc] = distance
+            all_dist_uncs[sc] = distance_unc
 
-            elif colouring=='angle':
-                try:
-                    normal = cfa_shocks.loc[index,['Nx','Ny','Nz']]
-                    normal_mag = np.linalg.norm(normal)
-                    normal /= normal_mag # to ensure normalised
-                except:
-                    continue
-                basis_vector = np.array([-1,0,0])
-                z_value = np.arccos(np.dot(normal,basis_vector))
+        if selection=='closest':
+            closest_sc = min(all_distances, key=all_distances.get)
 
-            elif colouring=='sun_earth':
-                sc_pos = get_position_u(shock,sc)
-                if sc_pos is None:
-                    continue
-                sc_vec = unp.nominal_values(sc_pos)
-                z_value = np.sqrt(sc_vec[1]**2+sc_vec[2]**2)
+        for sc in all_distances:
+            if (selection=='closest') and sc!=closest_sc:
+                continue
 
-            elif colouring=='detector':
-                z_value = detector.upper()
+            if colouring=='detector':
+                z_value = shock['detectors'][0].upper()
 
             elif colouring=='spacecraft':
                 z_value = sc
 
-            elif colouring=='database':
-                z_value = 'CFA' if shock['source']=='C' else 'Donki'
+            elif colouring=='none':
+                z_value = 0
 
-
-            if np.isnan(z_value):
-                continue
             z_values.append(z_value)
 
+            distances.append(all_distances[sc])
+            distances_unc.append(all_dist_uncs[sc])
 
-            distances.append(distance)
-            distances_unc.append(distance_unc)
 
             time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
-            time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
+            time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,BS_time_unc)
             times.append(time_diff)
             times_unc.append(time_diff_unc.s)
 

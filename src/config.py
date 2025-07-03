@@ -63,6 +63,9 @@ PROC_CFA_DIR           = CFA_DIR
 # Processed Shocks Data
 PROC_SHOCKS_DIR        = f'{PROCESSED_DATA_DIR}/SHOCKS'
 
+# Processed Shocks Data
+PROC_INTERCEPTS_DIR        = f'{PROCESSED_DATA_DIR}/INTERCEPTS'
+
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'
 

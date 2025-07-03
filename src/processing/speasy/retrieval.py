@@ -164,7 +164,7 @@ def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False
 
     return None, None
 
-def retrieve_position_unc(source, speasy_variables, time, left_unc, right_unc):
+def retrieve_position_unc(source, speasy_variables, time, time_unc):
 
     position_var = 'R_GSE'
 
@@ -172,8 +172,8 @@ def retrieve_position_unc(source, speasy_variables, time, left_unc, right_unc):
     if position is None:
         return None, None
 
-    pos_left, _ = retrieve_datum(position_var, source, speasy_variables, time-timedelta(seconds=left_unc), add_omni_sc=False)
-    pos_right, _ = retrieve_datum(position_var, source, speasy_variables, time+timedelta(seconds=right_unc), add_omni_sc=False)
+    pos_left, _ = retrieve_datum(position_var, source, speasy_variables, time-timedelta(seconds=time_unc), add_omni_sc=False)
+    pos_right, _ = retrieve_datum(position_var, source, speasy_variables, time+timedelta(seconds=time_unc), add_omni_sc=False)
     for arr in (position, pos_left, pos_right):
         arr = np.array(arr)
 
@@ -204,6 +204,7 @@ def retrieve_modal_omni_sc(speasy_variables, start_time, end_time, return_counts
 
     if return_counts:
         counts_dict = Counter(np.ravel(ids))
+        counts_dict = dict(sorted(counts_dict.items(), key=lambda item: item[1], reverse=True))
         return modal_sc, {omni_spacecraft.get(key,key): value for key, value in counts_dict.items()}
 
     return modal_sc

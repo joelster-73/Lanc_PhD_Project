@@ -35,14 +35,12 @@ def find_all_shocks(shocks, parameter, time=None, **kwargs):
 
             new_columns[f'{sc}_time'] = pd.NaT
             new_columns[f'{sc}_time_unc_s'] = np.nan
-            new_columns[f'{sc}_coeff'] = np.nan
 
             if sc == 'OMNI':
                 new_columns['OMNI_sc'] = np.nan
 
             for comp in ('x', 'y', 'z'):
                 new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
-                new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
 
     # Add all new columns to the dataframe at once
     shocks = pd.concat([shocks, pd.DataFrame(new_columns, index=shocks.index)], axis=1)
@@ -104,7 +102,7 @@ def find_propagation_time(shock_time, detector, interceptor, parameter, position
 
 
     position_var   = kwargs.get('position_var','R_GSE')
-    buffer_up      = kwargs.get('buffer_up',30)
+    buffer_up      = kwargs.get('buffer_up',33)
     buffer_dw      = kwargs.get('buffer_dw',35)
     resolution     = kwargs.get('resolution',None)
     intercept_pos  = kwargs.get('intercept_pos',None)

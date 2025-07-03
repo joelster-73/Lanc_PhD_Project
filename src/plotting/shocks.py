@@ -527,20 +527,12 @@ def plot_time_differences(shocks, **kwargs):
     colouring     = kwargs.get('colouring','spacecraft')
     show_best_fit = kwargs.get('show_best_fit',True)
     show_errors   = kwargs.get('show_errors',True)
-    max_dist      = kwargs.get('max_dist',100)
+    max_dist      = kwargs.get('max_dist',300)
     R_E           = kwargs.get('R_E',6370)
     cfa_shocks    = kwargs.get('cfa_shocks',None)
 
-    distances     = kwargs.get('distances',None)
-    distances_unc = kwargs.get('distances_unc',None)
-    times         = kwargs.get('times',None)
-    times_unc     = kwargs.get('times_unc',None)
-    z_values      = kwargs.get('z_values',None)
 
-    for data in (distances,distances_unc,times,times_unc,z_values):
-        if data is None:
-            distances, distances_unc, times, times_unc, z_values = get_time_dist_differences(shocks,**kwargs)
-            break
+    distances, times, distances_unc, times_unc, z_values = get_time_dist_differences(shocks,**kwargs)
 
     if colouring == 'angle' and cfa_shocks is None:
         raise Exception('Need CFA shocks to calculate angle.')
@@ -550,7 +542,7 @@ def plot_time_differences(shocks, **kwargs):
     database_colour_dict = {'CFA': 'b', 'Donki': 'r'}
 
     if selection=='earth':
-        max_dist=250
+        max_dist=60
     closish = abs(distances)<max_dist
 
     xs = distances[closish]
@@ -659,75 +651,27 @@ def plot_time_differences(shocks, **kwargs):
 
 
 
-def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=False, show_errors=True, colouring='none'):
+def plot_time_histogram(shocks, **kwargs):
 
     # selection = closest, all
     # colouring = spacecraft, detector, none
 
-    times         = []
-    times_unc     = []
-    spacecrafts   = []
-    detectors     = []
+    selection     = kwargs.get('selection','all')
+    colouring     = kwargs.get('colouring','none')
+    show_best_fit = kwargs.get('show_best_fit',False)
+    max_dist      = kwargs.get('max_dist',300)
+
+    distances, times, distances_unc, times_unc, z_values = get_time_dist_differences(shocks,**kwargs)
+
+
+    if selection=='earth':
+        max_dist=60
+    closish = abs(distances)<max_dist
+
+    times = times[closish]/60
 
     sc_labels = [col.split('_')[0] for col in shocks if '_coeff' in col]
 
-    for index, shock in shocks.iterrows():
-        detector = shock['spacecraft']
-
-        BS_time     = shock['OMNI_time']
-        if pd.isnull(BS_time):
-            continue
-
-        BS_coeff = shock['OMNI_coeff']
-        if np.isnan(BS_coeff) or BS_coeff<coeff_lim or BS_coeff>1:
-            #1.1 indicates exact matches
-            continue
-
-        for sc in sc_labels:
-            if sc==detector:
-                continue
-            elif selection == 'omni':
-                if sc!='OMNI':
-                    continue
-            elif sc == 'OMNI':
-                continue
-            elif selection == 'closest' and sc != shock['closest']:
-                continue
-            elif selection == 'earth' and sc in ('WIND', 'ACE', 'DSC'):
-                continue
-
-            corr_coeff = shock[f'{sc}_coeff']
-            if isinstance(corr_coeff, (pd.Series, pd.DataFrame)) and len(corr_coeff) > 1:
-                corr_coeff = corr_coeff.iloc[0]  # Get the first value
-            else:
-                corr_coeff = corr_coeff
-
-
-            if np.isnan(corr_coeff) or corr_coeff<coeff_lim or corr_coeff>1:
-                #1.1 indicates exact matches
-                continue
-
-            if selection=='omni':
-                time_diff     = (BS_time - index).total_seconds()
-                time_diff_unc = ufloat(time_diff,shock['OMNI_time_unc_s']) - ufloat(0,shock['time_s_unc'])
-            else:
-                sc_time = shock[f'{sc}_time']
-                if pd.isnull(sc_time):
-                    continue
-
-                time_diff     = (sc_time - BS_time).total_seconds()
-                time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,shock['OMNI_time_unc_s'])
-
-            times.append(time_diff)
-            times_unc.append(time_diff_unc.s)
-
-            spacecrafts.append(sc)
-            detectors.append(detector.upper())
-
-    times       = np.array(times)/60
-    times_unc   = np.array(times_unc)
-    spacecrafts = np.array(spacecrafts)
-    detectors   = np.array(detectors)
 
     fig, ax = plt.subplots()
 
@@ -738,17 +682,11 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
     mids = 0.5*(bins[1:]+bins[:-1])
 
     if colouring in ('spacecraft','detector'):
-        if colouring=='spacecraft':
-            sc_array = spacecrafts
-        elif colouring=='detector':
-            sc_array = detectors
-        else:
-            raise Exception(f'{colouring} not valid choice for "colouring".')
 
         grouped_counts = np.zeros((len(sc_labels), len(bin_edges) - 1))
 
         for i, sc in enumerate(sc_labels):
-            grouped_counts[i], _ = np.histogram(times[sc_array == sc], bins=bin_edges)
+            grouped_counts[i], _ = np.histogram(times[z_values == sc], bins=bin_edges)
         bottom = np.zeros(len(bin_edges) - 1)
 
         for i, sc in enumerate(sc_labels):
@@ -757,7 +695,6 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
     else:
         bar_colour = 'orange' if selection=='omni' else 'k'
         ax.hist(times, bin_edges, color=bar_colour)
-
 
 
     ax.axvline(x=np.median(times),ls='--',lw=1,c='c',label=f'Median: {np.median(times):.3g} mins')
@@ -771,11 +708,11 @@ def plot_time_histogram(shocks, coeff_lim=0.7, selection='all', show_best_fit=Fa
 
         ax.plot(x_values,y_values,c='r',label=f'Mean: ${mu:L}$ mins')
 
-    ax.set_xlabel(f'Time differences for {selection} spacecraft [mins]')
+    ax.set_xlabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
     ax.set_ylabel('Counts / 5mins')
 
     add_legend(fig,ax)
-    add_figure_title(fig, title=f'Frequency histogram of {len(times)} measurements', ax=ax)
+    add_figure_title(fig, title=f'{selection.title()} spacecraft: $R<${max_dist}; N={np.sum(closish):,}', ax=ax)
 
     plt.tight_layout()
     save_figure(fig)

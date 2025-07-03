@@ -8,10 +8,10 @@ Created on Thu May  8 18:33:37 2025
 # %% Imports
 from src.config import HELSINKI_DIR
 from src.processing.reading import import_processed_data
-from src.processing.shocks.helsinki import get_list_of_events
+from src.processing.shocks.helsinki import get_list_of_events_simple
 
 helsinki_shocks = import_processed_data(HELSINKI_DIR)
-event_list = get_list_of_events(helsinki_shocks)
+event_list = get_list_of_events_simple(helsinki_shocks)
 
 # %% Counts
 from src.processing.speasy.config import colour_dict

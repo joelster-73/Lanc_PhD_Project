@@ -19,9 +19,6 @@ OMNI_CDA_TREE = cda_tree.OMNI_Combined_1AU_IP_Data__Magnetic_and_Solar_Indices.O
 # To find product, type in the console "cda_tree." and then tab, and keep doing this to find product
 
 
-# IMPROVEMENT: iterate through the Cluster sc and TH-B/C, so try one, if it doesn't work, move on to the next etc.
-
-
 all_spacecraft = {'L1': ('ACE','DSC','WIND'),
                   'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THA','THB','THC','THD','THE')}
 

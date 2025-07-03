@@ -103,6 +103,38 @@ def process_helsinki_shocks(directory, file_name, time_col='epoch'):
 
 
 # %%
+def get_list_of_events_simple(df_shocks,reverse=False):
+
+    event_list = []
+    iterator = df_shocks.iterrows()
+
+    prev_index, prev_shock = next(iterator)
+    prev_sc     = prev_shock['spacecraft']
+    event_dict  = {prev_sc: prev_index}
+
+    while True:
+
+        try:
+            index, shock = next(iterator)
+            sc     = shock['spacecraft']
+
+            if (index-prev_index).total_seconds()>=(90*60) or sc in event_dict:
+                event_list.append(event_dict)
+                event_dict = {sc: index}
+                prev_index = index
+            else:
+                event_dict[sc] = index
+
+        except StopIteration:
+            break
+
+    if reverse:
+        return event_list[::-1]
+
+    return event_list
+
+# %%
+
 def get_list_of_events(df_shocks,reverse=False):
 
     event_list = []

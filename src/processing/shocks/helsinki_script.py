@@ -7,9 +7,9 @@ Created on Thu Jun 19 16:56:39 2025
 
 # %%
 import os
-from ...config import HELSINKI_DIR
-from ..writing import write_to_cdf
-from .helsinki import process_helsinki_shocks
+from src.config import HELSINKI_DIR
+from src.processing.writing import write_to_cdf
+from src.processing.shocks.helsinki import process_helsinki_shocks
 
 helsinki_shocks = process_helsinki_shocks(HELSINKI_DIR, 'Helsinki_database.dat')
 

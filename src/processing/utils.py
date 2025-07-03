@@ -25,6 +25,8 @@ def add_unit(key):
         return '1'
     elif 'Beta_' in key:
         return 'bool'
+    elif 'unc_s' in key:
+        return 's'
     elif '_time' in key:
         return 'datetime'
     elif '_s' in key:
