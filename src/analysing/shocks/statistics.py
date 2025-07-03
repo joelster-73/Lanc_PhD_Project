@@ -79,20 +79,32 @@ def get_time_dist_differences(shocks, **kwargs):
         BS_time_unc = shock['OMNI_time_unc_s']
         if pd.isnull(BS_time):
             continue
-        try:
-            BS_pos = shock[[f'OMNI_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
-            BS_pos_unc = shock[[f'OMNI_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy()
-        except:
-            BS_pos, BS_pos_unc = retrieve_position_unc('OMNI', speasy_variables, BS_time, BS_time_unc)
 
-        if  x_axis!='earth_sun':
+        if x_axis!='earth_sun' or 'L1' not in x_axis:
+            try:
+                BS_pos = shock[[f'OMNI_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
+                BS_pos_unc = shock[[f'OMNI_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy()
+            except:
+                BS_pos, BS_pos_unc = retrieve_position_unc('OMNI', speasy_variables, BS_time, BS_time_unc)
+
             if BS_pos is None:
                 continue
             elif np.isnan(BS_pos[0]):
                 continue
             elif np.isnan(BS_pos_unc[0]):
                 BS_pos_unc = np.zeros(len(BS_pos))
-        BS_pos_u = unp.uarray(BS_pos,BS_pos_unc)
+
+            BS_pos_u = unp.uarray(BS_pos,BS_pos_unc)
+
+        if 'L1' in x_axis:
+            detector = shock['detectors'].split(',')[0]
+            detector_pos = shock[[f'{detector}_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
+            detector_pos_unc = shock[[f'{detector}_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy()
+            if np.isnan(detector_pos[0]):
+                continue
+            elif np.isnan(detector_pos_unc[0]):
+                detector_pos_unc = np.zeros(len(BS_pos))
+            L1_pos_u = unp.uarray(detector_pos,detector_pos_unc)
 
         all_distances = {}
         all_dist_uncs = {}
@@ -134,7 +146,7 @@ def get_time_dist_differences(shocks, **kwargs):
                 distance_unc = (sc_x-bs_x).s
 
             elif x_axis=='dist':
-                dist_diff = vec_mag(sc_pos_u-BS_pos_u)
+                dist_diff    = vec_mag(sc_pos_u-BS_pos_u)
                 distance     = unp.nominal_values(dist_diff)
                 distance_unc = unp.std_devs(dist_diff)
 
@@ -143,6 +155,18 @@ def get_time_dist_differences(shocks, **kwargs):
                 dist_diff    = vec_mag(sc_pos_u-BS_pos_u)
                 distance     = sign*unp.nominal_values(dist_diff)
                 distance_unc = unp.std_devs(dist_diff)
+
+            elif x_axis=='L1_x':
+
+                distance     = detector_pos[0]
+                distance_unc = detector_pos_unc[0]
+
+            elif x_axis=='L1_rho':
+
+                L1_rho = unp.sqrt(L1_pos_u[1]**2+L1_pos_u[2]**2)
+                distance     = unp.nominal_values(L1_rho)
+                distance_unc = unp.std_devs(L1_rho)
+
             else:
                 raise Exception(f'{x_axis} not valid choice of "x_axis".')
 
@@ -169,7 +193,6 @@ def get_time_dist_differences(shocks, **kwargs):
 
             distances.append(all_distances[sc])
             distances_unc.append(all_dist_uncs[sc])
-
 
             time_diff     = (shock[f'{sc}_time'] - BS_time).total_seconds()
             time_diff_unc = ufloat(time_diff,shock[f'{sc}_time_unc_s']) - ufloat(0,BS_time_unc)

@@ -6,7 +6,6 @@ Created on Fri May 16 10:20:40 2025
 """
 import numpy as np
 import pandas as pd
-from uncertainties import ufloat
 from datetime import timedelta
 
 import matplotlib.pyplot as plt
@@ -19,7 +18,7 @@ from .additions import create_half_circle_marker, plot_segments
 from .formatting import custom_date_formatter, add_legend, array_to_string, add_figure_title, create_label
 from .utils import save_figure
 
-from ..processing.speasy.config import speasy_variables, colour_dict, few_spacecraft
+from ..processing.speasy.config import speasy_variables, colour_dict, sw_monitors
 from ..processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc
 from ..processing.omni.config import omni_spacecraft
 
@@ -27,7 +26,6 @@ from ..analysing.fitting import gaussian, gaussian_fit, straight_best_fit
 from ..analysing.shocks.in_sw import is_in_solar_wind
 from ..analysing.shocks.statistics import get_time_dist_differences
 from ..coordinates.boundaries import msh_boundaries
-
 
 
 
@@ -115,44 +113,43 @@ def plot_shock_times(shock, parameter, time_window=20, position_var='R_GSE', R_E
 
     spacecraft_times = {}
 
-    for region in ['L1', 'Earth']:
-        for source in few_spacecraft.get(region, []):
+    for source in sw_monitors:
 
-            time = shock[f'{source}_time']
+        time = shock[f'{source}_time']
 
-            plot_data = False
-            plot_vertical = False
-            lw = 0.8
+        plot_data = False
+        plot_vertical = False
+        lw = 0.8
 
-            if pd.isnull(time):
+        if pd.isnull(time):
 
-                if source in ('WIND','ACE','DSC'):
-                    time = shock_time
-                else:
-                    time = approx_time
-
-                if source == 'OMNI':
-                    plot_data = True
-                elif plot_in_sw:
-
-                    approx_start = time-timedelta(minutes=time_window)
-                    approx_end   = time+timedelta(minutes=time_window)
-
-                    df_pos = retrieve_data(position_var, source, speasy_variables, approx_start, approx_end, upsample=True)
-                    if df_pos.empty:
-                        continue
-                    in_sw = is_in_solar_wind(source, speasy_variables, approx_start, approx_end, pos_df=df_pos, shock=shock)
-                    if np.any(~in_sw):
-                        continue
-                    plot_data = True
-                    lw = 0.6
-
+            if source in ('WIND','ACE','DSC'):
+                time = shock_time
             else:
-                plot_data = True
-                plot_vertical = True
+                time = approx_time
 
-            if plot_data:
-                spacecraft_times[source] = (time, plot_vertical)
+            if source == 'OMNI':
+                plot_data = True
+            elif plot_in_sw:
+
+                approx_start = time-timedelta(minutes=time_window)
+                approx_end   = time+timedelta(minutes=time_window)
+
+                df_pos = retrieve_data(position_var, source, speasy_variables, approx_start, approx_end, upsample=True)
+                if df_pos.empty:
+                    continue
+                in_sw = is_in_solar_wind(source, speasy_variables, approx_start, approx_end, pos_df=df_pos, shock=shock)
+                if np.any(~in_sw):
+                    continue
+                plot_data = True
+                lw = 0.6
+
+        else:
+            plot_data = True
+            plot_vertical = True
+
+        if plot_data:
+            spacecraft_times[source] = (time, plot_vertical)
 
     spacecraft_times = dict(sorted(
         spacecraft_times.items(),
@@ -380,25 +377,24 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
     Pd_OMNI, _   = retrieve_datum('P_dyn', 'OMNI', speasy_variables, omni_time)
 
     spacecraft_positions = {}
-    for region in ['L1', 'Earth']:
-        for source in few_spacecraft.get(region, []):
-            if source in (sc_L1,'OMNI'):
-                continue
+    for source in sw_monitors:
+        if source in (sc_L1,'OMNI'):
+            continue
 
-            time = shock[f'{source}_time']
-            coord = shock[[f'{source}_r_x_GSE',f'{source}_r_y_GSE',f'{source}_r_z_GSE']].to_numpy()
+        time = shock[f'{source}_time']
+        coord = shock[[f'{source}_r_x_GSE',f'{source}_r_y_GSE',f'{source}_r_z_GSE']].to_numpy()
 
-            if not pd.isnull(time):
-                spacecraft_positions[source] = (time,{'x': coord[0], 'y': coord[1], 'z': coord[2]},True)
+        if not pd.isnull(time):
+            spacecraft_positions[source] = (time,{'x': coord[0], 'y': coord[1], 'z': coord[2]},True)
 
+        else:
+            if source in ('WIND','ACE','DSC'):
+                time = shock_time
             else:
-                if source in ('WIND','ACE','DSC'):
-                    time = shock_time
-                else:
-                    time = omni_time
-                pos, _ = retrieve_datum('R_GSE', source, speasy_variables, time)
-                if pos is not None:
-                    spacecraft_positions[source] = (time,{'x': pos[0], 'y': pos[1], 'z': pos[2]},False)
+                time = omni_time
+            pos, _ = retrieve_datum('R_GSE', source, speasy_variables, time)
+            if pos is not None:
+                spacecraft_positions[source] = (time,{'x': pos[0], 'y': pos[1], 'z': pos[2]},False)
 
     positions = dict(sorted(
         spacecraft_positions.items(),
@@ -541,7 +537,7 @@ def plot_time_differences(shocks, **kwargs):
 
     database_colour_dict = {'CFA': 'b', 'Donki': 'r'}
 
-    if selection=='earth':
+    if selection=='earth' and 'L1' not in x_axis:
         max_dist=60
     closish = abs(distances)<max_dist
 
@@ -629,17 +625,18 @@ def plot_time_differences(shocks, **kwargs):
 
     ylim = np.max(np.abs(ax.get_ylim()))
     ax.set_ylim(-ylim,ylim)
+    ax.set_ylabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
+
     if x_axis=='dist':
         ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$R_E$]')
     elif x_axis=='signed_dist':
         ax.set_xlabel(r'sgn(x) $\cdot$ |$r_{SC}$ - $r_{BSN}$| [$R_E$]')
-        ax.invert_xaxis()
     elif x_axis=='earth_sun':
         ax.set_xlabel(r'$\rho_{L1}$ [$R_E$]')
     elif x_axis=='x_comp':
         ax.set_xlabel(r'$X_{sc}$ - $X_{BSN}$ [$R_E$]')
-        ax.invert_xaxis()
-    ax.set_ylabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
+    ax.invert_xaxis()
+
 
 
     add_figure_title(fig, title=f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist}; N={np.sum(closish):,}', ax=ax)
@@ -695,7 +692,6 @@ def plot_time_histogram(shocks, **kwargs):
     else:
         bar_colour = 'orange' if selection=='omni' else 'k'
         ax.hist(times, bin_edges, color=bar_colour)
-
 
     ax.axvline(x=np.median(times),ls='--',lw=1,c='c',label=f'Median: {np.median(times):.3g} mins')
     ax.axvline(x=0,ls=':',c='w',lw=1)

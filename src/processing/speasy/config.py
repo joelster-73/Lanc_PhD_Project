@@ -11,19 +11,17 @@ import speasy as spz
 # Data trees
 
 amda_tree = spz.inventories.tree.amda
-cda_tree = spz.inventories.tree.cda
-ssc_tree = spz.inventories.tree.ssc
+cda_tree  = spz.inventories.tree.cda
+ssc_tree  = spz.inventories.tree.ssc
 
 OMNI_CDA_TREE = cda_tree.OMNI_Combined_1AU_IP_Data__Magnetic_and_Solar_Indices.OMNI_1AU_IP_Data.IMF_and_Plasma_data.OMNI_HRO2_1MIN
 
 # To find product, type in the console "cda_tree." and then tab, and keep doing this to find product
 
 
-all_spacecraft = {'L1': ('ACE','DSC','WIND'),
-                  'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THA','THB','THC','THD','THE')}
-
-few_spacecraft = {'L1': ('ACE','DSC','WIND'),
-                  'Earth': ('OMNI','GEO','IMP8','C1','C2','C3','C4','THB','THC')}
+sw_monitors = ('WIND','ACE','DSC','C1','C2','C3','C4','THA','THB','THC','GEO','IMP8')
+cluster_sc = ('C1','C2','C3','C4')
+themis_sc  = ('THA','THB','THC')
 
 data_availability = {
     'C1':   (datetime(2000, 8, 22),          datetime(2024, 10, 3, 20, 35)),

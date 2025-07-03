@@ -64,13 +64,16 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
         if crossings_attrs:
             df.attrs['crossings'] = crossings_attrs
 
+    # Removes any placeholder dates
     time_col = df.attrs['global'].get('time_col','epoch')
+    placeholder_dates = [pd.Timestamp('9999-12-13 23:59:59.999'),pd.Timestamp('9999-12-13 23:59:59.998')]
     if time_col!='none':
+        placeholder_date = pd.Timestamp('9999-12-13 23:59:59.999')
         set_df_indices(df, time_col)  # Sets the index as datetime
 
-    # Removes any placeholder dates
-    placeholder_date = pd.Timestamp('9999-12-13 23:59:59.999')
-    df = df.mask(df == placeholder_date)
+    for placeholder_date in placeholder_dates:
+        df = df.mask(df == placeholder_date, pd.NaT)
+
 
     if bad_data is not None:
         exclude_days(df, bad_data)

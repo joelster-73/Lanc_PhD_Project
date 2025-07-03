@@ -9,46 +9,42 @@ import numpy as np
 import pandas as pd
 
 from datetime import timedelta, datetime
-from scipy import stats
 from uncertainties import ufloat
 
 from .discontinuities import find_peak_cross_corr
-from .in_sw import is_in_solar_wind
+from .in_sw import in_solar_wind
 
-from ...processing.speasy.retrieval import retrieve_data, retrieve_datum
-from ...processing.speasy.config import speasy_variables, few_spacecraft
-from ...processing.utils import add_unit
+from ...processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc, retrieve_position_unc
+from ...processing.speasy.config import speasy_variables, sw_monitors, cluster_sc, themis_sc
+from ...processing.dataframes import add_df_units
 
 from ...config import R_E
 
-
-
 def find_all_shocks(shocks, parameter, time=None, **kwargs):
 
-    shocks = shocks.copy()
-    shocks_attrs = shocks.attrs
-
+    # Dataframe to store shock times
+    shocks_intercepts = pd.DataFrame()
     new_columns = {}
 
-    for region in ['L1', 'Earth']:
-        for sc in few_spacecraft.get(region, []):
+    new_columns['detectors'] = ''
+    for sc in sum((sw_monitors, ('OMNI',)), ()):
 
-            new_columns[f'{sc}_time'] = pd.NaT
-            new_columns[f'{sc}_time_unc_s'] = np.nan
+        new_columns[f'{sc}_time'] = pd.NaT
+        new_columns[f'{sc}_time_unc_s'] = np.nan
 
-            if sc == 'OMNI':
-                new_columns['OMNI_sc'] = np.nan
+        for comp in ('x','y','z'):
+            new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
+            new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
 
-            for comp in ('x', 'y', 'z'):
-                new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
+    new_columns['OMNI_sc'] = ''
 
-    # Add all new columns to the dataframe at once
-    shocks = pd.concat([shocks, pd.DataFrame(new_columns, index=shocks.index)], axis=1)
-    shocks.attrs = shocks_attrs
+    eventID_max = np.max(shocks['eventNum'].astype(int))
+    eventIDs = range(1,eventID_max+1)
+    shocks_intercepts = pd.concat([shocks_intercepts, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
+    add_df_units(shocks)
 
-    for key in shocks.columns:
-        if key not in shocks.attrs['units']:
-            shocks.attrs['units'][key] = add_unit(key)
+    shocks.attrs['units']['detectors'] = 'LIST'
+    shocks.attrs['units']['OMNI_sc'] = 'STRING'
 
     if time is not None:
         time_shock = time
@@ -63,40 +59,197 @@ def find_all_shocks(shocks, parameter, time=None, **kwargs):
         return shock
 
     else:
+        # Store info for each shock event
         script_dir = os.getcwd() # change to location of script __file__
-        file_name = 'Shocks_not_processed.txt'
+        file_name = 'Processing_events.txt'
         file_path = os.path.join(script_dir, file_name)
         if not os.path.exists(file_path):
             with open(file_path, 'w') as my_file:
                 my_file.write(f'Log created on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
 
-        for index, shock in shocks.iterrows():
-
-            # sc_dict = find_shock_times(shock, parameter, time_window, position_var, R_E)
+        for eventID, event in shocks.groupby(lambda x: int(shocks.loc[x, 'eventNum'])):
 
             try:
-                sc_dict = find_shock_times(shock, parameter, **kwargs)
-
-                for key, value in sc_dict.items():
-                    shocks.at[index, key] = value
+                find_shock_times(eventID, event, shocks_intercepts, **kwargs)
 
             except Exception as e:
-                print(f'Issue with shock at time {index}: {e}')
+                print(e)
                 with open(file_path, 'a') as my_file:
-                    sc = shock['spacecraft'].upper()
-                    my_file.write(f'{index.strftime("%Y-%m-%d %H:%M:%S")} not added ({sc}): {e}\n')
+                    my_file.write(f'{e}\n')
+
+            else:
+                print(f'#{eventID}: Found OMNI time.')
+                with open(file_path, 'a') as my_file:
+                    my_file.write(f'#{eventID}: Found OMNI time.\n')
 
         return shocks
 
-# check find_times and move some stuff into parent function
 
-def find_shock_times():
+def find_shock_times(eventID, event, df_shocks, **kwargs):
 
-    # in this function, go through all possible spacecraft or keys
-    # decide if in solar wind or other things like this
-    # then call find_propagation_time
+    position_var = kwargs.get('position_var','R_GSE')
+    coeff_lim    = kwargs.get('coeff_lim',0.7)
+
+    ###-------------------INITIAL CHECKS-------------------###
+
+    # Info for all shocks in this event
+    times       = event.index.tolist()
+    uncs        = event['time_unc'].tolist()
+    detectors   = event['spacecraft'].tolist()
+    detector_dict = dict(zip(detectors,list(zip(times,uncs))))
+    max_time    = max(times)
+
+    # Adds shocks in the database to dataframe
+    df_shocks.at[eventID,'detectors'] = detectors
+    for _, row in event.iterrows():
+        sc = row['spacecraft']
+        df_shocks.at[eventID,f'{sc}_time'] = row.name
+        df_shocks.at[eventID,f'{sc}_time_unc_s'] = row['time_unc']
+
+        pos, unc = retrieve_position_unc(sc, speasy_variables, row.name, row['time_unc'])
+
+        if pos is None:
+            pos = row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+            unc = np.array([np.nan,np.nan,np.nan])
+            if np.isnan(pos[0]):
+                continue
+
+        df_shocks.loc[eventID,[f'{sc}_r_x_GSE',f'{sc}_r_y_GSE',f'{sc}_r_z_GSE']] = pos
+        df_shocks.loc[eventID,[f'{sc}_r_x_GSE_unc',f'{sc}_r_y_GSE_unc',f'{sc}_r_z_GSE_unc']] = unc
+
+    # Spacecraft OMNI used in its propagation in this time period
+    start, end = min(times), max(times)+timedelta(minutes=90)
+    sc_info    = retrieve_modal_omni_sc(speasy_variables, start, end, return_counts=True)
+    if sc_info is None:
+        raise Exception(f'#{eventID}: No OMNI info.')
+
+    modal_sc, counts_dict = sc_info
+
+    ###-------------------FIND WHEN SHOCK ARRIVES AT BSN ACCORDING TO OMNI-------------------###
+
+    # Shocks in the event recorded by spacecraft used by OMNI
+    omni_time = pd.NaT
+
+    # Counts_dict is sorted in descending order
+    for sc in counts_dict:
+        sc = sc.upper()
+        if sc in detectors:
+            omni_sc = sc
+        elif sc=='WIND-V2' and 'WIND' in detectors:
+            omni_sc = 'WIND'
+        else:
+            continue
+
+        detect_time, detect_unc = detector_dict[omni_sc]
+        detect_pos = df_shocks.loc[eventID,[f'{omni_sc}_r_x_GSE',f'{omni_sc}_r_y_GSE',f'{omni_sc}_r_z_GSE']].to_numpy()
+
+        # Approximate BSN location
+        approx_time = detect_time + timedelta(seconds=((detect_pos[0]-15)*R_E/500))
+        omni_pos, _ = retrieve_datum(position_var, 'OMNI', speasy_variables, approx_time, add_omni_sc=False)
+
+        # Find time lag
+        time_lag = find_propagation_time(detect_time, omni_sc, 'OMNI', 'B_mag', detect_pos, intercept_pos=omni_pos)
+        if time_lag is None:
+            continue
+
+        delay, coeff = time_lag
+        if coeff<=coeff_lim:
+            continue
+
+        # Found suitable lag
+        lagged_unc = delay - ufloat(0,detect_unc)
+        omni_time  = detect_time + timedelta(seconds=delay.n)
+        omni_unc   = lagged_unc.s
+        df_shocks.at[eventID,'OMNI_sc'] = sc
+
+        break
+
+    # If there are no shocks in the event recorded by a spacecraft used by OMNI
+    # Use the shocks we have to find when they intercept the OMNI spacecraft
+    # Currently not implemented to see sample size
+    if pd.isnull(omni_time):
+        raise Exception(f'#{eventID}: Need to interpolate to find shock in OMNI.')
+
+
+    df_shocks.at[eventID,'OMNI_time'] = omni_time
+    df_shocks.at[eventID,'OMNI_time_unc_s'] = omni_unc
+
+    pos, unc = retrieve_position_unc('OMNI', speasy_variables, omni_time, omni_unc)
+
+    df_shocks.loc[eventID,['OMNI_r_x_GSE','OMNI_r_y_GSE','OMNI_r_z_GSE']] = pos
+    df_shocks.loc[eventID,['OMNI_r_x_GSE_unc','OMNI_r_y_GSE_unc','OMNI_r_z_GSE_unc']] = unc
+
+    ###-------------------FIND WHEN SHOCKS INTERCEPT DOWNSTREAM SPACECRAFT-------------------###
+    intercept_sc = []
+    for interceptor in sw_monitors:
+        # Don't want spacecraft that are used by OMNI - looking for those to compare with
+        if interceptor in detectors:
+            # Already have time
+            continue
+        elif interceptor in cluster_sc and (set(intercept_sc) & set(cluster_sc)):
+            # If found shock in one Cluster sc, don't need to check others
+            continue
+        elif interceptor in themis_sc and (set(intercept_sc) & set(themis_sc)):
+            # If found shock in one THEMIS sc, don't need to check others
+            continue
+
+        # Initial estimate of position
+        intercept_pos, _ = retrieve_datum(position_var, interceptor, speasy_variables, max_time, add_omni_sc=False)
+        if intercept_pos is None or not in_solar_wind(interceptor, max_time, speasy_variables):
+            continue
+
+        # When shock intercepts downstream monitors
+        intercept_times = []
+        intercept_uncs  = []
+        for i, row in event.iterrows(): # All the monitors
+            detector = row['spacecraft']
+
+            detector_pos = row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+            detector_time = row.name
+
+            # Find how long shocks takes to intercept spacecraft
+            time_lag = find_propagation_time(detector_time, detector, interceptor, 'B_mag', detector_pos, intercept_pos=intercept_pos)
+            if time_lag is None:
+                continue
+
+            delay, coeff = time_lag
+            if coeff<=coeff_lim:
+                continue
+
+            lagged_unc = delay - ufloat(0,row['time_unc'])
+            intercept_times.append(detector_time + timedelta(seconds=delay.n))
+            intercept_uncs.append(lagged_unc.s)
+
+        # If shock isn't found to interept the spacecraft
+        if len(intercept_times)==0:
+            continue
+        elif len(intercept_times)==1:
+            pred_time, pred_unc = intercept_times[0], intercept_uncs[0]
+        else:
+            # Average of times
+            min_time = min(intercept_times)
+            times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(intercept_times,intercept_uncs)])
+            avg_time = np.mean(times_u)
+            pred_time = min_time + timedelta(seconds=avg_time.n)
+            pred_unc = avg_time.s
+
+        df_shocks.at[eventID,f'{interceptor}_time'] = pred_time
+        df_shocks.at[eventID,f'{interceptor}_time_unc_s'] = pred_unc
+
+        pos, unc = retrieve_position_unc(interceptor, speasy_variables, pred_time, pred_unc)
+
+        df_shocks.loc[eventID,[f'{interceptor}_r_x_GSE',f'{interceptor}_r_y_GSE',f'{interceptor}_r_z_GSE']] = pos
+        df_shocks.loc[eventID,[f'{interceptor}_r_x_GSE_unc',f'{interceptor}_r_y_GSE_unc',f'{interceptor}_r_z_GSE_unc']] = unc
+
+        # Used to track for Cluster and THEMIS
+        intercept_sc.append(interceptor)
+
+    if len(intercept_sc)==0:
+        raise Exception(f'#{eventID}: No downstream monitors recorded shock.')
 
     return
+
+
 
 def find_propagation_time(shock_time, detector, interceptor, parameter, position=None, **kwargs):
 
