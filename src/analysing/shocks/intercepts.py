@@ -265,14 +265,11 @@ def find_propagation_time(shock_time, detector, interceptor, parameter, position
     max_pos_delay  = kwargs.get('max_neg_delay',90)
 
     if resolution is None:
-        if set(['OMNI','DSC']).intersection([detector,interceptor]):
+        if set(['OMNI','ACE','IMP8']).intersection([detector,interceptor]):
             resolution = 60
-        elif set(['ACE','IMP8']).intersection([detector,interceptor]):
-            resolution = 30
         else:
             resolution = 15
     sampling_interval = f'{resolution}s'
-
 
     # Time around shock front
     start_up = shock_time-timedelta(minutes=buffer_up)
@@ -308,7 +305,6 @@ def find_propagation_time(shock_time, detector, interceptor, parameter, position
     # Data needed to compare
     start_dw = shock_time + timedelta(minutes=start_dw_mins) - timedelta(minutes=buffer_up)
     end_dw   = shock_time + timedelta(minutes=end_dw_mins)   + timedelta(minutes=buffer_up)
-
 
 
     ###-------------------PARAMETER-------------------###

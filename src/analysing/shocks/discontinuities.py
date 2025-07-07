@@ -24,38 +24,6 @@ def get_average_interval(time, where='up', shock_type='FF'):
     elif where=='dw' and shock_type=='FR':
         return time-timedelta(minutes=10), time-timedelta(minutes=2)
 
-def approx_normal_vector(shock_time, detector, **kwargs):
-
-    min_points = kwargs.get('min_points',3)
-
-    shock_type = 'FF'
-
-    data_up_start, data_up_end = get_average_interval(shock_time, 'up', shock_type)
-    data_dw_start, data_dw_end = get_average_interval(shock_time, 'dw', shock_type)
-
-    data_up = retrieve_data('B_mag', detector, speasy_variables, data_up_start, data_up_end, add_omni_sc=False).dropna()
-    data_dw = retrieve_data('B_mag', detector, speasy_variables, data_dw_start, data_dw_end, add_omni_sc=False).dropna()
-
-    if len(data_up)<min_points or len(data_dw)<min_points:
-        return False
-
-    B_ratio = np.mean(data_dw.to_numpy())/np.mean(data_up.to_numpy())
-
-    if B_ratio<1: # have an FR shock
-        shock_type='FR'
-        data_up_start, data_up_end = get_average_interval(shock_time, 'up', shock_type)
-        data_dw_start, data_dw_end = get_average_interval(shock_time, 'dw', shock_type)
-
-    B_vec_up = retrieve_data('B_GSE', detector, speasy_variables, data_up_start, data_up_end, add_omni_sc=False).dropna()
-    B_vec_dw = retrieve_data('B_GSE', detector, speasy_variables, data_dw_start, data_dw_end, add_omni_sc=False).dropna()
-
-    B_vec_up = B_vec_up.mean().to_numpy()
-    B_vec_dw = B_vec_dw.mean().to_numpy()
-
-    normal = np.cross((np.cross(B_vec_dw,B_vec_up)),(B_vec_dw-B_vec_up))
-    normal /= np.linalg.norm(normal)
-
-    return normal
 
 
 def sufficient_compression(parameter, detector, interceptor, shock_time, intercept_time, **kwargs):

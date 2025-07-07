@@ -109,7 +109,8 @@ B_dict_tot = {
     'THE':  'the_bl_tot',
     'ACE':  'imf_mag',           # 16s resolution
     'DSC':  cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1,  # 1s resolution
-    #'DSC':  'dsc_b_mag',         # 1m resolution (1s res only for 2025+)
+    #'DSC':  'dsc_b_mag',         # 1m resolution
+    #'DSC':  'dsc_b_1s_mag',      # 1s resolution (only for 2025+)
     'GEO':  'gtl_bmag_edb',      # 3s resolution
     'IMP8': 'imp8_btot',         # 15s resolution
     'WIND': 'wnd_bmagh',         # 3s resolution

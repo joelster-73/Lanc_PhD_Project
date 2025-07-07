@@ -110,20 +110,24 @@ def get_list_of_events_simple(df_shocks,reverse=False):
 
     prev_index, prev_shock = next(iterator)
     prev_sc     = prev_shock['spacecraft']
-    event_dict  = {prev_sc: prev_index}
+    prev_unc    = 0.5*max(prev_shock[['res_p','res_B']].to_numpy())
+    event_dict  = {prev_sc: (prev_index,prev_unc)}
 
     while True:
 
         try:
             index, shock = next(iterator)
             sc     = shock['spacecraft']
+            unc    = 0.5*max(shock[['res_p','res_B']].to_numpy())
+            
+            time_diff = (index-prev_index).total_seconds()
 
-            if (index-prev_index).total_seconds()>=(90*60) or sc in event_dict:
+            if sc in event_dict or time_diff>=(90*60):
                 event_list.append(event_dict)
-                event_dict = {sc: index}
+                event_dict = {sc: (index,unc)}
                 prev_index = index
             else:
-                event_dict[sc] = index
+                event_dict[sc] = (index,unc)
 
         except StopIteration:
             break
@@ -158,7 +162,7 @@ def get_list_of_events(df_shocks,reverse=False):
                 new_event = True
 
             elif sc in event_dict:
-                if (index-event_dict[sc][0]).total_seconds()>300:
+                if (index-event_dict[sc][0]).total_seconds()>=300:
                     new_event = True
 
                 elif unc<event_dict[sc][1]:
