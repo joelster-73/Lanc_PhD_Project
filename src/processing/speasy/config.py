@@ -199,7 +199,8 @@ speasy_variables = {
     'R_GSE': R_dict_gse,
     'P_dyn': P_dict_dyn,
     'V_GSE': V_dict_gse,
-    'OMNI_sc': OMNI_CDA_TREE.IMF
+    'OMNI_sc': OMNI_CDA_TREE.IMF,
+    'OMNI_lag': OMNI_CDA_TREE.Timeshift
 }
 
 colour_dict = {

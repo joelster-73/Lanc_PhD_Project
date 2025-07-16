@@ -48,6 +48,7 @@ def get_donki_shocks(start_date='1995-01-01',end_date='2024-12-31',print_stuff=F
     df_donki = df_donki[df_donki['location']=='Earth'][['spacecraft_list']] # all ace and/or dscover
     #df_donki_else = df_donki[df_donki['location']!='Earth'] # all but one aren't ace or dscover
 
+    # Shock times are given to nearest minute
     df_donki['time_s_unc'] = 30
 
     # Option 1

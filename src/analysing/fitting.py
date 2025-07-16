@@ -158,7 +158,7 @@ def gaussian_fit(x, y, normal=False, name='', detailed=False, print_text=False):
 def bimodal(x, A1, mu1, sig1, A2, mu2, sig2):
     return gaussian(x, A1, mu1, sig1) + gaussian(x, A2, mu2, sig2)
 
-def bimodal_fit(x, y, symmetric=False, name='', detailed=False, print_text=False):
+def bimodal_fit(x, y, symmetric=False, name='', detailed=False, print_text=False, simple_bounds=False):
     """
     Fits a Gaussian distribution to the data.
 
@@ -190,8 +190,14 @@ def bimodal_fit(x, y, symmetric=False, name='', detailed=False, print_text=False
 
     initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess)
 
-    bounds = ([amplitude_guess*0.75, np.percentile(non_zero,25), 0, amplitude_guess*0.75, np.percentile(non_zero,25), 0],  # stops negative As and sigs
+    if not simple_bounds:
+
+        bounds = ([amplitude_guess*0.75, np.percentile(non_zero,25), 0, amplitude_guess*0.75, np.percentile(non_zero,25), 0],  # stops negative As and sigs
               [amplitude_guess*1.25, np.percentile(non_zero,75), np.inf, amplitude_guess*1.25, np.percentile(non_zero,75), np.inf])
+    else:
+        bounds = ([0, np.percentile(non_zero,0), 0, 0, np.percentile(non_zero,0), 0],  # stops negative As and sigs
+                  [np.inf, np.percentile(non_zero,100), np.inf, np.inf, np.percentile(non_zero,100), np.inf])
+
 
     try:
         # Perform the curve fitting

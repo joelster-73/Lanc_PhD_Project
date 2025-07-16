@@ -61,6 +61,8 @@ def find_outliers(shocks, threshold_time=40, coeff_lim=0.7):
 
 def get_time_dist_differences(shocks, **kwargs):
 
+    # For quantifying the error on OMNI
+
     selection     = kwargs.get('selection','all')
     x_axis        = kwargs.get('x_axis','dist')
     colouring     = kwargs.get('colouring','spacecraft')

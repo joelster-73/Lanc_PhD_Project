@@ -10,6 +10,7 @@ from datetime import timedelta
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter
 from matplotlib.lines import Line2D
 from collections import Counter
@@ -22,7 +23,7 @@ from ..processing.speasy.config import speasy_variables, colour_dict, sw_monitor
 from ..processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc
 from ..processing.omni.config import omni_spacecraft
 
-from ..analysing.fitting import gaussian, gaussian_fit, straight_best_fit
+from ..analysing.fitting import gaussian, gaussian_fit, straight_best_fit, bimodal, bimodal_fit
 from ..analysing.shocks.in_sw import is_in_solar_wind
 from ..analysing.shocks.statistics import get_time_dist_differences
 from ..coordinates.boundaries import msh_boundaries
@@ -526,6 +527,7 @@ def plot_time_differences(shocks, **kwargs):
     max_dist      = kwargs.get('max_dist',300)
     R_E           = kwargs.get('R_E',6370)
     cfa_shocks    = kwargs.get('cfa_shocks',None)
+    histograms    = kwargs.get('histograms',False)
 
 
     distances, times, distances_unc, times_unc, z_values = get_time_dist_differences(shocks,**kwargs)
@@ -533,12 +535,10 @@ def plot_time_differences(shocks, **kwargs):
     if colouring == 'angle' and cfa_shocks is None:
         raise Exception('Need CFA shocks to calculate angle.')
 
-
-
     database_colour_dict = {'CFA': 'b', 'Donki': 'r'}
 
     if selection=='earth' and 'L1' not in x_axis:
-        max_dist=60
+        max_dist=100
     closish = abs(distances)<max_dist
 
     xs = distances[closish]
@@ -547,7 +547,15 @@ def plot_time_differences(shocks, **kwargs):
     xs_unc = distances_unc[closish]
     ys_unc = times_unc[closish]/60
 
-    fig, ax = plt.subplots()
+
+    if histograms:
+        fig = plt.figure(figsize=(12, 10))
+        gs = gridspec.GridSpec(4, 4)
+        ax = fig.add_subplot(gs[0:3, 0:3])
+        histx_ax = fig.add_subplot(gs[3, 0:3], sharex=ax)
+        histy_ax = fig.add_subplot(gs[0:3, 3], sharey=ax)
+    else:
+        fig, ax = plt.subplots()
 
     if show_errors:
         error_colour = 'k' if colouring in ('coeff','sun_earth','angle','spacecraft','detector') else 'r'
@@ -594,15 +602,12 @@ def plot_time_differences(shocks, **kwargs):
                        for label, colour in sc_colour_dict.items() if spacecraft_counts.get(label, 0) > 0
         ]
 
-        ax.legend(handles=legend_elements, fontsize=6, loc='upper left', bbox_to_anchor=(1.01, 1.0))
+        ax.legend(handles=legend_elements, fontsize=8, loc='upper left')
     else:
         ax.scatter(xs, ys, c='k', s=1)
 
 
-
     if show_best_fit:
-
-
 
         slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
 
@@ -619,9 +624,6 @@ def plot_time_differences(shocks, **kwargs):
         ax.text(middle,location,f'$\\Delta t$ = (${slope:L}$)$\\Delta r$ {sign} (${abs(intercept):L}$) mins\n$R^2$={r2:.3f}, $v={slope_speed:L}$ km/s',
                 ha='center',va='center')
 
-        ax.axhline(y=-40,c='grey',ls=':')
-        ax.axhline(y=40, c='grey',ls=':')
-
 
     ylim = np.max(np.abs(ax.get_ylim()))
     ax.set_ylim(-ylim,ylim)
@@ -637,7 +639,85 @@ def plot_time_differences(shocks, **kwargs):
         ax.set_xlabel(r'$X_{sc}$ - $X_{BSN}$ [$R_E$]')
     ax.invert_xaxis()
 
+    if histograms:
+        ###-------------------Y AXIS-------------------###
+        step = 5
+        bin_edges = np.arange(np.floor(np.min(ys)/step)*step,np.ceil(np.max(ys/step)*step),step)
+        counts, bins = np.histogram(ys, bin_edges)
+        mids = 0.5*(bins[1:]+bins[:-1])
+        bar_colour = 'orange' if selection=='omni' else 'k'
 
+        histy_ax.hist(ys, bin_edges, color=bar_colour, orientation='horizontal')
+        histy_ax.axvline(x=0,ls=':',c='grey',lw=1)
+
+        x_values = np.linspace(min(ys), max(ys), 1000)
+
+
+        if max_dist > 100 and selection!='closest':
+            A1, mu1, sig1, A2, mu2, sig2 = bimodal_fit(mids,counts,detailed=True,simple_bounds=True)
+            y_values = bimodal(x_values, A1.n, mu1.n, sig1.n, A2.n, mu2.n, sig2.n)
+            text_info = f'$\\mu_1$: ${mu1:L}$ mins\n$\\sigma_1$: ${sig1:L}$ mins\n$\\mu_2$: ${mu2:L}$ mins\n$\\sigma_2$: ${sig2:L}$ mins'
+        else:
+            A, mu, sig = gaussian_fit(mids,counts,detailed=True)
+            y_values = gaussian(x_values, A.n, mu.n, sig.n)
+            text_info = f'$\\mu$: ${mu:L}$ mins\n$\\sigma$: ${sig:L}$ mins'
+
+        bimodal
+
+        histy_ax.plot(y_values,x_values,c='r')
+        histy_ax.set_xlabel('Counts / 5mins')
+
+        middle = (np.max(counts)+np.min(counts))/2
+        location = np.max(np.abs(ys))
+        histy_ax.text(middle,location,text_info, ha='center',va='top')
+
+        ###-------------------X AXIS-------------------###
+
+        # Rolling window parameters
+        window_width = 10
+        if max_dist <= 100:
+            window_width = 5
+
+        x_centres = np.arange(int(np.min(xs)),int(np.max(xs))+0.5,0.5)
+        y_means   = np.full(len(x_centres),np.nan)
+        y_stds    = np.zeros(len(x_centres))
+
+        for i, x_c in enumerate(x_centres):
+            mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
+            if np.sum(mask) >= 1:
+                y_means[i] = np.mean(ys[mask])
+                if np.sum(mask) >= 2:
+                    y_stds[i] = np.std(ys[mask], ddof=1)
+
+        not_nan = ~np.isnan(y_means)
+
+        segments = []
+        current_segment = []
+        for i, val in enumerate(y_means):
+            if not_nan[i]:
+                current_segment.append((x_centres[i], val, y_stds[i]))
+            else:
+                if current_segment:
+                    segments.append(current_segment)
+                    current_segment = []
+        if current_segment:
+            segments.append(current_segment)
+
+        for segment in segments:
+            x_vals, y_vals, y_errs = zip(*segment)
+            x_vals = np.array(x_vals)
+            y_vals = np.array(y_vals)
+            y_errs = np.array(y_errs)
+            if len(x_vals)==1:
+                histx_ax.plot(x_vals, y_vals, c='b', marker='.')
+            else:
+                histx_ax.plot(x_vals, y_vals, c='b')
+            histx_ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color='r', alpha=0.3)
+
+        histx_ax.plot([], [], c='b', label='mean')
+        histx_ax.fill_between([], [], [], color='r', alpha=0.3, label=r'$\pm$std')
+
+        histx_ax.legend(fontsize=8, loc='upper left')
 
     add_figure_title(fig, title=f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist}; N={np.sum(closish):,}', ax=ax)
     plt.tight_layout()

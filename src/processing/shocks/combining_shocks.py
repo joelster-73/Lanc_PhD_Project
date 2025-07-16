@@ -42,10 +42,18 @@ for col in ('r_x_GSE','r_y_GSE','r_z_GSE'):
     donki_shocks[col] = np.nan
 
 # %%
+from collections import Counter
 
 shocks = pd.concat([helsinki_shocks,cfa_shocks,donki_shocks]).sort_index()
 shocks = shocks[shocks['spacecraft'].isin(('WIND','ACE','DSC'))]
 event_list = get_list_of_events(shocks)
+print(sum([len(d) for d in event_list]))
+
+key_counts = Counter()
+for d in event_list:
+    key_counts.update(d.keys())
+
+print(key_counts)
 
 # %%
 columns = ['epoch','eventNum','time_unc','spacecraft','r_x_GSE','r_y_GSE','r_z_GSE','source']

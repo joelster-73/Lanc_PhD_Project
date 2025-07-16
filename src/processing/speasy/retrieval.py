@@ -209,3 +209,17 @@ def retrieve_modal_omni_sc(speasy_variables, start_time, end_time, return_counts
 
     return modal_sc
 
+def retrieve_omni_value(speasy_variables, omni_time, omni_var='OMNI_lag'):
+
+    omni_ID = speasy_variables.get(omni_var)
+    omni_time = omni_time.replace(second=0, microsecond=0)
+    omni_datum = spz.get_data(omni_ID, omni_time-timedelta(seconds=30), omni_time+timedelta(seconds=30))
+    if omni_datum is None:
+        return np.nan if omni_var=='OMNI_lag' else None
+    datum = omni_datum.values[0][0]
+    if omni_var=='OMNI_sc':
+        sc = omni_spacecraft.get(datum,datum).upper()
+        if sc=='WIND-V2':
+            sc = 'WIND'
+        return sc
+    return datum

@@ -13,11 +13,22 @@ from src.processing.shocks.helsinki import get_list_of_events_simple
 helsinki_shocks = import_processed_data(HELSINKI_DIR)
 event_list = get_list_of_events_simple(helsinki_shocks)
 
-# %% Counts
+
+# %% Imports
 from src.processing.speasy.config import colour_dict
 import matplotlib.pyplot as plt
 from collections import Counter
 from src.plotting.utils import save_figure
+
+import numpy as np
+from src.analysing.fitting import straight_best_fit
+from src.config import R_E
+
+import pandas as pd
+
+from src.processing.speasy.retrieval import retrieve_omni_value, retrieve_modal_omni_sc
+from src.processing.speasy.config import speasy_variables
+from datetime import timedelta
 
 # %%
 
@@ -77,20 +88,6 @@ ax.set_title('Shock Events Measured by OMNI & L1')
 plt.tight_layout()
 plt.show()
 
-# %% Times_v_distances
-import numpy as np
-from src.analysing.fitting import straight_best_fit
-from src.processing.speasy.config import colour_dict
-from src.config import R_E
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
-from src.processing.speasy.retrieval import retrieve_modal_omni_sc
-from src.processing.speasy.config import speasy_variables
-from datetime import timedelta
-
-
 # %%
 import itertools as it
 
@@ -99,8 +96,9 @@ times      = []
 times_unc  = []
 sc_up      = []
 sc_dw      = []
-event_number = []
-omni_sc_used = []
+event_number   = []
+omni_sc_used   = []
+omni_timeshift = []
 
 
 monitors = ('ACE','WIND','DSC','C1','C3','C4','OMNI')
@@ -118,13 +116,18 @@ for eventNum, event in enumerate(event_list):
         else:
             up_pos = up_pos.to_numpy()
 
+        omni_sc = None
+        omni_ts = np.nan
         if 'OMNI' in event:
-            omni_sc = retrieve_modal_omni_sc(speasy_variables, up_time, up_time+timedelta(minutes=60), return_counts=False)
-            if omni_sc is None:
-                continue
-            omni_sc = omni_sc.upper()
-        else:
-            omni_sc = None
+            omni_time_u = event.get('OMNI',None)
+            if omni_time_u is None:
+                omni_sc = None
+            else:
+                omni_time, omni_unc = omni_time_u
+                omni_sc = retrieve_omni_value(speasy_variables, omni_time,'OMNI_sc')
+                if omni_sc is not None:
+                    omni_sc = omni_sc.upper()
+            omni_ts = retrieve_omni_value(speasy_variables, omni_time)
 
         dw_time_u = event.get(downstream,None)
         if dw_time_u is None:
@@ -152,14 +155,16 @@ for eventNum, event in enumerate(event_list):
 
         event_number.append(eventNum)
         omni_sc_used.append(omni_sc)
+        omni_timeshift.append(omni_ts)
 
-distances    = np.array(distances)
-times        = np.array(times)/60
-times_unc    = np.array(times_unc)/60
-sc_up        = np.array(sc_up)
-sc_dw        = np.array(sc_dw)
-event_number = np.array(event_number)
-omni_sc_used = np.array(omni_sc_used)
+distances      = np.array(distances)
+times          = np.array(times)/60
+times_unc      = np.array(times_unc)/60
+sc_up          = np.array(sc_up)
+sc_dw          = np.array(sc_dw)
+event_number   = np.array(event_number)
+omni_sc_used   = np.array(omni_sc_used)
+omni_timeshift = np.array(omni_timeshift)/60
 
 # %%
 
@@ -298,8 +303,6 @@ import matplotlib.pyplot as plt
 
 monitors = ('ACE','WIND','DSC','C1','C3','C4','OMNI')
 
-
-
 sc_ups          = []
 sc_dws          = []
 compressions_up = []
@@ -378,14 +381,29 @@ event_number = np.array(event_number)
 # %%
 monitors = ('ACE','WIND','DSC','Cluster','OMNI')
 
+plot_type = 'hist'
 selection = 'other'
+
+title_info = 'All spacecraft'
+if selection=='not_used_sc':
+    title_info = 'Spacecraft Non-OMNI'
+elif selection=='used_sc':
+    title_info = 'Spacecraft in OMNI'
 
 sc_mask_initial = np.all(len(compressions_up))
 
 if selection=='omni':
     sc_mask_initial &= (sc_dws=='OMNI')
+    x_label = r'$B_\mathrm{ratio}$ (sc)'
+    y_label = r'$B_\mathrm{ratio}$ (OMNI)'
+    count_label = r'$B_\mathrm{ratio}$ (OMNI / sc)'
+    title_info = 'OMNI and Detector'
 else:
     sc_mask_initial &= (sc_dws!='OMNI')
+    x_label = r'$B_\mathrm{ratio}$ (sc #1)'
+    y_label = r'$B_\mathrm{ratio}$ (sc #2)'
+    count_label = r'$B_\mathrm{ratio}$ (sc # 2 / sc #1)'
+    title_info = 'Earliest and Latest Spacecraft'
 
 x_lim = (1,5)
 y_lim = (1,5)
@@ -408,41 +426,115 @@ num_events = len(np.unique(events_masked))
 changes = (compressions_dw[sc_mask_initial])/(compressions_up[sc_mask_initial])
 slope   = np.mean(changes)
 
+if plot_type in ('both','scatter'):
+
+    fig, ax = plt.subplots()
+    ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=1, capthick=0.5, lw=0.5, zorder=1, alpha=0.2)
+
+    for upstream, downstream in it.permutations(monitors, 2):
+        sc_mask = np.all(len(xs))
+        if upstream=='Cluster':
+            sc_mask &= np.isin(sc_ups_masked, ('C1','C3','C4'))
+        else:
+            sc_mask &= (sc_ups_masked==upstream)
+
+        if downstream=='Cluster':
+            sc_mask &= np.isin(sc_dws_masked, ('C1','C3','C4'))
+            sc_c=colour_dict['C1']
+        else:
+            sc_mask &= (sc_dws_masked==downstream)
+            sc_c=colour_dict[downstream]
+
+        count = np.sum(sc_mask)
+        if count==0:
+            continue
+        ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=40, alpha=0.6, marker=marker_dict[upstream], label=f'{upstream} | {downstream}: {count}')
+
+    ax.axline([0,0],slope=slope.n,c='k',ls='--',lw=1,label=f'Mean: $B_{{r,2}}$ = (${slope:L}$) $B_{{r,1}}$')
+    ax.axline([0,0],slope=1,c='grey',ls=':',lw=1)
+
+
+    ax.set_xlim(1,5)
+    ax.set_ylim(1,5)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(f'{title_info}: N={num_events}')
+    ax.legend(loc='upper left',title=f'{len(ds)} times',fontsize=8)
+    plt.tight_layout()
+    save_figure(fig)
+
+    plt.show()
+    plt.close()
+
+if plot_type in ('both','hist'):
+
+    change_data = unp.nominal_values(changes)
+
+    fig, ax = plt.subplots()
+
+    step = 0.1
+    bin_edges = np.arange(np.floor(np.min(change_data)/step)*step,np.ceil(np.max(change_data/step)*step),step)
+
+    counts, bins = np.histogram(change_data, bin_edges)
+    mids = 0.5*(bins[1:]+bins[:-1])
+
+    ax.hist(change_data, bin_edges, color='k')
+
+    ax.axvline(x=np.median(change_data),ls='--',lw=1,c='c',label=f'Median: {np.median(change_data):.3g} mins')
+    ax.axvline(x=np.mean(change_data),ls='--',lw=1,c='r',label=f'Mean: {np.mean(changes):.3g} mins')
+    ax.axvline(x=0,ls=':',c='w',lw=1)
+
+
+    ax.set_xlabel(count_label)
+    ax.set_ylabel('Counts / 5mins')
+
+    ax.legend()
+    ax.set_title(f'{title_info}: N={num_events}')
+    ax.legend(loc='upper left',title=f'{len(change_data)} times')
+
+    plt.tight_layout()
+    save_figure(fig)
+
+    plt.show()
+    plt.close()
+
+
+# %%
+import matplotlib.pyplot as plt
+from src.processing.speasy.config import colour_dict
+from src.plotting.config import save_fig
+from src.analysing.fitting import straight_best_fit
+
+omni_times_mask = (sc_up==omni_sc_used) & (sc_dw=='OMNI')
+
+detectors = sc_up[omni_times_mask]
+xs = omni_timeshift[omni_times_mask]
+ys = -times[omni_times_mask]
+ys_unc = times_unc[omni_times_mask]
+
+colours = pd.Series(detectors).map(colour_dict).fillna('k').to_numpy()
+
 fig, ax = plt.subplots()
-ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=1, capthick=0.5, lw=0.5, zorder=1, alpha=0.2)
 
-for upstream, downstream in it.permutations(monitors, 2):
-    sc_mask = np.all(len(xs))
-    if upstream=='Cluster':
-        sc_mask &= np.isin(sc_ups_masked, ('C1','C3','C4'))
-    else:
-        sc_mask &= (sc_ups_masked==upstream)
+ax.errorbar(xs, ys, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
 
-    if downstream=='Cluster':
-        sc_mask &= np.isin(sc_dws_masked, ('C1','C3','C4'))
-        sc_c=colour_dict['C1']
-    else:
-        sc_mask &= (sc_dws_masked==downstream)
-        sc_c=colour_dict[downstream]
+ax.scatter(xs, ys, s=2, c=colours)
+ax.axline([0,0],slope=1,c='k',ls=':')
 
-    count = np.sum(sc_mask)
-    if count==0:
-        continue
-    ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=40, alpha=0.6, marker=marker_dict[upstream], label=f'{upstream} | {downstream}: {count}')
+slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
 
-ax.axline([0,0],slope=slope.n,c='k',ls='--',lw=1,label=f'Mean: $B_{{r,2}}$ = (${slope:L}$) $B_{{r,1}}$')
-ax.axline([0,0],slope=1,c='grey',ls=':',lw=1)
+ax.axline([0,intercept.n],slope=slope.n,c='r',ls='--',lw=1)
+if intercept.n<0:
+    sign = '-'
+else:
+    sign = '+'
+middle = (np.max(xs)+np.min(xs))/2
+location = np.max(np.abs(ys))
+ax.text(middle,location,f'$\\Delta t$ = (${slope:L}$)$\\Delta r$ {sign} (${abs(intercept):L}$) mins\n$R^2$={r2:.3f}',
+        ha='center',va='center')
 
-
-ax.set_xlim(1,5)
-ax.set_ylim(1,5)
-ax.set_xlabel(r'$B_\mathrm{ratio}$ (sc #1)')
-ax.set_ylabel(r'$B_\mathrm{ratio}$ (sc #2)')
-ax.set_title(f'All spacecraft: $\\Delta X<300$, N={num_events}')
-ax.legend(loc='upper left',title=f'{len(ds)} times',fontsize=8)
-plt.tight_layout()
-save_figure(fig)
+ax.set_xlabel('OMNI timeshift [mins]')
+ax.set_ylabel('Helsinki Shock timelag [mins]')
+ax.set_title('Comparing Helsinki Shock Timelag against OMNI Timeshift')
 
 plt.show()
-plt.close()
-
