@@ -421,13 +421,13 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
         x0 = pos_L1_dict.get(x_coord)
         y0 = pos_L1_dict.get(y_coord)
 
-        ax.scatter(x0, y0, marker='x', color=colour_dict.get(sc_L1), label=f'{sc_L1}: {array_to_string(pos_L1)} $R_E$')
+        ax.scatter(x0, y0, marker='x', color=colour_dict.get(sc_L1), label=f'{sc_L1}: {array_to_string(pos_L1)} $\\mathrm{{R_E}}$')
         ax.plot([0,x0], [0,y0], color=colour_dict.get(sc_L1), lw=0.5, ls=':', zorder=1)
 
         if pos_BS is not None:
             pos_BS_dict = {'x': pos_BS[0], 'y': pos_BS[1], 'z': pos_BS[2]}
             ax.scatter(pos_BS_dict.get(x_coord), pos_BS_dict.get(y_coord),
-                       marker='x', color=colour_dict.get('OMNI'), label=f'BS Nose: {array_to_string(pos_BS)} $R_E$')
+                       marker='x', color=colour_dict.get('OMNI'), label=f'BS Nose: {array_to_string(pos_BS)} $\\mathrm{{R_E}}$')
 
         ###-----MAGNETOSHEATH-----###
         for surface, style in zip(('bs','mp'), ('-','--')):
@@ -497,8 +497,8 @@ def plot_shock_positions(shock, parameter, position_var='R_GSE', R_E=6370, shock
         ax.xaxis.set_inverted(True)
         if y_coord == 'y':
             ax.yaxis.set_inverted(True)
-        ax.set_xlabel(x_coord.upper()+r' GSE [$R_E$]')
-        ax.set_ylabel(y_coord.upper()+r' GSE [$R_E$]')
+        ax.set_xlabel(x_coord.upper()+r' GSE [$\\mathrm{{R_E}}$]')
+        ax.set_ylabel(y_coord.upper()+r' GSE [$\\mathrm{{R_E}}$]')
 
         plt.gca().set_aspect('equal')
 
@@ -518,16 +518,17 @@ def plot_time_differences(shocks, **kwargs):
     # colouring = coeff, spacecraft, detector, none
 
 
-    coeff_lim     = kwargs.get('coeff_lim',0.7)
-    selection     = kwargs.get('selection','all')
-    x_axis        = kwargs.get('x_axis','dist')
-    colouring     = kwargs.get('colouring','spacecraft')
-    show_best_fit = kwargs.get('show_best_fit',True)
-    show_errors   = kwargs.get('show_errors',True)
-    max_dist      = kwargs.get('max_dist',300)
-    R_E           = kwargs.get('R_E',6370)
-    cfa_shocks    = kwargs.get('cfa_shocks',None)
-    histograms    = kwargs.get('histograms',False)
+    coeff_lim      = kwargs.get('coeff_lim',0.7)
+    selection      = kwargs.get('selection','all')
+    x_axis         = kwargs.get('x_axis','dist')
+    colouring      = kwargs.get('colouring','spacecraft')
+    show_best_fit  = kwargs.get('show_best_fit',True)
+    show_errors    = kwargs.get('show_errors',True)
+    max_dist       = kwargs.get('max_dist',300)
+    R_E            = kwargs.get('R_E',6370)
+    cfa_shocks     = kwargs.get('cfa_shocks',None)
+    histograms     = kwargs.get('histograms',False)
+    histogram_fits = kwargs.get('histogram_fits',True)
 
 
     distances, times, distances_unc, times_unc, z_values = get_time_dist_differences(shocks,**kwargs)
@@ -535,11 +536,12 @@ def plot_time_differences(shocks, **kwargs):
     if colouring == 'angle' and cfa_shocks is None:
         raise Exception('Need CFA shocks to calculate angle.')
 
-    database_colour_dict = {'CFA': 'b', 'Donki': 'r'}
+    database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}
 
     if selection=='earth' and 'L1' not in x_axis:
         max_dist=100
-    closish = abs(distances)<max_dist
+    closish = distances<max_dist
+    closish &= distances>-100 # Second condition just to restrict massive outlier
 
     xs = distances[closish]
     ys = times[closish]/60
@@ -624,102 +626,134 @@ def plot_time_differences(shocks, **kwargs):
         ax.text(middle,location,f'$\\Delta t$ = (${slope:L}$)$\\Delta r$ {sign} (${abs(intercept):L}$) mins\n$R^2$={r2:.3f}, $v={slope_speed:L}$ km/s',
                 ha='center',va='center')
 
+    ax.axvline(x=0,ls=':',c='grey',alpha=0.8,lw=1)
+    ax.axhline(y=0,ls=':',c='grey',alpha=0.8,lw=1)
+
 
     ylim = np.max(np.abs(ax.get_ylim()))
     ax.set_ylim(-ylim,ylim)
     ax.set_ylabel(r'$t_{SC}$ - $t_{OMNI}$ [mins]')
 
     if x_axis=='dist':
-        ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$R_E$]')
+        ax.set_xlabel(r'|$r_{SC}$ - $r_{BSN}$| [$\mathrm{R_E}$]')
     elif x_axis=='signed_dist':
-        ax.set_xlabel(r'sgn(x) $\cdot$ |$r_{SC}$ - $r_{BSN}$| [$R_E$]')
+        ax.set_xlabel(r'sgn(x) $\cdot$ |$r_{SC}$ - $r_{BSN}$| [$\mathrm{R_E}$]')
     elif x_axis=='earth_sun':
-        ax.set_xlabel(r'$\rho_{L1}$ [$R_E$]')
+        ax.set_xlabel(r'$\rho_{L1}$ [$\mathrm{R_E}$]')
     elif x_axis=='x_comp':
-        ax.set_xlabel(r'$X_{sc}$ - $X_{BSN}$ [$R_E$]')
+        ax.set_xlabel(r'$X_{sc}$ - $X_{BSN}$ [$\mathrm{R_E}$]')
     ax.invert_xaxis()
 
     if histograms:
+        bar_colour = 'orange' if selection=='omni' else 'k'
+        edge_colour = '#444444'
         ###-------------------Y AXIS-------------------###
         step = 5
         bin_edges = np.arange(np.floor(np.min(ys)/step)*step,np.ceil(np.max(ys/step)*step),step)
         counts, bins = np.histogram(ys, bin_edges)
         mids = 0.5*(bins[1:]+bins[:-1])
-        bar_colour = 'orange' if selection=='omni' else 'k'
 
-        histy_ax.hist(ys, bin_edges, color=bar_colour, orientation='horizontal')
-        histy_ax.axvline(x=0,ls=':',c='grey',lw=1)
+        histy_ax.hist(ys, bin_edges, color=bar_colour, edgecolor=edge_colour, orientation='horizontal')
+        histy_ax.axhline(y=0,ls=':',c='grey',lw=1)
 
-        x_values = np.linspace(min(ys), max(ys), 1000)
+        histy_ax.set_xlabel(f'Counts / {step}mins')
 
+        if histogram_fits:
 
-        if max_dist > 100 and selection!='closest':
-            A1, mu1, sig1, A2, mu2, sig2 = bimodal_fit(mids,counts,detailed=True,simple_bounds=True)
-            y_values = bimodal(x_values, A1.n, mu1.n, sig1.n, A2.n, mu2.n, sig2.n)
-            text_info = f'$\\mu_1$: ${mu1:L}$ mins\n$\\sigma_1$: ${sig1:L}$ mins\n$\\mu_2$: ${mu2:L}$ mins\n$\\sigma_2$: ${sig2:L}$ mins'
-        else:
-            A, mu, sig = gaussian_fit(mids,counts,detailed=True)
-            y_values = gaussian(x_values, A.n, mu.n, sig.n)
-            text_info = f'$\\mu$: ${mu:L}$ mins\n$\\sigma$: ${sig:L}$ mins'
+            x_values = np.linspace(min(ys), max(ys), 1000)
 
-        bimodal
+            if max_dist > 100 and selection!='closest':
+                A1, mu1, sig1, A2, mu2, sig2 = bimodal_fit(mids,counts,detailed=True,simple_bounds=True)
+                y_values = bimodal(x_values, A1.n, mu1.n, sig1.n, A2.n, mu2.n, sig2.n)
+                text_info = f'$\\mu_1$: ${mu1:L}$ mins\n$\\sigma_1$: ${sig1:L}$ mins\n$\\mu_2$: ${mu2:L}$ mins\n$\\sigma_2$: ${sig2:L}$ mins'
+            else:
+                A, mu, sig = gaussian_fit(mids,counts,detailed=True)
+                y_values = gaussian(x_values, A.n, mu.n, sig.n)
+                text_info = f'$\\mu$: ${mu:L}$ mins\n$\\sigma$: ${sig:L}$ mins'
 
-        histy_ax.plot(y_values,x_values,c='r')
-        histy_ax.set_xlabel('Counts / 5mins')
+            histy_ax.plot(y_values,x_values,c='r')
 
-        middle = (np.max(counts)+np.min(counts))/2
-        location = np.max(np.abs(ys))
-        histy_ax.text(middle,location,text_info, ha='center',va='top')
+            middle = (np.max(counts)+np.min(counts))/2
+            location = np.max(np.abs(ys))
+            histy_ax.text(middle,location,text_info, ha='center',va='top')
 
         ###-------------------X AXIS-------------------###
 
-        # Rolling window parameters
-        window_width = 10
-        if max_dist <= 100:
-            window_width = 5
+        if max_dist > 100 and selection!='closest':
 
-        x_centres = np.arange(int(np.min(xs)),int(np.max(xs))+0.5,0.5)
-        y_means   = np.full(len(x_centres),np.nan)
-        y_stds    = np.zeros(len(x_centres))
+            step = 5
+            bin_edges = np.arange(np.floor(np.min(xs)/step)*step,np.ceil(np.max(xs/step)*step),step)
+            counts, bins = np.histogram(xs, bin_edges)
+            mids = 0.5*(bins[1:]+bins[:-1])
 
-        for i, x_c in enumerate(x_centres):
-            mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
-            if np.sum(mask) >= 1:
-                y_means[i] = np.mean(ys[mask])
-                if np.sum(mask) >= 2:
-                    y_stds[i] = np.std(ys[mask], ddof=1)
+            histx_ax.hist(xs, bin_edges, color=bar_colour, edgecolor=edge_colour)
+            histx_ax.axvline(x=0,ls=':',c='grey',lw=1)
 
-        not_nan = ~np.isnan(y_means)
+            histx_ax.set_ylabel(f'Counts / {step}$\\mathrm{{R_E}}$')
 
-        segments = []
-        current_segment = []
-        for i, val in enumerate(y_means):
-            if not_nan[i]:
-                current_segment.append((x_centres[i], val, y_stds[i]))
-            else:
-                if current_segment:
-                    segments.append(current_segment)
-                    current_segment = []
-        if current_segment:
-            segments.append(current_segment)
+            if histogram_fits:
 
-        for segment in segments:
-            x_vals, y_vals, y_errs = zip(*segment)
-            x_vals = np.array(x_vals)
-            y_vals = np.array(y_vals)
-            y_errs = np.array(y_errs)
-            if len(x_vals)==1:
-                histx_ax.plot(x_vals, y_vals, c='b', marker='.')
-            else:
-                histx_ax.plot(x_vals, y_vals, c='b')
-            histx_ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color='r', alpha=0.3)
+                x_values = np.linspace(min(xs), max(xs), 1000)
 
-        histx_ax.plot([], [], c='b', label='mean')
-        histx_ax.fill_between([], [], [], color='r', alpha=0.3, label=r'$\pm$std')
+                A1, mu1, sig1, A2, mu2, sig2 = bimodal_fit(mids,counts,detailed=True,simple_bounds=True)
+                y_values = bimodal(x_values, A1.n, mu1.n, sig1.n, A2.n, mu2.n, sig2.n)
+                text_info = f'$\\mu_1$: ${mu1:L}$ $\\mathrm{{R_E}}$, $\\sigma_1$: ${sig1:L}$ $\\mathrm{{R_E}}$\n$\\mu_2$: ${mu2:L}$ $\\mathrm{{R_E}}$, $\\sigma_2$: ${sig2:L}$ $\\mathrm{{R_E}}$'
 
-        histx_ax.legend(fontsize=8, loc='upper left')
+                histx_ax.plot(x_values,y_values,c='r')
 
-    add_figure_title(fig, title=f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist}; N={np.sum(closish):,}', ax=ax)
+                middle = (np.max(xs)+np.min(xs))/2
+                location = np.max(np.abs(counts))
+                histx_ax.text(middle,location,text_info, ha='center',va='top')
+
+        else:
+
+            # Rolling window parameters
+            window_width = 10
+            if max_dist <= 100:
+                window_width = 5
+
+            x_centres = np.arange(int(np.min(xs)),int(np.max(xs))+0.5,0.5)
+            y_means   = np.full(len(x_centres),np.nan)
+            y_stds    = np.zeros(len(x_centres))
+
+            for i, x_c in enumerate(x_centres):
+                mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
+                if np.sum(mask) >= 1:
+                    y_means[i] = np.mean(ys[mask])
+                    if np.sum(mask) >= 2:
+                        y_stds[i] = np.std(ys[mask], ddof=1)
+
+            not_nan = ~np.isnan(y_means)
+
+            segments = []
+            current_segment = []
+            for i, val in enumerate(y_means):
+                if not_nan[i]:
+                    current_segment.append((x_centres[i], val, y_stds[i]))
+                else:
+                    if current_segment:
+                        segments.append(current_segment)
+                        current_segment = []
+            if current_segment:
+                segments.append(current_segment)
+
+            for segment in segments:
+                x_vals, y_vals, y_errs = zip(*segment)
+                x_vals = np.array(x_vals)
+                y_vals = np.array(y_vals)
+                y_errs = np.array(y_errs)
+                if len(x_vals)==1:
+                    histx_ax.plot(x_vals, y_vals, c='b', marker='.')
+                else:
+                    histx_ax.plot(x_vals, y_vals, c='b')
+                histx_ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color='r', alpha=0.3)
+
+            histx_ax.plot([], [], c='b', label='mean')
+            histx_ax.fill_between([], [], [], color='r', alpha=0.3, label=r'$\pm$std')
+
+            histx_ax.legend(fontsize=8, loc='upper left')
+
+    add_figure_title(fig, title=f'{selection.title()} spacecraft: $\\rho\\geq${coeff_lim:.1f}, $R<${max_dist} $\\mathrm{{R_E}}$; N={np.sum(closish):,}', ax=ax)
     plt.tight_layout()
     save_figure(fig)
 

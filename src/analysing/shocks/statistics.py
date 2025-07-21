@@ -117,6 +117,8 @@ def get_time_dist_differences(shocks, **kwargs):
                 continue
             elif pd.isnull(sc_time):
                 continue
+            elif sc==shock['OMNI_sc']:
+                continue
 
             try:
                 sc_pos = shock[[f'{sc}_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()

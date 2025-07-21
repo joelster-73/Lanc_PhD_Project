@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['scripts\\main.py', 'src\\processing\\speasy\\config.py', 'src\\processing\\speasy\\retrieval.py', 'src\\plotting\\shocks.py', 'src\\analysing\\shocks\\statistics.py']
+recent_files = ['scripts\\main.py', 'src\\plotting\\shocks.py', 'scripts\\plotting\\250716_Scatter_with_Hists.py', 'src\\analysing\\shocks\\intercepts.py', 'src\\analysing\\shocks\\discontinuities.py', 'scripts\\plotting\\250625_Helsinki_Quick_Look.py']
 
 [main]
 version = 0.2.0

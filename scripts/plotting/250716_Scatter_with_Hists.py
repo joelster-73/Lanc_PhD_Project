@@ -9,7 +9,14 @@ from src.processing.reading import import_processed_data
 from src.config import PROC_INTERCEPTS_DIR
 
 shocks_with_intercepts = import_processed_data(PROC_INTERCEPTS_DIR)
-# %% Comapring_with_OMNI_Timeshift
+
+# %% Scatter_and_hist
+from src.plotting.shocks import plot_time_differences
+
+plot_time_differences(shocks_with_intercepts, selection='all', x_axis='x_comp', colouring='spacecraft', histograms=True)
+plot_time_differences(shocks_with_intercepts, selection='earth', x_axis='x_comp', colouring='spacecraft', histograms=True)
+
+# %% Comparing_with_OMNI_Timeshift
 
 from src.processing.speasy.retrieval import retrieve_omni_value
 from src.processing.speasy.config import speasy_variables
@@ -53,6 +60,7 @@ omni_time_lag  = np.array(omni_time_lag)
 detectors      = np.array(detectors)
 
 # %% Comapring_with_OMNI_Timeshift
+
 import matplotlib.pyplot as plt
 from src.processing.speasy.config import colour_dict
 from src.plotting.config import save_fig
@@ -88,13 +96,5 @@ ax.set_ylabel('Shock timelag [mins]')
 ax.set_title('Comparing Shock Timelag against OMNI Timeshift')
 
 plt.show()
-# %%
-
-
-from src.plotting.shocks import plot_time_differences
-
-plot_time_differences(shocks_with_intercepts, selection='all', x_axis='x_comp', colouring='spacecraft', histograms=True)
-plot_time_differences(shocks_with_intercepts, selection='earth', x_axis='x_comp', colouring='spacecraft', histograms=True)
-
 
 

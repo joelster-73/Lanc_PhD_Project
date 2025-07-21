@@ -68,7 +68,10 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
     data2_dw_avg = np.mean(data2_dw.to_numpy())
 
     B2_ratio = data2_dw_avg/data2_up_avg
-    min_B_comp = max(1.2,min_ratio_change*B1_ratio)
+    if interceptor=='OMNI': # Less strict on compression in OMNI
+        min_B_comp = max(1.2,0.5*B1_ratio)
+    else:
+        min_B_comp = max(1.2,min_ratio_change*B1_ratio)
 
     return (B2_ratio >= min_B_comp)
 
@@ -88,7 +91,7 @@ def find_peak_cross_corr(parameter, series1, series2, source1, source2, shock_ti
         valid_indices = (~series1.isna()) & (~series2_shifted.isna())
 
         # Need at least 2 degrees of freedom
-        
+
         # Try passing in overlap_mins into .corr()
         if np.sum(valid_indices) < overlap_mins:
             corr = np.nan

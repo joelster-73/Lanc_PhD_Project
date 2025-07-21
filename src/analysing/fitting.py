@@ -84,7 +84,7 @@ def straight_best_fit(x, y, yerr=None, name='', detailed=False, print_text=False
 def gaussian(x, A, mu, sig):
     return A * np.exp(-((x - mu) ** 2) / (2 * sig ** 2))
 
-def gaussian_fit(x, y, normal=False, name='', detailed=False, print_text=False):
+def gaussian_fit(x, y, normal=False, name='', detailed=False, print_text=False, simple_bounds=False):
     """
     Fits a Gaussian distribution to the data.
 
@@ -124,8 +124,12 @@ def gaussian_fit(x, y, normal=False, name='', detailed=False, print_text=False):
         iqr = q3 - q1
 
         initial_guess = (amplitude_guess, mean_guess, std_guess)
-        bounds = ([amplitude_guess*0.75, q1, 0],  # stops negative As and sigs
-                  [amplitude_guess*1.25, q3, 2*iqr])
+        if simple_bounds:
+            bounds = ([0, np.min(x), 0],  # stops negative As and sigs
+                      [np.inf, np.max(x), np.inf])
+        else:
+            bounds = ([amplitude_guess*0.75, q1, 0],  # stops negative As and sigs
+                      [amplitude_guess*1.25, q3, 2*iqr])
 
         try:
             # Perform the curve fitting
@@ -184,13 +188,15 @@ def bimodal_fit(x, y, symmetric=False, name='', detailed=False, print_text=False
     # Initial guesses
     non_zero = x[y!=0]
     std_guess = np.std(non_zero) / 4
-    x1_guess = - std_guess
-    x2_guess = std_guess
+    x1_guess = np.median(non_zero)- std_guess
+    x2_guess = np.median(non_zero) + std_guess
     amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2)))
 
     initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess)
 
     if not simple_bounds:
+
+        initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess)
 
         bounds = ([amplitude_guess*0.75, np.percentile(non_zero,25), 0, amplitude_guess*0.75, np.percentile(non_zero,25), 0],  # stops negative As and sigs
               [amplitude_guess*1.25, np.percentile(non_zero,75), np.inf, amplitude_guess*1.25, np.percentile(non_zero,75), np.inf])
@@ -201,7 +207,10 @@ def bimodal_fit(x, y, symmetric=False, name='', detailed=False, print_text=False
 
     try:
         # Perform the curve fitting
-        popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds)
+        if simple_bounds:
+            popt, pcov = curve_fit(bimodal, x, y, bounds=bounds)
+        else:
+            popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds)
         A1, mu1, sigma1, A2, mu2, sigma2 = popt
         perr = np.sqrt(np.diag(pcov))
         A1_unc = ufloat(A1,perr[0])

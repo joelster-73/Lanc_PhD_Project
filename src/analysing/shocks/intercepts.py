@@ -20,31 +20,36 @@ from ...processing.dataframes import add_df_units
 
 from ...config import R_E
 
-def find_all_shocks(shocks, parameter, time=None, **kwargs):
+def find_all_shocks(shocks, parameter, time=None, shocks_intercepts_started=None, starting_ID=None, **kwargs):
 
     # Dataframe to store shock times
-    shocks_intercepts = pd.DataFrame()
-    new_columns = {}
 
-    new_columns['detectors'] = ''
-    for sc in sum((sw_monitors, ('OMNI',)), ()):
+    if shocks_intercepts_started is None:
+        shocks_intercepts = pd.DataFrame()
+        new_columns = {}
 
-        new_columns[f'{sc}_time'] = pd.NaT
-        new_columns[f'{sc}_time_unc_s'] = np.nan
+        new_columns['detectors'] = ''
+        for sc in sum((sw_monitors, ('OMNI',)), ()):
 
-        for comp in ('x','y','z'):
-            new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
-            new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
+            new_columns[f'{sc}_time'] = pd.NaT
+            new_columns[f'{sc}_time_unc_s'] = np.nan
 
-    new_columns['OMNI_sc'] = ''
+            for comp in ('x','y','z'):
+                new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
+                new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
 
-    eventID_max = np.max(shocks['eventNum'].astype(int))
-    eventIDs = range(1,eventID_max+1)
-    shocks_intercepts = pd.concat([shocks_intercepts, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
-    add_df_units(shocks)
+        new_columns['OMNI_sc'] = ''
 
-    shocks.attrs['units']['detectors'] = 'LIST'
-    shocks.attrs['units']['OMNI_sc'] = 'STRING'
+        eventID_max = np.max(shocks['eventNum'].astype(int))
+        eventIDs = range(1,eventID_max+1)
+        shocks_intercepts = pd.concat([shocks_intercepts, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
+    else:
+        shocks_intercepts = shocks_intercepts_started
+
+    add_df_units(shocks_intercepts)
+
+    shocks_intercepts.attrs['units']['detectors'] = 'LIST'
+    shocks_intercepts.attrs['units']['OMNI_sc'] = 'STRING'
 
     if time is not None:
         time_shock = time
@@ -67,28 +72,37 @@ def find_all_shocks(shocks, parameter, time=None, **kwargs):
             with open(file_path, 'w') as my_file:
                 my_file.write(f'Log created on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
 
-        for eventID, event in shocks.groupby(lambda x: int(shocks.loc[x, 'eventNum'])):
+        try:
+            for eventID, event in shocks.groupby(lambda x: int(shocks.loc[x, 'eventNum'])):
 
-            try:
-                find_shock_times(eventID, event, shocks_intercepts, **kwargs)
+                if starting_ID is not None and eventID < starting_ID:
+                    continue
 
-            except Exception as e:
-                print(e)
-                with open(file_path, 'a') as my_file:
-                    my_file.write(f'{e}\n')
+                try:
+                    find_shock_times(eventID, event, shocks_intercepts, **kwargs)
 
-            else:
-                print(f'#{eventID}: Found OMNI time.')
-                with open(file_path, 'a') as my_file:
-                    my_file.write(f'#{eventID}: Found OMNI time.\n')
+                except Exception as e:
+                    print(e)
+                    with open(file_path, 'a') as my_file:
+                        my_file.write(f'{e}\n')
 
-        return shocks
+                else:
+                    print(f'#{eventID}: Found OMNI time.')
+                    with open(file_path, 'a') as my_file:
+                        my_file.write(f'#{eventID}: Found OMNI time.\n')
+
+        except KeyboardInterrupt:
+            print(f'\n#{eventID}: Manual interrupt detected. Returning partial results...')
+            with open(file_path, 'a') as my_file:
+                my_file.write(f'\n#{eventID}: Manual interrupt detected. Returning partial results.\n')
+
+        return shocks_intercepts
 
 
 def find_shock_times(eventID, event, df_shocks, **kwargs):
 
     position_var = kwargs.get('position_var','R_GSE')
-    coeff_lim    = kwargs.get('coeff_lim',0.7)
+    coeff_lim    = kwargs.get('coeff_lim',0.8)
 
     ###-------------------INITIAL CHECKS-------------------###
 
@@ -247,7 +261,7 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
     if len(intercept_sc)==0:
         raise Exception(f'#{eventID}: No downstream monitors recorded shock.')
 
-    return
+    #return
 
 
 
@@ -256,11 +270,11 @@ def find_propagation_time(shock_time, detector, interceptor, parameter, position
 
     position_var   = kwargs.get('position_var','R_GSE')
     buffer_up      = kwargs.get('buffer_up',33)
-    buffer_dw      = kwargs.get('buffer_dw',35)
+    buffer_dw      = kwargs.get('buffer_dw',40)
     resolution     = kwargs.get('resolution',None)
     intercept_pos  = kwargs.get('intercept_pos',None)
 
-    distance_buff  = kwargs.get('distance_buff',50)
+    distance_buff  = kwargs.get('distance_buff',70)
     max_neg_delay  = kwargs.get('max_neg_delay',40)
     max_pos_delay  = kwargs.get('max_neg_delay',90)
 

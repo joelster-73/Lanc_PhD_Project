@@ -14,6 +14,9 @@ all_processed_shocks = import_processed_data(PROC_SHOCKS_DIR)
 from src.analysing.shocks.intercepts import find_all_shocks
 shocks_intercepted = find_all_shocks(all_processed_shocks, 'B_mag')
 
+
+#shocks_intercepted = find_all_shocks(all_processed_shocks, 'B_mag', shocks_intercepts_started=shocks_intercepted, starting_ID=1403)
+
 # %%
 import os
 from src.processing.writing import write_to_cdf
