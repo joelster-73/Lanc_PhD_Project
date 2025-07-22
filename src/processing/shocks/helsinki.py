@@ -10,6 +10,13 @@ import pandas as pd
 import numpy as np
 from ..utils import add_unit
 
+from ..speasy.retrieval import retrieve_omni_value
+from ..speasy.config import speasy_variables, sw_monitors
+
+from collections import Counter
+from ..speasy.retrieval import retrieve_position_unc
+
+
 # %% Importing
 def process_helsinki_shocks(directory, file_name, time_col='epoch'):
 
@@ -101,9 +108,96 @@ def process_helsinki_shocks(directory, file_name, time_col='epoch'):
 
     return df
 
+# %%
+
+def convert_helsinki_df_training(df_helsinki):
+
+    helsinki_shocks = df_helsinki[['spacecraft','r_x_GSE','r_y_GSE','r_z_GSE','res_B','res_p']]
+    event_list = get_list_of_events_helsinki(helsinki_shocks)
+
+    key_counts = Counter()
+    for d in event_list:
+        key_counts.update(d.keys())
+
+    columns = ['epoch','eventNum','time_unc','spacecraft','r_x_GSE','r_y_GSE','r_z_GSE']
+    event_shocks = pd.DataFrame(columns=columns)
+
+    for i, event_dict in enumerate(event_list):
+        for sc, info in event_dict.items():
+            time = info[0]
+            time_unc = info[1]
+            position = helsinki_shocks.loc[time,['r_x_GSE','r_y_GSE','r_z_GSE']]
+            if isinstance(position,pd.DataFrame):
+                position = position.iloc[0].to_numpy()
+            else:
+                position = position.to_numpy()
+
+            rad_dist = np.linalg.norm(position)
+            if np.isnan(rad_dist):
+                position, _ = retrieve_position_unc(sc, speasy_variables, time, time_unc)
+                if position is None:
+                    continue
+            event_shocks.loc[len(event_shocks)] = [time, str(i+1), time_unc, sc, position[0], position[1], position[2]]
+
+    event_shocks.set_index('epoch',inplace=True)
+
+    return event_shocks
 
 # %%
-def get_list_of_events_simple(df_shocks,reverse=False):
+
+def convert_helsinki_df_plotting(helsinki_shocks):
+    event_list = get_list_of_events_helsinki(helsinki_shocks)
+
+    unique_spacecraft = list({key for d in event_list for key in d})
+    all_spacecraft = [sc for sc in sw_monitors if sc in unique_spacecraft]
+
+    helsinki_events = pd.DataFrame()
+    new_columns = {}
+
+    new_columns['detectors'] = ''
+    for sc in (all_spacecraft + ('OMNI',)):
+
+        new_columns[f'{sc}_time'] = pd.NaT
+        new_columns[f'{sc}_time_unc_s'] = np.nan
+
+        for comp in ('x','y','z'):
+            new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
+            new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
+
+        if sc=='OMNI':
+            new_columns['OMNI_sc'] = ''
+
+    eventIDs = range(1,len(event_list)+1)
+    helsinki_events = pd.concat([helsinki_events, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
+
+
+    for ind, shock_dict in enumerate(event_list):
+
+        event_num = ind+1
+
+        detectors = [sc for sc in (sw_monitors + ('OMNI',)) if sc in list(shock_dict.keys())]
+        helsinki_events.at[event_num,'detectors'] = ','.join(detectors)
+
+        for sc, sc_info in shock_dict.items():
+            helsinki_events.at[event_num, f'{sc}_time'] = sc_info[0]
+            helsinki_events.at[event_num, f'{sc}_time_unc_s'] = sc_info[1]
+            position = helsinki_shocks.loc[sc_info[0],['r_x_GSE','r_y_GSE','r_z_GSE']]
+            if isinstance(position, pd.DataFrame):
+                position = position.iloc[0].to_numpy()
+            else:
+                position = position.to_numpy()
+            if np.isnan(position[0]):
+                continue
+            helsinki_events.loc[event_num,[f'{sc}_r_x_GSE',f'{sc}_r_y_GSE',f'{sc}_r_z_GSE']] = position
+            if sc=='OMNI':
+                helsinki_events.at[event_num,'OMNI_sc'] = retrieve_omni_value(speasy_variables, sc_info[0], omni_var='OMNI_sc')
+
+
+    return helsinki_events
+
+
+# %%
+def get_list_of_events_helsinki(df_shocks,reverse=False):
 
     event_list = []
     iterator = df_shocks.iterrows()
@@ -119,7 +213,7 @@ def get_list_of_events_simple(df_shocks,reverse=False):
             index, shock = next(iterator)
             sc     = shock['spacecraft']
             unc    = 0.5*max(shock[['res_p','res_B']].to_numpy())
-            
+
             time_diff = (index-prev_index).total_seconds()
 
             if sc in event_dict or time_diff>=(90*60):
@@ -139,7 +233,7 @@ def get_list_of_events_simple(df_shocks,reverse=False):
 
 # %%
 
-def get_list_of_events(df_shocks,reverse=False):
+def get_list_of_events_all(df_shocks,reverse=False):
 
     event_list = []
     iterator = df_shocks.iterrows()

@@ -10,15 +10,14 @@ import matplotlib.pyplot as plt
 
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
-from datetime import timedelta
+import itertools as it
 
 from .intercepts import find_propagation_time
 from ..fitting import straight_best_fit
 
 from ...plotting.utils import save_figure
-from ...processing.speasy.config import colour_dict, speasy_variables
-from ...processing.speasy.retrieval import retrieve_modal_omni_sc
-
+from ...processing.speasy.config import colour_dict, speasy_variables, sw_monitors
+from ...processing.speasy.retrieval import retrieve_omni_value
 
 # %% Training Functions
 
@@ -88,7 +87,7 @@ def train_algorithm_param(df_shocks, event_list, vary='buffer_up', vary_array=No
         elif vary=='min_ratio':
             min_ratio_change = ind
 
-        helsinki_delays, correlated_delays, coefficients, shock_times, detectors, interceptors, modal_omni_sc = analyse_all_events_more_info(df_shocks, event_list, buffer_up, buffer_dw, distance_buff=dist_buff, min_ratio_change=min_ratio_change)
+        correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors = analyse_all_events(df_shocks, buffer_up=buffer_up, buffer_dw=buffer_dw, distance_buff=dist_buff, min_ratio_change=min_ratio_change)
 
         ###-------------------MINIMUM CROSS-CORR-------------------###
 
@@ -111,57 +110,11 @@ def train_algorithm_param(df_shocks, event_list, vary='buffer_up', vary_array=No
 # %% Analysis_functions
 
 
-def analyse_all_events(df_shocks, event_list, buffer_up, buffer_dw):
 
-    correlated_delays = []
-    helsinki_delays   = []
-    coefficients      = []
-    correlated_uncs   = []
+def analyse_all_events(helsinki_events, **kwargs):
 
-    for event in event_list:
-
-        for upstream in ('ACE','WIND','DSC'):
-            up_time_u = event.get(upstream,None)
-            if up_time_u is None:
-                continue
-            up_time, up_unc = up_time_u
-            # consider removing position vector in the shock df
-            up_pos  = df_shocks.loc[up_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
-            for downstream in ('OMNI','C1','C3','C4'):
-                dw_time_u = event.get(downstream,None)
-                if dw_time_u is None:
-                    continue
-                dw_time, dw_unc = dw_time_u
-
-                dw_pos  = df_shocks.loc[dw_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
-                if np.sum(np.abs(dw_pos)>=9999)>1: # Bad data flag
-                    dw_pos = None
-
-                helsinki_delay = (dw_time-up_time).total_seconds()
-
-                best_lag = find_propagation_time(up_time, upstream, downstream, 'B_mag', position=up_pos, buffer_up=buffer_up, buffer_dw=buffer_dw, intercept_pos=dw_pos)
-                if best_lag is None:
-                    continue
-                delay, coeff = best_lag
-
-                delay_unc = np.sqrt(up_unc**2+(delay.s)**2)
-                correlated_delays.append(delay.n)
-                correlated_uncs.append(delay_unc)
-                helsinki_delays.append(helsinki_delay)
-                coefficients.append(coeff)
-
-    if len(correlated_delays)<=2:
-        return None
-
-    helsinki_delays   = np.array(helsinki_delays)/60
-    correlated_delays = np.array(correlated_delays)/60
-    correlated_uncs   = np.array(correlated_uncs)/60
-    coefficients      = np.array(coefficients)
-
-    return helsinki_delays, correlated_delays, correlated_uncs, coefficients
-
-def analyse_all_events_more_info(df_shocks, event_list, buffer_up, buffer_dw, **kwargs):
-
+    # Shocks contains the known shock times used in training
+    # Dataframe to store shock times in shocks_intercepts
 
     correlated_delays = []
     helsinki_delays   = []
@@ -170,63 +123,150 @@ def analyse_all_events_more_info(df_shocks, event_list, buffer_up, buffer_dw, **
     shock_times      = []
     detectors        = []
     interceptors     = []
-    modal_omni_sc    = []
 
-    for event in event_list:
+    all_spacecraft = [sc for sc in sw_monitors if sc in list(set(helsinki_events['spacecraft'].to_numpy()))]
 
-        for upstream in ('ACE','WIND','DSC'):
-            up_time_u = event.get(upstream,None)
-            if up_time_u is None:
-                continue
-            up_time, up_unc = up_time_u
-            # consider removing position vector in the shock df
-            up_pos  = df_shocks.loc[up_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
-            for downstream in ('OMNI','C1','C3','C4'):
-                dw_time_u = event.get(downstream,None)
-                if dw_time_u is None:
-                    continue
-                dw_time, dw_unc = dw_time_u
+    for eventID_str, event in helsinki_events.groupby('eventNum'):
 
-                dw_pos = df_shocks.loc[dw_time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
-                if np.sum(np.abs(dw_pos)>=9999)>1: # Bad data flag
-                    dw_pos = None
+        eventID = int(eventID_str)
+        if len(event)<=1:
+            continue
 
-                best_lag = find_propagation_time(up_time, upstream, downstream, 'B_mag', position=up_pos, buffer_up=buffer_up, buffer_dw=buffer_dw, intercept_pos=dw_pos, **kwargs)
-                if best_lag is None:
-                    continue
+        all_lists = find_shock_times_training(eventID, event, all_spacecraft, **kwargs)
 
-                shock_times.append(up_time_u)
+        for main_list, sub_list in zip((correlated_delays,helsinki_delays,coefficients,shock_times,detectors,interceptors), all_lists):
+            main_list += sub_list
 
-                helsinki_delay     = (dw_time-up_time).total_seconds()
-                helsinki_delay_unc = np.sqrt(up_unc**2+dw_unc**2)
-                helsinki_delays.append(ufloat(helsinki_delay,helsinki_delay_unc))
 
-                delay, coeff = best_lag
-                delay       -= ufloat(0,up_unc)
-                correlated_delays.append(delay)
-
-                coefficients.append(coeff)
-
-                omni_sc = retrieve_modal_omni_sc(speasy_variables, dw_time-timedelta(minutes=60), dw_time+timedelta(minutes=60))
-
-                detectors.append(upstream)
-                interceptors.append(downstream)
-                modal_omni_sc.append(omni_sc)
 
     if len(correlated_delays)<=2:
-        raise Exception(f'Not enough delays found: {len(correlated_delays)}')
+        return None
 
     helsinki_delays   = np.array(helsinki_delays)/60
     correlated_delays = np.array(correlated_delays)/60
     coefficients      = np.array(coefficients)
 
-    shock_times    = np.array(shock_times)
-    detectors      = np.array(detectors)
-    interceptors   = np.array(interceptors)
-    modal_omni_sc  = np.array(modal_omni_sc)
+    shock_times       = np.array(shock_times)
+    detectors         = np.array(detectors)
+    interceptors      = np.array(interceptors)
 
-    return helsinki_delays, correlated_delays, coefficients, shock_times, detectors, interceptors, modal_omni_sc
+    return correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors
 
+
+def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
+
+    parameter = kwargs.get('parameter','B_mag')
+
+    # Event contains the known shock times we're using
+    # df_shocks is where we store the correlated times
+
+    correlated_delays = []
+    helsinki_delays   = []
+    detection_times   = []
+
+    coefficients     = []
+    detectors        = []
+    interceptors     = []
+
+    ###-------------------INITIAL CHECKS-------------------###
+
+    # Info for all shocks in this event
+    times       = event.index.tolist()
+    uncs        = event['time_unc'].tolist()
+    spacecraft   = event['spacecraft'].tolist()
+    spacecraft_dict = dict(zip(spacecraft,list(zip(times,uncs))))
+
+    ###-------------------FIND WHEN SHOCK ARRIVES AT BSN ACCORDING TO OMNI-------------------###
+
+    # Shocks in the event recorded by spacecraft used by OMNI
+    if 'OMNI' in spacecraft:
+        spacecraft.remove('OMNI')
+        omni_event = event[event['spacecraft']=='OMNI']
+
+        omni_time, omni_unc = spacecraft_dict['OMNI']
+        omni_sc = retrieve_omni_value(speasy_variables, omni_time, 'OMNI_sc')
+        omni_pos = omni_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+
+        if omni_sc in spacecraft:
+
+            detect_event = event[event['spacecraft']==omni_sc]
+
+            detect_time, detect_unc = spacecraft_dict[omni_sc]
+            detect_pos = detect_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+
+            # Find time lag
+            time_lag = find_propagation_time(detect_time, omni_sc, 'OMNI', parameter, detect_pos, intercept_pos=omni_pos)
+            if time_lag is not None:
+
+                delay, coeff = time_lag
+
+                time_diff = (omni_time-detect_time).total_seconds()
+                time_diff = ufloat(time_diff,omni_unc) - ufloat(0,detect_unc)
+                # Found suitable lag
+                correlated_delays.append(delay) # ufloat
+                helsinki_delays.append(time_diff) # ufloat
+                detection_times.append((detect_time,detect_unc)) # time and unc
+
+                coefficients.append(coeff)
+                detectors.append(omni_sc)
+                interceptors.append('OMNI')
+
+
+
+    # Need time to check against
+    if len(spacecraft)>1:
+
+        ###-------------------FIND WHEN SHOCKS INTERCEPT DOWNSTREAM SPACECRAFT-------------------###
+
+        # These are the monitors we will be investigating
+        sw_detectors = ('ACE','WIND','DSC')
+
+        for (sc_A, sc_B) in it.combinations(spacecraft, 2):
+
+            if not (sc_A in sw_detectors or sc_B in sw_detectors):
+                continue
+            elif sc_B not in sw_detectors:
+                detector, interceptor = sc_A, sc_B
+            elif sc_A not in sw_detectors:
+                detector, interceptor = sc_B, sc_A
+            else:
+                time_A = spacecraft_dict[sc_A][0]
+                time_B = spacecraft_dict[sc_B][0]
+
+                if time_A < time_B:
+                    detector, interceptor = sc_A, sc_B
+                else:
+                    detector, interceptor = sc_B, sc_A
+
+
+            interceptor_event = event[event['spacecraft']==interceptor]
+            interceptor_time, interceptor_unc = spacecraft_dict[interceptor]
+            interceptor_pos = interceptor_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+
+            detector_event = event[event['spacecraft']==detector]
+            detector_time, detector_unc = spacecraft_dict[detector]
+            detector_pos = detector_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+
+            # Find how long shocks takes to intercept spacecraft
+            time_lag = find_propagation_time(detector_time, detector, interceptor, parameter, detector_pos, intercept_pos=interceptor_pos)
+
+            if time_lag is not None:
+
+                delay, coeff = time_lag
+
+                time_diff = (interceptor_time-detector_time).total_seconds()
+                time_diff = ufloat(time_diff,interceptor_unc) - ufloat(0,detector_unc)
+
+                # Found suitable lag
+                correlated_delays.append(delay) # ufloat
+                helsinki_delays.append(time_diff) # ufloat
+                detection_times.append((detector_time,detector_unc)) # time and unc
+
+                coefficients.append(coeff)
+                detectors.append(interceptor)
+                interceptors.append(detector)
+
+    return correlated_delays, helsinki_delays, detection_times, coefficients, detectors, interceptors
 
 # %% Plotting_procedures
 
@@ -326,7 +366,7 @@ def plot_buffer_training(structures, limits=None, buffer_up_range=range(25,36), 
         plt.show()
         plt.close()
 
-def plot_comparison(xs_u, ys_u, coeffs, sc_ups, sc_dws, **kwargs):
+def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
 
     coeff_lim       = kwargs.get('coeff_lim',0.7)
     colouring       = kwargs.get('colouring','coeff')
@@ -338,10 +378,10 @@ def plot_comparison(xs_u, ys_u, coeffs, sc_ups, sc_dws, **kwargs):
 
     coeff_mask = coeffs>=coeff_lim
 
-    xs      = unp.nominal_values(xs_u[coeff_mask])
-    xs_unc  = unp.std_devs(xs_u[coeff_mask])
-    ys      = unp.nominal_values(ys_u[coeff_mask])
-    ys_unc  = unp.std_devs(ys_u[coeff_mask])
+    xs      = unp.nominal_values(database[coeff_mask])
+    xs_unc  = unp.std_devs(database[coeff_mask])
+    ys      = unp.nominal_values(correlated[coeff_mask])
+    ys_unc  = unp.std_devs(correlated[coeff_mask])
     coeffs  = coeffs[coeff_mask]
 
     sc_ups  = sc_ups[coeff_mask]
@@ -381,8 +421,8 @@ def plot_comparison(xs_u, ys_u, coeffs, sc_ups, sc_dws, **kwargs):
                 ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=20, marker=marker_dict[sc_up], label=f'{sc_up} | {sc_dw}: {count}')
 
 
-    ax.axline(slope=1,xy1=[0,0],c='k',ls=':')
-    ax.axline([0,intercept.n],slope=slope.n,c='r',ls='--',lw=1)
+    ax.axline(slope=1,xy1=[0,0],c='grey',ls=':')
+    ax.axline([0,intercept.n],slope=slope.n,c='k',ls='--',lw=1.25)
 
     ax.axhline(y=0,c='grey',lw=0.2, ls='--')
     ax.axvline(x=0,c='grey',lw=0.2, ls='--')

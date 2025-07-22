@@ -22,7 +22,8 @@ from ...config import R_E
 
 def find_all_shocks(shocks, parameter, time=None, shocks_intercepts_started=None, starting_ID=None, **kwargs):
 
-    # Dataframe to store shock times
+    # Shocks contains the known shock times
+    # Dataframe to store shock times in shocks_intercepts
 
     if shocks_intercepts_started is None:
         shocks_intercepts = pd.DataFrame()
@@ -100,6 +101,9 @@ def find_all_shocks(shocks, parameter, time=None, shocks_intercepts_started=None
 
 
 def find_shock_times(eventID, event, df_shocks, **kwargs):
+
+    # Event contains the known shock times we're using
+    # df_shocks is where we store the correlated times
 
     position_var = kwargs.get('position_var','R_GSE')
     coeff_lim    = kwargs.get('coeff_lim',0.8)
@@ -196,7 +200,6 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
     ###-------------------FIND WHEN SHOCKS INTERCEPT DOWNSTREAM SPACECRAFT-------------------###
     intercept_sc = []
     for interceptor in sw_monitors:
-        # Don't want spacecraft that are used by OMNI - looking for those to compare with
         if interceptor in detectors:
             # Already have time
             continue
@@ -332,6 +335,7 @@ def find_propagation_time(shock_time, detector, interceptor, parameter, position
     aligned = pd.merge(data1[[parameter]].rename(columns={parameter: detector}),
                        data2[[parameter]].rename(columns={parameter: interceptor}),
                        left_index=True, right_index=True, how='outer')
+
 
     series1 = aligned[detector]
     series2 = aligned[interceptor]
