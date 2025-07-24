@@ -351,6 +351,8 @@ def plot_single_param_vary(independent, **kwargs):
         x_label = r'Distances ($d_\mathrm{diff}$) [$\mathrm{R_E}$]'
     elif ind_var=='min_ratio':
         x_label = r'$B_{\mathrm{ratio,2}}\geq x\cdot B_{\mathrm{ratio,1}}$'
+    else:
+        x_label = ind_var
 
     if ind_var in title_info_dict:
         del title_info_dict[ind_var]
@@ -402,7 +404,11 @@ def plot_single_param_vary(independent, **kwargs):
         #new_y_labels = [f'{int(tick)} ({(tick / counts[0]) * 100:.0f}%)' if tick >= 0 else '' for tick in hist_ticks]
         #histx_ax.set_yticklabels(new_y_labels)
         histx_ax.set_ylabel('Number of Shocks')
-        add_legend(fig, histx_ax, loc='upper right')
+        loc = 'upper left'
+        if ind_var=='min_ratio':
+            loc = 'upper right'
+
+        add_legend(fig, histx_ax, loc=loc)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)

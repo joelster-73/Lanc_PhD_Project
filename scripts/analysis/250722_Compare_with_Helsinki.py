@@ -43,9 +43,11 @@ buffer_dw = 35
 distance_buff = 80
 min_ratio_change = 0.85
 
-for vary in ('dist_buff','min_ratio'):
+# min_ratio
+# dist_buff
+
+for vary in ('min_ratio',):
 
     fit_slopes, fit_ints, fit_R2s, fit_counts, vary_array = train_algorithm_param(helsinki_events, vary=vary, vary_array=None, buffer_up=buffer_up, buffer_dw=buffer_dw, distance_buff=distance_buff, min_ratio_change=min_ratio_change, coeff_lim=coeff_lim)
-
 
     plot_single_param_vary(vary_array, slopes_fit=fit_slopes, slopes_int=fit_ints, counts=fit_counts, slopes_R2=fit_R2s, ind_var=vary, coeff_lim=coeff_lim, title_info_dict={'buffer_up': buffer_up, 'buffer_dw': buffer_dw, 'dist_buff': distance_buff})
