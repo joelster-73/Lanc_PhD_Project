@@ -68,10 +68,8 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
     data2_dw_avg = np.mean(data2_dw.to_numpy())
 
     B2_ratio = data2_dw_avg/data2_up_avg
-    if interceptor=='OMNI': # Less strict on compression in OMNI
-        min_B_comp = max(1.2,0.5*B1_ratio)
-    else:
-        min_B_comp = max(1.2,min_ratio_change*B1_ratio)
+    # Consider being less strict on OMNI and how to incorporate
+    min_B_comp = max(1.2,min_ratio_change*B1_ratio)
 
     return (B2_ratio >= min_B_comp)
 

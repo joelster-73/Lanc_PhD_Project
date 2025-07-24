@@ -39,3 +39,8 @@ def create_half_circle_marker(ax, center, radius, angle_start=90, full=True):
 
     ax.add_patch(black_half)
     ax.add_patch(white_half)
+
+def plot_error_region(ax, xs, ys, y_errs, c='k', alpha=0.1, marker='x', label=None, step=None):
+
+    ax.fill_between(xs, ys-y_errs, ys+y_errs, color=c, alpha=alpha, step=step)
+    ax.plot(xs, ys, marker=marker, c=c, label=label)

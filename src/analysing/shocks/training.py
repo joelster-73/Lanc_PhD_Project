@@ -7,6 +7,8 @@ Created on Thu May  8 18:33:37 2025
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import matplotlib.dates as mdates
 
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -16,100 +18,16 @@ from .intercepts import find_propagation_time
 from ..fitting import straight_best_fit
 
 from ...plotting.utils import save_figure
-from ...processing.speasy.config import colour_dict, speasy_variables, sw_monitors
+from ...plotting.additions import plot_error_region
+
+
+from ...processing.speasy.config import colour_dict, speasy_variables
 from ...processing.speasy.retrieval import retrieve_omni_value
 
-# %% Training Functions
-
-def train_algorithm_buffers(df_shocks, event_list, buffer_up_range=range(25,36), buffer_dw_range=range(10,26), coeff_lim=0.7):
-
-    buffer_up_values = list(buffer_up_range)
-    buffer_dw_values = list(buffer_dw_range)
-
-    slopes = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-    counts = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-    r2_val = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-    diffs  = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-
-    for j, buffer_up in enumerate(buffer_up_values):
-        for i, buffer_dw in enumerate(buffer_dw_values):
-
-            events_data = analyse_all_events(df_shocks, event_list, buffer_up, buffer_dw)
-            if events_data is None:
-                for struc in (slopes,counts,r2_val,diffs):
-                    struc[i, j] = np.nan
-                continue
-
-            helsinki_delays, correlated_delays, correlated_uncs, coefficients = events_data
-
-
-            ###-------------------CLOSEST-------------------###
-            coeff_mask = coefficients>=coeff_lim
-
-            x_vals     = helsinki_delays[coeff_mask]
-            y_vals     = correlated_delays[coeff_mask]
-            y_uncs     = correlated_uncs[coeff_mask]
-
-            slope, intercept, r2 = straight_best_fit(x_vals,y_vals,y_uncs,detailed=True)
-
-            slopes[i, j] = slope.n
-            counts[i, j] = len(x_vals)
-            r2_val[i, j] = r2
-
-    return slopes, counts, r2_val
-
-
-def train_algorithm_param(df_shocks, event_list, vary='buffer_up', vary_array=None, buffer_up=28, buffer_dw=34, dist_buff=60, min_ratio_change=0.8, coeff_lim=0.7):
-
-    if (vary=='buffer_up') and (vary_array is None):
-        vary_array = range(25,36)
-    elif (vary=='buffer_dw') and (vary_array is None):
-        vary_array = range(20,41)
-    elif (vary=='dist_buff') and (vary_array is None):
-        vary_array = np.arange(10,71,5)
-    elif (vary=='min_ratio') and (vary_array is None):
-        vary_array = np.arange(0.5,0.91,0.01)
-    else:
-        raise Exception(f'Not valid parameter for vary: {vary}')
-
-    num_shocks = np.zeros(len(vary_array))
-    slope_R2   = np.zeros(len(vary_array))
-    slope_fit  = np.zeros(len(vary_array))
-
-    for i, ind in enumerate(vary_array):
-
-        if vary=='buffer_up':
-            buffer_up = ind
-        elif vary=='buffer_dw':
-            buffer_dw = ind
-        elif vary=='dist_buff':
-            dist_buff = ind
-        elif vary=='min_ratio':
-            min_ratio_change = ind
-
-        correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors = analyse_all_events(df_shocks, buffer_up=buffer_up, buffer_dw=buffer_dw, distance_buff=dist_buff, min_ratio_change=min_ratio_change)
-
-        ###-------------------MINIMUM CROSS-CORR-------------------###
-
-        coeff_mask = coefficients>=coeff_lim
-
-        xs      = unp.nominal_values(helsinki_delays[coeff_mask])
-        ys      = unp.nominal_values(correlated_delays[coeff_mask])
-        ys_unc  = unp.std_devs(correlated_delays[coeff_mask])
-
-        slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
-
-        num_shocks[i]= len(xs)
-        slope_R2[i] = r2
-        slope_fit[i] = slope.n
-
-    return slope_fit, num_shocks, slope_R2, vary_array
-
+from ...plotting.formatting import add_legend
 
 
 # %% Analysis_functions
-
-
 
 def analyse_all_events(helsinki_events, **kwargs):
 
@@ -124,20 +42,16 @@ def analyse_all_events(helsinki_events, **kwargs):
     detectors        = []
     interceptors     = []
 
-    all_spacecraft = [sc for sc in sw_monitors if sc in list(set(helsinki_events['spacecraft'].to_numpy()))]
-
-    for eventID_str, event in helsinki_events.groupby('eventNum'):
+    for eventID_str, event in helsinki_events.groupby(by='eventNum'):
 
         eventID = int(eventID_str)
         if len(event)<=1:
             continue
 
-        all_lists = find_shock_times_training(eventID, event, all_spacecraft, **kwargs)
+        all_lists = find_shock_times_training(eventID, event, **kwargs)
 
         for main_list, sub_list in zip((correlated_delays,helsinki_delays,coefficients,shock_times,detectors,interceptors), all_lists):
             main_list += sub_list
-
-
 
     if len(correlated_delays)<=2:
         return None
@@ -153,7 +67,7 @@ def analyse_all_events(helsinki_events, **kwargs):
     return correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors
 
 
-def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
+def find_shock_times_training(eventID, event, **kwargs):
 
     parameter = kwargs.get('parameter','B_mag')
 
@@ -195,7 +109,7 @@ def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
             detect_pos = detect_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
 
             # Find time lag
-            time_lag = find_propagation_time(detect_time, omni_sc, 'OMNI', parameter, detect_pos, intercept_pos=omni_pos)
+            time_lag = find_propagation_time(detect_time, omni_sc, 'OMNI', parameter, detect_pos, intercept_pos=omni_pos, **kwargs)
             if time_lag is not None:
 
                 delay, coeff = time_lag
@@ -210,8 +124,6 @@ def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
                 coefficients.append(coeff)
                 detectors.append(omni_sc)
                 interceptors.append('OMNI')
-
-
 
     # Need time to check against
     if len(spacecraft)>1:
@@ -238,7 +150,6 @@ def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
                 else:
                     detector, interceptor = sc_B, sc_A
 
-
             interceptor_event = event[event['spacecraft']==interceptor]
             interceptor_time, interceptor_unc = spacecraft_dict[interceptor]
             interceptor_pos = interceptor_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
@@ -248,7 +159,7 @@ def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
             detector_pos = detector_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
 
             # Find how long shocks takes to intercept spacecraft
-            time_lag = find_propagation_time(detector_time, detector, interceptor, parameter, detector_pos, intercept_pos=interceptor_pos)
+            time_lag = find_propagation_time(detector_time, detector, interceptor, parameter, detector_pos, intercept_pos=interceptor_pos, **kwargs)
 
             if time_lag is not None:
 
@@ -263,12 +174,293 @@ def find_shock_times_training(eventID, event, helsinki_monitors, **kwargs):
                 detection_times.append((detector_time,detector_unc)) # time and unc
 
                 coefficients.append(coeff)
-                detectors.append(interceptor)
-                interceptors.append(detector)
+                detectors.append(detector)
+                interceptors.append(interceptor)
 
     return correlated_delays, helsinki_delays, detection_times, coefficients, detectors, interceptors
 
-# %% Plotting_procedures
+# %% Compare_correlated_helsinki
+
+def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
+
+    coeff_lim       = kwargs.get('coeff_lim',0.7)
+    colouring       = kwargs.get('colouring','coeff')
+    title_info_dict = kwargs.get('title_info_dict',{})
+    simple_title    = kwargs.get('simple_title',True)
+
+    title_info_dict['coeff_lim'] = coeff_lim
+    title_info_dict['colouring'] = colouring
+
+    marker_dict = {'WIND': 'x', 'ACE': '+', 'DSC': '^', 'Cluster': 'o'}
+
+    coeff_mask = coeffs>=coeff_lim
+
+    xs      = unp.nominal_values(database[coeff_mask])
+    xs_unc  = unp.std_devs(database[coeff_mask])
+    ys      = unp.nominal_values(correlated[coeff_mask])
+    ys_unc  = unp.std_devs(correlated[coeff_mask])
+    coeffs  = coeffs[coeff_mask]
+
+    sc_ups  = sc_ups[coeff_mask]
+    sc_dws  = sc_dws[coeff_mask]
+
+    slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
+
+
+    fig, ax = plt.subplots()
+
+    ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+
+    if colouring=='coeff':
+        scatter = ax.scatter(xs, ys, c=coeffs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
+        ax.scatter([], [], c='k', s=20, marker='x', label=f'{len(xs)}')
+
+        cbar = plt.colorbar(scatter)
+        cbar.set_label('Correlation Coeff')
+    elif colouring=='sc':
+
+        for (sc_up, sc_dw) in it.permutations(('WIND','ACE','DSC','Cluster','OMNI'), 2):
+
+            if sc_dw=='Cluster':
+                sc_mask = (sc_ups==sc_up)&(np.isin(sc_dws, ('C1','C3','C4')))
+                sc_c    = colour_dict['C1']
+            elif sc_up=='Cluster':
+                sc_mask = (np.isin(sc_ups, ('C1','C3','C4')))&(sc_dws==sc_dw)
+                sc_c    = colour_dict[sc_dw]
+            else:
+                sc_mask = (sc_ups==sc_up)&(sc_dws==sc_dw)
+                sc_c    = colour_dict[sc_dw]
+            count = np.sum(sc_mask)
+            if count==0:
+                continue
+            ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=20, marker=marker_dict[sc_up], label=f'{sc_up} | {sc_dw}: {count}')
+
+
+    ax.axline(slope=1,xy1=[0,0],c='grey',ls=':')
+    ax.axline([0,intercept.n],slope=slope.n,c='k',ls='--',lw=1.25)
+
+    ax.axhline(y=0,c='grey',lw=0.2, ls='--')
+    ax.axvline(x=0,c='grey',lw=0.2, ls='--')
+
+    if intercept.n<0:
+        sign = '-'
+    else:
+        sign = '+'
+
+    low_lim = min(ax.get_xlim()[0],ax.get_ylim()[0])
+    high_lim = max(ax.get_xlim()[1],ax.get_ylim()[1])
+
+    middle = (low_lim+high_lim)/2
+    height = ax.get_ylim()[1]-10
+
+    ax.text(middle,height,f'$\\Delta t_c$ = (${slope:L}$)$\\cdot$$\\Delta t_H$\n{sign} (${abs(intercept):L}$) mins, $R^2$={r2:.3f}', ha='center',va='center')
+
+    ax.set_xlabel('Helsinki delays [mins]')
+    ax.set_ylabel('Correlated delays [mins]')
+
+    ax.set_xlim(low_lim,high_lim)
+    ax.set_ylim(low_lim,high_lim)
+
+    ax.legend(loc='upper left', fontsize=8)
+    ax.set_aspect('equal')
+
+    if simple_title:
+        title = 'Comparing Correlated Times with Helsinki Database'
+    else:
+        title = create_title('Comparing Delay Times', title_info_dict)
+    ax.set_title(title)
+    plt.tight_layout()
+
+    file_name = create_file_name('Comparing_Delay_Times', title_info_dict)
+    save_figure(fig, file_name=file_name)
+    plt.show()
+    plt.close()
+
+
+# %% Vary_one_param
+
+def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_lim=0.7, **kwargs):
+
+    if vary_array is None:
+        if (vary=='buffer_up'):
+            vary_array = range(25,36)
+        elif (vary=='buffer_dw'):
+            vary_array = range(20,41)
+        elif (vary=='dist_buff'):
+            vary_array = np.arange(10,101,5)
+        elif (vary=='min_ratio'):
+            vary_array = np.arange(0.5,0.91,0.01)
+        else:
+            raise Exception(f'Not valid parameter for vary: {vary}')
+
+    num_shocks = np.zeros(len(vary_array))
+    fit_R2     = np.zeros(len(vary_array))
+    fit_slope  = np.empty(len(vary_array), dtype=object)
+    fit_int    = np.empty(len(vary_array), dtype=object)
+
+    key_map = {
+        'buffer_up': 'buffer_up',
+        'buffer_dw': 'buffer_dw',
+        'dist_buff': 'distance_buff',
+        'min_ratio': 'min_ratio_change'
+    }
+
+    param_key = key_map[vary]
+
+    for i, ind in enumerate(vary_array):
+        kwargs[param_key] = ind
+
+        correlated_delays, helsinki_delays, detection_times, coefficients, detectors, interceptors = analyse_all_events(df_events, **kwargs)
+
+        ###-------------------MINIMUM CROSS-CORR-------------------###
+
+        coeff_mask = coefficients>=coeff_lim
+
+        xs      = unp.nominal_values(helsinki_delays[coeff_mask])
+        ys      = unp.nominal_values(correlated_delays[coeff_mask])
+        ys_unc  = unp.std_devs(correlated_delays[coeff_mask])
+
+        slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
+
+        num_shocks[i]= len(xs)
+        fit_R2[i]    = r2
+        fit_slope[i] = slope
+        fit_int[i]   = intercept
+
+    return fit_slope, fit_int, fit_R2, num_shocks, vary_array
+
+def plot_single_param_vary(independent, **kwargs):
+
+    slopes_fit      = kwargs.get('slopes_fit', None)
+    slopes_int      = kwargs.get('slopes_int', None)
+    counts          = kwargs.get('counts', None)
+    slopes_R2       = kwargs.get('slopes_R2', None)
+    ind_var         = kwargs.get('ind_var', 'Independent Variable')
+    title_info_dict = kwargs.get('title_info_dict',{})
+    simple_title    = kwargs.get('simple_title',True)
+    coeff_lim       = kwargs.get('coeff_lim',None)
+
+    if slopes_fit is None and counts is None and slopes_R2 is None:
+        raise Exception('No data to plot.')
+
+    if ind_var=='buffer_up':
+        x_label = r'Data Time ($\Delta t_\mathrm{data}$) [mins]'
+    elif ind_var=='buffer_dw':
+        x_label = r'Near Time ($t_\mathrm{near}$) [mins]'
+    elif ind_var=='dist_buff':
+        x_label = r'Distances ($d_\mathrm{diff}$) [$\mathrm{R_E}$]'
+    elif ind_var=='min_ratio':
+        x_label = r'$B_{\mathrm{ratio,2}}\geq x\cdot B_{\mathrm{ratio,1}}$'
+
+    if ind_var in title_info_dict:
+        del title_info_dict[ind_var]
+
+    if counts is not None:
+        fig = plt.figure(figsize=(12, 10))
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
+        ax = fig.add_subplot(gs[0])
+        histx_ax = fig.add_subplot(gs[1], sharex=ax)
+        plt.setp(histx_ax.get_xticklabels(), visible=False)
+        fig.tight_layout()
+    else:
+        fig, ax = plt.subplots()
+
+    y_label = ''
+    if slopes_fit is not None:
+        plot_error_region(ax, independent, unp.nominal_values(slopes_fit), unp.std_devs(slopes_fit), c='r', marker='x', label='Gradient')
+
+        y_label += 'Fitted Gradient'
+        ax.axhline(y=1, c='grey', ls=':', lw='1', alpha=0.1)
+
+    if slopes_R2 is not None:
+        ax.plot(independent, slopes_R2, c='b', marker='o', label=r'$R^2$')
+        if y_label=='':
+            y_label = r'Fitted $R^2$'
+        else:
+            y_label += r' & $R^2$'
+
+    if slopes_int is not None:
+        ax2 = ax.twinx()
+        plot_error_region(ax2, independent, unp.nominal_values(slopes_int), unp.std_devs(slopes_int), c='g', marker='^', label='Intercept')
+        ax2.axhline(y=0, c='grey', ls=':', lw='1', alpha=0.1)
+
+        if ind_var=='min_ratio':
+            ax2_lims = ax2.get_ylim()
+            ax2.set_ylim(ax2_lims[0],2.5*ax2_lims[1])
+
+        ax2.set_ylabel('Fitted Intercept')
+        add_legend(fig, ax2, loc='upper right')
+
+    if counts is not None:
+        label = 'Count'
+        if coeff_lim is not None:
+            label = f'$N$, $\\rho\\geq{coeff_lim}$'
+        histx_ax.plot(independent, counts, c='k', marker='|', label=label)
+
+        #hist_ticks = histx_ax.get_yticks()
+        #histx_ax.set_yticks(hist_ticks)
+        #new_y_labels = [f'{int(tick)} ({(tick / counts[0]) * 100:.0f}%)' if tick >= 0 else '' for tick in hist_ticks]
+        #histx_ax.set_yticklabels(new_y_labels)
+        histx_ax.set_ylabel('Number of Shocks')
+        add_legend(fig, histx_ax, loc='upper right')
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    add_legend(fig, ax, loc='upper left')
+
+    if simple_title:
+        title = 'Algorithm\'s Performance by Varying Parameter'
+    else:
+        title = create_title(f'Varying {ind_var}', title_info_dict)
+    ax.set_title(title)
+    plt.tight_layout()
+
+    file_name = create_file_name(f'Vary_{ind_var}', title_info_dict)
+    save_figure(fig, file_name=file_name)
+
+    plt.show()
+    plt.close()
+
+
+
+# %% 2d_variation
+
+def train_algorithm_buffers(df_shocks, event_list, buffer_up_range=range(25,36), buffer_dw_range=range(10,26), coeff_lim=0.7):
+
+    buffer_up_values = list(buffer_up_range)
+    buffer_dw_values = list(buffer_dw_range)
+
+    slopes = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
+    counts = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
+    r2_val = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
+    diffs  = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
+
+    for j, buffer_up in enumerate(buffer_up_values):
+        for i, buffer_dw in enumerate(buffer_dw_values):
+
+            events_data = analyse_all_events(df_shocks, event_list, buffer_up, buffer_dw)
+            if events_data is None:
+                for struc in (slopes,counts,r2_val,diffs):
+                    struc[i, j] = np.nan
+                continue
+
+            helsinki_delays, correlated_delays, correlated_uncs, coefficients = events_data
+
+
+            ###-------------------CLOSEST-------------------###
+            coeff_mask = coefficients>=coeff_lim
+
+            x_vals     = helsinki_delays[coeff_mask]
+            y_vals     = correlated_delays[coeff_mask]
+            y_uncs     = correlated_uncs[coeff_mask]
+
+            slope, intercept, r2 = straight_best_fit(x_vals,y_vals,y_uncs,detailed=True)
+
+            slopes[i, j] = slope.n
+            counts[i, j] = len(x_vals)
+            r2_val[i, j] = r2
+
+    return slopes, counts, r2_val
 
 def plot_buffer_training(structures, limits=None, buffer_up_range=range(25,36), buffer_dw_range=range(30,41), coeff_lim=0.7, num_events=0):
 
@@ -366,222 +558,6 @@ def plot_buffer_training(structures, limits=None, buffer_up_range=range(25,36), 
         plt.show()
         plt.close()
 
-def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
-
-    coeff_lim       = kwargs.get('coeff_lim',0.7)
-    colouring       = kwargs.get('colouring','coeff')
-    modal_omni      = kwargs.get('modal_omni',None)
-    title_info_dict = kwargs.get('title_info_dict',{})
-
-    title_info_dict['coeff_lim'] = coeff_lim
-    title_info_dict['colouring'] = colouring
-
-    coeff_mask = coeffs>=coeff_lim
-
-    xs      = unp.nominal_values(database[coeff_mask])
-    xs_unc  = unp.std_devs(database[coeff_mask])
-    ys      = unp.nominal_values(correlated[coeff_mask])
-    ys_unc  = unp.std_devs(correlated[coeff_mask])
-    coeffs  = coeffs[coeff_mask]
-
-    sc_ups  = sc_ups[coeff_mask]
-    sc_dws  = sc_dws[coeff_mask]
-
-    omni_mode = np.char.upper(modal_omni[coeff_mask]) if modal_omni is not None else None
-
-    slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
-
-
-    fig, ax = plt.subplots()
-
-    ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
-
-    if colouring=='coeff':
-        scatter = ax.scatter(xs, ys, c=coeffs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
-        ax.scatter([], [], c='k', s=20, marker='x', label=f'{len(xs)}')
-
-        cbar = plt.colorbar(scatter)
-        cbar.set_label('Correlation Coeff')
-    elif colouring=='sc':
-        marker_dict = {'WIND': 'x', 'ACE': '+', 'DSC': '^'}
-
-        for sc_up in ('WIND','ACE','DSC'):
-            for sc_dw in ('OMNI','Cluster'):
-                if sc_dw=='Cluster':
-                    sc_mask = (sc_ups==sc_up)&(np.isin(sc_dws, ('C1','C3','C4')))
-                    sc_c    = colour_dict['C1']
-                elif sc_dw=='OMNI':
-                    sc_mask = (sc_ups==sc_up)&(sc_dws==sc_dw)
-                    sc_c    = colour_dict[sc_dw]
-                    if omni_mode is not None:
-                        sc_c = np.where(omni_mode[sc_mask]==sc_up,colour_dict[sc_dw],'r')
-                count = np.sum(sc_mask)
-                if count==0:
-                    continue
-                ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=20, marker=marker_dict[sc_up], label=f'{sc_up} | {sc_dw}: {count}')
-
-
-    ax.axline(slope=1,xy1=[0,0],c='grey',ls=':')
-    ax.axline([0,intercept.n],slope=slope.n,c='k',ls='--',lw=1.25)
-
-    ax.axhline(y=0,c='grey',lw=0.2, ls='--')
-    ax.axvline(x=0,c='grey',lw=0.2, ls='--')
-
-    if intercept.n<0:
-        sign = '-'
-    else:
-        sign = '+'
-
-    low_lim = min(ax.get_xlim()[0],ax.get_ylim()[0])
-    high_lim = max(ax.get_xlim()[1],ax.get_ylim()[1])
-
-    middle = (low_lim+high_lim)/2
-    height = ax.get_ylim()[1]-10
-
-    ax.text(middle,height,f'$\\Delta t_c$ = (${slope:L}$)$\\cdot$$\\Delta t_H$\n{sign} (${abs(intercept):L}$) mins, $R^2$={r2:.3f}', ha='center',va='center')
-
-    ax.set_xlabel('Helsinki delays [mins]')
-    ax.set_ylabel('Correlated delays [mins]')
-
-    ax.set_xlim(low_lim,high_lim)
-    ax.set_ylim(low_lim,high_lim)
-
-    ax.legend(loc='upper left', fontsize=8, title=f'{np.sum(coeff_mask)} times')
-    ax.set_aspect('equal')
-
-    title = create_title('Comparing Delay Times', title_info_dict)
-    ax.set_title(title)
-    plt.tight_layout()
-
-    file_name = create_file_name('Comparing_Delay_Times', title_info_dict)
-    save_figure(fig, file_name=file_name)
-    plt.show()
-    plt.close()
-
-import matplotlib.dates as mdates
-
-def plot_differences_over_time(xs_u, ys_u, times, coeffs, sc_ups, sc_dws, **kwargs):
-
-    coeff_lim       = kwargs.get('coeff_lim',0.7)
-    colouring       = kwargs.get('colouring','coeff')
-    modal_omni      = kwargs.get('modal_omni',None)
-    title_info_dict = kwargs.get('title_info_dict',{})
-
-    title_info_dict['coeff_lim'] = coeff_lim
-    title_info_dict['colouring'] = colouring
-
-    marker_dict = {'WIND': 'x', 'ACE': '+', 'DSC': '^'}
-
-    coeff_mask = coeffs>=coeff_lim
-
-    diffs   = (ys_u-xs_u)[coeff_mask]
-    ds      = unp.nominal_values(diffs)
-    ds_unc  = unp.std_devs(diffs)
-    ts      = np.array([t[0] for t in times[coeff_mask]])
-    ts_unc  = np.array([t[1] for t in times[coeff_mask]])
-
-    ts_unc = np.array(ts_unc) / (24 * 3600) # converts from s to days
-    ts = mdates.date2num(ts)
-
-    coeffs  = coeffs[coeff_mask]
-
-    sc_ups  = sc_ups[coeff_mask]
-    sc_dws  = sc_dws[coeff_mask]
-
-    omni_mode = np.char.upper(modal_omni[coeff_mask]) if modal_omni is not None else None
-
-    fig, ax = plt.subplots()
-
-    ax.errorbar(ts, ds, yerr=ds_unc, fmt='.', ms=0, ecolor='k', capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
-
-    if colouring=='coeff':
-        scatter = ax.scatter(ts, ds, c=coeffs, s=20, marker='x', cmap='plasma_r', vmin=coeff_lim, vmax=1)
-        ax.scatter([], [], c='k', s=20, marker='x', label=f'{len(ds)}')
-
-        cbar = plt.colorbar(scatter)
-        cbar.set_label('Correlation Coeff')
-    elif colouring=='sc':
-
-        for sc_up in ('WIND','ACE','DSC'):
-            for sc_dw in ('OMNI','Cluster'):
-                if sc_dw=='Cluster':
-                    sc_mask = (sc_ups==sc_up)&(np.isin(sc_dws, ('C1','C3','C4')))
-                    sc_c    = colour_dict['C1']
-                elif sc_dw=='OMNI':
-                    sc_mask = (sc_ups==sc_up)&(sc_dws==sc_dw)
-                    sc_c    = colour_dict[sc_dw]
-                    if omni_mode is not None:
-                        sc_c = np.where(omni_mode[sc_mask]==sc_up,colour_dict[sc_dw],'r')
-                count = np.sum(sc_mask)
-                if count==0:
-                    continue
-                ax.scatter(ts[sc_mask], ds[sc_mask], c=sc_c, s=20, marker=marker_dict[sc_up], label=f'{sc_up} | {sc_dw}: {count}')
-
-
-    ax.axhline(y=0,c='k',ls=':')
-
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    ax.xaxis.set_major_formatter(mdates.AutoDateFormatter(mdates.AutoDateLocator()))
-    ax.set_xlabel('time')
-    ax.set_ylabel('Correlated - Helsinki delays [mins]')
-
-    ax.legend(loc='upper left', fontsize=8, title=f'{np.sum(coeff_mask)} times')
-
-    title = create_title('Comparing Delay Times', title_info_dict)
-    ax.set_title(title)
-    plt.tight_layout()
-
-    file_name = create_file_name('Comparing_Delay_Differences', title_info_dict)
-    save_figure(fig, file_name=file_name)
-    plt.show()
-    plt.close()
-
-def plot_single_param_vary(independent, slopes_fit=None, counts=None, slopes_R2=None, ind_var='Independent Variable', title_info_dict={}):
-
-    if slopes_fit is None and counts is None and slopes_R2 is None:
-        raise Exception('No data to plot.')
-
-    if ind_var=='buffer_up':
-        x_label = 'Buffer up [mins]'
-    elif ind_var=='buffer_dw':
-        x_label = 'Buffer dw [mins]'
-    elif ind_var=='dist_buff':
-        x_label = 'Distances [Re]'
-    elif ind_var=='min_ratio':
-        x_label = r'B-Ratio_{dw} $\geq x\cdot$ B-Ratio_{up}'
-
-    if ind_var in title_info_dict:
-        del title_info_dict[ind_var]
-
-    fig, ax = plt.subplots()
-
-    if slopes_fit is not None:
-        ax.plot(independent,slopes_R2,c='b',marker='o',label='R2')
-    if slopes_R2 is not None:
-        ax.plot(independent,slopes_fit,c='r',marker='o',label='grad')
-
-    if counts is not None:
-        ax2 = ax.twinx()
-        ax2.plot(independent,counts,c='g',marker='o',label='num')
-
-        ax.set_xlabel(x_label)
-        ax.set_ylabel('R2 & Gradient')
-        ax2.set_ylabel('Num shocks')
-
-        ax2_ticks = ax2.get_yticks()
-        ax2.set_yticks(ax2_ticks)
-        new_y_labels = [f'{int(tick)} ({(tick / counts[0]) * 100:.0f}%)' if tick >= 0 else '' for tick in ax2_ticks]
-        ax2.set_yticklabels(new_y_labels)
-
-    title = create_title(f'Varying  {ind_var}', title_info_dict)
-    ax.set_title(title)
-    plt.tight_layout()
-
-    file_name = create_file_name(f'Vary_{ind_var}', title_info_dict)
-    save_figure(fig, file_name=file_name)
-
-    plt.show()
-    plt.close()
 
 # %%
 
