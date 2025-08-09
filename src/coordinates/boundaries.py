@@ -257,9 +257,9 @@ def plot_magnetosheath_boundaries():
     plt.grid(linestyle='--', lw=0.5)
 
     # Calculate boundaries for each model
-    bs_jel = bs_boundaries('jelinek')
-    mp_jel = mp_boundaries('jelinek')
-    mp_shu = mp_boundaries('shue')
+    bs_jel = msh_boundaries('jelinek','bs')
+    mp_jel = msh_boundaries('jelinek','mp')
+    mp_shu = msh_boundaries('shue','mp')
 
     # Plot Earth at the origin
     plt.scatter(0, 0, color='blue', marker='o', s=800)  # Earth

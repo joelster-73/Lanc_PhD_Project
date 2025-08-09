@@ -11,4 +11,4 @@ from src.processing.omni.handling import process_omni_files
 
 from src.config import LUNA_OMNI_DIR, PROC_OMNI_DIR
 
-process_omni_files(LUNA_OMNI_DIR, PROC_OMNI_DIR, omni_variables)
+process_omni_files(LUNA_OMNI_DIR, PROC_OMNI_DIR, omni_variables, ext='lst')

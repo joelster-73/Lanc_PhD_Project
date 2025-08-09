@@ -32,8 +32,10 @@ def find_all_shocks(shocks, parameter, time=None, shocks_intercepts_started=None
         new_columns['detectors'] = ''
         for sc in sum((sw_monitors, ('OMNI',)), ()):
 
-            new_columns[f'{sc}_time'] = pd.NaT
+            new_columns[f'{sc}_time']       = pd.NaT
             new_columns[f'{sc}_time_unc_s'] = np.nan
+            new_columns[f'{sc}_coeff']      = np.nan
+            new_columns[f'{sc}_sc']         = ''
 
             for comp in ('x','y','z'):
                 new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
@@ -106,7 +108,6 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
     # df_shocks is where we store the correlated times
 
     position_var = kwargs.get('position_var','R_GSE')
-    coeff_lim    = kwargs.get('coeff_lim',0.8)
 
     ###-------------------INITIAL CHECKS-------------------###
 
@@ -169,10 +170,10 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
         time_lag = find_propagation_time(detect_time, omni_sc, 'OMNI', 'B_mag', detect_pos, intercept_pos=omni_pos)
         if time_lag is None:
             continue
-
         delay, coeff = time_lag
-        if coeff<=coeff_lim:
+        if not pd.isnull(df_shocks.at[eventID,'OMNI_time']) and coeff<=df_shocks.at[eventID,'OMNI_coeff']:
             continue
+        df_shocks.at[eventID,'OMNI_coeff'] = coeff
 
         # Found suitable lag
         lagged_unc = delay - ufloat(0,detect_unc)
@@ -216,8 +217,10 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
             continue
 
         # When shock intercepts downstream monitors
-        intercept_times = []
-        intercept_uncs  = []
+        intercept_time  = pd.NaT
+        intercept_unc   = np.nan
+        intercept_coeff = np.nan
+        intercept_sc    = None
         for i, row in event.iterrows(): # All the monitors
             detector = row['spacecraft']
 
@@ -230,30 +233,26 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
                 continue
 
             delay, coeff = time_lag
-            if coeff<=coeff_lim:
+            if not pd.isnull(intercept_time) and coeff<=intercept_coeff:
                 continue
+            df_shocks.at[eventID,'OMNI_coeff'] = coeff
 
             lagged_unc = delay - ufloat(0,row['time_unc'])
-            intercept_times.append(detector_time + timedelta(seconds=delay.n))
-            intercept_uncs.append(lagged_unc.s)
+            intercept_time = detector_time + timedelta(seconds=delay.n)
+            intercept_unc  = lagged_unc.s
+            intercept_coeff  = coeff
+            intercept_sc  = detector
 
         # If shock isn't found to interept the spacecraft
-        if len(intercept_times)==0:
+        if pd.isnull(intercept_time):
             continue
-        elif len(intercept_times)==1:
-            pred_time, pred_unc = intercept_times[0], intercept_uncs[0]
-        else:
-            # Average of times
-            min_time = min(intercept_times)
-            times_u = np.array([ufloat((time-min_time).total_seconds(), unc) for time, unc in zip(intercept_times,intercept_uncs)])
-            avg_time = np.mean(times_u)
-            pred_time = min_time + timedelta(seconds=avg_time.n)
-            pred_unc = avg_time.s
 
-        df_shocks.at[eventID,f'{interceptor}_time'] = pred_time
-        df_shocks.at[eventID,f'{interceptor}_time_unc_s'] = pred_unc
+        df_shocks.at[eventID,f'{interceptor}_time'] = intercept_time
+        df_shocks.at[eventID,f'{interceptor}_time_unc_s'] = intercept_unc
+        df_shocks.at[eventID,f'{interceptor}_coeff'] = intercept_coeff
+        df_shocks.at[eventID,f'{interceptor}_sc'] = intercept_sc
 
-        pos, unc = retrieve_position_unc(interceptor, speasy_variables, pred_time, pred_unc)
+        pos, unc = retrieve_position_unc(interceptor, speasy_variables, intercept_time, intercept_unc)
 
         df_shocks.loc[eventID,[f'{interceptor}_r_x_GSE',f'{interceptor}_r_y_GSE',f'{interceptor}_r_z_GSE']] = pos
         df_shocks.loc[eventID,[f'{interceptor}_r_x_GSE_unc',f'{interceptor}_r_y_GSE_unc',f'{interceptor}_r_z_GSE_unc']] = unc

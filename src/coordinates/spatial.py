@@ -9,8 +9,6 @@ from .boundaries import bs_jelinek2012
 from ..processing.utils import add_unit
 
 
-
-
 def calc_bs_pos(df, **kwargs):
     """
     Calculates the distance of the spacecraft and bow shock using the Jelinek 2012 model.
@@ -61,49 +59,54 @@ def calc_bs_pos(df, **kwargs):
     except:
         df_bs['v_z_GSE_OMNI'] = np.zeros(len(df)) # default is v_z=0
 
-    v_Earth  = 29.78
-    df_bs['v_y_shift'] = df_bs['v_y_GSE_OMNI'] + v_Earth
-    df_bs['alpha_z'] = -np.arctan(df_bs['v_y_shift']/np.abs(df_bs['v_x_GSE_OMNI']))
-    df_bs['alpha_y'] = np.arctan(-df_bs['v_z_GSE_OMNI']/np.sqrt(df_bs['v_x_GSE_OMNI']**2+df_bs['v_y_shift']**2))
+    valid_mask = ~df_bs['v_x_GSE_OMNI'].isna()
 
-    R_z = R.from_euler('z', -df_bs['alpha_z'].to_numpy())
-    R_y = R.from_euler('y', df_bs['alpha_y'].to_numpy())
+    # Rotation only for valid rows
+    if valid_mask.any():
+        v_Earth = 29.78
+        df_bs.loc[valid_mask, 'v_y_shift'] = df_bs.loc[valid_mask, 'v_y_GSE_OMNI'] + v_Earth
 
-    #"_p" is for "prime"
+        df_bs.loc[valid_mask, 'alpha_z'] = -np.arctan(
+            df_bs.loc[valid_mask, 'v_y_shift'] / np.abs(df_bs.loc[valid_mask, 'v_x_GSE_OMNI'])
+        )
+        df_bs.loc[valid_mask, 'alpha_y'] = np.arctan(
+            -df_bs.loc[valid_mask, 'v_z_GSE_OMNI'] /
+            np.sqrt(df_bs.loc[valid_mask, 'v_x_GSE_OMNI']**2 + df_bs.loc[valid_mask, 'v_y_shift']**2)
+        )
 
-    rotation = R_y * R_z
-    coords = np.column_stack((df[r_x_name], df[r_y_name], df[r_z_name]))
-    df_bs[f'r_x_aGSE_{sc_key}'], df_bs[f'r_y_aGSE_{sc_key}'], df_bs[f'r_z_aGSE_{sc_key}'] = rotation.apply(coords).T
+        R_z = R.from_euler('z', -df_bs.loc[valid_mask, 'alpha_z'].to_numpy(), degrees=False)
+        R_y = R.from_euler('y',  df_bs.loc[valid_mask, 'alpha_y'].to_numpy(), degrees=False)
 
+        rotation = R_y * R_z
+        coords = np.column_stack((
+            df.loc[valid_mask, r_x_name],
+            df.loc[valid_mask, r_y_name],
+            df.loc[valid_mask, r_z_name]
+        ))
 
-    # Calculate bow shock distance using Jelinek 2012 model
-    try:
-        p = df['p_flow_OMNI'].to_numpy()
-    except:
-        p = 2.056
+        rotated_coords = rotation.apply(coords)
+        df_bs.loc[valid_mask, f'r_x_aGSE_{sc_key}'] = rotated_coords[:, 0]
+        df_bs.loc[valid_mask, f'r_y_aGSE_{sc_key}'] = rotated_coords[:, 1]
+        df_bs.loc[valid_mask, f'r_z_aGSE_{sc_key}'] = rotated_coords[:, 2]
 
-    # Angle from Earth-Sun line
-    theta_ps = np.arccos(df_bs[f'r_x_aGSE_{sc_key}'].to_numpy()/df_bs[f'r_{sc_key}'].to_numpy())
+        # r_BS only for valid rows
+        try:
+            p = df.loc[valid_mask,'p_flow_OMNI'].to_numpy()
+        except:
+            p = 2.056
 
-    df_bs['r_BS'] = bs_jelinek2012(theta_ps, Pd=p)
-    df_bs['r_bs_diff'] = df_bs[f'r_{sc_key}'] - df_bs['r_BS']
+        theta_ps = np.arccos(
+            df_bs.loc[valid_mask, f'r_x_aGSE_{sc_key}'] / df_bs.loc[valid_mask, f'r_{sc_key}']
+        )
+        df_bs.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p)
 
+    # Set NaN for invalid rows
+    df_bs.loc[~valid_mask, 'r_BS'] = np.nan
+    df_bs.loc[~valid_mask, f'r_x_aGSE_{sc_key}'] = np.nan
+    df_bs.loc[~valid_mask, f'r_y_aGSE_{sc_key}'] = np.nan
+    df_bs.loc[~valid_mask, f'r_z_aGSE_{sc_key}'] = np.nan
 
     return df_bs
-
-
-
-
-
-
-
-
-def insert_bs_diff(df, df_bs):
-
-    # Calculate and assign 'bs_diff'
-    df['r_bs_diff'] = df_bs['r_bs_diff']
-    df.attrs['units']['r_bs_diff'] = df_bs.attrs['units'].get('r_BS', add_unit('r_BS'))
-
 
 
 
@@ -166,6 +169,7 @@ def insert_cyl_coords(df, field='r', coords='GSE', **kwargs):
     y_col = kwargs.get('y_col',f'{field}_y_{coords}')
     z_col = kwargs.get('z_col',f'{field}_z_{coords}')
 
+    # '_' is x
     _, rho, phi = cartesian_to_cylindrical(df[x_col], df[y_col], df[z_col])
 
     df[f'{field}_rho'] = rho

@@ -268,3 +268,8 @@ plot_compare_dataset_parameters(c1_sw_jel, omni, 'B_sin(th)_cos(ph)',
                  omni_columns=omni_columns, column_names=column_names, column_display_ranges=column_display_ranges, fit_types=fit_types)
 
 plot_dataset_years_months(c1_sw_jel, df_colour='deepskyblue',show_apogee=True,full_cluster=cluster1)
+
+# %% High_activity
+from data_plotting import plot_compare_datasets_with_activity
+
+plot_compare_datasets_with_activity(c1_sw_jel, c1_sw_grmb)

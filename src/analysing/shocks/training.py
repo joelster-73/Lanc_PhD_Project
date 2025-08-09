@@ -8,7 +8,6 @@ Created on Thu May  8 18:33:37 2025
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import matplotlib.dates as mdates
 
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -42,6 +41,8 @@ def analyse_all_events(helsinki_events, **kwargs):
     detectors        = []
     interceptors     = []
 
+    event_numbers    = []
+
     for eventID_str, event in helsinki_events.groupby(by='eventNum'):
 
         eventID = int(eventID_str)
@@ -50,8 +51,11 @@ def analyse_all_events(helsinki_events, **kwargs):
 
         all_lists = find_shock_times_training(eventID, event, **kwargs)
 
-        for main_list, sub_list in zip((correlated_delays,helsinki_delays,coefficients,shock_times,detectors,interceptors), all_lists):
-            main_list += sub_list
+        number_of_times = len(all_lists[0])
+        if number_of_times>0:
+            for main_list, sub_list in zip((correlated_delays,helsinki_delays,coefficients,shock_times,detectors,interceptors), all_lists):
+                main_list += sub_list
+            event_numbers += number_of_times*[eventID]
 
     if len(correlated_delays)<=2:
         return None
@@ -64,7 +68,9 @@ def analyse_all_events(helsinki_events, **kwargs):
     detectors         = np.array(detectors)
     interceptors      = np.array(interceptors)
 
-    return correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors
+    event_numbers     = np.array(event_numbers)
+
+    return correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors, event_numbers
 
 
 def find_shock_times_training(eventID, event, **kwargs):
@@ -187,6 +193,7 @@ def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
     colouring       = kwargs.get('colouring','coeff')
     title_info_dict = kwargs.get('title_info_dict',{})
     simple_title    = kwargs.get('simple_title',True)
+    event_nums      = kwargs.get('event_nums',None)
 
     title_info_dict['coeff_lim'] = coeff_lim
     title_info_dict['colouring'] = colouring
@@ -265,7 +272,11 @@ def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
     ax.set_aspect('equal')
 
     if simple_title:
-        title = 'Comparing Correlated Times with Helsinki Database'
+        if event_nums is not None:
+            num_shocks = len(np.unique(event_nums))
+            title = f'Comparing {np.sum(coeff_mask)} times from {num_shocks} shocks'
+        else:
+            title = 'Comparing Correlated Times with Helsinki Database'
     else:
         title = create_title('Comparing Delay Times', title_info_dict)
     ax.set_title(title)
@@ -283,9 +294,9 @@ def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_li
 
     if vary_array is None:
         if (vary=='buffer_up'):
-            vary_array = range(25,36)
+            vary_array = range(25,41,1)
         elif (vary=='buffer_dw'):
-            vary_array = range(20,41)
+            vary_array = range(20,51,5)
         elif (vary=='dist_buff'):
             vary_array = np.arange(10,101,5)
         elif (vary=='min_ratio'):
@@ -310,7 +321,7 @@ def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_li
     for i, ind in enumerate(vary_array):
         kwargs[param_key] = ind
 
-        correlated_delays, helsinki_delays, detection_times, coefficients, detectors, interceptors = analyse_all_events(df_events, **kwargs)
+        correlated_delays, helsinki_delays, _, coefficients, _, _, _ = analyse_all_events(df_events, **kwargs)
 
         ###-------------------MINIMUM CROSS-CORR-------------------###
 

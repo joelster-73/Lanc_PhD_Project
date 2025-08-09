@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['scripts\\main.py', 'scripts\\plotting\\250721_Helsinki_Compression.py', 'src\\analysing\\calculations.py', 'src\\plotting\\shocks.py', 'src\\analysing\\fitting.py']
+recent_files = ['scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_0.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_1.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_3.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_4.py', 'src\\plotting\\comparing\\parameter.py', 'src\\processing\\omni\\handling.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_5.py']
 
 [main]
 version = 0.2.0

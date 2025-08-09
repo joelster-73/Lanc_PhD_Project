@@ -31,7 +31,8 @@ CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 LUNA_CLUS_DIR_SPIN     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_SPIN/'
 LUNA_CLUS_DIR_5VPS     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_5VPS/'
 LUNA_CROS_DIR          = 'Z:/spacecraft/cluster/c1/C1_CT_AUX_GRMB/'
-LUNA_OMNI_DIR          = 'Z:/omni/omni_1min_yearly/'
+#LUNA_OMNI_DIR          = 'Z:/omni/omni_1min_yearly/' - older version
+LUNA_OMNI_DIR          = 'Z:/omni/omni_min_def/'
 LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
 LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
 

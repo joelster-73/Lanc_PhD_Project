@@ -27,10 +27,10 @@ def add_unit(key):
         return 'bool'
     elif 'unc_s' in key:
         return 's'
-    elif '_time' in key:
-        return 'datetime'
     elif '_s' in key:
         return 's'
+    elif '_time' in key:
+        return 'datetime'
     elif 'r_' in key:
         return 'Re'
     elif 'B_' in key:

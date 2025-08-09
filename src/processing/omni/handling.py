@@ -18,7 +18,7 @@ from handling_omni import process_omni_files
 process_omni_files(luna_omni_dir, proc_omni_dir, omni_variables)
 """
 
-def process_omni_files(directory, data_directory, variables, year=None, overwrite=True):
+def process_omni_files(directory, data_directory, variables, year=None, overwrite=True, ext='asc'):
     """
     Processes a list of OMNI CDF files, extracts the specified variables, and saves the data to a CDF file.
 
@@ -47,23 +47,32 @@ def process_omni_files(directory, data_directory, variables, year=None, overwrit
     """
     print('Processing OMNI.\n')
     # Gather all OMNI files for the specified year (or all files if no year is specified)
-    files_to_process = get_omni_files(directory, year=year)
+    files_to_process = get_omni_files(directory, year=year, ext=ext)
 
     directory_name = os.path.basename(os.path.normpath(directory))
     log_file_path = os.path.join(data_directory, f'{directory_name}_not_added_files.txt')  # Log for unprocessed files
     create_log_file(log_file_path)
 
     # Process each file
-    for asc_file in files_to_process:
-        file_name= os.path.basename(asc_file)
+    for i, omni_file in enumerate(files_to_process):
+        file_name = os.path.basename(omni_file)
         print(f'Processing {file_name}.')
         try:
-            data_dict = extract_omni_data(asc_file, variables)
+            if ext=='asc':
+                data_dict = extract_omni_data_old(omni_file, variables)
+            elif ext=='lst':
+                data_dict = extract_omni_data(omni_file, variables)
             print(f'Data from {file_name} extracted.')
             df = pd.DataFrame(data_dict)
             add_df_units(df)
-            # Extract the year from the filename assuming the format omni_minYYYY.asc
-            file_year = file_name.split('_')[1][3:7]
+            if ext=='asc':
+                # Extract the year from the filename assuming the format omni_minYYYY.asc
+                file_year = file_name.split('_')[1][3:7]
+            elif ext=='lst':
+                # Extract the year from the filename assuming the format omni_min_def_YYYY.lst
+                file_year = file_name.split('_')[3][0:4]
+            else:
+                file_year = i+1
 
             output_file = os.path.join(data_directory, f'{directory_name}_{file_year}.cdf')
             attributes = {'time_col': 'epoch'}
@@ -72,14 +81,14 @@ def process_omni_files(directory, data_directory, variables, year=None, overwrit
 
         except (AttributeError, ValueError, RuntimeError) as e:
             print('Known error.')
-            log_missing_file(log_file_path, asc_file, e)
+            log_missing_file(log_file_path, omni_file, e)
         except Exception as e:
             print('Unknown error.')
-            log_missing_file(log_file_path, asc_file, e)
+            log_missing_file(log_file_path, omni_file, e)
 
 
 
-def get_omni_files(directory, year=None):
+def get_omni_files(directory, year=None, ext='asc'):
     """
     Retrieves .asc files from a specified directory, optionally filtered by a specific year.
 
@@ -98,20 +107,139 @@ def get_omni_files(directory, year=None):
     """
     # Build the search pattern based on the presence of a specific year
     if year:
-        pattern = os.path.join(directory, f'*_{year}*.asc')  # Match files with the specified year
+        pattern = os.path.join(directory, f'*_{year}*.{ext}')  # Match files with the specified year
     else:
-        pattern = os.path.join(directory, '*.asc')  # Match all .asc files if no year is specified
+        pattern = os.path.join(directory, f'*.{ext}')  # Match all .asc files if no year is specified
 
     # Use glob to find files matching the pattern
     files_to_process = sorted(glob.glob(pattern))
 
     if not files_to_process:
-        raise ValueError(f'No .asc files found in the directory: {directory}')
+        raise ValueError(f'No .{ext} files found in the directory: {directory}')
 
     return files_to_process
 
+def extract_omni_data(lst_file, variables):
+    """
+    Loads specified variables from an ASCII file and returns a DataFrame with extracted data.
 
-def extract_omni_data(asc_file, variables):
+    Parameters
+    ----------
+    asc_file : str
+        The path to the ASCII file.
+
+    variables : dict
+        Dictionary where keys are the variable names to be used in the DataFrame,
+        and values are the variable codes used to extract data from the file.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with columns for each requested variable.
+
+    Raises
+    ------
+    ValueError
+        If an unknown variable is requested.
+    """
+
+    # Load data from the list file
+    data_set = np.array(np.loadtxt(lst_file))  # each element is a row; one row per minute
+
+    # Initialize DataFrame to store extracted data
+    df = pd.DataFrame()
+
+    # Add spacecraft IDs for filtering
+    df['imf_sc']    = data_set[:, 4]
+    df['plasma_sc'] = data_set[:, 5]
+
+    # Iterate over requested variables and extract data
+    for var in variables:
+        if var == 'time':
+            years = data_set[:, 0].astype(int)
+            days = data_set[:, 1]
+            hours = data_set[:, 2]
+            minutes = data_set[:, 3]
+
+            dates = [
+                datetime(year, 1, 1) + timedelta(days=day - 1, hours=hour, minutes=minute)
+                for year, day, hour, minute in zip(years, days, hours, minutes)
+            ]
+
+            # Convert datetime to CDF epoch format
+            df['epoch'] = dates
+
+        elif var == 'B_field':
+            # Magnetic field data (nT)
+            df['B_avg']   = data_set[:, 13]  # nT
+            df['B_x_GSE'] = data_set[:, 14]
+            df['B_y_GSE'] = data_set[:, 15]
+            df['B_z_GSE'] = data_set[:, 16]
+            df['B_y_GSM'] = data_set[:, 17]
+            df['B_z_GSM'] = data_set[:, 18]
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['imf_sc'] == 99, ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM']] = np.nan
+
+            gsm = calc_B_GSM_angles(df, time_col='epoch')
+            df = pd.concat([df, gsm], axis=1)
+
+        elif var == 'pressure':
+            # Flow pressure calculation: (2*10**-6)*Np*Vp**2 nPa
+            df['p_flow'] = data_set[:, 28]  # nPa
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['plasma_sc'] == 99, 'p_flow'] = np.nan
+
+        elif var == 'density':
+            df['n_p'] = data_set[:, 25]  # n/cc
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['plasma_sc'] == 99, 'n_p'] = np.nan
+
+        elif var == 'velocity':
+            df['v_flow']  = data_set[:, 21]  # km/s
+            df['v_x_GSE'] = data_set[:, 22]  # km/s
+            df['v_y_GSE'] = data_set[:, 23]  # km/s
+            df['v_z_GSE'] = data_set[:, 24]  # km/s
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['plasma_sc'] == 99, ['v_flow', 'v_x_GSE', 'v_y_GSE', 'v_z_GSE']] = np.nan
+
+        elif var == 'satellite':
+            # Satellite ID and position data
+            df['sc_id']   = data_set[:, 5]
+            df['r_x_GSE'] = data_set[:, 33]
+            df['r_y_GSE'] = data_set[:, 34]
+            df['r_z_GSE'] = data_set[:, 35]
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['plasma_sc'] == 99, ['sc_id', 'r_x_GSE', 'r_y_GSE', 'r_z_GSE']] = np.nan
+
+        elif var == 'bow_shock_nose':
+            df['r_x_BSN'] = data_set[:, 36]
+            df['r_y_BSN'] = data_set[:, 37]
+            df['r_z_BSN'] = data_set[:, 38]
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['imf_sc'] == 99, ['r_x_BSN', 'r_y_BSN', 'r_z_BSN']] = np.nan
+
+        elif var == 'propagation':
+            # Satellite ID and position data
+            df['prop_time_s'] = data_set[:, 10]
+
+            # Set to NaN for bad data (sc_id 99)
+            df.loc[df['imf_sc'] == 99, ['prop_time_s']] = np.nan
+
+        else:
+            raise ValueError(f'Unknown variable {var}')
+
+    # Drop spacecraft IDs as they are no longer needed
+    df = df.drop(columns=['imf_sc', 'plasma_sc'])
+    return df
+
+
+def extract_omni_data_old(asc_file, variables):
     """
     Loads specified variables from an ASCII file and returns a DataFrame with extracted data.
 

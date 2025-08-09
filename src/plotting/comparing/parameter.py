@@ -5,6 +5,22 @@ Created on Fri May 16 11:27:55 2025
 @author: richarj2
 """
 
+import numpy as np
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib import ticker as mticker
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+from ..config import black, white, blue
+from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
+from ..utils import save_figure, calculate_bins
+from ..distributions import plot_gaussian
+
+from ...analysing.comparing import difference_columns
+from ...analysing.kobel import load_compression_ratios, are_points_above_line
+from ...analysing.fitting import straight_best_fit
+from ...processing.filtering import filter_by_spacecraft, filter_sign
 
 
 def compare_columns(df, data1_col, data2_col, **kwargs):
@@ -98,11 +114,11 @@ def compare_columns(df, data1_col, data2_col, **kwargs):
     if display == 'Scatter':
         ax_main.scatter(df[data2_col], df[data1_col], c='b', s=scat_size)
 
-    elif display == 'Scatter_grad_time':
-        t = datetime_to_cdf_epoch(df.index)
-        norm = plt.Normalize(t.min(), t.max())
-        cmap = plt.get_cmap('plasma')
-        ax_main.scatter(df[data2_col], df[data1_col], c=t, cmap=cmap, norm=norm, s=scat_size, label='Blue to yellow in time')
+    # elif display == 'Scatter_grad_time':
+    #     t = datetime_to_cdf_epoch(df.index)
+    #     norm = plt.Normalize(t.min(), t.max())
+    #     cmap = plt.get_cmap('plasma')
+    #     ax_main.scatter(df[data2_col], df[data1_col], c=t, cmap=cmap, norm=norm, s=scat_size, label='Blue to yellow in time')
 
     elif display == 'Scatter_grad_sc':
         for id_value, group in df.groupby(sc_col):
@@ -204,9 +220,10 @@ def compare_columns(df, data1_col, data2_col, **kwargs):
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###
     add_legend(fig, ax_main, legend_on=want_legend, heat=is_heat)
-    add_figure_title(fig, title_str, ax=ax_main)
+    add_figure_title(fig, black, title_str, ax=ax_main)
     dark_mode_fig(fig,black,white,is_heat)
     plt.tight_layout();
+
     save_figure(fig)
     plt.show()
     plt.close()
@@ -426,7 +443,6 @@ def investigate_difference(df, data1_col, data2_col, ind_col, **kwargs):
 
     sc_id   = kwargs.get('sc_id',None)
     sc_col  = kwargs.get('sc_col',None)
-    sc_keys = kwargs.get('sc_keys',None)
 
     is_heat = False
     if display == 'Heat':
@@ -492,17 +508,6 @@ def investigate_difference(df, data1_col, data2_col, ind_col, **kwargs):
     if display == 'Scatter':
         ax_main.scatter(df[x_label], df[y_label], c=blue, s=scat_size)
 
-    elif display == 'Scatter_grad_time':
-        t = Ticktock(df.index.to_pydatetime(), 'UTC').CDF
-        norm = plt.Normalize(t.min(), t.max())
-        cmap = plt.get_cmap('plasma')
-        ax_main.scatter(df[x_label], df[y_label], c=t, cmap=cmap, norm=norm, s=0.4, label='Blue to yellow in time')
-
-    elif display == 'Scatter_grad_sc':
-        for id_value, group in df.groupby(sc_col):
-            id_label = f'{sc_keys[id_value]} ({int(id_value)})' if sc_keys else f'ID {int(id_value)}'
-            ax_main.scatter(group[x_label], group[y_label], label=f'{id_label}', s=0.4)
-
     elif display == 'Heat':
         if hasattr(bin_width, '__len__') and len(bin_width) == 2:
             n_bins = (calculate_bins(df[x_label],bin_width[0]), calculate_bins(df[y_label],bin_width[1]))
@@ -534,8 +539,8 @@ def investigate_difference(df, data1_col, data2_col, ind_col, **kwargs):
         ax_main.set_yscale('log')
 
     add_legend(fig, ax_main, legend_on=want_legend, heat=is_heat)
-    dark_mode_fig(fig,black,white,is_heat)
-    add_figure_title(fig, brief_title, x_title_label, y_title_label, ax=ax_main)
+    dark_mode_fig(fig, black, white, is_heat)
+    add_figure_title(fig, black, brief_title, x_title_label, y_title_label, ax=ax_main)
     plt.tight_layout();
     save_figure(fig)
     plt.show()

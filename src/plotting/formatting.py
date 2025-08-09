@@ -89,7 +89,9 @@ def data_string(s):
     s = re.sub(greek_pattern, r'\\\1', s)
 
     s = s.replace('r_rho', '\\rho')
-    s = s.replace('r_x', 'x')
+    s = s.replace('r_x', 'X')
+    s = s.replace('r_y', 'Y')
+    s = s.replace('r_z', 'Z')
 
 
     # Split the string on the first underscore
@@ -128,7 +130,7 @@ def create_label(column, unit=None, data_name=None, name_latex=False, units=None
         unit = units.get(column,None)
     if unit is not None:
         if unit == 'Re':
-            label += ' [$R_E$]'
+            label += r' [$\mathrm{R_E}$]'
         else:
             label += f' [{unit}]'
     return label

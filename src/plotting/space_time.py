@@ -4,6 +4,21 @@ Created on Fri May 16 10:42:37 2025
 
 @author: richarj2
 """
+import numpy as np
+from pandas import Timedelta
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+from .config import black, white, blue
+
+from .additions import create_circle, create_half_circle_marker, segment_dataframe, plot_segments
+from .formatting import add_legend, add_figure_title, create_label, check_labels, dark_mode_fig, data_string
+from .utils import save_figure, calculate_bins
+
+from ..coordinates.boundaries import msh_boundaries
+
 
 def plot_scalar_field(df, data_col, **kwargs):
     """
@@ -217,15 +232,16 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     y_name        = kwargs.get('y_name',None)
 
     sc_key        = kwargs.get('sc_key', None)
-    models        = kwargs.get('models', None)
+    models        = kwargs.get('models', 'None')
+    df_omni       = kwargs.get('df_omni',None)
 
     regions       = kwargs.get('region_nums',None)
     region_labels = kwargs.get('region_labels',None)
 
-    sign_y        = kwargs.get('sign_y',False)
-    sign_z        = kwargs.get('sign_z',False)
+    equal_axes    = kwargs.get('equal_axes',True)
+    signed_rho    = kwargs.get('signed_rho',None)
     pos_x         = kwargs.get('pos_x',False)
-    abs_x         = kwargs.get('abs_x',False)
+    y_sign        = kwargs.get('y_sign',None)
     centre_Earth  = kwargs.get('centre_Earth',True)
     brief_title   = kwargs.get('brief_title',None)
 
@@ -238,7 +254,15 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         end_year = df.index[-1].strftime('%Y')
         brief_title = f'Orbit from {start_year} to {end_year} in {plane} plane.'
 
+    plane = plane[::-1] if plane in ('zy','yx','zx') else plane
+    if plane=='yz' and models!='None':
+        print('MSH models not plotted in yz plane.')
+        models = 'None'
+    if plane in ('yz','xz'):
+        equal_axes = False
+
     ###-------------------VALIDATE INPUTS AND CONFIGURE PLOT KEYS-------------------###
+
     if plane == 'x-rho':
         x_comp = 'x'
         y_comp = 'rho'
@@ -255,9 +279,9 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         check_labels(df, x_label, y_coord, z_coord)
 
         df[y_label] = np.sqrt(df[y_coord]**2 + df[z_coord]**2)
-        if sign_y:
+        if signed_rho=='y':
             df[y_label] *= np.sign(df[y_coord])
-        if sign_z:
+        elif signed_rho=='z':
             df[y_label] *= np.sign(df[z_coord])
     else:
         components = ('x','y','z')
@@ -282,8 +306,10 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     if pos_x:
         df = df[df[x_label]>0]
-    if abs_x:
-        df[x_label] = np.abs(df[x_label])
+    if y_sign=='pos':
+        df = df[df[y_label]>0]
+    elif y_sign=='neg':
+        df = df[df[y_label]<0]
 
     unit = df.attrs.get('units', {}).get(x_label, None)
 
@@ -304,15 +330,15 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     elif display == 'Scatter':
         ax.scatter(df[x_label], df[y_label], c='b', s=0.3)
 
-    elif display == 'Scatter_gradient':
-        t = Ticktock(df.index.to_pydatetime(), 'UTC').CDF
-        norm = plt.Normalize(t.min(), t.max())
-        cmap = plt.get_cmap('plasma')
-        plt.scatter(df[x_label], df[y_label],
-                    c=t, cmap=cmap, norm=norm, s=0.3, label='Time gradient')
+    # elif display == 'Scatter_gradient':
+    #     t = Ticktock(df.index.to_pydatetime(), 'UTC').CDF
+    #     norm = plt.Normalize(t.min(), t.max())
+    #     cmap = plt.get_cmap('plasma')
+    #     plt.scatter(df[x_label], df[y_label],
+    #                 c=t, cmap=cmap, norm=norm, s=0.3, label='Time gradient')
 
     elif display == 'Scatter_regions':
-        cmap = plt.get_cmap('tab20c')  # You can use 'tab20' or other colour maps for more distinct colours
+        cmap = plt.get_cmap('tab20c')
         if regions is None:
             regions = df['GRMB_region'].unique()
         num_regions = len(regions)
@@ -330,114 +356,95 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         raise ValueError(f'Invalid display option: {display}')
 
     ###-------------------ADD MSH MODELS-------------------###
-    if models == 'Bow_shock':
-        # Calculate bow shock boundaries using pressure data from OMNI
-        pressures = df['p_flow_OMNI']
-        velocities = df['v_x_GSE_OMNI']
-        bs_jel = bs_boundaries('jelinek', Pd=np.median(pressures, vsw=np.median(velocities)))
-
-        bs_x_coords = bs_jel.get(x_comp)
-        bs_y_coords = bs_jel.get(y_comp)
-
-        ax.plot(bs_x_coords, bs_y_coords, label='Median BS', linestyle='--', color='b')
-
-    elif models == 'Typical_Both':
+    if 'BS' in models or 'Both' in models:
 
         # Bow shock
-        bs_jel = bs_boundaries('jelinek')
+        phi = 0 if y_comp=='z' else np.pi/2
+        kwargs = {}
+        kwargs['phi'] = phi
+        if 'Median' in models:
+            if df_omni is None:
+                print('Need OMNI data for Median solar wind conditions; used typical.')
+            else:
+                kwargs['Pd'] = np.median(df['p_flow_OMNI'])
+                kwargs['v_sw_x'] = np.median(df['v_x_GSE_OMNI'])
+                kwargs['v_sw_y'] = np.median(df['v_y_GSE_OMNI'])
+                kwargs['v_sw_z'] = np.median(df['v_z_GSE_OMNI'])
+
+        bs_jel = msh_boundaries('jelinek', 'bs', **kwargs)
         bs_x_coords = bs_jel.get(x_comp)
         bs_y_coords = bs_jel.get(y_comp)
-        y_neg = bs_jel.get('y') < 0 # Stand-off is in -ve quadrant
 
-        bs_R0 = bs_jel.get('R0')
-        alpha = bs_jel.get('alpha')
+        bs_nose = list(bs_jel.get('nose'))
+        bs_nose.append(np.sqrt(bs_nose[1]**2+bs_nose[2]**2))
 
-        bs_stand_off_x = bs_R0*np.cos(alpha)
-        bs_stand_off_y = bs_R0*np.sin(alpha)
+        bs_nose_dict = dict(zip(('x','y','z','rho'), bs_nose))
+        bs_stand_off_x = bs_nose_dict.get(x_comp)
+        bs_stand_off_y = bs_nose_dict.get(y_comp)
+
+        ax.plot([0,bs_stand_off_x],[0,bs_stand_off_y],c='w',ls=':',lw=2,zorder=1)
+
+        # Bow shock
+        ax.plot(bs_x_coords, bs_y_coords, color='lime', lw=3, label='Bow shock')
+        ax.scatter(bs_stand_off_x, bs_stand_off_y, c='lime')
+
+    if 'MP' in models or 'Both' in models:
 
         # Magnetopause
-        mp_shu = mp_boundaries('shue')
-        mp_x_coords = mp_shu.get(x_comp)
-        mp_y_coords = mp_shu.get(y_comp)
-        y_neg = mp_shu.get('y') < 0 # Stand-off is in -ve quadrant
+        phi = 0 if y_comp=='z' else np.pi/2
+        kwargs = {}
+        kwargs['phi'] = phi
+        if 'Median' in models:
+            if df_omni is None:
+                print('Need OMNI data for Median solar wind conditions; used typical.')
+            else:
+                kwargs['Pd'] = np.median(df['p_flow_OMNI'])
+                kwargs['v_sw_x'] = np.median(df['v_x_GSE_OMNI'])
+                kwargs['v_sw_y'] = np.median(df['v_y_GSE_OMNI'])
+                kwargs['v_sw_z'] = np.median(df['v_z_GSE_OMNI'])
 
-        mp_R0 = mp_shu.get('R0')
+        mp_jel = msh_boundaries('shue', 'mp', **kwargs)
+        mp_x_coords = mp_jel.get(x_comp)
+        mp_y_coords = mp_jel.get(y_comp)
 
-        mp_stand_off_x = mp_R0*np.cos(alpha)
-        mp_stand_off_y = mp_R0*np.sin(alpha)
+        mp_nose = list(mp_jel.get('nose'))
+        mp_nose.append(np.sqrt(mp_nose[1]**2+mp_nose[2]**2))
 
-        ax.plot([0,bs_stand_off_x],[0,-bs_stand_off_y],c='w',ls=':',zorder=1)
+        mp_nose_dict = dict(zip(('x','y','z','rho'), mp_nose))
+        mp_stand_off_x = mp_nose_dict.get(x_comp)
+        mp_stand_off_y = mp_nose_dict.get(y_comp)
 
-        # Bow shock
-        ax.plot(bs_x_coords[y_neg], bs_y_coords[y_neg], color='lime', lw=3, label='Bow shock')
-        ax.scatter(bs_stand_off_x, -bs_stand_off_y, c='lime')
-        #ax.text(bs_stand_off_x + 0.5, -mp_stand_off_y + 0.5, f'$R_0$ = {bs_R0:.1f} $R_E$, {np.degrees(alpha):.1f}$^\\circ$',
-        #        fontsize=10, color='lime', backgroundcolor='k', ha='right', va='center')
+        if 'Both' not in models:
+            ax.plot([0,mp_stand_off_x],[0,mp_stand_off_y],c='w',ls=':',lw=2,zorder=1)
 
         # Magnetopause
-        ax.plot(mp_x_coords[y_neg], mp_y_coords[y_neg], color='magenta', lw=3, ls='--', label='Magnetopause')
-        ax.scatter(mp_stand_off_x, -mp_stand_off_y, c='magenta')
-        #ax.text(mp_stand_off_x - 0.5, -mp_stand_off_y + 0.5, f'$R_0$ = {mp_R0:.1f} $R_E$',
-        #        fontsize=10, color='magenta', backgroundcolor='k', ha='left', va='center')
-
-    elif models == 'Typical':
-
-        # Bow shock
-        bs_jel = bs_boundaries('jelinek')
-        bs_x_coords = bs_jel.get(x_comp)
-        bs_y_coords = bs_jel.get(y_comp)
-        y_neg = bs_jel.get('y') < 0 # Stand-off is in -ve quadrant
-
-        bs_R0 = bs_jel.get('R0')
-        alpha = bs_jel.get('alpha')
-
-        bs_stand_off_x = bs_R0*np.cos(alpha)
-        bs_stand_off_y = bs_R0*np.sin(alpha)
-
-        ax.plot([0,bs_stand_off_x],[0,-bs_stand_off_y],c='w',ls=':',lw=2,zorder=1)
-
-        # Bow shock
-        ax.plot(bs_x_coords[y_neg], bs_y_coords[y_neg], color='lime', lw=3, label='Bow shock')
-        ax.scatter(bs_stand_off_x, -bs_stand_off_y, c='lime')
+        ax.plot(mp_x_coords, mp_y_coords, color='m', lw=3, label='Magnetopause')
+        ax.scatter(mp_stand_off_x, mp_stand_off_y, c='m')
 
 
-    elif models == 'Simple_BS':
-        # Calculate boundaries for each model using typical values
-        bs_jel = bs_boundaries('jelinek')
-        bs_x_coords = bs_jel.get(x_comp)
-        bs_y_coords = bs_jel.get(y_comp)
-        y_pos = bs_jel.get('y')<0
-        # Stand-off is in -ve quadrant
-
-        ax.plot(bs_x_coords[y_pos], bs_y_coords[y_pos], color='lime', lw=3)
-
-        bd_R0 = bs_jel.get('R0')
-        alpha = bs_jel.get('alpha')
-
-        stand_off_x = bd_R0*np.cos(alpha)
-        stand_off_y = bd_R0*np.sin(alpha)
-        ax.scatter(stand_off_x, -stand_off_y, c='lime')
-        ax.text(stand_off_x - 0.5, -stand_off_y + 0.5, f'$R_0$ = {bd_R0:.1f} $R_E$, {np.degrees(alpha):.1f}$^\\circ$', fontsize=10, color='lime')
-        ax.plot([0,stand_off_x],[0,-stand_off_y],ls=':',c='w')
 
     # Plot Earth at the origin
-    create_half_circle_marker(ax, center=(0, 0), radius=1, full=False)
+    if plane=='yz':
+        create_circle(ax, centre=(0,0), radius=1, colour='black')
+    else:
+        create_half_circle_marker(ax, centre=(0, 0), radius=1, full=True)
 
     ###-------------------ADD TITLES AND AXIS LABELS-------------------###
-    ax.set_aspect('equal', adjustable='box')
+    if equal_axes:
+        ax.set_aspect('equal', adjustable='box')
 
     if plane in ('xy',):
-        plt.gca().invert_xaxis()
-        plt.gca().invert_yaxis()
+        ax.invert_xaxis()
+        ax.invert_yaxis()
     elif plane in ('xz','yz'):
-        plt.gca().invert_xaxis()
+        ax.invert_xaxis()
     elif plane in ('x-rho'):
         if centre_Earth:
-            plt.xlim(0)
-            plt.ylim(0)
-        plt.gca().invert_xaxis()
+            ax.set_xlim(0)
+            ax.set_ylim(0)
+        ax.invert_xaxis()
     elif plane in ('yx',):
-        plt.gca().invert_yaxis()
+        ax.invert_yaxis()
 
     x_axis_label = create_label(x_label, data_name=x_name, unit=unit)
     y_axis_label = create_label(y_label, data_name=y_name, unit=unit)
@@ -446,9 +453,10 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     ###-------------------ADJUST LAYOUT AND DISPLAY PLOT-------------------##
     add_legend(fig, ax, heat=is_heat)
-    dark_mode_fig(fig,black,white,is_heat)
-    add_figure_title(fig, brief_title, x_axis_label, y_axis_label)
+    dark_mode_fig(fig, black, white, is_heat)
+    add_figure_title(fig, black, brief_title, x_axis_label, y_axis_label)
     plt.tight_layout();
+
     save_figure(fig)
     plt.show()
     plt.close()
@@ -492,7 +500,7 @@ def plot_apogee_perigee(df):
     ax.text(apo_min_time, -0.01, f'{apo_min_time.year}', color='r', ha='center', va='top', transform=ax.get_xaxis_transform())
 
     ax.set_xlabel('Time', c=black)
-    ax.set_ylabel(r'Radial Distance [$R_E$]', c=black)
+    ax.set_ylabel(r'Radial Distance [$\mathrm{R_E}$]', c=black)
 
     add_figure_title(fig, 'Cluster\'s orbit showing Apogee and Perigee')
     dark_mode_fig(fig,black,white)
