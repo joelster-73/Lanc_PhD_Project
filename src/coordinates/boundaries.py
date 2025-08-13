@@ -1,10 +1,79 @@
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-
 from matplotlib import pyplot as plt
 
+from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant
 
-def msh_boundaries(model, surface='bs', **kwargs):
+def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, **kwargs):
+
+    if model is None:
+        model = 'jelinek' if surface=='BS' else 'shue'
+
+    if aberration=='simple':
+        simple_ab=True
+    elif aberration=='model':
+        simple_ab = True if model in ('jelinek','shue') else False
+    elif aberration=='complete':
+        simple_ab = False
+
+    # New df
+    df_bs = car_to_aGSE(df, position_key=position_key, data_key=data_key, simple=simple_ab)
+
+    r_name    = 'r'
+    r_ax_name = 'r_x_aGSE'
+    r_ay_name = 'r_y_aGSE'
+    r_az_name = 'r_z_aGSE'
+
+    if position_key is not None:
+        for name in (r_name,r_ax_name,r_ay_name,r_az_name):
+            name += f'_{position_key}'
+
+    v_x_name = 'v_x_GSE'
+    p_name   = 'p_flow'
+
+    if data_key is not None:
+        for name in (v_x_name,p_name):
+            name += f'_{data_key}'
+
+
+    valid_mask = ~df_bs[v_x_name].isna()
+    if valid_mask.any():
+        try:
+            p = df.loc[valid_mask,p_name].to_numpy()
+        except:
+            p = 2.056
+
+        theta_ps = np.arccos(
+            df_bs.loc[valid_mask, r_ax_name] / df_bs.loc[valid_mask, r_name]
+        )
+
+        # Compute the radial distances based on the selected model
+        if surface == 'BS':
+            if model == 'jelinek':
+                r  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+            else:
+                raise ValueError(f'Model {model} not valid')
+        elif surface == 'MP':
+            if model == 'shue':
+                r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
+            elif model == 'jelinek':
+                r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
+            else:
+                raise ValueError(f'Model {model} not valid')
+        else:
+            raise ValueError(f'Surface {surface} not valid')
+
+        df_bs.loc[valid_mask, f'r_{surface}'] = r
+
+
+    # Set NaN for invalid rows
+    df_bs.loc[~valid_mask, f'r_{surface}'] = np.nan
+    df_bs.loc[~valid_mask, r_ax_name] = np.nan
+    df_bs.loc[~valid_mask, r_ay_name] = np.nan
+    df_bs.loc[~valid_mask, r_az_name] = np.nan
+
+    return df_bs
+
+def msh_boundaries(model, surface='BS', aberration='model', **kwargs):
     """
     Computes the bow shock boundary (BSB) using a specified model.
 
@@ -25,6 +94,13 @@ def msh_boundaries(model, surface='bs', **kwargs):
     yz : numpy.ndarray
         The yz-coordinates of the bow shock boundary in GSE coordinates.
     """
+    if aberration=='simple':
+        simple_ab=True
+    elif aberration=='model':
+        simple_ab = True if model in ('jelinek','shue') else False
+    elif aberration=='complete':
+        simple_ab = False
+
     # Azimuthal angle - default is x-y plane
     phi = kwargs.get('phi',np.pi/2)
 
@@ -34,39 +110,18 @@ def msh_boundaries(model, surface='bs', **kwargs):
     x = np.cos(thetas)
     y = np.sin(thetas) * np.sin(phi)
     z = np.sin(thetas) * np.cos(phi)
-    coords = np.column_stack((x, y, z))
 
-    # Aberrated coordinates
-    v_x = kwargs.get('v_sw_x',-400)
-    v_y = kwargs.get('v_sw_y',0)
-    v_z = kwargs.get('v_sw_z',0)
-
-
-    # Rotation about Z
-    v_Earth  = 29.78
-    v_y_rest = (v_y + v_Earth)
-    alpha_z  = -np.arctan(v_y_rest/np.abs(v_x))
-    R_z      = R.from_euler('z', -alpha_z)
-
-    # Rotation about Y
-    alpha_y = np.arctan(-v_z/np.sqrt(v_x**2+v_y_rest**2))
-    R_y     = R.from_euler('y', alpha_y)
-
-    #"_p" is for "prime"
-
-    rotation = R_y * R_z
-    x_p, y_p, z_p =  rotation.apply(coords).T
-
+    x_p, y_p, z_p, rotation, alphas = car_to_aGSE_constant(x,y,z,True,simple_ab,**kwargs)
     theta_ps = np.arccos(x_p) # angle from aberrated axis
 
     # Compute the radial distances based on the selected model
-    if surface == 'bs':
+    if surface == 'BS':
         if model == 'jelinek':
             r  = bs_jelinek2012(theta_ps, **kwargs)
             R0 = bs_jelinek2012(0, **kwargs)
         else:
             raise ValueError(f'Model {model} not valid')
-    elif surface == 'mp':
+    elif surface == 'MP':
         if model == 'shue':
             r  = mp_shue1998(theta_ps, **kwargs)
             R0 = mp_shue1998(0, **kwargs)
@@ -81,16 +136,15 @@ def msh_boundaries(model, surface='bs', **kwargs):
     x_p *=  r
     y_p *=  r
     z_p *=  r
-    coords_p = np.column_stack((x_p, y_p, z_p))
 
-    rotate_inv = rotation.inv()
-
-    x, y, z =  rotate_inv.apply(coords_p).T
+    # Invert back to standard GSE
+    x, y, z, rotate_inv = aGSE_to_car_constant(x_p,y_p,z_p,True,simple_ab,rotation,**kwargs)
     rho = np.sqrt(y**2 + z**2)
 
     nose = rotate_inv.apply([R0,0,0])
+    alpha_tot = np.arccos(nose[0]/R0)
 
-    return {'x': x, 'y': y, 'z': z, 'rho': rho, 'R0': R0, 'nose': nose, 'alpha_z': alpha_z, 'alpha_y': alpha_y, 'r': r}
+    return {'x': x, 'y': y, 'z': z, 'r': r, 'rho': rho, 'R0': R0, 'nose': nose, 'alpha_z': alphas['alpha_z'], 'alpha_y': alphas['alpha_y'], 'alpha_tot': alpha_tot}
 
 
 

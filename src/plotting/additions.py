@@ -6,8 +6,8 @@ Created on Fri May 16 10:37:12 2025
 """
 from pandas import Timedelta
 
-from .utils import segment_dataframe
 from matplotlib.patches import Wedge, Circle
+from .utils import segment_dataframe
 
 def plot_segments(ax, data, colour, label, name, lw=0.6, fmt='-', marker=None, delta=Timedelta(minutes=1)):
     data = segment_dataframe(data, delta)

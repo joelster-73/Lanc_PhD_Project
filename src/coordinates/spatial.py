@@ -5,77 +5,77 @@ from scipy.spatial.transform import Rotation as R
 if not hasattr(np, "float_"):
     np.float_ = np.float64 #ensures backward compatibility with code expecting np.float_
 
-from .boundaries import bs_jelinek2012
 from ..processing.utils import add_unit
 
+v_Earth = 29.78 # km/s
 
-def calc_bs_pos(df, **kwargs):
-    """
-    Calculates the distance of the spacecraft and bow shock using the Jelinek 2012 model.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing spacecraft position data (in GSE coordinates) and plasma data.
+def car_to_aGSE(df, position_key=None, data_key=None, simple=False):
 
-    **kwargs :
-        - sc_key : str, required
-            The spacecraft key used to select the appropriate GSE coordinates (e.g., 'C1', 'C2', etc.).
-        - Additional arguments can be passed as needed.
 
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame with 'epoch', 'r_<sc_key>', and 'r_BS' columns, where 'r_<sc_key>' is the spacecraft distance
-        and 'r_BS' is the distance to the bow shock (calculated using the Jelinek 2012 model).
-    """
+    df_aGSE = pd.DataFrame(index=df.index)
 
-    # Retrieve the spacecraft key from kwargs
-    sc_key   = kwargs.get('sc_key', None)
+    r_x_name = 'r_x_GSE'
+    r_y_name = 'r_y_GSE'
+    r_z_name = 'r_z_GSE'
+    r_name   = 'r'
 
-    # New df
-    df_bs = pd.DataFrame(index=df.index)
+    r_ax_name = 'r_x_aGSE'
+    r_ay_name = 'r_y_aGSE'
+    r_az_name = 'r_z_aGSE'
 
-    r_x_name = f'r_x_GSE_{sc_key}'
-    r_y_name = f'r_y_GSE_{sc_key}'
-    r_z_name = f'r_z_GSE_{sc_key}'
+    if position_key is not None:
+        for name in (r_x_name,r_y_name,r_z_name,r_name,r_ax_name,r_ay_name,r_az_name):
+            name += f'_{position_key}'
+
+    v_x_name = 'v_x_GSE'
+    v_y_name = 'v_y_GSE'
+    v_z_name = 'v_z_GSE'
+
+    if data_key is not None:
+        for name in (v_x_name,v_y_name,v_z_name):
+            name += f'_{data_key}'
 
     # Magnitude of cluster vector
-    df_bs[f'r_{sc_key}'] = np.sqrt(df[r_x_name]**2 +
-                                   df[r_y_name]**2 +
-                                   df[r_z_name]**2)
+    df_aGSE[r_name] = np.sqrt(df[r_x_name]**2 +
+                              df[r_y_name]**2 +
+                              df[r_z_name]**2)
     try:
-        df_bs['v_x_GSE_OMNI'] = df['v_x_GSE_OMNI']
+        df_aGSE[v_x_name] = df[v_x_name]
     except:
-        df_bs['v_x_GSE_OMNI'] = np.full(len(df),-400) # default is v_x=-400
+        df_aGSE[v_x_name] = np.full(len(df),-400) # default is v_x=-400
 
-    try:
-        df_bs['v_y_GSE_OMNI'] = df['v_y_GSE_OMNI']
-    except:
-        df_bs['v_y_GSE_OMNI'] = np.zeros(len(df)) # default is v_y=0
+    if simple:
+        df_aGSE[v_y_name] = np.zeros(len(df))
+        df_aGSE[v_z_name] = np.zeros(len(df))
+    else:
+        try:
+            df_aGSE[v_y_name] = df[v_y_name]
+        except:
+            df_aGSE[v_y_name] = np.zeros(len(df)) # default is v_y=0
 
-    try:
-        df_bs['v_z_GSE_OMNI'] = df['v_z_GSE_OMNI']
-    except:
-        df_bs['v_z_GSE_OMNI'] = np.zeros(len(df)) # default is v_z=0
+        try:
+            df_aGSE[v_z_name] = df[v_z_name]
+        except:
+            df_aGSE[v_z_name] = np.zeros(len(df)) # default is v_z=0
 
-    valid_mask = ~df_bs['v_x_GSE_OMNI'].isna()
+    valid_mask = ~df_aGSE[v_x_name].isna()
 
     # Rotation only for valid rows
     if valid_mask.any():
-        v_Earth = 29.78
-        df_bs.loc[valid_mask, 'v_y_shift'] = df_bs.loc[valid_mask, 'v_y_GSE_OMNI'] + v_Earth
 
-        df_bs.loc[valid_mask, 'alpha_z'] = -np.arctan(
-            df_bs.loc[valid_mask, 'v_y_shift'] / np.abs(df_bs.loc[valid_mask, 'v_x_GSE_OMNI'])
+        df_aGSE.loc[valid_mask, 'v_y_shift'] = df_aGSE.loc[valid_mask, v_y_name] + v_Earth
+
+        df_aGSE.loc[valid_mask, 'alpha_z'] = -np.arctan(
+            df_aGSE.loc[valid_mask, 'v_y_shift'] / np.abs(df_aGSE.loc[valid_mask, v_x_name])
         )
-        df_bs.loc[valid_mask, 'alpha_y'] = np.arctan(
-            -df_bs.loc[valid_mask, 'v_z_GSE_OMNI'] /
-            np.sqrt(df_bs.loc[valid_mask, 'v_x_GSE_OMNI']**2 + df_bs.loc[valid_mask, 'v_y_shift']**2)
+        df_aGSE.loc[valid_mask, 'alpha_y'] = np.arctan(
+            -df_aGSE.loc[valid_mask, v_z_name] /
+            np.sqrt(df_aGSE.loc[valid_mask, v_x_name]**2 + df_aGSE.loc[valid_mask, 'v_y_shift']**2)
         )
 
-        R_z = R.from_euler('z', -df_bs.loc[valid_mask, 'alpha_z'].to_numpy(), degrees=False)
-        R_y = R.from_euler('y',  df_bs.loc[valid_mask, 'alpha_y'].to_numpy(), degrees=False)
+        R_z = R.from_euler('z', -df_aGSE.loc[valid_mask, 'alpha_z'].to_numpy(), degrees=False)
+        R_y = R.from_euler('y',  df_aGSE.loc[valid_mask, 'alpha_y'].to_numpy(), degrees=False)
 
         rotation = R_y * R_z
         coords = np.column_stack((
@@ -85,29 +85,82 @@ def calc_bs_pos(df, **kwargs):
         ))
 
         rotated_coords = rotation.apply(coords)
-        df_bs.loc[valid_mask, f'r_x_aGSE_{sc_key}'] = rotated_coords[:, 0]
-        df_bs.loc[valid_mask, f'r_y_aGSE_{sc_key}'] = rotated_coords[:, 1]
-        df_bs.loc[valid_mask, f'r_z_aGSE_{sc_key}'] = rotated_coords[:, 2]
+        df_aGSE.loc[valid_mask, r_ax_name] = rotated_coords[:, 0]
+        df_aGSE.loc[valid_mask, r_ay_name] = rotated_coords[:, 1]
+        df_aGSE.loc[valid_mask, r_az_name] = rotated_coords[:, 2]
 
-        # r_BS only for valid rows
-        try:
-            p = df.loc[valid_mask,'p_flow_OMNI'].to_numpy()
-        except:
-            p = 2.056
 
-        theta_ps = np.arccos(
-            df_bs.loc[valid_mask, f'r_x_aGSE_{sc_key}'] / df_bs.loc[valid_mask, f'r_{sc_key}']
-        )
-        df_bs.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p)
+    return df_aGSE
 
-    # Set NaN for invalid rows
-    df_bs.loc[~valid_mask, 'r_BS'] = np.nan
-    df_bs.loc[~valid_mask, f'r_x_aGSE_{sc_key}'] = np.nan
-    df_bs.loc[~valid_mask, f'r_y_aGSE_{sc_key}'] = np.nan
-    df_bs.loc[~valid_mask, f'r_z_aGSE_{sc_key}'] = np.nan
+def car_to_aGSE_constant(x, y, z, return_rotation=False, simple=False, **kwargs):
 
-    return df_bs
+    # Same solar wind conditions/transformation applied to all coordinates
 
+    coords = np.column_stack((x, y, z))
+
+    v_x = kwargs.get('v_sw_x',-400)
+
+    if simple:
+        v_y, v_z = 0, 0
+    else:
+        v_y = kwargs.get('v_sw_y',0)
+        v_z = kwargs.get('v_sw_z',0)
+
+    v_y_shift = v_y + v_Earth
+
+    # Rotation about Z
+    alpha_z = -np.arctan(v_y_shift / np.abs(v_x))
+    R_z = R.from_euler('z', -alpha_z, degrees=False)
+
+    # Rotation about Y
+    alpha_y = np.arctan(-v_z/np.sqrt(v_x**2+v_y_shift**2))
+    R_y     = R.from_euler('y', alpha_y, degrees=False)
+
+    #"_p" is for "prime"
+
+    rotation = R_y * R_z
+    x_p, y_p, z_p = rotation.apply(coords).T
+
+    if return_rotation:
+        return x_p, y_p, z_p, rotation, {'alpha_z': alpha_z, 'alpha_y': alpha_y}
+    return x_p, y_p, z_p
+
+def aGSE_to_car_constant(x_p, y_p, z_p, return_rotation=False, simple=False, rotation_matrix=None, **kwargs):
+
+    # Same solar wind conditions/transformation applied to all coordinates
+
+    coords_p = np.column_stack((x_p, y_p, z_p))
+
+    if rotation_matrix is None:
+        v_x = kwargs.get('v_sw_x',-400)
+
+        if simple:
+            v_y, v_z = 0, 0
+        else:
+            v_y = kwargs.get('v_sw_y',0)
+            v_z = kwargs.get('v_sw_z',0)
+
+        v_y_shift = v_y + v_Earth
+
+        # Rotation about Z
+        alpha_z = -np.arctan(v_y_shift / np.abs(v_x))
+        R_z = R.from_euler('z', -alpha_z, degrees=False)
+
+        # Rotation about Y
+        alpha_y = np.arctan(-v_z/np.sqrt(v_x**2+v_y_shift**2))
+        R_y     = R.from_euler('y', alpha_y, degrees=False)
+
+        #"_p" is for "prime"
+        rotation_matrix = R_y * R_z
+
+    rotate_inv = rotation_matrix.inv()
+
+    x, y, z =  rotate_inv.apply(coords_p).T
+
+    if return_rotation:
+        return x, y, z, rotate_inv
+
+    return x, y, z
 
 
 def insert_sph_coords(df, field='r', coords='GSE', **kwargs):

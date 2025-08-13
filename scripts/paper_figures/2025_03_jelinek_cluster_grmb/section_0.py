@@ -41,7 +41,6 @@ bad_GRMB.sort(key=lambda window: window[0])
 # %% Grison
 from src.methods.filtering.grison import assign_region
 
-
 crossings = import_processed_data(CROSSINGS_DIR)
 cross_labels = crossings.attrs['crossings']
 assign_region(cluster1, crossings, bad_days=bad_GRMB)
@@ -50,6 +49,8 @@ assign_region(cluster1, crossings, bad_days=bad_GRMB)
 # %% Merging
 from src.processing.dataframes import merge_dataframes
 from src.processing.filtering import filter_sw
+
+c1_omni = merge_dataframes(cluster1, omni, 'C1', 'OMNI') # C1 vs OMNI
 
 buffer_R = 4
 
@@ -69,7 +70,12 @@ c1_omni_jel_0 = merge_dataframes(c1_sw_jel_0, omni, 'C1', 'OMNI') # C1 vs OMNI u
 c1_sw_com = filter_sw(cluster1, method='combined', regions=(12,), sc_key='C1', buffer=buffer_R)
 c1_omni_com = merge_dataframes(c1_sw_com, omni, 'C1', 'OMNI')
 
-c1_omni = merge_dataframes(cluster1, omni, 'C1', 'OMNI') # C1 vs OMNI
-
 file_path = 'timestamps.txt'
 c1_sw_com.index.strftime("%Y-%m-%d %H:%M:%S").to_series().to_csv(file_path, index=False, header=False)
+
+
+# %% Original_GRMB
+
+assign_region(cluster1, crossings, print_changes=False)
+c1_sw_grmb_v0 = filter_sw(cluster1, 'GRMB', regions=(12,))
+c1_omni_grmb_v0 = merge_dataframes(c1_sw_grmb_v0, omni, 'C1', 'OMNI') # C1 vs OMNI using GRMB

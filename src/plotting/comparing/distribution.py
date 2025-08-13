@@ -7,98 +7,43 @@ Created on Fri May 16 11:53:22 2025
 
 import numpy as np
 import pandas as pd
-
 from datetime import datetime
 
 from scipy.signal import find_peaks
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import ticker as mticker
 
+from ..config import black, white
+from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig
+from ..utils import save_figure, calculate_bins, calculate_bins_edges
+from ..space_time import plot_orbit
 
-from magnetosheath import bs_boundaries
+from ...coordinates.boundaries import msh_boundaries
 
+def plot_compare_datasets_space(df1, df2, plane='x-rho', coords='GSE', **kwargs):
 
-def plot_compare_datasets_space(df1, df2, rx_col, ryz_col, df_omni, **kwargs):
+    fig, axes = plt.subplots(1, 2, figsize=(12,5))
 
-    bin_width    = kwargs.get('bin_width',0.1)
-    rx_name      = kwargs.get('rx_name',None)
-    ryz_name     = kwargs.get('ryz_name',None)
-    df1_name     = kwargs.get('df1_name','Jelínek Bow shock')
-    df2_name     = kwargs.get('df2_name','GRMB Database')
+    kwargs['equal_axes'] = False
+    kwargs['want_legend'] = False
+    kwargs['nose_text'] = 'BS'
+    kwargs['models'] = 'Median BS'
 
-    n_cols = 2
-    n_rows = 1
-    fig, axs = plt.subplots(
-        n_rows, n_cols, sharex='row', figsize=(n_cols*6, n_rows*5)
-    )
+    for i, (df, name, ax) in enumerate(zip((df1, df2), ('Jelínek Bow shock', 'Grison Database'), axes)):
 
-    units = df1.attrs['units']
+        _, axis, cbar = plot_orbit(df, plane=plane, coords=coords, fig=fig, ax=ax, return_objs=True, brief_title=name, **kwargs)
+        if i==0:
+            cbar.set_label(None)
+        elif i==1:
+            axis.set_ylabel(None)
 
-    ###-------------------ORBITS-------------------###
-    first_row = axs
-
-    x_axis_label = create_label(rx_col,None,rx_name,True,units)
-    y_axis_label = create_label(ryz_col,None,ryz_name,True,units)
-
-    for ax, df in zip(first_row, (df1, df2)):
-
-        # Data outside buffered bowshock
-        n_bins = (calculate_bins(df[rx_col],bin_width),calculate_bins(df[ryz_col],bin_width))
-        h = ax.hist2d(df[rx_col], df[ryz_col], bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
-
-        # Median p and v Bow shock
-        pressures = df_omni[df_omni.index.isin(df.index)]['p_flow']
-        pressures = pressures[~np.isnan(pressures)]
-        velocities = df_omni[df_omni.index.isin(df.index)]['v_x_GSE']
-        velocities = velocities[~np.isnan(velocities)]
-
-        bs_jel = bs_boundaries('jelinek', Pd=np.median(pressures), vsw=np.median(velocities))
-        #bs_jel = bs_boundaries('jelinek', Pd=np.median(pressures))
-
-        bs_x_coords = bs_jel.get('x')
-        bs_y_coords = bs_jel.get('y')
-        y_neg = bs_jel.get('y')<0
-        # Stand-off is in -ve quadrant
-
-        bd_R0 = bs_jel.get('R0')
-        alpha = bs_jel.get('alpha')
-
-        # In the x-y plane
-        ax.plot(bs_x_coords[y_neg], -bs_y_coords[y_neg], linestyle='-', color='lime', lw=3)
-
-        stand_off_x = bd_R0*np.cos(alpha)
-        stand_off_y = bd_R0*np.sin(alpha)
-        ax.scatter(stand_off_x, -stand_off_y, c='lime')
-        ax.text(stand_off_x - 0.5, -stand_off_y + 0.5, f'$R_0$ = {bd_R0:.1f} $R_E$, {np.degrees(alpha):.1f}$^\\circ$', fontsize=10, color='lime')
-        ax.plot([0,stand_off_x],[0,-stand_off_y],ls=':',c='w')
-        ax.set_xlabel(x_axis_label,c=black)
-
-        cbar = fig.colorbar(h[3], ax=ax)
-        cbar.ax.tick_params(colors=black)
-        cbar.outline.set_edgecolor(black)
-        ax.set_facecolor('k')
-
-        #ax.scatter(0, 0, color='b', marker='o', s=1600)  # Earth
-
-        create_half_circle_marker(ax, center=(0, 0), radius=1, full=False)
-
-        ax.set_xlim(left=0)
-        ax.set_ylim(bottom=0)
-        add_legend(fig, ax, heat=True)
-
-    first_row[0].invert_xaxis()
-    first_row[0].set_ylabel(y_axis_label,c=black)
-
-    add_figure_title(fig, df1_name, ax=first_row[0])
-    add_figure_title(fig, df2_name, ax=first_row[1])
-
-
-    #dark_mode_fig(fig,black,white,heat=True)
     plt.tight_layout()
     save_figure(fig)
     plt.show()
     plt.close()
+
 
 def plot_compare_datasets_with_activity(*dfs, **kwargs):
 

@@ -5,6 +5,65 @@ Created on Sat Aug  9 14:25:55 2025
 @author: richarj2
 """
 
+import numpy as np
+import pandas as pd
+
+import matplotlib.pyplot as plt
+
+from ...analysing.calculations import calc_mean_error, calc_circular_mean_error, circular_standard_deviation, percentile_func
+from ...analysing.kobel import load_compression_ratios, are_points_above_line
+
+from ...plotting.comparing.parameter import compare_series
+from ...plotting.formatting import add_legend
+from ...plotting.utils import save_figure
+
+from ...processing.dataframes import next_index
+
+
+def compare_columns_with_compression(df, col1, col2, **kwargs):
+
+    series1 = df.loc[:,col1]
+    series2 = df.loc[:,col2]
+
+    compressions    = kwargs.get('compressions',None)
+    contam_info     = kwargs.get('contam_info',False)
+
+    fig, ax, _ = compare_series(series1, series2, return_objs=True, **kwargs)
+
+    if compressions is not None:
+        B_imf, B_msh, _ = load_compression_ratios(compressions)
+
+        ax.plot(B_imf, B_msh, c='cyan', lw=2, label='Kobel Threshold')
+
+        limit = B_msh[-1]/B_imf[-1]
+        limit_text = f'y≃{limit:.2f}x'
+
+        extreme_times = are_points_above_line(B_imf, B_msh, series2, series1)
+        total_text   = f'{len(df):,}'
+        num_text     = f'{np.sum(extreme_times):,}'
+        perc_text    = f'{np.sum(extreme_times)/len(df)*100:.2f}%'
+
+        if contam_info:
+            ax.plot([], [], ' ', label=f'\n{total_text}\n{num_text}\n{perc_text}')
+
+        display         = kwargs.get('display','Scatter')
+        want_legend     = kwargs.get('want_legend',True)
+        is_heat = False
+        if display == 'Heat':
+            is_heat = True
+
+        add_legend(fig, ax, legend_on=want_legend, heat=is_heat)
+
+        print(f'Length of df:            {total_text}')
+        print(f'Limit:                   {limit_text}')
+        print(f'Number above threshold:  {num_text}')
+        print(f'Percent above threshold: {perc_text}')
+
+
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
 def extreme_diffs(df1, df2, df_merged, data_name, source1, source2, df_regions, **kwargs):
 
     filtering    = kwargs.get('filtering','Kobel')

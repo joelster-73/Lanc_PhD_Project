@@ -73,7 +73,7 @@ def add_legend(fig, ax, legend_on=True, loc='upper left', anchor=None, cols=1, h
             legend.set_zorder(5)
 
 
-def data_string(s):
+def format_string(s):
     # make so instead of first character, everything before 'mag' is put in ||
     # do something similar for avg and put it under a bar
     if 'mag' in s or 'avg' in s:
@@ -88,11 +88,11 @@ def data_string(s):
 
     s = re.sub(greek_pattern, r'\\\1', s)
 
-    s = s.replace('r_rho', '\\rho')
+    #s = s.replace('r_rho', r'\\rho')
+    s = s.replace('r_rho', r'\sqrt{Y^2+Z^2}')
     s = s.replace('r_x', 'X')
     s = s.replace('r_y', 'Y')
     s = s.replace('r_z', 'Z')
-
 
     # Split the string on the first underscore
     parts = s.split('_', 1)
@@ -108,20 +108,20 @@ def data_string(s):
     else:
         return s  # Return as is if there's no underscore
 
-def combine_data_strings(input_string):
+def data_string(input_string):
     """
     Converts string with multiple 'parts'
     """
     # Split the input string by spaces and process each part with data_string
     parts = input_string.split()
-    processed_parts = [data_string(part) for part in parts]
+    processed_parts = [format_string(part) for part in parts]
 
     # Join the processed parts with spaces
     return ' '.join(processed_parts)
 
 def create_label(column, unit=None, data_name=None, name_latex=False, units=None):
     if data_name is not None and name_latex:
-        label = f'${combine_data_strings(data_name)}$'
+        label = f'${data_string(data_name)}$'
     elif data_name is not None:
         label = f'{data_name}'
     else:

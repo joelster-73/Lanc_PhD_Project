@@ -11,147 +11,93 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import ticker as mticker
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from collections import Counter
 
 from ..config import black, white, blue
 from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
-from ..utils import save_figure, calculate_bins
-from ..distributions import plot_gaussian
+from ..utils import save_figure, calculate_bins, calculate_bins_edges
+from ..distributions import plot_gaussian, plot_bimodal, plot_bimodal_offset, plot_lognormal
 
-from ...analysing.comparing import difference_columns
-from ...analysing.kobel import load_compression_ratios, are_points_above_line
+from ...analysing.calculations import calc_mean_error
+from ...analysing.comparing import difference_columns, difference_dataframes
 from ...analysing.fitting import straight_best_fit
-from ...processing.filtering import filter_by_spacecraft, filter_sign
 
+def compare_columns(df, col1, col2, **kwargs):
 
-def compare_columns(df, data1_col, data2_col, **kwargs):
-    """
-    Investigates differences between two data sources for a given field, plotting the results and optionally
-    displaying statistical summaries.
+    series1 = df.loc[:,col1]
+    series2 = df.loc[:,col2]
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Input DataFrame containing the data to be analyzed and plotted. The DataFrame must have a DateTimeIndex
-        and columns for the specified x and y fields.
+    compare_series(series1, series2, **kwargs)
 
+def investigate_difference(df, col1, col2, ind_col, **kwargs):
 
-    Returns
-    -------
-    None : This procedure generates and displays a plot based on the specified parameters and data.
+    diff_type = kwargs.get('diff_type','absolute')
+    ind_name  = kwargs.get('ind_name',None)
 
-    """
-    df = df.copy()
-    df = df[np.isfinite(df[data2_col]) & np.isfinite(df[data1_col])]
+    series1 = difference_columns(df, col1, col2, diff_type)
+    series2 = df.loc[:,ind_col]
+
+    kwargs['reference_line'] = 0
+    kwargs['data2_name'] = ind_name
+
+    compare_series(series1, series2, **kwargs)
+
+def compare_series(series1, series2, **kwargs):
 
     best_fit        = kwargs.get('stats',False)
     display         = kwargs.get('display','Scatter')
     bin_width       = kwargs.get('bin_width',None)
-    hist_bin_width  = kwargs.get('hist_bin_width',1)
     scat_size       = kwargs.get('scatter_size',0.4)
     want_legend     = kwargs.get('want_legend',True)
-    hist_diff       = kwargs.get('hist_diff',False)
-    fit_gaus        = kwargs.get('fit_gaus',False)
-    perc_filter     = kwargs.get('perc_filter',None)
-    compressions    = kwargs.get('compressions',None)
-    contam_info     = kwargs.get('contam_info',False)
+    reference_line  = kwargs.get('reference_line',None)
 
     data1_name    = kwargs.get('data1_name',None)
     data2_name    = kwargs.get('data2_name',None)
     brief_title   = kwargs.get('brief_title',None)
 
-    quality_col    = kwargs.get('quality_col',None)
-    quality_labels = kwargs.get('quality_labels',None)
-
-    complexity_col    = kwargs.get('complexity_col',None)
-    complexity_labels = kwargs.get('complexity_labels',None)
-
-    sc_id   = kwargs.get('sc_id',None)
-    sc_col  = kwargs.get('sc_col',None)
-    sc_keys = kwargs.get('sc_keys',None)
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+    return_objs = kwargs.get('return_objs',False)
 
     is_heat = False
     if display == 'Heat':
         is_heat = True
 
+    time_mask = (np.isfinite(series1)) & (np.isfinite(series2))
+    if np.sum(time_mask)==0:
+        print('No valid overlap of data')
+        return
+
+    series1 = series1[time_mask]
+    series2 = series2[time_mask]
+
     ###---------------CONSTRUCT COLUMN LABELS---------------###
 
-    # Validate column labels
-    for label in (data1_col, data2_col):
-        if label not in df.keys():
-            raise ValueError(f'Field data "{label}" not found in data.')
+    data1_str = data_string(series1.name)
+    data2_str = data_string(series2.name)
+    unit1 = series1.attrs['units'].get(series1.name, None)
+    unit2 = series2.attrs['units'].get(series2.name, None)
 
-    data1_str = data_string(data1_col)
-    data2_str = data_string(data2_col)
-    unit1 = df.attrs['units'].get(data1_col, None)
-    unit2 = df.attrs['units'].get(data2_col, None)
-
-    data1_label = create_label(data1_str, unit=unit1, data_name=data1_name)
-    data2_label = create_label(data2_str, unit=unit2, data_name=data2_name)
+    data1_label = create_label(data1_str, unit=unit1, data_name=data1_name, name_latex=True)
+    data2_label = create_label(data2_str, unit=unit2, data_name=data2_name, name_latex=True)
     title_str = f'Comparing ${data1_str}$ and ${data2_str}$' if brief_title is None else brief_title
 
-    if compressions is not None:
-        B_imf, B_msh, _ = load_compression_ratios(compressions)
-
-
-    ###---------------FILTERS DATA BY SPACECRAFT---------------###
-    if sc_id and sc_col:
-        filter_by_spacecraft(df, sc_col, sc_id)
-    elif sc_id:
-        raise ValueError('To filter by spacecraft, argument needed for "sc_col" and "sc_id".')
-
-
-    ###---------------CREATES FIGURE WITH DESIRED SUBPLOTS---------------###
-    if hist_diff:
-        fig, (ax_main, ax_hist) = plt.subplots(
-            nrows=1, ncols=2, figsize=(22, 8)
-        )
-    else:
-        fig, ax_main = plt.subplots()
-
-    line_color=black
 
     ###---------------PLOTS MAIN SCATTER/HEAT DATA---------------###
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
     if display == 'Scatter':
-        ax_main.scatter(df[data2_col], df[data1_col], c='b', s=scat_size)
-
-    # elif display == 'Scatter_grad_time':
-    #     t = datetime_to_cdf_epoch(df.index)
-    #     norm = plt.Normalize(t.min(), t.max())
-    #     cmap = plt.get_cmap('plasma')
-    #     ax_main.scatter(df[data2_col], df[data1_col], c=t, cmap=cmap, norm=norm, s=scat_size, label='Blue to yellow in time')
-
-    elif display == 'Scatter_grad_sc':
-        for id_value, group in df.groupby(sc_col):
-            id_label = f'{sc_keys[id_value]} ({int(id_value)})' if sc_keys else f'ID {int(id_value)}'
-            ax_main.scatter(group[data2_col], group[data1_col], label=f'{id_label}', s=scat_size)
-
-    elif display == 'Scatter_grad_quality':
-        if quality_col is not None and quality_col in df:
-            for id_value, group in df.groupby(quality_col):
-                id_label = f'{quality_labels[id_value]} quality' if quality_labels else f'{id_value}/4 quality'
-                id_label += f': {len(group)/len(df)*100:.1f}%'
-                ax_main.scatter(group[data2_col], group[data1_col], label=f'{id_label}', s=scat_size)
-        else:
-            raise ValueError(f'Column "{quality_col}" is not valid.')
-
-    elif display == 'Scatter_grad_complexity':
-        if complexity_col is not None and complexity_col in df:
-            colors = [blue,'r']
-            for i, (id_value, group) in enumerate(df.groupby(complexity_col)):
-                id_label = f'{complexity_labels[id_value]}' if complexity_labels else f'{id_value}/1 complexity'
-                id_label += f': {len(group)/len(df)*100:.1f}%'
-                ax_main.scatter(group[data2_col], group[data1_col], label=f'{id_label}', s=scat_size, c=colors[i])
-        else:
-            raise ValueError(f'Column "{complexity_col}" is not valid.')
+        ax.scatter(series2, series1, c='b', s=scat_size)
 
     elif display == 'Heat':
         if hasattr(bin_width, '__len__') and len(bin_width) == 2:
-            n_bins = (calculate_bins(df[data2_col],bin_width[0]), calculate_bins(df[data1_col],bin_width[1]))
+            n_bins = (calculate_bins(series2,bin_width[0]), calculate_bins(series1,bin_width[1]))
         else:
-            n_bins = (calculate_bins(df[data2_col],bin_width), calculate_bins(df[data1_col],bin_width))
-        h = ax_main.hist2d(df[data2_col], df[data1_col], bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
+            n_bins = (calculate_bins(series2,bin_width), calculate_bins(series1,bin_width))
+        h = ax.hist2d(series2, series1, bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
 
-        cbar = fig.colorbar(h[3], ax=ax_main)
+        cbar = fig.colorbar(h[3], ax=ax)
         cbar.ax.tick_params(colors=black)
         cbar.set_label('Number of Points', color=black)
         cbar.outline.set_edgecolor(black)
@@ -161,393 +107,36 @@ def compare_columns(df, data1_col, data2_col, **kwargs):
     else:
         raise ValueError(f'"{display}" not valid display mode.')
 
-    ax_main.axline((0, 0), slope=1, color=line_color, label='y=x', lw=2, ls=':')
-    if compressions is not None:
+    if reference_line is not None:
+        if reference_line=='x':
+            ax.axline((0, 0), slope=1, color=line_color, label='y=x', lw=2, ls=':')
+        elif isinstance(reference_line, int) or isinstance(reference_line, int):
+            ax.axhline(y=reference_line, color=line_color, label=f'y={reference_line}', lw=2, ls=':')
 
-        ax_main.plot(B_imf, B_msh, color='cyan', label='Kobel Threshold', lw=2)
-
-        limit = B_msh[-1]/B_imf[-1]
-        limit_text = f'y≃{limit:.2f}x'
-
-        extreme_times = are_points_above_line(B_imf, B_msh, df[data2_col], df[data1_col])
-        total_text   = f'{len(df):,}'
-        num_text     = f'{np.sum(extreme_times):,}'
-        perc_text    = f'{np.sum(extreme_times)/len(df)*100:.2f}%'
-
-        if contam_info:
-            ax_main.plot([], [], ' ', label=f'\n{total_text}\n{num_text}\n{perc_text}')
-
-        df_extreme = df[extreme_times].copy()
-        extreme_days = np.unique(df_extreme.index.date)
-
-        print(f'Number of unique days:   {len(extreme_days):,}')
-        print(f'Length of df:            {total_text}')
-        print(f'Limit:                   {limit_text}')
-        print(f'Number above threshold:  {num_text}')
-        print(f'Percent above threshold: {perc_text}')
-
-    ax_main.set_xlabel(data2_label, c=black)
-    ax_main.set_ylabel(data1_label, c=black)
+    ax.set_xlabel(data2_label, c=black)
+    ax.set_ylabel(data1_label, c=black)
 
     if best_fit:
-        m, y0, _ = straight_best_fit(df[data2_col], df[data1_col], name=title_str)
-        ax_main.axline((0,y0), slope=m, c='magenta', label=f'Best Fit: {m:.3f}x+{y0:.3f} {unit2}', lw=2.5, ls='--') # Best fit
-        #ax_main.axline((0, 0), slope=-1, color='#F28500', label='y=-x', lw=2.5)
-
-    if hist_diff:
-
-        df['diff'] = difference_columns(df, data1_col, data2_col)
-        x_axis_label = f'${data1_str}$ - ${data2_str}$ [{unit1}]'
-
-        n_bins = calculate_bins(df['diff'],hist_bin_width)
-        counts, bins, _ = ax_hist.hist(
-            df['diff'], bins=n_bins,
-            alpha=1.0, color='b', edgecolor='grey'
-        )
-        if fit_gaus:
-            plot_gaussian(ax_hist,counts,bins,c='w',ls='-',name='Frequency Histogram')
-
-        ax_hist.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:,.0f}'))
-
-        if perc_filter is not None:
-            perc_range=(np.percentile(df['diff'], perc_filter[0]), np.percentile(df['diff'], perc_filter[1]))
-            ax_hist.set_xlim(perc_range)
-
-        add_legend(fig, ax_hist, legend_on=want_legend, heat=is_heat)
-        ax_hist.set_xlabel(x_axis_label, c=black)
-        ax_hist.set_ylabel('Frequency', c=black)
-        add_figure_title(fig,'Frequency Histogram of differences',ax=ax_hist)
+        m, y0, _ = straight_best_fit(series2, series1, name=title_str)
+        ax.axline((0,y0), slope=m, c='magenta', label=f'Best Fit: {m:.3f}x+{y0:.3f} {unit2}', lw=2.5, ls='--')
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###
-    add_legend(fig, ax_main, legend_on=want_legend, heat=is_heat)
-    add_figure_title(fig, black, title_str, ax=ax_main)
+    add_legend(fig, ax, legend_on=want_legend, heat=is_heat)
+    add_figure_title(fig, black, title_str, ax=ax)
     dark_mode_fig(fig,black,white,is_heat)
     plt.tight_layout();
+    if return_objs:
+        if display=='scatter':
+            return fig, ax
+        return fig, ax, cbar
 
     save_figure(fig)
     plt.show()
     plt.close()
 
-def compare_columns_and_datasets(df1, df2, data1_col, data2_col, **kwargs):
-    """
-    Investigates differences between two data sources for a given field, plotting the results and optionally
-    displaying statistical summaries.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Input DataFrame containing the data to be analyzed and plotted. The DataFrame must have a DateTimeIndex
-        and columns for the specified x and y fields.
 
-
-    Returns
-    -------
-    None : This procedure generates and displays a plot based on the specified parameters and data.
-
-    """
-    df1 = df1.copy()
-    df1 = df1[np.isfinite(df1[data2_col]) & np.isfinite(df1[data1_col])]
-    df2 = df2.copy()
-    df2 = df2[np.isfinite(df2[data2_col]) & np.isfinite(df2[data1_col])]
-
-    best_fit        = kwargs.get('stats',False)
-    display         = kwargs.get('display','Scatter')
-    bin_width       = kwargs.get('bin_width',None)
-    scat_size       = kwargs.get('scatter_size',0.4)
-    want_legend     = kwargs.get('want_legend',True)
-    compressions    = kwargs.get('compressions',None)
-    contam_info     = kwargs.get('contam_info',False)
-
-    data1_name    = kwargs.get('data1_name',None)
-    data2_name    = kwargs.get('data2_name',None)
-    title1        = kwargs.get('title1',None)
-    title2        = kwargs.get('title2',None)
-
-    quality_col    = kwargs.get('quality_col',None)
-    quality_labels = kwargs.get('quality_labels',None)
-
-    complexity_col    = kwargs.get('complexity_col',None)
-    complexity_labels = kwargs.get('complexity_labels',None)
-
-    sc_id   = kwargs.get('sc_id',None)
-    sc_col  = kwargs.get('sc_col',None)
-    sc_keys = kwargs.get('sc_keys',None)
-
-    is_heat = False
-    if display == 'Heat':
-        is_heat = True
-
-    ###---------------CONSTRUCT COLUMN LABELS---------------###
-
-    # Validate column labels
-    for label in (data1_col, data2_col):
-        if label not in df1.keys():
-            raise ValueError(f'Field data "{label}" not found in data.')
-
-    data1_str = data_string(data1_col)
-    data2_str = data_string(data2_col)
-    unit1 = df1.attrs['units'].get(data1_col, None)
-    unit2 = df1.attrs['units'].get(data2_col, None)
-
-    data1_label = create_label(data1_str, unit=unit1, data_name=data1_name)
-    data2_label = create_label(data2_str, unit=unit2, data_name=data2_name)
-
-    if compressions is not None:
-        B_imf, B_msh, _ = load_compression_ratios(compressions)
-
-
-    ###---------------FILTERS DATA BY SPACECRAFT---------------###
-    if sc_id and sc_col:
-        filter_by_spacecraft(df1, sc_col, sc_id)
-        filter_by_spacecraft(df2, sc_col, sc_id)
-    elif sc_id:
-        raise ValueError('To filter by spacecraft, argument needed for "sc_col" and "sc_id".')
-
-
-    ###---------------CREATES FIGURE WITH DESIRED SUBPLOTS---------------###
-    fig, axs = plt.subplots(
-        nrows=1, ncols=2, figsize=(20, 6)
-    )
-
-    line_color=black
-
-    ###---------------PLOTS MAIN SCATTER/HEAT DATA---------------###
-    for df, ax, brief_title in zip((df1,df2), axs, (title1,title2)):
-        if display == 'Scatter':
-            ax.scatter(df[data2_col], df[data1_col], c='b', s=scat_size)
-
-        elif display == 'Scatter_grad_time':
-            t = datetime_to_cdf_epoch(df.index)
-            norm = plt.Normalize(t.min(), t.max())
-            cmap = plt.get_cmap('plasma')
-            ax.scatter(df[data2_col], df[data1_col], c=t, cmap=cmap, norm=norm, s=scat_size, label='Blue to yellow in time')
-
-        elif display == 'Scatter_grad_sc':
-            for id_value, group in df.groupby(sc_col):
-                id_label = f'{sc_keys[id_value]} ({int(id_value)})' if sc_keys else f'ID {int(id_value)}'
-                ax.scatter(group[data2_col], group[data1_col], label=f'{id_label}', s=scat_size)
-
-        elif display == 'Scatter_grad_quality':
-            if quality_col is not None and quality_col in df:
-                for id_value, group in df.groupby(quality_col):
-                    id_label = f'{quality_labels[id_value]} quality' if quality_labels else f'{id_value}/4 quality'
-                    id_label += f': {len(group)/len(df)*100:.1f}%'
-                    ax.scatter(group[data2_col], group[data1_col], label=f'{id_label}', s=scat_size)
-            else:
-                raise ValueError(f'Column "{quality_col}" is not valid.')
-
-        elif display == 'Scatter_grad_complexity':
-            if complexity_col is not None and complexity_col in df:
-                colors = [blue,'r']
-                for i, (id_value, group) in enumerate(df.groupby(complexity_col)):
-                    id_label = f'{complexity_labels[id_value]}' if complexity_labels else f'{id_value}/1 complexity'
-                    id_label += f': {len(group)/len(df)*100:.1f}%'
-                    ax.scatter(group[data2_col], group[data1_col], label=f'{id_label}', s=scat_size, c=colors[i])
-            else:
-                raise ValueError(f'Column "{complexity_col}" is not valid.')
-
-        elif display == 'Heat':
-            if hasattr(bin_width, '__len__') and len(bin_width) == 2:
-                n_bins = (calculate_bins(df[data2_col],bin_width[0]), calculate_bins(df[data1_col],bin_width[1]))
-            else:
-                n_bins = (calculate_bins(df[data2_col],bin_width), calculate_bins(df[data1_col],bin_width))
-            h = ax.hist2d(df[data2_col], df[data1_col], bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
-
-            cbar = fig.colorbar(h[3], ax=ax)
-            cbar.ax.tick_params(colors=black)
-            cbar.outline.set_edgecolor(black)
-
-            line_color = 'w'
-
-        else:
-            raise ValueError(f'"{display}" not valid display mode.')
-
-        ax.axline((0, 0), slope=1, color=line_color, label='y=x', lw=2, ls=':')
-        if compressions is not None:
-
-            ax.plot(B_imf, B_msh, color='cyan', label='Kobel Threshold', lw=2, ls=':')
-
-            limit = B_msh[-1]/B_imf[-1]
-            limit_text = f'y≃{limit:.2f}x'
-
-            extreme_times = are_points_above_line(B_imf, B_msh, df[data2_col], df[data1_col])
-            total_text   = f'{len(df):,}'
-            num_text     = f'{np.sum(extreme_times):,}'
-            perc_text    = f'{np.sum(extreme_times)/len(df)*100:.2f}%'
-
-            if contam_info:
-                ax.plot([], [], ' ', label=f'\n{total_text}\n{num_text}\n{perc_text}')
-
-            df_extreme = df[extreme_times].copy()
-            extreme_days = np.unique(df_extreme.index.date)
-
-            print(f'Number of unique days:   {len(extreme_days):,}')
-            print(f'Length of df:            {total_text}')
-            print(f'Limit:                   {limit_text}')
-            print(f'Number above threshold:  {num_text}')
-            print(f'Percent above threshold: {perc_text}')
-
-        ax.set_xlabel(data2_label, c=black)
-
-        if best_fit:
-            m, y0, _ = straight_best_fit(df[data2_col], df[data1_col], name=brief_title)
-            ax.axline((0,y0), slope=m, c='magenta', label=f'Best Fit: {m:.3f}x+{y0:.3f} {unit2}', lw=2.5, ls='--') # Best fit
-
-
-        ###---------------LABELLING AND FINISHING TOUCHES---------------###
-        add_legend(fig, ax, legend_on=want_legend, heat=is_heat)
-        add_figure_title(fig, brief_title, ax=ax)
-
-
-    axs[0].set_ylabel(data1_label, c=black)
-    cbar.set_label('Number of Points', color=black)
-
-    dark_mode_fig(fig,black,white,is_heat)
-    plt.tight_layout();
-    save_figure(fig)
-    plt.show()
-    plt.close()
-
-
-def investigate_difference(df, data1_col, data2_col, ind_col, **kwargs):
-    """
-    Investigates differences between two data sources for a given field, plotting the results and optionally
-    displaying statistical summaries.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Input DataFrame containing the data to be analyzed and plotted. The DataFrame must have a DateTimeIndex
-        and columns for the specified x and y fields.
-
-
-    Returns
-    -------
-    None : This procedure generates and displays a plot based on the specified parameters and data.
-
-    """
-    df = df.copy()
-    df = df[np.isfinite(df[data2_col]) & np.isfinite(df[data1_col])]
-
-    display     = kwargs.get('display','Scatter')
-    diff_type   = kwargs.get('diff_type','Absolute')
-    bin_width   = kwargs.get('bin_width',None)
-    scat_size   = kwargs.get('scatter_size',0.4)
-    want_legend = kwargs.get('want_legend',True)
-
-    x_data_name = kwargs.get('x_data_name',None)
-    brief_title = kwargs.get('brief_title',None)
-
-    polarity    = kwargs.get('polarity','Both')
-    abs_x       = kwargs.get('abs_x',False)
-
-    sc_id   = kwargs.get('sc_id',None)
-    sc_col  = kwargs.get('sc_col',None)
-
-    is_heat = False
-    if display == 'Heat':
-        is_heat = True
-
-    ###---------------CONSTRUCT COLUMN LABELS---------------###
-    x_label = ind_col
-    y_label='diff'
-    y1_label = data1_col
-    y2_label = data2_col
-
-    # Validate column labels
-    for label in (x_label, y1_label, y2_label):
-        if label not in df.keys():
-            raise ValueError(f'Field data "{label}" not found in data.')
-
-    x_data_str = data_string(x_label)
-    x_unit = df.attrs['units'].get(x_label, None)
-    x_axis_label = create_label(x_label,x_unit,x_data_name,True)
-    x_title_label = create_label(x_label,None,x_data_name,True)
-
-    y1_data_str = data_string(y1_label)
-    y2_data_str = data_string(y2_label)
-    y_unit = df.attrs['units'].get(y1_label, None)
-
-    ###---------------FILTERS DATA BY SPACECRAFT---------------###
-    if sc_id and sc_col:
-        filter_by_spacecraft(df, sc_col, sc_id)
-    elif sc_id:
-        raise ValueError('To filter by spacecraft, argument needed for "sc_col" and "sc_id".')
-
-    if abs_x:
-        df[x_label] = np.abs(df[x_label])
-        x_data_str = f'|{x_data_str}|'
-
-    ###---------------CALCULATES DATA FOR DIFFERENCE TYPE---------------###
-    if 'Absolute' in diff_type:
-        df[y_label] = difference_columns(df, y1_label, y2_label)
-
-        y_axis_label = f'${y1_data_str}$ - ${y2_data_str}$ [{y_unit}]'
-        y_title_label = f'${y1_data_str}$ - ${y2_data_str}$'
-
-    elif 'Relative' in diff_type:
-        df[y_label] = difference_columns(df, y1_label, y2_label) / df[y2_label]
-        df[y_label].replace([np.inf, -np.inf], np.nan, inplace=True)
-
-        y_axis_label = f'(${y1_data_str}$ - ${y2_data_str}$) / ${y2_data_str}$'
-        y_title_label = y_axis_label
-
-    else:
-        raise ValueError(f'"{diff_type}" not valid difference mode.')
-
-    if 'Modulus' in diff_type:
-        df[y_label] = np.abs(df[y_label])
-    if polarity != 'Both':
-        df = filter_sign(df, y_label, polarity)
-
-    ###---------------CREATES FIGURE WITH DESIRED SUBPLOTS---------------###
-    fig, ax_main = plt.subplots()
-    line_color = black
-
-    ###---------------PLOTS MAIN SCATTER/HEAT DATA---------------###
-    if display == 'Scatter':
-        ax_main.scatter(df[x_label], df[y_label], c=blue, s=scat_size)
-
-    elif display == 'Heat':
-        if hasattr(bin_width, '__len__') and len(bin_width) == 2:
-            n_bins = (calculate_bins(df[x_label],bin_width[0]), calculate_bins(df[y_label],bin_width[1]))
-        else:
-            n_bins = (calculate_bins(df[x_label],bin_width), calculate_bins(df[y_label],bin_width))
-        h = ax_main.hist2d(df[x_label], df[y_label], bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
-
-        cbar = fig.colorbar(h[3], ax=ax_main)
-        cbar.ax.tick_params(colors=black)
-        cbar.set_label('Number of Points', color=black)
-        cbar.outline.set_edgecolor(black)
-
-        line_color = 'w'
-
-    else:
-        raise ValueError(f'"{display}" not valid display mode.')
-
-    ax_main.axhline(y=0, color=line_color, label='y=0', lw=2, ls=':')
-
-    ###---------------LABELLING AND FINISHING TOUCHES---------------###
-    ax_main.set_xlabel(x_axis_label, c=black)
-    ax_main.set_ylabel(y_axis_label, c=black)
-
-    if 'r_x' in x_label or 'r_y' in x_label:
-        plt.gca().invert_xaxis()
-    if diff_type == 'Relative':
-        ax_main.set_yscale('symlog', linthresh=1)  # linthresh defines the linear threshold around 0
-    elif diff_type == 'Modulus Relative':
-        ax_main.set_yscale('log')
-
-    add_legend(fig, ax_main, legend_on=want_legend, heat=is_heat)
-    dark_mode_fig(fig, black, white, is_heat)
-    add_figure_title(fig, black, brief_title, x_title_label, y_title_label, ax=ax_main)
-    plt.tight_layout();
-    save_figure(fig)
-    plt.show()
-    plt.close()
-
-
-def compare_dataframes(df1, df2, data_x, data_y, **kwargs):
+def compare_dataframes_xy(df1, df2, data_x, data_y, **kwargs):
     """
     Investigates differences between two data sources for a given field, plotting the results and optionally
     displaying statistical summaries.
@@ -883,12 +472,12 @@ def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
             col_omni = omni_columns.get(col,col)
 
             if diff_type == 'Absolute':
-                differences = difference_columns_dfs(df1, df2, col, col_omni)
+                differences = difference_dataframes(df1, df2, col, col_omni)
 
                 x_axis_label = create_label(None,unit=x_unit,data_name='C1 - OMNI')
 
             elif diff_type == 'Relative':
-                differences = difference_columns_dfs(df1, df2, col, col_omni) / df2[col_omni]
+                differences = difference_dataframes(df1, df2, col, col_omni) / df2[col_omni]
                 differences.replace([np.inf, -np.inf], np.nan, inplace=True)
                 differences.dropna(inplace=True)
 

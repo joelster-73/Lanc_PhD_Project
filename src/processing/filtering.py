@@ -71,6 +71,8 @@ def filter_sw(df, method, **kwargs):
 
     if df.loc[mask].empty:
         raise RuntimeError('Filtered dataframe is empty.')
+    print(f'Minutes before filtering: {len(df):,}')
+    print(f'Minutes after filtering:  {np.sum(mask):,}')
     if return_mask:
         return mask
     return df.loc[mask]

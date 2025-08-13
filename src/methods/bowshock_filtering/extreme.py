@@ -5,6 +5,27 @@ Created on Fri May 16 11:44:22 2025
 @author: richarj2
 """
 
+import numpy as np
+import pandas as pd
+from datetime import timedelta
+from pandas import Timedelta
+
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.ticker import FuncFormatter
+from collections import Counter
+
+from ...analysing.kobel import load_compression_ratios, are_points_above_line
+from ...analysing.calculations import calc_mean_error
+
+from ...processing.dataframes import previous_index, next_index
+
+from ...plotting.config import black, white, blue
+from ...plotting.formatting import add_legend, add_figure_title, dark_mode_fig, create_label, data_string, custom_date_formatter
+from ...plotting.additions import plot_segments
+from ...plotting.utils import save_figure
+
+
 def plot_extreme_diffs_days(df1, df2, df_merged, data_name, source1, source2, df_regions, **kwargs):
 
     filtering  = kwargs.get('filtering','Abs')
@@ -214,9 +235,9 @@ def plot_extreme_diffs_windows(df1, df2, df_merged, data_name, source1, source2,
         ###-------------------PLOT SPACECRAFT DATA-------------------###
         fig, ax = plt.subplots()
 
-        plot_segments(ax, data2_hours, data_name, '#F28500', None, line_fmt)
-        plot_segments(ax, data1_hours, data_name, 'b', f'{source1}: ${data1_mean:.1uL}$ {data_unit}', line_fmt)
-        ax.plot([], [], ls=line_fmt, c='#F28500',label=f'{source2}: ${data2_mean:.1uL}$ {data_unit}')
+        plot_segments(ax, data2_hours, '#F28500', None, data_name, lw=1, fmt=line_fmt)
+        plot_segments(ax, data1_hours, 'b', f'{source1}: ${data1_mean:.1uL}$ {data_unit}', data_name, fmt=line_fmt)
+        ax.plot([], [], ls=line_fmt, c='#F28500', label=f'{source2}: ${data2_mean:.1uL}$ {data_unit}')
 
         ax.axvspan(start_time, end_time, alpha=0.2, color='k')
         ax.axvspan(band_start, band_end, alpha=1, color='w')
@@ -238,7 +259,7 @@ def plot_extreme_diffs_windows(df1, df2, df_merged, data_name, source1, source2,
         ax.set_xlim(start_time,end_time)
 
         add_legend(fig, ax, loc='upper center', anchor=(0.5,-0.1),cols=4)
-        add_figure_title(fig, f'Comparing {source1} and {source2} {day_title}')
+        add_figure_title(fig, black, f'Comparing {source1} and {source2} {day_title}')
         dark_mode_fig(fig,black,white)
         plt.tight_layout()
         save_figure(fig, sub_directory='Windows', file_name=f'{start_day:%Y-%m-%d}')

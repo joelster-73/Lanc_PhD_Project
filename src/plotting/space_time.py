@@ -196,35 +196,7 @@ def plot_vector_field(df, field, source=None, keys=None, delta=Timedelta(minutes
 
 
 def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
-    """
-    Plots the vector field data over time, visualising the components of a vector field (e.g., B-field)
-    and its magnitude.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Input DataFrame containing the data to be plotted. The DataFrame must have a DateTimeIndex
-        and contain columns for the vector field components.
-
-    source : str
-        Key identifying the data source to be used in plotting. This is used to access the appropriate
-        column from the DataFrame.
-
-    keys : dict
-        Dictionary mapping sources to keys. The `keys[source]` provides the specific key used to fetch
-        the corresponding data from the DataFrame.
-
-    coords : str, optional
-        Coordinate system in which to plot the data. Defaults to 'GSE' (Geocentric Solar Ecliptic).
-
-    delta : pandas.Timedelta, optional
-        Time gap threshold for segmenting data into discrete blocks. Defaults to 1 minute.
-
-    Returns
-    -------
-    None
-        This procedure directly generates and displays a plot with multiple subplots for the vector field components.
-    """
     df = df.copy()
     display       = kwargs.get('display','Scatter')
     bin_width     = kwargs.get('bin_width',None)
@@ -240,10 +212,14 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     equal_axes    = kwargs.get('equal_axes',True)
     signed_rho    = kwargs.get('signed_rho',None)
-    pos_x         = kwargs.get('pos_x',False)
-    y_sign        = kwargs.get('y_sign',None)
     centre_Earth  = kwargs.get('centre_Earth',True)
+    nose_text     = kwargs.get('nose_text',None)
     brief_title   = kwargs.get('brief_title',None)
+    want_legend   = kwargs.get('want_legend',False)
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+    return_objs = kwargs.get('return_objs',False)
 
     is_heat = False
     if display == 'Heat':
@@ -304,17 +280,11 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
         check_labels(df, x_label, y_label, z_label)
 
-    if pos_x:
-        df = df[df[x_label]>0]
-    if y_sign=='pos':
-        df = df[df[y_label]>0]
-    elif y_sign=='neg':
-        df = df[df[y_label]<0]
-
     unit = df.attrs.get('units', {}).get(x_label, None)
 
     ###-------------------PLOTTING POSITION-------------------###
-    fig, ax = plt.subplots()
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
 
     if display == 'Heat':
         n_bins = (calculate_bins(df[x_label],bin_width), calculate_bins(df[y_label],bin_width))
@@ -329,13 +299,6 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     elif display == 'Scatter':
         ax.scatter(df[x_label], df[y_label], c='b', s=0.3)
-
-    # elif display == 'Scatter_gradient':
-    #     t = Ticktock(df.index.to_pydatetime(), 'UTC').CDF
-    #     norm = plt.Normalize(t.min(), t.max())
-    #     cmap = plt.get_cmap('plasma')
-    #     plt.scatter(df[x_label], df[y_label],
-    #                 c=t, cmap=cmap, norm=norm, s=0.3, label='Time gradient')
 
     elif display == 'Scatter_regions':
         cmap = plt.get_cmap('tab20c')
@@ -360,20 +323,26 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
         # Bow shock
         phi = 0 if y_comp=='z' else np.pi/2
-        kwargs = {}
-        kwargs['phi'] = phi
+        bs_kwargs = {}
+        bs_kwargs['phi'] = phi
         if 'Median' in models:
             if df_omni is None:
                 print('Need OMNI data for Median solar wind conditions; used typical.')
             else:
-                kwargs['Pd'] = np.median(df['p_flow_OMNI'])
-                kwargs['v_sw_x'] = np.median(df['v_x_GSE_OMNI'])
-                kwargs['v_sw_y'] = np.median(df['v_y_GSE_OMNI'])
-                kwargs['v_sw_z'] = np.median(df['v_z_GSE_OMNI'])
+                df_plasma        = df_omni.loc[df_omni.index.isin(df.index)]
+                bs_kwargs['Pd']     = np.nanmedian(df_plasma['p_flow'])
+                bs_kwargs['v_sw_x'] = np.nanmedian(df_plasma['v_x_GSE'])
+                bs_kwargs['v_sw_y'] = np.nanmedian(df_plasma['v_y_GSE'])
+                bs_kwargs['v_sw_z'] = np.nanmedian(df_plasma['v_z_GSE'])
 
-        bs_jel = msh_boundaries('jelinek', 'bs', **kwargs)
+        bs_jel = msh_boundaries('jelinek', 'BS', **bs_kwargs)
         bs_x_coords = bs_jel.get(x_comp)
         bs_y_coords = bs_jel.get(y_comp)
+
+        if plane=='x-rho':
+            mask = bs_jel.get('y')<=0
+            bs_x_coords = bs_x_coords[mask]
+            bs_y_coords = bs_y_coords[mask]
 
         bs_nose = list(bs_jel.get('nose'))
         bs_nose.append(np.sqrt(bs_nose[1]**2+bs_nose[2]**2))
@@ -387,25 +356,33 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         # Bow shock
         ax.plot(bs_x_coords, bs_y_coords, color='lime', lw=3, label='Bow shock')
         ax.scatter(bs_stand_off_x, bs_stand_off_y, c='lime')
+        if nose_text=='BS':
+            ax.text(bs_stand_off_x-0.5, bs_stand_off_y+0.5, f'$R_0$ = {bs_jel.get("R0"):.1f} $\\mathrm{{R_E}}$, {np.degrees(bs_jel.get("alpha_tot")):.1f}$^\\circ$', fontsize=10, color='lime')
 
     if 'MP' in models or 'Both' in models:
 
         # Magnetopause
         phi = 0 if y_comp=='z' else np.pi/2
-        kwargs = {}
-        kwargs['phi'] = phi
+        mp_kwargs = {}
+        mp_kwargs['phi'] = phi
         if 'Median' in models:
             if df_omni is None:
                 print('Need OMNI data for Median solar wind conditions; used typical.')
             else:
-                kwargs['Pd'] = np.median(df['p_flow_OMNI'])
-                kwargs['v_sw_x'] = np.median(df['v_x_GSE_OMNI'])
-                kwargs['v_sw_y'] = np.median(df['v_y_GSE_OMNI'])
-                kwargs['v_sw_z'] = np.median(df['v_z_GSE_OMNI'])
+                df_plasma        = df_omni.loc[df_omni.index.isin(df.index)]
+                mp_kwargs['Pd']     = np.nanmedian(df_plasma['p_flow'])
+                mp_kwargs['v_sw_x'] = np.nanmedian(df_plasma['v_x_GSE'])
+                mp_kwargs['v_sw_y'] = np.nanmedian(df_plasma['v_y_GSE'])
+                mp_kwargs['v_sw_z'] = np.nanmedian(df_plasma['v_z_GSE'])
 
-        mp_jel = msh_boundaries('shue', 'mp', **kwargs)
+        mp_jel = msh_boundaries('shue', 'MP', **mp_kwargs)
         mp_x_coords = mp_jel.get(x_comp)
         mp_y_coords = mp_jel.get(y_comp)
+
+        if plane=='x-rho':
+            mask = mp_jel.get('y')<=0
+            mp_x_coords = mp_x_coords[mask]
+            mp_y_coords = mp_y_coords[mask]
 
         mp_nose = list(mp_jel.get('nose'))
         mp_nose.append(np.sqrt(mp_nose[1]**2+mp_nose[2]**2))
@@ -416,22 +393,28 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
         if 'Both' not in models:
             ax.plot([0,mp_stand_off_x],[0,mp_stand_off_y],c='w',ls=':',lw=2,zorder=1)
+            if nose_text=='MP':
+                ax.text(mp_stand_off_x-0.5, mp_stand_off_y+0.5, f'$R_0$ = {mp_jel.get("R0"):.1f} $\\mathrm{{R_E}}$, {np.degrees(mp_jel.get("alpha_tot")):.1f}$^\\circ$', fontsize=10, color='m')
+
 
         # Magnetopause
         ax.plot(mp_x_coords, mp_y_coords, color='m', lw=3, label='Magnetopause')
         ax.scatter(mp_stand_off_x, mp_stand_off_y, c='m')
 
 
+    ###-------------------ADD TITLES AND AXIS LABELS-------------------###
+
+    if equal_axes:
+        ax.set_aspect('equal', adjustable='box')
 
     # Plot Earth at the origin
     if plane=='yz':
         create_circle(ax, centre=(0,0), radius=1, colour='black')
+    elif plane=='x-rho':
+        create_half_circle_marker(ax, centre=(0, 0), radius=1, full=False)
     else:
         create_half_circle_marker(ax, centre=(0, 0), radius=1, full=True)
 
-    ###-------------------ADD TITLES AND AXIS LABELS-------------------###
-    if equal_axes:
-        ax.set_aspect('equal', adjustable='box')
 
     if plane in ('xy',):
         ax.invert_xaxis()
@@ -452,11 +435,15 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     ax.set_ylabel(y_axis_label, c=black)
 
     ###-------------------ADJUST LAYOUT AND DISPLAY PLOT-------------------##
-    add_legend(fig, ax, heat=is_heat)
+    if want_legend:
+        add_legend(fig, ax, heat=is_heat)
     dark_mode_fig(fig, black, white, is_heat)
-    add_figure_title(fig, black, brief_title, x_axis_label, y_axis_label)
-    plt.tight_layout();
+    add_figure_title(fig, black, brief_title, x_axis_label, y_axis_label, ax)
 
+    if return_objs:
+        return fig, ax, cbar
+
+    plt.tight_layout();
     save_figure(fig)
     plt.show()
     plt.close()

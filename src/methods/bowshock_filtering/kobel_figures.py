@@ -4,14 +4,15 @@ Created on Fri Feb 28 09:19:02 2025
 
 @author: richarj2
 """
-import data_plotting
-from data_plotting import save_figure, add_figure_title, add_legend
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-proc_cros_dir      = '../Data/Processed_Data/Cluster1/Crossings/'
+from ...config import CROSSINGS_DIR as proc_cros_dir
+from ...plotting.utils import save_figure
+from ...plotting.formatting import add_figure_title, add_legend
 
 def calc_R_bs(Pd=2.056):
     R = 15.02
@@ -278,12 +279,12 @@ def plot_over_x(B_sw,Pd,R_mp=None,R_bs=None,ratio=True):
     ax.plot(xs_gse,Bs_msh,c='b')
     ax.set_xlabel('Distance along Earth-Sun line [$R_E$]')
     if ratio:
-        ax.set_ylabel(r'$\frac{B_{msh}}{B_{imf}}$', rotation=0, labelpad=15)
+        ax.set_ylabel(r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$', rotation=0, labelpad=15)
     else:
-        ax.set_ylabel('$B_{msh}$ (nT)')
+        ax.set_ylabel(r'$|B|_\mathrm{msh}$ (nT)')
 
-    plt.text(R_bs+1,1.1,'$B_{IMF}$')
-    plt.text((R_bs+R_mp)/2,bmag_bs-0.15,'$B_{MSH}$')
+    plt.text(R_bs+1,1.1,r'$|B|_\mathrm{imf}$')
+    plt.text((R_bs+R_mp)/2,bmag_bs-0.15,r'$|B|_\mathrm{msh}$')
     plt.text(R_mp-0.1,0.05,'Magnetosphere')
     plt.text(R_bs+0.5,bmag_bs-0.1,f'{bmag_bs:.2g}')
     plt.text(R_mp-0.5,bmag_mp-0.1,f'{bmag_mp:.2g}')
@@ -325,9 +326,9 @@ def plot_along_bs(B_sw,Pd,ratio=True,phi=0):
     ax.plot(np.degrees(thetas),B_msh,c='b')
     ax.set_xlabel('Angle from Earth-Sun line (deg)')
     if ratio:
-        ax.set_ylabel(r'$\frac{B_{msh}}{B_{imf}}$', rotation=0, labelpad=15)
+        ax.set_ylabel(r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$', rotation=0, labelpad=15)
     else:
-        ax.set_ylabel('B_msh (nT)')
+        ax.set_ylabel(r'$|B|_\mathrm{msh}$ [nT]')
     plt.title(f'Comparing magnetic field strengths. IMF: {np.linalg.norm(B_sw):.2g} nT')
     plt.show()
 
@@ -396,7 +397,7 @@ def plot_through_msh(B_sw,Pd,R_mp=None,R_bs=None,ratio=True,plot_field=True,phi=
     # Main heatmap
     heatmap = ax_main.pcolormesh(X_GSE, R_GSE, B_msh, shading='auto', cmap='inferno')
     fig.colorbar(heatmap, ax=ax_main,
-                 label=r'$\frac{B_{msh}}{B_{imf}}$' if ratio else '$B_{msh}$ [nT]')
+                 label=r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$' if ratio else r'$|B|_\mathrm{msh}$ [nT]')
     ax_main.axhline(ls=':',lw=0.5,c='w')
     ax_main.text(R_bs-0.45,0.25,f'{bmag_bs:.3g}',c='w')
     ax_main.scatter(R_bs,0,c='w',s=3)
@@ -439,7 +440,7 @@ def plot_through_msh(B_sw,Pd,R_mp=None,R_bs=None,ratio=True,plot_field=True,phi=
     ax_right.set_title(f'Min: {bmin:.2f}\nAvg: {bavg:.2f}, Max: {bmax:.2f}')
 
     # Title
-    plt.suptitle(r'$B_{msh}$ strength through BS. '
+    plt.suptitle(r'$|B|_\mathrm{msh}$ strength through BS. '
                  f'IMF: {np.linalg.norm(B_sw):.2g} nT')
     plt.tight_layout()  # Adjust title spacing
     plt.show()
@@ -494,7 +495,7 @@ def plot_over_bs(B_sw,Pd,ratio=True):
 
     # Main heatmap
     heatmap = ax_main.pcolormesh(Y_GSE, Z_GSE, B_msh, shading='auto', cmap='inferno')
-    fig.colorbar(heatmap, ax=ax_main, label=r'$\frac{B_{msh}}{B_{imf}}$' if ratio else '$B_{msh}$ [nT]')
+    fig.colorbar(heatmap, ax=ax_main, label=r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$' if ratio else r'$|B|_\mathrm{msh}$ [nT]')
     ax_main.set_xlabel('Y GSE [$R_E$]')
     ax_main.set_ylabel('Z GSE [$R_E$]')
     ax_main.set_facecolor('k')
@@ -523,17 +524,17 @@ def plot_over_bs(B_sw,Pd,ratio=True):
     ax_right.grid()
 
     # Title
-    plt.suptitle(r'$B_{msh}$ Strength Across BS. '
+    plt.suptitle(r'$|B|_\mathrm{msh}$ Strength Across BS. '
                  f'IMF: {np.linalg.norm(B_sw):.2g} nT')
     plt.tight_layout()  # Adjust title spacing
     plt.show()
 
 
 def plot_over_B(Pd,B_unit=np.array([0,0,-1]),location='Over BS',quantity='avg',ratio=True,standoffs=False,max_B=120,show_both=False, save_data=False):
-    
+
     if show_both:
         ratio=False
-    
+
     B_unit /= np.linalg.norm(B_unit) # ensures unit vector
     steps=10
     Bs = np.linspace(0,max_B,steps*max_B+1)
@@ -541,11 +542,11 @@ def plot_over_B(Pd,B_unit=np.array([0,0,-1]),location='Over BS',quantity='avg',r
         Bs[0] = 0.01 # prevents divide by 0
 
     R_bs = calc_R_bs(Pd)
-    
+
     B_msh = np.empty(len(Bs))
     Rs_mp = np.empty(len(Bs))
     Rs_bs = np.empty(len(Bs))
-    
+
     B_ratio = np.empty(len(Bs))
 
     for i, B in enumerate(Bs):
@@ -582,7 +583,7 @@ def plot_over_B(Pd,B_unit=np.array([0,0,-1]),location='Over BS',quantity='avg',r
 
         if ratio:
             B_msh[i] /= B
-            
+
         if show_both:
             if i==0:
                 continue
@@ -596,35 +597,37 @@ def plot_over_B(Pd,B_unit=np.array([0,0,-1]),location='Over BS',quantity='avg',r
     if show_both:
         ax.plot(Bs, B_msh, c='cyan', lw=3, marker='o', markersize=7, markerfacecolor='w', markevery=steps)
     else:
-        ax.plot(Bs, B_msh, c='b', marker='o', markersize=7, markerfacecolor='w', markevery=steps)
-        
-    ax.set_xlabel(r'$|B|_{imf}$  [nT]')
+        ax.plot(Bs, B_msh, c='k', marker='o', markersize=7, markerfacecolor='w', markevery=steps)
+
+    ax.set_xlabel(r'$|B|_\mathrm{imf}$  [nT]')
     if ratio:
-        ax.set_ylabel(r'$\frac{B_{msh}}{B_{imf}}$', rotation=0, labelpad=15)
+        ax.set_ylabel(r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$', rotation=0, labelpad=15)
     else:
-        ax.set_ylabel(r'$|B|_{msh}$  [nT]')
-    
+        ax.set_ylabel(r'$|B|_\mathrm{msh}$  [nT]')
+
     ax.grid(ls=':',c='gray')
-    
+
     if show_both:
         B_ratio[0] = B_ratio[1]
-        
+
         ax2 = ax.twinx()
-        
-        ax2.plot([], [], c='cyan', marker='o', markersize=7, markerfacecolor='w', label=r'$B_{msh}$')
-        ax2.plot(Bs, B_ratio, c='k', marker='v', markersize=7, markerfacecolor='w', markevery=steps, label=r'$B_{msh}/B_{imf}$')
-        
+
+        ax2.plot([], [], c='cyan', marker='o', markersize=7, markerfacecolor='w', label=r'$|B|_\mathrm{msh}$')
+        ax2.plot(Bs, B_ratio, c='k', marker='s', markersize=7, markerfacecolor='w', markevery=steps, label=r'$|B|_\mathrm{msh}/|B|_\mathrm{imf}$')
+
         ax2.text(Bs[0]+0.5, B_ratio[0]+0.01, f'{B_ratio[0]:.2f}', horizontalalignment='left', verticalalignment='center')
         ax2.text(Bs[-1] ,B_ratio[-1]+0.05, f'{B_ratio[-1]:.2f}', horizontalalignment='center', verticalalignment='center')
-        ax2.set_ylabel(r'$\frac{B_{msh}}{B_{imf}}$', rotation=0, labelpad=15)
-        add_legend(fig,ax2,loc='upper right')
+        ax2.set_ylim(np.min(B_ratio)//0.1*0.1)
+        ax2.set_ylabel(r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$', rotation=0, labelpad=20, fontsize=ax.yaxis.label.get_size()+2)
+        add_legend(fig, ax2, loc='upper center', cols=2)
+
 
     if standoffs:
         ax2 = ax.twinx()
         ax2.plot(Bs,Rs_bs,ls='--',c='r')
         ax2.plot(Bs,Rs_mp,ls='--',c='g')
         ax2.set_ylabel('Stand-off distances [$R_E$]')
-    
+
     if show_both:
         title = 'Investigating Magnetosheath Compression'
 
@@ -634,7 +637,7 @@ def plot_over_B(Pd,B_unit=np.array([0,0,-1]),location='Over BS',quantity='avg',r
         title = 'Comparing magnetic field strengths at MP nose'
     elif location == 'Over BS':
         title = 'Investigating Magnetosheath Compression over the Bowshock surface'
-    add_figure_title(fig,title)
+    add_figure_title(fig,title=title)
     plt.tight_layout();
     save_figure(fig)
     plt.show()
@@ -703,9 +706,9 @@ def plot_over_P(B_sw,location='Over BS',ratio=True,standoffs=False):
     ax.plot(Ps,B_msh,c='b')
     ax.set_xlabel('Bulk flow pressure (nPa)')
     if ratio:
-        ax.set_ylabel(r'$\frac{B_{msh}}{B_{imf}}$', rotation=0, labelpad=15)
+        ax.set_ylabel(r'$\frac{|B|_\mathrm{msh}}{|B|_\mathrm{imf}}$', rotation=0, labelpad=15)
     else:
-        ax.set_ylabel(r'$B_{msh}$ (nT)')
+        ax.set_ylabel(r'$|B|_\mathrm{msh}$ (nT)')
 
     if standoffs:
         ax2 = ax.twinx()
@@ -719,12 +722,10 @@ def plot_over_P(B_sw,location='Over BS',ratio=True,standoffs=False):
         title = 'Comparing magnetic field strengths at MP nose'
     elif location == 'Over BS':
         title = 'Comparing magnetic field strengths over the BS surface'
-    plt.title(title)
+    add_figure_title(fig,title=title)
     plt.show()
 
-Pd_0=1
-R_mp_kob = 9
-R_bs_kob = 12.5
+
 
 def run_plots(B_sw, Pd, B_unit):
 
@@ -745,31 +746,3 @@ def run_plots(B_sw, Pd, B_unit):
     plot_over_P(B_sw,standoffs=True)
 
 
-print('B-field perp')
-
-B_dir = np.array([0, 0, -1])
-B_unit_0 =  B_dir/np.linalg.norm(B_dir)
-B_sw_0 = 10*B_unit_0 # B in IMF in GSE
-
-#run_plots(B_sw_0, Pd_0, B_unit_0)
-plot_over_B(Pd_0,B_unit_0,quantity='min',show_both=True,max_B=30)
-
-#print('B-field perp positive')
-
-B_dir = np.array([0, 0, 1])
-B_unit_0 =  B_dir/np.linalg.norm(B_dir)
-B_sw_0 = 10*B_unit_0 # B in IMF in GSE
-
-
-#run_plots(B_sw_0, Pd_0, B_unit_0)
-
-
-#print('\nB-field 45 deg')
-
-
-B_dir = np.array([0, 1, -1])
-B_unit_0 =  B_dir/np.linalg.norm(B_dir)
-B_sw_0 = 10*B_unit_0 # B in IMF in GSE
-
-
-#run_plots(B_sw_0, Pd_0, B_unit_0)
