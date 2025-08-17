@@ -30,10 +30,10 @@ c1_omni_jel_0 = merge_dataframes(c1_sw_jel_0, omni, 'C1', 'OMNI') # C1 vs OMNI u
 
 
 # %% Initial_comparison
-from src.methods.bowshock_filtering.comparing import compare_columns_with_compression
+from src.methods.bowshock_filtering.comparing import plot_compare_columns_with_compression
 from src.config import COMPRESSIONS_DIR
 
-compare_columns_with_compression(c1_omni_jel_0, 'B_avg_C1', 'B_avg_OMNI', display='Heat', bin_width=(0.2,0.4), brief_title='Comparing |B| for Cluster and OMNI', compressions=COMPRESSIONS_DIR, contam_info=True)
+plot_compare_columns_with_compression(c1_omni_jel_0, 'B_avg_C1', 'B_avg_OMNI', display='Heat', bin_width=(0.2,0.4), brief_title='Comparing |B| for Cluster and OMNI', compressions=COMPRESSIONS_DIR, contam_info=True)
 
 
 # %% Kobel

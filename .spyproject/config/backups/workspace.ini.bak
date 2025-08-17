@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_0.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_1.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_3.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_4.py', 'src\\plotting\\comparing\\parameter.py', 'src\\processing\\omni\\handling.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_5.py', 'src\\methods\\bowshock_filtering\\bowshock_buffer.py', 'src\\methods\\bowshock_filtering\\kobel_figures.py', 'src\\config.py']
+recent_files = ['scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_0.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_1.py', 'scripts\\paper_figures\\2025_03_jelinek_cluster_grmb\\section_3.py', 'src\\methods\\bowshock_filtering\\grid_gif_plots.py', 'src\\methods\\bowshock_filtering\\comparing.py', 'src\\plotting\\comparing\\distribution.py', 'src\\plotting\\space_time.py']
 
 [main]
 version = 0.2.0

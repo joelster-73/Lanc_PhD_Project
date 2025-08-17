@@ -6,355 +6,268 @@ Created on Thu May  8 17:07:51 2025
 """
 import numpy as np
 
-from scipy.stats import norm, lognorm
+from scipy.stats import lognorm
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
+from scipy.signal import find_peaks
 
 from uncertainties import ufloat, umath
 
-from .utils import save_statistics
 
+def fit_function(xs, ys, fit_type='straight', print_text=False, **kwargs):
 
-def straight_best_fit(x, y, yerr=None, name='', detailed=False, print_text=False, origin=False):
-    """
-    Performs a straight-line (linear) best fit to the provided data points,
-    returning the slope and intercept along with their uncertainties.
+    fit_dict = {}
 
-    Parameters
-    ----------
-    x : numpy.array
-        The independent variable data points (x-values) to which the straight-line
-        fit is applied.
+    # add peaks somewhere in this bit
 
-    y : numpy.array
-        The dependent variable data points (y-values) corresponding to the x-values.
+    if fit_type=='straight':
+        fit_func = straight_best_fit
+        func = straight_line
 
-    yerr : numpy.array, optional
-        The uncertainties in the y-values. If provided, these are used to weight the
-        fitting process, giving more importance to data points with smaller errors.
-        Defaults to None, which assumes equal weighting for all data points.
+    elif fit_type=='gaussian':
+        fit_func = gaussian_fit
+        func = gaussian
 
-    Returns
-    -------
-    a : float
-        The slope of the best-fit line.
+    elif fit_type=='bimodal':
+        fit_func = bimodal_fit
+        func = bimodal
 
-    b : float
-        The intercept of the best-fit line.
-    """
-    if name != '':
-        name += ' '
+    elif fit_type=='bimodal_offset':
+        fit_func = bimodal_fit_offset
+        func = bimodal_offset
+
+    elif fit_type=='lognormal':
+        fit_func = lognormal_fit
+        func = lognormal
+    else:
+        raise Exception(f'{fit_type} not valid fit type.')
+
+    popt, perr, plab = fit_func(xs,ys,**kwargs)
+    params = {}
+    for lab, p, err in zip(plab, popt, perr):
+        params[lab] = ufloat(p, err)
+
+    fit_dict['params'] = params
+    fit_dict['func'] = func
+
+    y_fit = func(xs, *popt)
+    r_squared = r2_score(ys, y_fit)
+    fit_dict['R2'] = r_squared
+
+    if fit_type == 'gaussian':
+        peak_x = params['mu']
+        peak_y = func(peak_x.n, *popt)
+        fit_dict['peaks'] = [(peak_x,peak_y)]
+
+    elif fit_type == 'lognormal':
+        peak_x = umath.exp(params['mu']-(params['sigma'])**2)
+        peak_y = func(peak_x.n, *popt)
+        fit_dict['peaks'] = [(peak_x,peak_y)]
+
+    elif fit_type in ('bimodal','bimodal_offset'):
+        peaks = []
+        for mu in ('mu1','mu2'):
+            peak_x = params[mu]
+            peak_y = func(peak_x.n, *popt)
+            peaks.append((peak_x,peak_y))
+        fit_dict['peaks'] = peaks
+
+    # Add save_text behaviour but put into function
+    if print_text:
+        print('Best fit params for {fit_type} fit:')
+        for key, value in params.items:
+            print(f'{key}: ${value:L}$')
+        print(f'$R^2$; {r_squared:.3g}')
+
+    return fit_dict
+
+# %% Functions
+
+def histogram_perc(mids, counts, perc=50):
+
+    cum_counts = np.cumsum(counts)
+    total = cum_counts[-1]
+    perc_idx = np.searchsorted(cum_counts, total*(perc/100))
+    percentile = mids[perc_idx]
+    return percentile
+
+def histogram_params(mids, counts):
+
+    mean = np.average(mids, weights=counts)
+    sigma = np.sqrt(np.average((mids - mean)**2, weights=counts))
+
+    median = histogram_perc(mids, counts, 50)
+
+    return mean, sigma, median
+
+# %% Straight
+def straight_line(x, *params):
+    m, c = params
+    return m*x + c
+
+def straight_best_fit(x, y, **kwargs):
+
+    yerr   = kwargs.get('yerr',None)
+    origin = kwargs.get('origin',False)
+
     if origin:
         def func(xt,m):
             return m*xt
         popt, pcov = curve_fit(func,x,y,sigma=yerr,absolute_sigma=True)
-        a = popt[0]
-        b = 0
-        a_unc = ufloat(popt[0],pcov[0,0])
-        b_unc = ufloat(0,0)
-        y_fit = func(x,a)
     else:
         if yerr is not None:
-            coeffs, cov = np.polyfit(x, y, 1, w=1/yerr, cov=True) # Weighted
+            popt, pcov = np.polyfit(x, y, 1, w=1/yerr, cov=True) # Weighted
         else:
-            coeffs, cov = np.polyfit(x, y, 1, cov=True)
+            popt, pcov = np.polyfit(x, y, 1, cov=True)
 
-        a, b = coeffs
-        a_unc = ufloat(a,np.sqrt(cov[0,0]))
-        b_unc = ufloat(b,np.sqrt(cov[1,1]))
-        y_fit = np.poly1d(coeffs)(x)
+    return popt, np.sqrt(np.diag(pcov)), ('m','c')
 
-    r_squared = r2_score(y,y_fit)
-    minx, maxx = np.min(x), np.max(x)
-    text = (f'{name}\n'
-            f'Best Fit: y = ({a_unc:P})x + ({b_unc:P})\n'
-            f'First: ({minx:.3g}, {(a_unc*minx+b_unc).n:.3g})\n'
-            f'Last: ({maxx:.3g}, {(a_unc*maxx+b_unc).n:.3g})\n'
-            f'R²: {r_squared:.3g}\n')
-    if print_text:
-        print(text)
-    #save_statistics(text)
-
-    if detailed:
-        return a_unc, b_unc, r_squared
-
-    return a, b, r_squared
-
-
-def gaussian(x, A, mu, sig):
+# %% Gaussian
+def gaussian(x, *params):
+    A, mu, sig = params
     return A * np.exp(-((x - mu) ** 2) / (2 * sig ** 2))
 
-def gaussian_fit(x, y, normal=False, name='', detailed=False, print_text=False, simple_bounds=False):
-    """
-    Fits a Gaussian distribution to the data.
+def gaussian_fit(x, y, **kwargs):
 
-    Parameters
-    ----------
-    x : numpy.array
-        The independent variable data.
-    y : numpy.array
-        The dependent variable data.
-    norm : bool, optional
-        If True, fits a normal distribution (fixed amplitude).
-        If False, includes amplitude as a fitting parameter.
-
-    Returns
-    -------
-    tuple
-        If norm=True: (mean, stddev)
-        If norm=False: (amplitude, mean, stddev)
-    """
-    if name != '':
-        name += ' '
-    if normal:
-        # Fit a normal distribution to the data
-        mean, stddev = norm.fit(x)
-        return mean, stddev
-    else:
-
-        # Initial guesses
-        non_zero = x[y!=0]
-        mean_guess = np.mean(non_zero)
-        std_guess = np.std(non_zero)
-
-        amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2)))
-
-        q1 = np.percentile(non_zero,25)
-        q3 = np.percentile(non_zero,75)
-        iqr = q3 - q1
-
-        initial_guess = (amplitude_guess, mean_guess, std_guess)
-        if simple_bounds:
-            bounds = ([0, np.min(x), 0],  # stops negative As and sigs
-                      [np.inf, np.max(x), np.inf])
-        else:
-            bounds = ([amplitude_guess*0.75, q1, 0],  # stops negative As and sigs
-                      [amplitude_guess*1.25, q3, 2*iqr])
-
-        try:
-            # Perform the curve fitting
-            popt, pcov = curve_fit(gaussian, x, y, p0=initial_guess, bounds=bounds)
-            A, mu, sigma = popt
-
-            perr = np.sqrt(np.diag(pcov))
-            A_unc = ufloat(A,perr[0])
-            mu_unc = ufloat(mu,perr[1])
-            sig_unc = ufloat(sigma,perr[2])
-
-            x_median = np.median(x)
-            text = (f'{name}\n'
-                    f'Best Fit for "A ⋅ exp(-((x - μ)²) / (2σ²))":\n'
-                    f'A:   {A_unc:P}\n'
-                    f'mu:  {mu_unc:P}\n'
-                    f'sig: {sig_unc:P}\n'
-                    f'med: {x_median:.3g}\n')
-            if print_text:
-                print(text)
-            if detailed:
-                return A_unc, mu_unc, sig_unc
-            return A, mu, abs(sigma)  # Ensure non-negative sigma
-        except RuntimeError:
-            print('Gaussian fit failed!')
-            print(initial_guess)
-            return initial_guess
-
-
-def bimodal(x, A1, mu1, sig1, A2, mu2, sig2):
-    return gaussian(x, A1, mu1, sig1) + gaussian(x, A2, mu2, sig2)
-
-def bimodal_fit(x, y, symmetric=False, name='', detailed=False, print_text=False, simple_bounds=False):
-    """
-    Fits a Gaussian distribution to the data.
-
-    Parameters
-    ----------
-    x : numpy.array
-        The independent variable data.
-    y : numpy.array
-        The dependent variable data.
-    norm : bool, optional
-        If True, fits a normal distribution (fixed amplitude).
-        If False, includes amplitude as a fitting parameter.
-
-    Returns
-    -------
-    tuple
-        If norm=True: (mean, stddev)
-        If norm=False: (amplitude, mean, stddev)
-    """
-    if name != '':
-        name += ' '
+    simple_bounds = kwargs.get('simple_bounds',False)
 
     # Initial guesses
-    non_zero = x[y!=0]
-    std_guess = np.std(non_zero) / 4
-    x1_guess = np.median(non_zero)- std_guess
-    x2_guess = np.median(non_zero) + std_guess
+    mean_guess, std_guess, median = histogram_params(x, y)
+    amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2)))
+
+    initial_guess = (amplitude_guess, mean_guess, std_guess)
+    # stops negative As and sigs
+    if simple_bounds:
+        bounds = ([0, np.min(x), 0],
+                  [np.inf, np.max(x), np.inf])
+    else:
+        bounds = ([amplitude_guess*0.75, mean_guess-std_guess, 0],
+                  [amplitude_guess*1.25, mean_guess+std_guess, 2*std_guess])
+
+    try:
+        # Perform the curve fitting
+        popt, pcov = curve_fit(gaussian, x, y, p0=initial_guess, bounds=bounds)
+
+        return popt, np.sqrt(np.diag(pcov)), ('A','mu','sigma')
+
+    except RuntimeError:
+        print('Gaussian fit failed!')
+        return initial_guess, np.zeros(len(initial_guess)), ('A','mu','sigma')
+
+# %% Bimodal
+
+def rough_peaks(x,y,npeaks=2):
+
+    prom_perc = 0.1
+    for i in range(10):
+        mask = (y!=0) & (y>0.0005*np.max(y))
+        peaks, _ = find_peaks(y[mask],prominence=0.1*np.max(y))
+        if len(peaks)<npeaks:
+            prom_perc *= 0.9
+        elif len(peaks)>npeaks:
+            prom_perc *= 1.1
+        else:
+            return x[mask][peaks]
+
+    return (histogram_perc(x,y,40),histogram_perc(x,y,60))
+
+def bimodal(x, *params):
+    A1, mu1, sig1, A2, mu2, sig2 = params
+    return gaussian(x, A1, mu1, sig1) + gaussian(x, A2, mu2, sig2)
+
+def bimodal_fit(x, y, **kwargs):
+
+    simple_bounds = kwargs.get('simple_bounds',False)
+
+    # Initial guesses
+    x1_guess, x2_guess = rough_peaks(x,y)
+    mean, sigma, median = histogram_params(x, y)
+
+    std_guess = np.sqrt(sigma**2 - np.abs(x1_guess-x2_guess)*2 / 4)
     amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2)))
 
     initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess)
 
-    if not simple_bounds:
+    # stops negative As and sigs
+    if simple_bounds:
+        bounds = ([0, np.min(x), 0, 0, median, 0],
+                  [np.inf, median, np.inf, np.inf, np.max(x), np.inf])
 
-        initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess)
-
-        bounds = ([amplitude_guess*0.75, np.percentile(non_zero,25), 0, amplitude_guess*0.75, np.percentile(non_zero,25), 0],  # stops negative As and sigs
-              [amplitude_guess*1.25, np.percentile(non_zero,75), np.inf, amplitude_guess*1.25, np.percentile(non_zero,75), np.inf])
     else:
-        bounds = ([0, np.percentile(non_zero,0), 0, 0, np.percentile(non_zero,0), 0],  # stops negative As and sigs
-                  [np.inf, np.percentile(non_zero,100), np.inf, np.inf, np.percentile(non_zero,100), np.inf])
-
+        bounds = ([0.5*amplitude_guess, np.min(x), 0.5*sigma, 0.5*amplitude_guess, median, 0.5*sigma],
+                  [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, np.max(x), sigma])
 
     try:
         # Perform the curve fitting
-        if simple_bounds:
-            popt, pcov = curve_fit(bimodal, x, y, bounds=bounds)
-        else:
-            popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds)
-        A1, mu1, sigma1, A2, mu2, sigma2 = popt
-        perr = np.sqrt(np.diag(pcov))
-        A1_unc = ufloat(A1,perr[0])
-        mu1_unc = ufloat(mu1,perr[1])
-        sig1_unc = ufloat(sigma1,perr[2])
-        A2_unc = ufloat(A2,perr[3])
-        mu2_unc = ufloat(mu2,perr[4])
-        sig2_unc = ufloat(sigma2,perr[5])
+        popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds)
 
-        text = (f'{name}\n'
-                f'Best Fit for "A1 ⋅ exp(-((x - μ1)²) / (2σ1²)) + A2 ⋅ exp(-((x - μ2)²) / (2σ2²))":\n'
-                f'A1:   {A1_unc:P}\n'
-                f'mu1:  {mu1_unc:P}\n'
-                f'sig1: {sig1_unc:P}\n'
-                f'A2:   {A2_unc:P}\n'
-                f'mu2:  {mu2_unc:P}\n'
-                f'sig2: {sig2_unc:P}\n')
-        if print_text:
-            print(text)
-        save_statistics(text)
-        if detailed:
-            return A1_unc, mu1_unc, sig1_unc, A2_unc, mu2_unc, sig2_unc
-        return A1, mu1, sigma1, A2, mu2, sigma2  # Ensure non-negative sigma
+        return popt, np.sqrt(np.diag(pcov)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
+
     except RuntimeError:
         print('Gaussian fit failed!')
-        print(initial_guess)
-        if detailed:
-            return [ufloat(x,0) for x in initial_guess]
-        return initial_guess
+        return initial_guess, np.zeros(len(initial_guess)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
 
-def bimodal_offset(x, A1, mu1, sig1, A2, mu2, sig2, c):
+
+def bimodal_offset(x, *params):
+    A1, mu1, sig1, A2, mu2, sig2, c = params
     return gaussian(x, A1, mu1, sig1) + gaussian(x, A2, mu2, sig2) + c
 
-def bimodal_fit_offset(x, y, symmetric=False, name='', detailed=False, print_text=False):
-    """
-    Fits a Gaussian distribution to the data.
 
-    Parameters
-    ----------
-    x : numpy.array
-        The independent variable data.
-    y : numpy.array
-        The dependent variable data.
-    norm : bool, optional
-        If True, fits a normal distribution (fixed amplitude).
-        If False, includes amplitude as a fitting parameter.
+def bimodal_fit_offset(x, y, **kwargs):
 
-    Returns
-    -------
-    tuple
-        If norm=True: (mean, stddev)
-        If norm=False: (amplitude, mean, stddev)
-    """
-    if name != '':
-        name += ' '
+    simple_bounds = kwargs.get('simple_bounds',True)
 
     # Initial guesses
-    amplitude_guess = max(y) - min(y)  # Approximate peak of y
-    offset_guess = min(y)
+    x1_guess, x2_guess = rough_peaks(x,y)
 
-    std_guess = np.std(x)
-    x1_guess = np.mean(x) - std_guess / 2
-    x2_guess = np.mean(x) + std_guess /2
+    mean, sigma, median = histogram_params(x, y)
+
+    std_guess = np.sqrt(sigma**2 - np.abs(x1_guess-x2_guess)*2 / 4)
+    offset_guess = np.min(y)
+    amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2))) - offset_guess
 
     initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess, offset_guess)
-    bounds = ([0, -np.inf, 0, 0, -np.inf, 0, 0],  # stops negative As and sigs
-          [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
+
+    # stops negative As and sigs
+    if simple_bounds:
+        bounds = ([0, np.min(x), 0, 0, median, 0, 0],
+                  [np.inf, median, np.inf, np.inf, np.max(x), np.inf, 1.1*np.min(y)])
+
+    else:
+        bounds = ([0.5*amplitude_guess, np.min(x), 0.5*sigma, 0.5*amplitude_guess, median, 0.5*sigma, 0.8*np.min(y)],
+                  [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, np.max(x), sigma, 1.1*np.min(y)])
 
     try:
         # Perform the curve fitting
         popt, pcov = curve_fit(bimodal_offset, x, y, p0=initial_guess, bounds=bounds)
-        A1, mu1, sigma1, A2, mu2, sigma2, c = popt
-        perr = np.sqrt(np.diag(pcov))
 
-        A1_unc = ufloat(A1,perr[0])
-        mu1_unc = ufloat(mu1,perr[1])
-        sig1_unc = ufloat(sigma1,perr[2])
-        A2_unc = ufloat(A2,perr[3])
-        mu2_unc = ufloat(mu2,perr[4])
-        sig2_unc = ufloat(sigma2,perr[5])
-        c_unc = ufloat(c,perr[6])
+        return popt, np.sqrt(np.diag(pcov)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
 
-        text = (f'{name}\n'
-                f'Best Fit for "A1 ⋅ exp(-((x - μ1)²) / (2σ1²)) + A2 ⋅ exp(-((x - μ2)²) / (2σ2²))":\n'
-                f'A1:   {A1_unc:P}\n'
-                f'mu1:  {mu1_unc:P}\n'
-                f'sig1: {sig1_unc:P}\n'
-                f'A2:   {A2_unc:P}\n'
-                f'mu2:  {mu2_unc:P}\n'
-                f'sig2: {sig2_unc:P}\n'
-                f'c:    {c_unc:P}\n')
-
-        if print_text:
-            print(text)
-        save_statistics(text)
-        if detailed:
-            return A1_unc, mu1_unc, sig1_unc, A2_unc, mu2_unc, sig2_unc, c_unc
-        return A1, mu1, sigma1, A2, mu2, sigma2, c  # Ensure non-negative sigma
     except RuntimeError:
         print('Gaussian fit failed!')
-        if detailed:
-            return [ufloat(x,0) for x in initial_guess]
-        return initial_guess
+        return initial_guess, np.zeros(len(initial_guess)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
 
-
-
-
-def lognormal(x, A, mu, sigma):
+# %% Lognormal
+def lognormal(x, *params):
+    A, mu, sigma = params
     scale = np.exp(mu)
-    s = sigma
-    return A * lognorm.pdf(x, s, scale=scale)
+    return A * lognorm.pdf(x, sigma, scale=scale)
 
-def lognormal_fit(x, y, name='', detailed=False, print_text=False):
-    if name != '':
-        name += ' '
+def lognormal_fit(x, y):
 
     # Initial guesses
-    amplitude_guess = max(y)
-    mu_guess = np.log(np.median(x))  # Use median for scale as an initial guess
-    sigma_guess = 1  # Typical initial guess for shape (s)
+    _, sigma_guess, median = histogram_params(x, y)
+
+    amplitude_guess = np.max(y)
+    mu_guess = np.log(median)  # Use median for scale as an initial guess
     initial_guess = (amplitude_guess, mu_guess, sigma_guess)
 
     try:
         # Perform the curve fitting
         popt, pcov = curve_fit(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf))
-        A, mu, sigma = popt
-        perr = np.sqrt(np.diag(pcov))
 
-        A_unc     = ufloat(A, perr[0])
-        mu_unc    = ufloat(mu, perr[1])
-        sig_unc   = ufloat(sigma, perr[2])
-        mode_unc  = umath.exp(mu_unc-sig_unc**2)
-        text = (f'{name}\n'
-                f'Best Fit for Log-normal:\n'
-                f'A:   {A_unc:P}\n'
-                f'mu:  {mu_unc:P}\n'
-                f'sig: {sig_unc:P}\n')
-        if print_text:
-            print(text)
-        save_statistics(text)
+        return popt, np.sqrt(np.diag(pcov)), ('A', 'mu', 'sigma')
 
-        if detailed:
-            return A_unc, mu_unc, sig_unc, mode_unc
-        return A, mu, sigma, np.exp(mu-sigma**2)
     except RuntimeError:
         print('Log-normal fit failed!')
-        return initial_guess
+        return initial_guess, np.zeros(len(initial_guess)), ('A', 'mu', 'sigma')

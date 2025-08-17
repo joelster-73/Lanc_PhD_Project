@@ -1,7 +1,7 @@
 # Section_5_Comparing
 from datetime import datetime
 
-from src.config import PROC_CLUS_DIR_1MIN as PROC_CLUS_DIR, PROC_OMNI_DIR, PROC_SCBS_DIR, BAD_CROSSINGS, CROSSINGS_DIR, C1_RANGE, COMPRESSIONS_DIR as compressions_dir
+from src.config import PROC_CLUS_DIR_1MIN as PROC_CLUS_DIR, PROC_OMNI_DIR, PROC_SCBS_DIR, BAD_CROSSINGS, CROSSINGS_DIR, C1_RANGE
 from src.coordinates.spatial import insert_car_coords, insert_cyl_coords
 from src.methods.bowshock_filtering.jelinek import insert_bs_diff
 from src.methods.bowshock_filtering.grison import assign_region
@@ -42,14 +42,17 @@ assign_region(cluster1, crossings, bad_days=bad_GRMB)
 buffer_R = 4
 
 # GRMB Database
+print('\nGRMB')
 c1_sw_grmb = filter_sw(cluster1, 'GRMB', regions=(12,))
 c1_omni_grmb = merge_dataframes(c1_sw_grmb, omni, 'C1', 'OMNI') # C1 vs OMNI using GRMB
 
 # Jelinek Model
+print('\nJelínek')
 c1_sw_jel = filter_sw(cluster1, method='model', sc_key='C1', buffer=buffer_R)
 c1_omni_jel = merge_dataframes(c1_sw_jel, omni, 'C1', 'OMNI') # C1 vs OMNI using Jelinek
 
 # Combined
+print('\nCombined')
 c1_sw_com = filter_sw(cluster1, method='combined', regions=(12,), sc_key='C1', buffer=buffer_R)
 c1_omni_com = merge_dataframes(c1_sw_com, omni, 'C1', 'OMNI')
 
@@ -63,6 +66,7 @@ c1_sw_grmb_times = c1_sw_grmb.index
 c1_sw_jel_times_no_2023 = c1_sw_jel[c1_sw_jel.index.year<2023].index
 
 common_times = c1_sw_grmb_times.intersection(c1_sw_jel_times)
+print('\nData')
 print(f'Overlap:         {len(common_times):,}')
 print(f'GRMB:            {len(c1_sw_grmb_times):,}, {len(common_times)/len(c1_sw_grmb_times)*100:.2f}%, '
       f'{len(c1_sw_grmb_times)-len(common_times):,}')
@@ -71,94 +75,60 @@ print(f'Jelinek:         {len(c1_sw_jel_times):,}, {len(common_times)/len(c1_sw_
 print(f'Jelinek no 2023: {len(c1_sw_jel_times_no_2023):,}, {len(common_times)/len(c1_sw_jel_times_no_2023)*100:.2f}%, '
       f'{len(c1_sw_jel_times_no_2023)-len(common_times):,}')
 
-#from data_analysis import compare_datasets
-
-#compare_datasets(c1_sw_jel, c1_sw_grmb, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock', column_names={'B_clock':'Clock Angle', 'B_cos(th)':'Bx', 'B_sin(th)_sin(ph)':'By', 'B_sin(th)_cos(ph)':'Bz'})
-
-
-
 # %% Pressures
 from src.analysing.calculations import calc_mean_error
 from numpy import std
 
+print('\nPressures')
 print('OMNI:',calc_mean_error(omni['p_flow']),f"{std(omni['p_flow']):.4f}")
 print('Jel: ',calc_mean_error(c1_omni_jel['p_flow_OMNI']),f"{std(c1_omni_jel['p_flow_OMNI']):.4f}")
 print('GRMB:',calc_mean_error(c1_omni_grmb['p_flow_OMNI']),f"{std(c1_omni_grmb['p_flow_OMNI']):.4f}")
 
 # %% Comparison_Plots
 
-from src.plotting.comparing.parameter import compare_columns_and_datasets
-from src.plotting.comparing.distribution import plot_compare_datasets_with_activity, plot_compare_datasets_space, plot_compare_datasets_years
+from src.plotting.comparing.distribution import plot_compare_datasets_space
+from src.methods.bowshock_filtering.comparing import plot_compare_years_with_apogee
 
-plot_compare_datasets_space(c1_sw_jel, c1_sw_grmb, plane='x-rho', coords='GSE', display='Heat', bin_width=0.1, df_omni=omni)
+plot_compare_datasets_space(c1_sw_jel, c1_sw_grmb, plane='x-rho', coords='GSE', df1_name='Jelínek Bow shock', df2_name='Grison Database', display='Heat', bin_width=0.1, df_omni=omni)
 
-# %%
-
-compare_columns_and_datasets(c1_omni_jel, c1_omni_grmb, 'B_avg_C1', 'B_avg_OMNI',
-                display='Heat', bin_width=0.2, title1='Jelínek Bow shock', title2='GRMB Database',
-                compressions=compressions_dir, contam_info=True)
-
-plot_compare_datasets_years(c1_sw_jel, c1_sw_grmb, show_apogee=True, full_cluster=cluster1, print_data=True)
-
-plot_compare_datasets_with_activity(c1_sw_jel, c1_sw_grmb)
-plot_compare_datasets_with_activity(c1_sw_com, df_names=('Combined',), df_colours=('deepskyblue',), df_markers=('s',))
+plot_compare_years_with_apogee(c1_sw_jel, c1_sw_grmb, cluster1, df1_name='Jelínek Bow shock', df2_name='Grison Database', df1_colour='g', df2_colour='b', show_apogee=True, print_data=True)
 
 
 # %% Comparison
-from data_plotting import plot_compare_dataset_parameters, plot_dataset_years_months
+from src.plotting.comparing.datasets import plot_compare_dataset_parameters
 
 column_names = {'B_clock':'Clock Angle',
                 'B_cos(th)':'Bx GSM',
                 'B_sin(th)_sin(ph)':'By GSM',
                 'B_sin(th)_cos(ph)':'Bz GSM'}
-column_display_ranges = {'B_avg':(0,20),
-                         'B_cos(th)':(-15,15),
-                         'B_sin(th)_sin(ph)':(-15,15),
-                         'B_sin(th)_cos(ph)':(-15,15)}
-fit_types = {'B_avg':'Log_Normal',
-             'B_clock':'Bimodal_offset',
-             'B_cos(th)':'Bimodal',
-             'B_sin(th)_sin(ph)':'Bimodal',
-             'B_sin(th)_cos(ph)':'Gaussian'}
+display_ranges = {'B_avg':(0,99),
+                         'B_cos(th)':(0.2,99.8),
+                         'B_sin(th)_sin(ph)':(0.5,99.5),
+                         'B_sin(th)_cos(ph)':(0.5,99.5)}
+fit_types = {'B_avg':'lognormal',
+             'B_clock':'bimodal_offset',
+             'B_cos(th)':'bimodal',
+             'B_sin(th)_sin(ph)':'bimodal',
+             'B_sin(th)_cos(ph)':'gaussian'}
+
 omni_columns={'B_cos(th)':'B_x_GSE',
               'B_sin(th)_sin(ph)':'B_y_GSM',
               'B_sin(th)_cos(ph)':'B_z_GSM'}
-column_bin_widths = {'B_avg':0.2,
-                     'B_cos(th)':0.2,
-                     'B_sin(th)_sin(ph)':0.2,
-                     'B_sin(th)_cos(ph)':0.2,
+bin_widths = {'B_avg':0.25,
+                     'B_cos(th)':0.25,
+                     'B_sin(th)_sin(ph)':0.25,
+                     'B_sin(th)_cos(ph)':0.25,
                      'B_clock':5}
 
+# %% Comparing_B
+plot_compare_dataset_parameters(c1_sw_jel, c1_sw_grmb, 'B_avg', df1_name='Jelínek Dataset', df2_name='GRMB Database', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='q_q_plot')
 
-plot_compare_dataset_parameters(c1_sw_jel, c1_sw_grmb, 'B_avg',
-                 q_q_plot=True, column_bin_widths=column_bin_widths,
-                 column_names=column_names, column_display_ranges=column_display_ranges, fit_types=fit_types)
-
-plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',
-                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI',
-                 q_q_plot=True, column_bin_widths=column_bin_widths,
-                 omni_columns=omni_columns, column_names=column_names, column_display_ranges=column_display_ranges, fit_types=fit_types)
+# %% Comparing_all_q_q
 
 plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',
-                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI',
-                 hist_diff=True, column_bin_widths=column_bin_widths, contemp_omni=True, diff_type='Absolute',
-                 omni_columns=omni_columns, column_names=column_names, column_display_ranges=column_display_ranges, fit_types=fit_types)
+                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='q_q_plot', df2_columns=omni_columns)
 
-plot_dataset_years_months(c1_sw_com, df_colour='deepskyblue')
+# %% Comparing_all_hist
+plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',
+                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='hist_diff', df2_columns=omni_columns, compare_label='C1 - OMNI')
 
-print(c1_sw_com['GRMB_region'].value_counts().to_dict())
-print(c1_sw_jel['GRMB_region'].value_counts().to_dict())
-# %% Poster
-
-
-plot_compare_dataset_parameters(c1_sw_jel, omni, 'B_sin(th)_cos(ph)',
-                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI',
-                 hist_diff=True, column_bin_widths={'B_avg':0.125}, contemp_omni=True, diff_type='Absolute',
-                 omni_columns=omni_columns, column_names=column_names, column_display_ranges=column_display_ranges, fit_types=fit_types)
-
-plot_dataset_years_months(c1_sw_jel, df_colour='deepskyblue',show_apogee=True,full_cluster=cluster1)
-
-# %% High_activity
-from data_plotting import plot_compare_datasets_with_activity
-
-plot_compare_datasets_with_activity(c1_sw_jel, c1_sw_grmb)

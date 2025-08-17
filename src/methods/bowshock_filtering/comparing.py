@@ -14,13 +14,14 @@ from ...analysing.calculations import calc_mean_error, calc_circular_mean_error,
 from ...analysing.kobel import load_compression_ratios, are_points_above_line
 
 from ...plotting.comparing.parameter import compare_series
+from ...plotting.space_time import plot_time_distribution
 from ...plotting.formatting import add_legend
-from ...plotting.utils import save_figure
+from ...plotting.utils import save_figure, datetime_to_decimal_year_vectorised
 
 from ...processing.dataframes import next_index
 
 
-def compare_columns_with_compression(df, col1, col2, **kwargs):
+def plot_compare_columns_with_compression(df, col1, col2, **kwargs):
 
     series1 = df.loc[:,col1]
     series2 = df.loc[:,col2]
@@ -64,7 +65,45 @@ def compare_columns_with_compression(df, col1, col2, **kwargs):
     plt.show()
     plt.close()
 
-def extreme_diffs(df1, df2, df_merged, data_name, source1, source2, df_regions, **kwargs):
+def plot_compare_years_with_apogee(df1, df2, full_cluster, **kwargs):
+
+    df1_name = kwargs.get('df1_name',None)
+    df2_name = kwargs.get('df2_name',None)
+
+    df1_colour = kwargs.get('df1_colour','k')
+    df2_colour = kwargs.get('df2_colour','k')
+
+    r_mag = np.sqrt(full_cluster['r_x_GSE']**2+full_cluster['r_y_GSE']**2+full_cluster['r_z_GSE']**2)
+
+    window_size = 30 * 24 * 60
+    apogees = r_mag.rolling(window=window_size, center=True).max()
+    apogees.index = datetime_to_decimal_year_vectorised(apogees.index)
+
+    apo_max = np.max(apogees)
+    apo_max_time = apogees.idxmax()
+
+    fig, axes = plt.subplots(1, 2, figsize=(14,5))
+
+    for i, (df, name, colour, ax) in enumerate(zip((df1, df2), (df1_name, df2_name), (df1_colour, df2_colour), axes)):
+
+        _ = plot_time_distribution(df, fig=fig, ax=ax, return_objs=True, colour=colour, brief_title=name, **kwargs)
+
+        ax_twin = ax.twinx()
+        ax_twin.plot(apogees, color='r', lw=2.25)
+        ax_twin.set_ylabel(r'$C_1$ Apogee [$\mathrm{R_E}$]', c='r')
+        ax_twin.scatter(apo_max_time, apo_max, c='r', s=60, zorder=5)
+
+        if i==0:
+            ax_twin.set_ylabel(None)
+        elif i==1:
+            ax.set_ylabel(None)
+
+    plt.tight_layout()
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+def plot_extreme_diffs(df1, df2, df_merged, data_name, source1, source2, df_regions, **kwargs):
 
     filtering    = kwargs.get('filtering','Kobel')
     on_day       = kwargs.get('on_day',None)

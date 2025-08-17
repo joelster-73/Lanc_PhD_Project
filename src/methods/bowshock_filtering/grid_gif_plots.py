@@ -9,8 +9,6 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from .comparing import compare_columns_with_compression
-
 from ...plotting.config import black, white
 from ...plotting.additions import create_half_circle_marker
 from ...plotting.formatting import add_legend, add_figure_title, create_label, dark_mode_fig
