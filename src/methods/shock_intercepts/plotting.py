@@ -13,20 +13,19 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
 
 from .additions import create_half_circle_marker, plot_segments, plot_vertical_line_unc
-from .formatting import custom_date_formatter, add_legend, array_to_string, add_figure_title, create_label, dark_mode_fig
-from .config import black, white
+from .formatting import custom_date_formatter, add_legend, array_to_string, add_figure_title, create_label
+from .config import black
 from .relationships import plot_with_side_figs
-from .distributions import plot_freq_hist
-from .comparing.parameter import compare_series
-from .utils import save_figure
 
 from ..processing.speasy.config import speasy_variables, colour_dict, sw_monitors
 from ..processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc
 from ..processing.omni.config import omni_spacecraft
 
 from ..analysing.shocks.in_sw import is_in_solar_wind
-from ..analysing.shocks.statistics import get_time_dist_differences, shock_compressions
+from ..analysing.shocks.statistics import get_time_dist_differences
 from ..coordinates.boundaries import msh_boundaries
+
+
 
 
 
@@ -548,124 +547,10 @@ def plot_time_differences(shocks, bottom_panel='hist', right_panel='hist', **kwa
         xs.attrs['units'][xs.name] = 'mins'
         xs_unc.attrs['units'][xs_unc.name] = 'mins'
 
+
     if colouring=='spacecraft':
         kwargs['colour_values'] = df.loc[closish,'detector']
         kwargs['error_colour'] = black
 
     plot_with_side_figs(xs, ys, bottom_panel, right_panel, xs_unc=xs_unc, ys_unc=ys_unc, **kwargs)
-
-
-
-from matplotlib.colors import ListedColormap
-
-def plot_compressions_both(shocks, plot_type='hist', *kwargs):
-
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, sharey=True, sharex=True, figsize=(16,6))
-
-    _ = plot_compression(shocks, selection='all', fig=fig, ax=ax_left, return_objs=True, plot_type=plot_type)
-    _ = plot_compression(shocks, selection='omni', fig=fig, ax=ax_right, return_objs=True, plot_type=plot_type)
-
-    ax_right.set_ylabel(None)
-
-    ###---------------LABELLING AND FINISHING TOUCHES---------------###
-    plt.tight_layout()
-    save_figure(fig)
-    plt.show()
-    plt.close()
-
-def plot_compression(shocks, selection='all', plot_type='hist', change='change_rel', **kwargs):
-
-    fig = kwargs.get('fig',None)
-    ax  = kwargs.get('ax',None)
-    return_objs = kwargs.get('return_objs',True)
-
-    if fig is None or ax is None:
-        fig, ax = plt.subplots()
-        kwargs['fig'] = fig
-        kwargs['ax'] = ax
-
-    compressions = shock_compressions(shocks)
-
-    title_info = 'All spacecraft'
-    if selection=='omni':
-        title_info = 'Spacecraft in OMNI'
-
-    sc_mask = np.all(len(compressions))
-
-    if selection=='omni':
-        sc_mask &= (compressions['sc_dw']=='OMNI')
-        x_name = 'r_B (sc)'
-        y_name = 'r_B (OMNI)'
-        count_name = 'r_B_OMNI / r_B_sc'
-        count_label = 'Compression Change (OMNI / sc)'
-        title_info = 'OMNI and Detector'
-    else:
-        sc_mask &= (compressions['sc_dw']!='OMNI')
-        x_name = 'r_B (sc #1)'
-        y_name = 'r_B (sc #2)'
-        count_name = 'r_B_2 / r_B_1'
-        count_label = 'Compression Change (sc2 / sc1)'
-        title_info = 'Earliest and Latest Spacecraft'
-
-    kwargs['brief_title'] = title_info
-
-    clipping = 1.3 if selection=='omni' else 1.2
-    if selection=='omni':
-        cmap = plt.colormaps['Oranges']
-    else:
-        cmap = ListedColormap(plt.colormaps['PiYG'](np.linspace(0, 0.45, 128))[::-1])
-
-    if plot_type=='hist':
-
-        bin_width = 0.05 if change=='change_rel' else 0.1
-
-        xs = compressions.loc[sc_mask,change].apply(lambda x: x.nominal_value)
-        change_series_name(xs, count_name)
-
-        _ = plot_freq_hist(xs, cmap=cmap, clipping=clipping, bin_width=bin_width, fit_type='gaussian', simple_bounds=True, fit_colour=black, data_name=count_label, **kwargs)
-
-    elif plot_type=='scatter':
-        x_lim = (1,5)
-        y_lim = (1,5)
-
-        sc_mask &= (compressions['comp_up']>=x_lim[0]) & (compressions['comp_up']<=x_lim[1])
-        sc_mask &= (compressions['comp_dw']>=y_lim[0]) & (compressions['comp_dw']<=y_lim[1])
-
-
-        if 'time' in plot_type:
-            xs     = compressions.loc[sc_mask,'time'].apply(lambda x: x.nominal_value/60)
-            xs_unc = compressions.loc[sc_mask,'time'].apply(lambda x: x.std_dev/60)
-
-            ys = compressions.loc[sc_mask,change].apply(lambda x: x.nominal_value)
-            ys = compressions.loc[sc_mask,change].apply(lambda x: x.std_dev)
-
-            change_series_name(ys, count_name)
-
-        else:
-            xs = compressions.loc[sc_mask,'comp_up'].apply(lambda x: x.nominal_value)
-            xs_unc = compressions.loc[sc_mask,'comp_up'].apply(lambda x: x.std_dev)
-
-            ys = compressions.loc[sc_mask,'comp_dw'].apply(lambda x: x.nominal_value)
-            ys_unc = compressions.loc[sc_mask,'comp_dw'].apply(lambda x: x.std_dev)
-
-            change_series_name(xs, x_name)
-            change_series_name(ys, y_name)
-
-        sc_ups = compressions.loc[sc_mask,'sc_up']
-        sc_dws = compressions.loc[sc_mask,'sc_dw']
-
-        _ = compare_series(xs, ys, xs_unc=xs_unc, ys_unc=ys_unc, display='scatter_dict', sc_ups=sc_ups, sc_dws=sc_dws, fit_type='straight', as_text=True, **kwargs)
-
-
-    ###---------------LABELLING AND FINISHING TOUCHES---------------###
-    if return_objs:
-        return fig, ax
-
-    save_figure(fig)
-    plt.show()
-    plt.close()
-
-
-
-
 

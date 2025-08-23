@@ -85,12 +85,12 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
                         padded_data = np.array([s.ljust(max_len) for s in new_data_str], dtype=f'U{max_len}')
                         # Store the data as CDF_CHAR with variable length
                         cdf.new(column, data=padded_data, type=pycdf.const.CDF_CHAR)
-                        df.attrs['units'][column] = 'STRING'
+                        df.attrs['units'][column] = 'LIST'
 
                     else:
                         cdf.new(column, data=new_data)
                 except:
-                    print(f'Cannot add {column} to cdf file.')
+                    print(f'Cannot add "{column}" to cdf file.')
                 else:
                     cdf[column].attrs['units'] = df.attrs['units'].get(column,add_unit(column))
 

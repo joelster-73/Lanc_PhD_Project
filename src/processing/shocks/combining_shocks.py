@@ -7,7 +7,7 @@ Created on Mon Jun 30 09:34:24 2025
 
 from src.config import HELSINKI_DIR, PROC_CFA_DIR
 from src.processing.reading import import_processed_data
-from src.processing.shocks.helsinki import process_helsinki_shocks, get_list_of_events
+from src.processing.shocks.helsinki import process_helsinki_shocks, get_list_of_events_all
 from src.processing.shocks.donki import get_donki_shocks
 from src.processing.speasy.retrieval import retrieve_datum
 from src.processing.speasy.config import speasy_variables
@@ -46,7 +46,7 @@ from collections import Counter
 
 shocks = pd.concat([helsinki_shocks,cfa_shocks,donki_shocks]).sort_index()
 shocks = shocks[shocks['spacecraft'].isin(('WIND','ACE','DSC'))]
-event_list = get_list_of_events(shocks)
+event_list = get_list_of_events_all(shocks)
 print(sum([len(d) for d in event_list]))
 
 key_counts = Counter()

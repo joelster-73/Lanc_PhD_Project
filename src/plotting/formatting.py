@@ -76,8 +76,10 @@ def add_legend(fig, ax, legend_on=True, loc='upper left', anchor=None, cols=1, h
 def format_string(s):
     # make so instead of first character, everything before 'mag' is put in ||
     # do something similar for avg and put it under a bar
+
     if 'mag' in s or 'avg' in s:
         s = f'|{s[0]}|' + s[5:]
+
     # List of common Greek letters
     greek_letters = ('alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
                      'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi',
@@ -131,7 +133,7 @@ def create_label(column, unit=None, data_name=None, name_latex=False, units=None
     if unit is not None:
         if unit == 'Re':
             label += r' [$\mathrm{R_E}$]'
-        else:
+        elif unit not in ('','1','STRING','LIST'):
             label += f' [{unit}]'
     return label
 

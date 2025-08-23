@@ -49,6 +49,9 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
     for column in df.columns:
         if df.attrs['units'].get(column, '') == 'STRING':
             df[column] = df[column].str.strip()
+        elif df.attrs['units'].get(column,'') == 'LIST':
+            str_series = df[column].str.strip()
+            df[column] = [s.split(',') for s in str_series]
 
     with pycdf.CDF(cdf_files[0]) as cdf:
         global_attrs = {}

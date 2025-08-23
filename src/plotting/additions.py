@@ -4,6 +4,7 @@ Created on Fri May 16 10:37:12 2025
 
 @author: richarj2
 """
+from datetime import timedelta
 from pandas import Timedelta
 
 from matplotlib.patches import Wedge, Circle
@@ -47,3 +48,31 @@ def plot_error_region(ax, xs, ys, y_errs, c='k', alpha=0.1, marker='x', label=No
 
     ax.fill_between(xs, ys-y_errs, ys+y_errs, color=c, alpha=alpha, step=step)
     ax.plot(xs, ys, marker=marker, c=c, label=label)
+    
+    
+def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', linestyle='--', uncertainty_tuple=None, return_label=False):
+
+    minutes, seconds = divmod(int(uncertainty), 60) # uncertainty in seconds
+
+    formatted_uncertainty = f'{minutes:02}:{seconds:02}'
+    line_label = (
+        time.strftime('%H:%M:%S') + r' $\pm$ ' + formatted_uncertainty
+    )
+
+    if label_info is not None:
+        line_label = f'{label_info}: ' + line_label
+
+    dt = timedelta(seconds=uncertainty)
+    if uncertainty_tuple is not None:
+        dt_left  = timedelta(seconds=uncertainty_tuple[0])
+        dt_right = timedelta(seconds=uncertainty_tuple[1])
+    else:
+        dt_left, dt_right = dt, dt
+
+    ax.axvspan(time-dt_left, time+dt_right, color=colour, alpha=0.08)
+
+    if return_label:
+        ax.axvline(x=time, c=colour, ls=linestyle, lw=0.5)
+        return line_label
+
+    ax.axvline(x=time, c=colour, ls=linestyle, lw=0.5, label=line_label)

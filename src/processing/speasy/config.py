@@ -220,3 +220,5 @@ colour_dict = {
     'IMP8': 'crimson',
     'WIND': 'magenta'
 }
+
+database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}

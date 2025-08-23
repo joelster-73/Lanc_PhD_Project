@@ -14,6 +14,7 @@ shocks_with_intercepts = import_processed_data(PROC_INTERCEPTS_DIR)
 from src.plotting.shocks import plot_time_differences
 
 plot_time_differences(shocks_with_intercepts, selection='all', x_axis='x_comp', colouring='spacecraft', histograms=True)
+
 plot_time_differences(shocks_with_intercepts, selection='earth', x_axis='x_comp', colouring='spacecraft', histograms=True)
 
 # %% Comparing_with_OMNI_Timeshift

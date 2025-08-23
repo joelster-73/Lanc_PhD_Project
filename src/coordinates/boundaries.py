@@ -15,25 +15,40 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
     elif aberration=='complete':
         simple_ab = False
 
-    # New df
-    df_bs = car_to_aGSE(df, position_key=position_key, data_key=data_key, simple=simple_ab)
+    column_names = {
+        'r_x_name': 'r_x_GSE',
+        'r_y_name': 'r_y_GSE',
+        'r_z_name': 'r_z_GSE',
+        'r_name': 'r',
+        'r_ax_name': 'r_x_aGSE',
+        'r_ay_name': 'r_y_aGSE',
+        'r_az_name': 'r_z_aGSE',
+        'v_x_name': 'v_x_GSE',
+        'v_y_name': 'v_y_GSE',
+        'v_z_name': 'v_z_GSE',
+        'p_name': 'p_flow'
+    }
 
-    r_name    = 'r'
-    r_ax_name = 'r_x_aGSE'
-    r_ay_name = 'r_y_aGSE'
-    r_az_name = 'r_z_aGSE'
 
+    # Update position-related names
     if position_key is not None:
-        for name in (r_name,r_ax_name,r_ay_name,r_az_name):
-            name += f'_{position_key}'
+        for key in ['r_x_name', 'r_y_name', 'r_z_name', 'r_name', 'r_ax_name', 'r_ay_name', 'r_az_name']:
+            column_names[key] += f'_{position_key}'
 
-    v_x_name = 'v_x_GSE'
-    p_name   = 'p_flow'
-
+    # Update data-related names
     if data_key is not None:
-        for name in (v_x_name,p_name):
-            name += f'_{data_key}'
+        for key in ['v_x_name', 'v_y_name', 'v_z_name', 'p_name']:
+            column_names[key] += f'_{data_key}'
 
+    # New df
+    df_bs = car_to_aGSE(df, column_names=column_names, simple=simple_ab)
+
+    r_name   = column_names['r_name']
+    r_ax_name = column_names['r_ax_name']
+    r_ay_name = column_names['r_ay_name']
+    r_az_name = column_names['r_az_name']
+    v_x_name = column_names['v_x_name']
+    p_name = column_names['p_name']
 
     valid_mask = ~df_bs[v_x_name].isna()
     if valid_mask.any():
@@ -63,10 +78,12 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
             raise ValueError(f'Surface {surface} not valid')
 
         df_bs.loc[valid_mask, f'r_{surface}'] = r
+        df_bs.loc[valid_mask, f'r_{surface}_diff'] = df_bs.loc[valid_mask, r_name] - df_bs.loc[valid_mask, f'r_{surface}']
 
 
     # Set NaN for invalid rows
     df_bs.loc[~valid_mask, f'r_{surface}'] = np.nan
+    df_bs.loc[~valid_mask, f'r_{surface}_diff'] = np.nan
     df_bs.loc[~valid_mask, r_ax_name] = np.nan
     df_bs.loc[~valid_mask, r_ay_name] = np.nan
     df_bs.loc[~valid_mask, r_az_name] = np.nan

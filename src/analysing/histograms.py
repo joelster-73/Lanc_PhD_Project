@@ -65,16 +65,15 @@ def df_bin_stats(df, x_col, y_col, percentile=50, **kwargs):
         - 'bin_mean': The mean of `y_col` within each bin.
         - 'bin_std': The standard deviation of `y_col` within each bin.
     """
-    min_bin_count = kwargs.get('min_bin_count',500)
-    initial_bins = kwargs.get('initial_bins',30)
-    min_bins = kwargs.get('min_bins',10)
     bin_edges = kwargs.get('bin_edges',None)
+    bin_width = kwargs.get('bin_width',None)
+    bin_num   = kwargs.get('bin_num',None)
 
     if bin_edges is None:
-        bin_edges, bin_centers, bin_width = compute_bins(df[x_col], min_bin_count, initial_bins, min_bins)
-    else:
-        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        bin_width = np.diff(bin_edges)
+        bin_edges = calculate_bins(df[x_col], bin_width=bin_width, n_bins=bin_num)
+
+    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+    bin_width = np.diff(bin_edges)
 
     # Assign each data point in df to a bin
     df['bin'] = pd.cut(df[x_col], bins=bin_edges, include_lowest=True)

@@ -7,8 +7,7 @@ from uncertainties import ufloat, unumpy as unp
 from ..calculations import vec_mag
 
 from ...config import R_E
-from ...processing.speasy.retrieval import get_shock_position, retrieve_omni_value
-from ...processing.shocks.helsinki import get_list_of_events_all, get_list_of_events_helsinki
+from ...processing.speasy.retrieval import get_shock_position
 
 def find_outliers(shocks, threshold_time=40, coeff_lim=0.7):
 
@@ -102,14 +101,21 @@ def get_time_dist_differences(shocks, normals=None):
         if BS_pos_u is None:
             continue
 
-        normal_vecs = {}
+        normal = None
         if normals is not None:
             detectors = shock['detectors']
-            for det in detectors:
-                normal_row = normals[(normals.index==shock[f'{det}_time'])&(normals['spacecraft']==det)]
-                if len(normal_row)>0:
-                    normal_row = normal_row.iloc[0]
-                normal_vecs[det] = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
+            if ',' in detectors:
+                detectors = detectors.split(',')
+            else:
+                detectors = (detectors,)
+
+            # Needs to be changed
+            det = detectors[0]
+            normal_row = normals[(normals.index==shock[f'{det}_time'])&(normals['spacecraft']==det)]
+
+            if len(normal_row)>0:
+                normal_row = normal_row.iloc[0]
+            normal = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
 
         # Distance and times of spacecraft from BSN
         for sc in sc_labels:
@@ -135,9 +141,6 @@ def get_time_dist_differences(shocks, normals=None):
             time_diff     = (sc_time - BS_time).total_seconds()
             time_diff_unc = ufloat(time_diff,sc_time_unc) - ufloat(0,BS_time_unc)
             new_row += [time_diff, time_diff_unc.s]
-
-            detector = shock[f'{sc}_sc']
-            normal = normal_vecs.get(detector,None)
 
             for method in ('x_comp', 'dist', 'normal', 'normal time'):
 
@@ -180,7 +183,7 @@ def calc_sc_dist_diff(sc1_pos, sc2_pos, shock=None, method='normal'):
             n_sh = unp.uarray(shock[['Nx','Ny','Ny']].to_numpy(),
                               shock[['Nx_unc','Ny_unc','Nz_unc']].to_numpy())
             nx = n_sh[0]
-            if nx.s>abs(nx.n): # direction of shock completely uncertain
+            if nx.s>abs(nx.n):
                 return None
 
             diff = np.dot(n_sh, (sc1_pos - sc2_pos))
@@ -198,89 +201,3 @@ def calc_sc_dist_diff(sc1_pos, sc2_pos, shock=None, method='normal'):
             return None
 
     return None
-
-
-
-def shock_compressions(shocks):
-
-    try:
-        event_list = get_list_of_events_all(shocks)
-    except:
-        event_list = get_list_of_events_helsinki(shocks)
-
-    df = pd.DataFrame(columns=['eventID','sc_up','sc_dw','comp_up','comp_dw','change_rel','change_abs','time'])
-
-    df.attrs = {'units': {}}
-    df.attrs['units']['eventID'] = ''
-    df.attrs['units']['time'] = 's'
-    df.attrs['units'].update({key: 'STRING' for key in ('sc_up', 'sc_dw')})
-    df.attrs['units'].update({key: '1' for key in ('comp_up','comp_dw','change_rel','change_abs')})
-
-
-    for eventNum, event in enumerate(event_list):
-
-        # Need more shocks for comparison
-        if len(event)<=1:
-            continue
-
-        for i in range(2):
-
-            new_row = [eventNum]
-
-            if i==0: # Earliest and latest
-                event_copy = event.copy()
-                if 'OMNI' in event_copy:
-                    del event_copy['OMNI']
-                upstream   = min(event_copy, key=lambda k: event[k][0])
-                downstream = max(event_copy, key=lambda k: event[k][0])
-                if upstream==downstream:
-                    continue
-
-            else: # OMNI
-                if 'OMNI' not in event:
-                    continue
-                omni_time = event['OMNI'][0]
-                omni_sc = retrieve_omni_value(omni_time, 'OMNI_sc')
-                if omni_sc is None:
-                    continue
-                omni_sc = omni_sc.upper()
-
-                if omni_sc=='WIND-V2':
-                    upstream = 'WIND'
-                else:
-                    upstream = omni_sc
-                downstream = 'OMNI'
-
-                if upstream not in event:
-                    continue
-
-            new_row += [upstream, downstream]
-
-            up_time, up_unc = event.get(upstream)
-            up_comp = shocks.loc[up_time, ['B_ratio','B_ratio_unc']]
-            if isinstance(up_comp, pd.DataFrame):
-                up_comp = up_comp.iloc[0].to_numpy()
-            else:
-                up_comp = up_comp.to_numpy()
-            up_comp = ufloat(up_comp[0],up_comp[1])
-
-            dw_time_u = event.get(downstream)
-            dw_time, dw_unc = dw_time_u
-
-            dw_comp = shocks.loc[dw_time, ['B_ratio','B_ratio_unc']]
-            if isinstance(dw_comp, pd.DataFrame):
-                dw_comp = dw_comp.iloc[0].to_numpy()
-            else:
-                dw_comp = dw_comp.to_numpy()
-            dw_comp = ufloat(dw_comp[0],dw_comp[1])
-
-            new_row += [up_comp, dw_comp, dw_comp/up_comp, dw_comp-up_comp]
-
-            dt = (dw_time-up_time).total_seconds()
-            dt_unc = ufloat(dt,dw_unc)-ufloat(0,up_unc)
-
-            new_row += [ufloat(dt,dt_unc.s)]
-
-            df.loc[len(df)] = new_row
-
-    return df

@@ -8,13 +8,16 @@ import numpy as np
 import pandas as pd
 import speasy as spz
 import scipy
+
+from uncertainties import unumpy as unp
+
 from collections import Counter
 
 from speasy import amda
 from speasy.signal.resampling import interpolate
 from datetime import timedelta
 
-from .config import data_availability, data_availability_mag
+from .config import data_availability, data_availability_mag, speasy_variables
 from ..dataframes import resample_data
 from ...config import R_E
 
@@ -36,7 +39,7 @@ def clean_retrieved_data(spz_data, upsample_data=None):
     return spz_data
 
 
-def retrieve_data(parameter, source, speasy_variables, start_time, end_time, downsample=False, upsample=False, print_bounds=False, resolution='1min', add_omni_sc=True):
+def retrieve_data(parameter, source, start_time, end_time, downsample=False, upsample=False, print_bounds=False, resolution='1min', add_omni_sc=True):
     if 'B_' in parameter:
         data_range = data_availability_mag
     else:
@@ -129,7 +132,7 @@ def retrieve_data(parameter, source, speasy_variables, start_time, end_time, dow
     return df
 
 
-def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False, add_omni_sc=False):
+def retrieve_datum(parameter, source, time, print_bounds=False, add_omni_sc=False):
 
     if time is None:
         return None, None
@@ -144,7 +147,7 @@ def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False
     max_attempts = 60
     for counter in range(1, max_attempts + 1):
         interval = timedelta(minutes=window*counter)
-        df = retrieve_data(parameter, source, speasy_variables, time-interval, time+interval, add_omni_sc=add_omni_sc)
+        df = retrieve_data(parameter, source, time-interval, time+interval, add_omni_sc=add_omni_sc)
         df.dropna(inplace=True)
         if df.empty:
             continue
@@ -164,16 +167,16 @@ def retrieve_datum(parameter, source, speasy_variables, time, print_bounds=False
 
     return None, None
 
-def retrieve_position_unc(source, speasy_variables, time, time_unc):
+def retrieve_position_unc(source, time, time_unc):
 
     position_var = 'R_GSE'
 
-    position, _ = retrieve_datum(position_var, source, speasy_variables, time, add_omni_sc=False)
+    position, _ = retrieve_datum(position_var, source, time, add_omni_sc=False)
     if position is None:
         return None, None
 
-    pos_left, _ = retrieve_datum(position_var, source, speasy_variables, time-timedelta(seconds=time_unc), add_omni_sc=False)
-    pos_right, _ = retrieve_datum(position_var, source, speasy_variables, time+timedelta(seconds=time_unc), add_omni_sc=False)
+    pos_left, _ = retrieve_datum(position_var, source, time-timedelta(seconds=time_unc), add_omni_sc=False)
+    pos_right, _ = retrieve_datum(position_var, source, time+timedelta(seconds=time_unc), add_omni_sc=False)
     for arr in (position, pos_left, pos_right):
         arr = np.array(arr)
 
@@ -190,7 +193,7 @@ def retrieve_position_unc(source, speasy_variables, time, time_unc):
 
     return position, np.abs(unc)
 
-def retrieve_modal_omni_sc(speasy_variables, start_time, end_time, return_counts=False):
+def retrieve_modal_omni_sc(start_time, end_time, return_counts=False):
     if start_time==end_time:
         start_time, end_time = start_time-timedelta(minutes=10), start_time+timedelta(minutes=10)
     sc_ID = speasy_variables.get('OMNI_sc')
@@ -209,7 +212,7 @@ def retrieve_modal_omni_sc(speasy_variables, start_time, end_time, return_counts
 
     return modal_sc
 
-def retrieve_omni_value(speasy_variables, omni_time, omni_var='OMNI_lag'):
+def retrieve_omni_value(omni_time, omni_var='OMNI_lag'):
 
     omni_ID = speasy_variables.get(omni_var)
     omni_time = omni_time.replace(second=0, microsecond=0)
@@ -223,3 +226,30 @@ def retrieve_omni_value(speasy_variables, omni_time, omni_var='OMNI_lag'):
             sc = 'WIND'
         return sc
     return datum
+
+
+def get_shock_position(shock, sc):
+
+
+    try:
+        sc_pos = shock[[f'{sc}_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
+        sc_pos_unc = shock[[f'{sc}_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy()
+    except:
+        try:
+            sc_time = shock[f'{sc}_time']
+            sc_time_unc = shock[f'{sc}_time_unc_s']
+
+            if pd.isnull(sc_time):
+                return None
+
+            sc_pos, sc_pos_unc = retrieve_position_unc(sc, sc_time, sc_time_unc)
+
+        except:
+            return None
+
+    if sc_pos is None or np.isnan(sc_pos[0]):
+        return None
+    elif np.isnan(sc_pos_unc[0]):
+        sc_pos_unc = np.zeros(len(sc_pos))
+
+    return unp.uarray(sc_pos,sc_pos_unc)

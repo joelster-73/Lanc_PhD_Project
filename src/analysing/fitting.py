@@ -14,11 +14,12 @@ from scipy.signal import find_peaks
 from uncertainties import ufloat, umath
 
 
-def fit_function(xs, ys, fit_type='straight', print_text=False, **kwargs):
+def fit_function(xs, ys, print_text=False, **kwargs):
+
+    fit_type = kwargs.get('fit_type','straight')
+
 
     fit_dict = {}
-
-    # add peaks somewhere in this bit
 
     if fit_type=='straight':
         fit_func = straight_best_fit
@@ -42,7 +43,7 @@ def fit_function(xs, ys, fit_type='straight', print_text=False, **kwargs):
     else:
         raise Exception(f'{fit_type} not valid fit type.')
 
-    popt, perr, plab = fit_func(xs,ys,**kwargs)
+    popt, perr, plab = fit_func(xs, ys, **kwargs)
     params = {}
     for lab, p, err in zip(plab, popt, perr):
         params[lab] = ufloat(p, err)
@@ -98,7 +99,11 @@ def histogram_params(mids, counts):
 
     median = histogram_perc(mids, counts, 50)
 
-    return mean, sigma, median
+    N = np.sum(counts)
+    bin_width = np.median(np.diff(mids))
+    amp = N * bin_width / (sigma * np.sqrt(2*np.pi))
+
+    return mean, sigma, median, amp
 
 # %% Straight
 def straight_line(x, *params):
@@ -107,7 +112,7 @@ def straight_line(x, *params):
 
 def straight_best_fit(x, y, **kwargs):
 
-    yerr   = kwargs.get('yerr',None)
+    yerr   = kwargs.get('ys_unc',None)
     origin = kwargs.get('origin',False)
 
     if origin:
@@ -132,8 +137,7 @@ def gaussian_fit(x, y, **kwargs):
     simple_bounds = kwargs.get('simple_bounds',False)
 
     # Initial guesses
-    mean_guess, std_guess, median = histogram_params(x, y)
-    amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2)))
+    mean_guess, std_guess, median, amplitude_guess = histogram_params(x, y)
 
     initial_guess = (amplitude_guess, mean_guess, std_guess)
     # stops negative As and sigs
@@ -181,10 +185,9 @@ def bimodal_fit(x, y, **kwargs):
 
     # Initial guesses
     x1_guess, x2_guess = rough_peaks(x,y)
-    mean, sigma, median = histogram_params(x, y)
+    mean, sigma, median, amplitude_guess = histogram_params(x, y)
 
     std_guess = np.sqrt(sigma**2 - np.abs(x1_guess-x2_guess)*2 / 4)
-    amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2)))
 
     initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess)
 
@@ -220,11 +223,11 @@ def bimodal_fit_offset(x, y, **kwargs):
     # Initial guesses
     x1_guess, x2_guess = rough_peaks(x,y)
 
-    mean, sigma, median = histogram_params(x, y)
+    mean, sigma, median, amplitude = histogram_params(x, y)
 
     std_guess = np.sqrt(sigma**2 - np.abs(x1_guess-x2_guess)*2 / 4)
     offset_guess = np.min(y)
-    amplitude_guess = np.max(y) / np.exp(-(1 / (2 * std_guess ** 2))) - offset_guess
+    amplitude_guess = amplitude - offset_guess
 
     initial_guess = (amplitude_guess, x1_guess, std_guess, amplitude_guess, x2_guess, std_guess, offset_guess)
 
@@ -256,9 +259,9 @@ def lognormal(x, *params):
 def lognormal_fit(x, y):
 
     # Initial guesses
-    _, sigma_guess, median = histogram_params(x, y)
+    _, sigma_guess, median, amplitude_guess = histogram_params(x, y)
 
-    amplitude_guess = np.max(y)
+    #amplitude_guess = np.max(y)
     mu_guess = np.log(median)  # Use median for scale as an initial guess
     initial_guess = (amplitude_guess, mu_guess, sigma_guess)
 

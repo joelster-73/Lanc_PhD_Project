@@ -8,7 +8,6 @@ Created on Fri May 16 10:27:58 2025
 import os
 import numpy as np
 import pandas as pd
-import math
 
 from pandas import Timedelta
 from datetime import datetime
@@ -100,9 +99,6 @@ def save_gif(frame_files, length=1, directory='Figures'):
     print(f'GIF saved as {file_path}\n')
 
 
-
-
-
 def segment_dataframe(df, delta=Timedelta(minutes=1)):
     """
     Adds a 'segment' column to the DataFrame based on time gaps exceeding a threshold.
@@ -133,7 +129,6 @@ def segment_dataframe(df, delta=Timedelta(minutes=1)):
     return df
 
 
-
 def datetime_to_decimal_year_vectorised(date_index):
     day_of_year = date_index.day_of_year
 
@@ -144,64 +139,26 @@ def datetime_to_decimal_year_vectorised(date_index):
     # Calculate the decimal year
     return date_index.year + (day_of_year - 1) / days_in_year
 
-def calculate_bins(data, bin_width=None):
-    """
-    Calculate the number of bins such that:
-    - Each bin corresponds to an integer range and is aligned at 0.
-    - The number of bins is iteratively doubled until it exceeds 20.
-    - The final number of bins is restricted to [40, 100].
 
-    Parameters:
-    - data (pd.Series or pd.DataFrame): Input data. If a DataFrame, a single column is expected.
+def calculate_bins(data, bin_width=None, n_bins=20, number=False):
 
-    Returns:
-    - int: The calculated number of bins.
-    """
-    if isinstance(data, pd.DataFrame):
-        if data.shape[1] != 1:
-            raise ValueError('DataFrame must contain exactly one column.')
-        data = data.iloc[:, 0]
-    elif isinstance(data, np.ndarray):
-        if data.ndim != 1:
-            raise ValueError('NumPy array must be one-dimensional.')
-    elif not isinstance(data, (pd.Series, np.ndarray)):
+    if not isinstance(data, (pd.Series, np.ndarray)):
         raise TypeError('Input must be a Pandas Series, single-column DataFrame, or one-dimensional NumPy array.')
+
     if bin_width is None:
-        # Calculate the range of the data
-        data_min, data_max = np.min(data), np.max(data)
-        bin_range = np.ceil(data_max) - np.floor(data_min)  # Ensure range covers full integers
-        n_bins = int(bin_range)  # Initial bins aligned with integers
 
-        # Ensure n_bins > 20 by doubling if necessary
-        while n_bins < 20:
-            n_bins *= 2
-
-        # Restrict n_bins to the range [40, 100]
-        return max(40, min(n_bins, 100))
-    else:
-        return math.ceil((np.max(data)-np.min(data)+1)/bin_width)
+        data_range = np.max(data) - np.min(data)
+        raw_width  = data_range / n_bins
+        if raw_width == 0:
+            return 0
+        magnitude = 10 ** np.floor(np.log10(raw_width))
+        bin_width = round(raw_width / magnitude) * magnitude
 
 
-def calculate_bins_edges(data, bin_width=1):
-    """
-    Similar to a above but returns bin edges
-    """
-    if isinstance(data, pd.DataFrame):
-        if data.shape[1] != 1:
-            raise ValueError('DataFrame must contain exactly one column.')
-        data = data.iloc[:, 0]
+    bin_edges = np.arange(np.floor(np.min(data)/bin_width)*bin_width,
+                          np.ceil(np.max(data)/bin_width)*bin_width+bin_width,bin_width)
 
-    elif isinstance(data, np.ndarray):
-        if data.ndim != 1:
-            raise ValueError('NumPy array must be one-dimensional.')
+    if number:
+        return len(bin_edges) - 1
 
-    elif not isinstance(data, (pd.Series, np.ndarray)):
-        raise TypeError('Input must be a Pandas Series, single-column DataFrame, or one-dimensional NumPy array.')
-
-    data_min, data_max = np.min(data), np.max(data)
-
-    return np.arange(np.floor(data_min),np.ceil(data_max)+bin_width,bin_width)
-
-
-
-
+    return bin_edges

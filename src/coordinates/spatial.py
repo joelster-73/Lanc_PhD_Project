@@ -10,31 +10,35 @@ from ..processing.utils import add_unit
 v_Earth = 29.78 # km/s
 
 
-def car_to_aGSE(df, position_key=None, data_key=None, simple=False):
+def car_to_aGSE(df, column_names=None, simple=False):
 
+    if column_names is None:
+        column_names = {
+            'r_x_name': 'r_x_GSE',
+            'r_y_name': 'r_y_GSE',
+            'r_z_name': 'r_z_GSE',
+            'r_name': 'r',
+            'r_ax_name': 'r_x_aGSE',
+            'r_ay_name': 'r_y_aGSE',
+            'r_az_name': 'r_z_aGSE',
+            'v_x_name': 'v_x_GSE',
+            'v_y_name': 'v_y_GSE',
+            'v_z_name': 'v_z_GSE',
+            'p_name': 'p_flow'
+        }
+
+    r_x_name = column_names['r_x_name']
+    r_y_name = column_names['r_y_name']
+    r_z_name = column_names['r_z_name']
+    r_name   = column_names['r_name']
+    r_ax_name = column_names['r_ax_name']
+    r_ay_name = column_names['r_ay_name']
+    r_az_name = column_names['r_az_name']
+    v_x_name = column_names['v_x_name']
+    v_y_name = column_names['v_y_name']
+    v_z_name = column_names['v_z_name']
 
     df_aGSE = pd.DataFrame(index=df.index)
-
-    r_x_name = 'r_x_GSE'
-    r_y_name = 'r_y_GSE'
-    r_z_name = 'r_z_GSE'
-    r_name   = 'r'
-
-    r_ax_name = 'r_x_aGSE'
-    r_ay_name = 'r_y_aGSE'
-    r_az_name = 'r_z_aGSE'
-
-    if position_key is not None:
-        for name in (r_x_name,r_y_name,r_z_name,r_name,r_ax_name,r_ay_name,r_az_name):
-            name += f'_{position_key}'
-
-    v_x_name = 'v_x_GSE'
-    v_y_name = 'v_y_GSE'
-    v_z_name = 'v_z_GSE'
-
-    if data_key is not None:
-        for name in (v_x_name,v_y_name,v_z_name):
-            name += f'_{data_key}'
 
     # Magnitude of cluster vector
     df_aGSE[r_name] = np.sqrt(df[r_x_name]**2 +

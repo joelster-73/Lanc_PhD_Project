@@ -7,15 +7,95 @@ Created on Fri May 16 10:38:41 2025
 import numpy as np
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from matplotlib import ticker as mticker
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from .config import black, white
+from .config import black, white, blue
 from .formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
 from .utils import save_figure, calculate_bins
 
 from ..analysing.fitting import fit_function
+from ..analysing.calculations import calc_mean_error
 
+
+def plot_fit(xs, ys, x_range=None, **kwargs):
+
+    fit_type    = kwargs.get('fit_type',None)
+    inc_errs    = kwargs.get('inc_errs',True)
+    colour      = kwargs.get('fit_colour','r')
+    ls          = kwargs.get('fit_style','-')
+    lw          = kwargs.get('fit_width',2)
+    as_text     = kwargs.get('as_text',False)
+    orientation = kwargs.get('orientation','vertical')
+
+    ax = kwargs.get('ax', None)
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    if fit_type is None:
+        print('No fit type entered.')
+        return {}
+
+    try:
+        unit = ys.attrs.get('units',{}).get(ys.name,'')
+    except:
+        unit = kwargs.get('unit','')
+    if unit=='1':
+        unit = ''
+
+    fit_dict = fit_function(xs, ys, **kwargs)
+    func = fit_dict['func']
+    popt = (v.n for v in fit_dict['params'].values())
+    param_dict = fit_dict['params']
+
+    if x_range is None and func.__name__ == 'straight_line':
+        m, c = popt
+        if orientation == 'horizontal':
+            ax.axline((c, 0), slope=1/m, color=colour, linestyle=ls, linewidth=lw)
+        else:
+            ax.axline((0, c), slope=m, color=colour, linestyle=ls, linewidth=lw)
+    else:
+
+        if x_range is None:
+            x_range = np.arange(np.min(xs),np.max(xs))
+
+        x_vals = x_range
+        y_vals = func(x_range, *popt)
+        if orientation=='horizontal':
+            x_vals, y_vals = y_vals, x_vals
+
+        ax.plot(x_vals, y_vals, c=colour, ls=ls, lw=lw)
+
+    if fit_type in ('bimodal','bimodal_offset'):
+        label1, label2 = bimodal_label(param_dict,inc_errs,unit)
+
+        if as_text and orientation=='vertical':
+            text = label1.replace('\n',', ') + '\n' + label2.replace('\n',', ')
+            ax.text(0.5, 0.975, text, ha='center', va='top', transform=ax.transAxes)
+        elif as_text and orientation=='horizontal':
+            text = label1 + '\n' + label2
+            ax.text(0.5, 0.975, text, ha='center', va='top', transform=ax.transAxes)
+        else:
+            ax.plot([],[],' ',label=label1)
+            ax.plot([],[],' ',label=label2)
+
+    else:
+        if fit_type=='gaussian':
+            label = gaussian_label(param_dict,inc_errs,unit)
+        elif fit_type=='lognormal':
+            label = lognormal_label(param_dict,inc_errs,unit)
+        elif fit_type=='straight':
+            label = straight_label(param_dict,inc_errs,unit)
+        else:
+            label = None
+
+        if as_text:
+            ax.text(0.5, 0.975, label, ha='center', va='top', transform=ax.transAxes)
+        else:
+            ax.plot([],[],' ',label=label)
+
+    return fit_dict
 
 
 def plot_freq_hist(series, **kwargs):
@@ -26,17 +106,18 @@ def plot_freq_hist(series, **kwargs):
     want_legend = kwargs.get('want_legend',True)
     brief_title = kwargs.get('brief_title','')
 
-    lc          = kwargs.get('lc','r')
-    ls          = kwargs.get('ls','-')
-
     colour      = kwargs.get('colour','k')
+    cmap        = kwargs.get('cmap',None)
+    clipping    = kwargs.get('clipping',1)
     perc_low    = kwargs.get('perc_low',0)
     perc_high   = kwargs.get('perc_high',100)
     bin_width   = kwargs.get('bin_width',None)
+    orientation = kwargs.get('orientation','vertical')
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
     return_objs = kwargs.get('return_objs',False)
+
 
     data_str = data_string(series.name)
     unit = series.attrs.get('units', {}).get(series.name, None)
@@ -52,23 +133,21 @@ def plot_freq_hist(series, **kwargs):
     ###-------------------PLOT HISTOGRAM-------------------###
     if fig is None or ax is None:
         fig, ax = plt.subplots()
+        kwargs['fig'] = fig
+        kwargs['ax'] = ax
 
     n_bins = calculate_bins(series,bin_width)
-    counts, bins, _ = ax.hist(series, bins=n_bins, alpha=1.0, color=colour, edgecolor='grey', linewidth=1)
+    counts, bins, patches = ax.hist(series, bins=n_bins, alpha=1.0, color=colour, edgecolor='#333333', linewidth=1, orientation=orientation)
+
+    norm = mcolors.Normalize(vmin=min(counts), vmax=max(counts)*clipping)
+    if cmap is not None:
+        for count, patch in zip(counts, patches):
+            colour = cmap(norm(count))
+            patch.set_facecolor(colour)
+
+    ###-------------------FITTING-------------------###
     if fit_type in ('mean','median'):
-        if fit_type=='mean':
-            metric = np.mean(series)
-            try:
-                label = f'$\\mu={metric:L}$'
-            except:
-                label = f'$\\mu=${metric:.3g}'
-        elif fit_type=='median':
-            metric = np.median(series)
-            try:
-                label = f'$\\nu={metric:L}$'
-            except:
-                label = f'$\\nu=${metric:.3g}'
-        ax.axvline(metric, lw=1, ls=ls, c=lc, label=label)
+        plot_metric(series, metric=fit_type, **kwargs)
     else:
         mids = 0.5 * (bins[1:] + bins[:-1])
         bin_width = bins[1] - bins[0]
@@ -76,36 +155,49 @@ def plot_freq_hist(series, **kwargs):
         xmax = mids[-1] + 0.5 * bin_width
         x_plot = np.linspace(xmin, xmax, 500)
 
-        fit_dict = plot_fit(ax, mids, counts, fit_type, x_range=x_plot)
+        fit_dict = plot_fit(mids, counts, x_range=x_plot, unit=unit, **kwargs)
 
         if fit_type=='lognormal':
             peak = fit_dict['peaks'][0][0] # x position
             try:
                 position = peak.n
-                label = f'${peak:.1uL}$'
+                label = f'${peak:L}$'
             except:
                 position = peak
                 label = f'{peak:.3g}'
-            ax.text(x=position+0.75,y=0.9*ax.get_ylim()[1],s=label)
+            ax.text(position+0.75, 0.9*ax.get_ylim()[1], s=label)
 
-    perc_range = (np.percentile(series, perc_low), np.percentile(series, perc_high))
+    perc_range = [None, None]
     if perc_low>0:
+        perc_range[0] = np.percentile(series, perc_low)
         ax.text(0.025, 0.075, f'$\\longleftarrow$\n{np.min(series):.1f}', transform=ax.transAxes)
     if perc_high<100:
+        perc_range[1] = np.percentile(series, perc_high)
         ax.text(0.865, 0.075, f'$\\longrightarrow$\n{np.max(series):.1f}', transform=ax.transAxes)
 
     ###-------------------SET LABELS AND TITLE-------------------###
-    ax.set_xlim(perc_range)
     if fit_type=='bimodal_offset':
         offset = fit_dict['params']['c']
         ax_lim = ax.get_ylim()[1]
         ax.set_ylim(0.75*offset.n, ax_lim+0.5*offset.n)
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:,.0f}'))
 
-    ax.set_xlabel(data_label, c=black)
-    ax.set_ylabel('Counts', c=black)
-    if brief_title=='':
-        brief_title = f'{len(series):,} mins'
+    if orientation=='vertical':
+        ax.set_xlim(perc_range)
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:,.0f}'))
+
+        ax.set_xlabel(data_label, c=black)
+        ax.set_ylabel('Counts', c=black)
+    else:
+        ax.set_ylim(perc_range)
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f'{x:,.0f}'))
+
+        ax.set_ylabel(data_label, c=black)
+        ax.set_xlabel('Counts', c=black)
+
+    if brief_title=='amount':
+        brief_title = f'{len(series):,}'
+    elif brief_title != '':
+        brief_title += f', N={len(series):,}'
 
     loc = 'split' if fit_type in ('bimodal','bimodal_offset') else 'upper right'
     add_legend(fig, ax, loc=loc, edge_col=white, frame_on=False, legend_on=want_legend)
@@ -215,9 +307,9 @@ def plot_q_q(series1, series2, **kwargs):
     if brief_title=='slope':
         fit_dict = fit_function(percentiles_1, percentiles_2, fit_type='straight')
         m = fit_dict['m']
-        brief_title = f'$m = {m:.1uL}$'
-    else:
-        brief_title = f'{len(series1):,} mins | {len(series2):,} mins'
+        brief_title = f'$m = {m:L}$'
+    elif brief_title=='amount':
+        brief_title = f'{len(series1):,} | {len(series2):,}'
 
     add_figure_title(fig, black, brief_title, ax=ax)
     dark_mode_fig(fig,black,white)
@@ -230,78 +322,120 @@ def plot_q_q(series1, series2, **kwargs):
     plt.show()
     plt.close()
 
-def plot_fit(ax,xs,ys,fit_type,x_range=None,non_zero=True,plot_peaks=False,**kwargs):
+def plot_metric(series, metric='mean', **kwargs):
 
-    if fit_type is None:
-        print('No fit type entered.')
-        return {}
 
-    inc_errs = kwargs.get('inc_errs',True)
+    ax     = kwargs.get('ax',None)
     colour = kwargs.get('lc','r')
     ls     = kwargs.get('ls','-')
 
-    if non_zero:
-        xs = xs[ys > 0]
-        ys = ys[ys > 0]
+    if ax is not None:
 
-    fit_dict = fit_function(xs, ys, fit_type)
-    func = fit_dict['func']
-    popt = (v.n for v in fit_dict['params'].values())
-    param_dict = fit_dict['params']
+        if metric=='mean':
+            value = calc_mean_error(series)
+            try:
+                label = f'$\\mu={metric:L}$'
+            except:
+                label = f'$\\mu=${metric:.3g}'
+        elif metric=='median':
+            value = np.median(series)
+            try:
+                label = f'$\\nu={metric:L}$'
+            except:
+                label = f'$\\nu=${metric:.3g}'
 
-    if x_range is None:
-        x_range = xs
+        ax.axvline(value, lw=1, ls=ls, c=colour, label=label)
 
-    ax.plot(x_range, func(x_range, *popt), c=colour, ls=ls, linewidth=2)
+def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
-    if fit_type in ('bimodal','bimodal_offset'):
-        label1, label2 = bimodal_label(param_dict,inc_errs)
-        ax.plot([],[],' ',label=label1)
-        ax.plot([],[],' ',label=label2)
-    else:
-        if fit_type=='gaussian':
-            label = gaussian_label(param_dict,inc_errs)
-        elif fit_type=='lognormal':
-            label = lognormal_label(param_dict,inc_errs)
-        elif fit_type=='straight':
-            label = straight_label(param_dict,inc_errs)
+    ax          = kwargs.get('ax',None)
+    mean_colour = kwargs.get('mean_colour',blue)
+    std_colour  = kwargs.get('std_colour','r')
+
+    y_unit = ys.attrs.get('units',{}).get(ys.name,'')
+
+    while window_step>(window_width/10):
+        window_step /= 2
+
+    x_centres = np.arange(int(np.min(xs)),int(np.max(xs))+window_step,window_step)
+    y_means   = np.full(len(x_centres),np.nan)
+    y_stds    = np.zeros(len(x_centres))
+
+    for i, x_c in enumerate(x_centres):
+        mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
+        if np.sum(mask) >= 1:
+            y_means[i] = np.mean(ys[mask])
+            if np.sum(mask) >= 2:
+                y_stds[i] = np.std(ys[mask], ddof=1)
+
+    not_nan = ~np.isnan(y_means)
+
+    segments = []
+    current_segment = []
+    for i, val in enumerate(y_means):
+        if not_nan[i]:
+            current_segment.append((x_centres[i], val, y_stds[i]))
         else:
-            label = None
+            if current_segment:
+                segments.append(current_segment)
+                current_segment = []
+    if current_segment:
+        segments.append(current_segment)
 
-        ax.plot([],[],' ',label=label)
+    for segment in segments:
+        x_vals, y_vals, y_errs = zip(*segment)
+        x_vals = np.array(x_vals)
+        y_vals = np.array(y_vals)
+        y_errs = np.array(y_errs)
+        if len(x_vals)==1:
+            ax.plot(x_vals, y_vals, c=mean_colour, marker='.')
+        else:
+            ax.plot(x_vals, y_vals, c=mean_colour)
+        ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color=std_colour, alpha=0.3)
 
-    return fit_dict
+    ax.plot([], [], c=mean_colour, label='mean')
+    ax.fill_between([], [], [], color=std_colour, alpha=0.3, label=r'$\pm$std')
+
+    ax.set_ylabel(r'$\mu \pm \sigma$'+f' [{y_unit}]')
+    ax.legend(fontsize=8, loc='upper left')
+
 
 # %% Labels
 
-def straight_label(param_dict, detailed=True):
+def straight_label(param_dict, detailed=True, unit=''):
 
     m = param_dict['m']
     c = param_dict['c']
 
+    if c<0:
+        sign = '-'
+    else:
+        sign = '+'
+    c = np.abs(c)
+
     if detailed:
         try:
-            return f'$y=({m:.1uL})\\cdot x+{c:.1uL}$'
+            return f'$y=({m:L})\\cdot x {sign} ({c:L})$ {unit}'
         except:
-            return f'$y=$({m:.3g})$\\cdot x+${c:.3g}'
+            return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}'
 
-    return f'$y=$({m:.3g})$\\cdot x+${c:.3g}'
+    return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}'
 
 
-def gaussian_label(param_dict, detailed=True):
+def gaussian_label(param_dict, detailed=True, unit=''):
 
     mu  = param_dict['mu']
     std = param_dict['sigma']
 
     if detailed:
         try:
-            return f'$\\mu$: ${mu:.1uL}$\n$\\sigma$: ${std:.1uL}$'
+            return f'$\\mu$: ${mu:L}$ {unit}\n$\\sigma$: ${std:L}$ {unit}'
         except:
-            return f'$\\mu$: {mu:.3g}\n$\\sigma$: {std:.3g}'
+            return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
 
-    return f'$\\mu$: {mu:.3g}\n$\\sigma$: {std:.3g}'
+    return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
 
-def bimodal_label(param_dict, detailed=True):
+def bimodal_label(param_dict, detailed=True, unit=''):
 
     mu1  = param_dict['mu1']
     std1 = param_dict['sigma1']
@@ -310,26 +444,26 @@ def bimodal_label(param_dict, detailed=True):
 
     if detailed:
         try:
-            label1=f'$\\mu_1$: ${mu1:.1uL}$\n$\\sigma_1$: ${std1:.1uL}$'
-            label2=f'$\\mu_2$: ${mu2:.1uL}$\n$\\sigma_2$: ${std2:.1uL}$'
+            label1=f'$\\mu_1$: ${mu1:L}$ {unit}\n$\\sigma_1$: ${std1:L}$ {unit}'
+            label2=f'$\\mu_2$: ${mu2:L}$ {unit}\n$\\sigma_2$: ${std2:L}$ {unit}'
         except:
-            label1=f'$\\mu_1$: {mu1:.3g}\n$\\sigma_1$: {std1:.3g}'
-            label2=f'$\\mu_2$: {mu2:.3g}\n$\\sigma_2$: {std2:.3g}'
+            label1=f'$\\mu_1$: {mu1:.3g} {unit}\n$\\sigma_1$: {std1:.3g} {unit}'
+            label2=f'$\\mu_2$: {mu2:.3g} {unit}\n$\\sigma_2$: {std2:.3g} {unit}'
     else:
-        label1=f'$\\mu_1$: {mu1:.3g}\n$\\sigma_1$: {std1:.3g}'
-        label2=f'$\\mu_2$: {mu2:.3g}\n$\\sigma_2$: {std2:.3g}'
+        label1=f'$\\mu_1$: {mu1:.3g} {unit}\n$\\sigma_1$: {std1:.3g} {unit}'
+        label2=f'$\\mu_2$: {mu2:.3g} {unit}\n$\\sigma_2$: {std2:.3g} {unit}'
 
     return label1, label2
 
-def lognormal_label(param_dict, detailed=True):
+def lognormal_label(param_dict, detailed=True, unit=''):
 
     mu  = param_dict['mu']
     std = param_dict['sigma']
 
     if detailed:
         try:
-            return f'$\\mu$: ${mu:.1uL}$\n$\\sigma$: ${std:.1uL}$'
+            return f'$\\mu$: ${mu:L}$ {unit}\n$\\sigma$: ${std:L}$ {unit}'
         except:
-            return f'$\\mu$: {mu:.3g}\n$\\sigma$: {std:.3g}'
+            return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
 
-    return f'$\\mu$: {mu:.3g}\n$\\sigma$: {std:.3g}'
+    return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
