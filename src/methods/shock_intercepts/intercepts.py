@@ -44,15 +44,16 @@ def find_all_shocks(shocks, parameter, time=None, shocks_intercepts_started=None
         eventID_max = np.max(shocks['eventNum'].astype(int))
         eventIDs = range(1,eventID_max+1)
         shocks_intercepts = pd.concat([shocks_intercepts, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
+
+        add_df_units(shocks_intercepts)
+
+        shocks_intercepts.attrs['units']['detectors'] = 'LIST'
+        shocks_intercepts.attrs['units']['OMNI_sc'] = 'STRING'
+        for sc in sum((sw_monitors, ('OMNI',)), ()):
+            shocks_intercepts.attrs['units'][f'{sc}_sc'] = 'STRING'
+
     else:
         shocks_intercepts = shocks_intercepts_started
-
-    add_df_units(shocks_intercepts)
-
-    shocks_intercepts.attrs['units']['detectors'] = 'LIST'
-    shocks_intercepts.attrs['units']['OMNI_sc'] = 'STRING'
-    for sc in sum((sw_monitors, ('OMNI',)), ()):
-        shocks_intercepts.attrs['units'][f'{sc}_sc'] = 'STRING'
 
     if time is not None:
         time_shock = time
