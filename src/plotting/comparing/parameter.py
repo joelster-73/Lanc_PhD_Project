@@ -7,11 +7,13 @@ Created on Fri May 16 11:27:55 2025
 
 import numpy as np
 import pandas as pd
+import itertools as it
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import is_color_like
 from matplotlib.lines import Line2D
+from matplotlib.markers import MarkerStyle
 from collections import Counter
 
 from ..config import black, white, blue
@@ -72,7 +74,7 @@ def compare_series(series1, series2, **kwargs):
 
     data1_label = create_label(data1_str, unit=unit1, data_name=data1_name, name_latex=True)
     data2_label = create_label(data2_str, unit=unit2, data_name=data2_name, name_latex=True)
-    title_str = f'Comparing ${data1_str}$ and ${data2_str}$' if brief_title is None else brief_title
+    brief_title = f'Comparing ${data1_str}$ and ${data2_str}$' if brief_title is None else brief_title
 
 
     ###---------------PLOTS MAIN SCATTER/HEAT DATA---------------###
@@ -131,7 +133,7 @@ def compare_series(series1, series2, **kwargs):
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###
     add_legend(fig, ax, legend_on=want_legend, heat=is_heat)
-    add_figure_title(fig, black, title_str, ax=ax)
+    add_figure_title(fig, black, brief_title, ax=ax)
     dark_mode_fig(fig,black,white,is_heat)
     plt.tight_layout();
 
@@ -146,16 +148,12 @@ def compare_series(series1, series2, **kwargs):
     plt.close()
 
 
-from matplotlib.markers import MarkerStyle
-
 def is_marker_like(marker):
     try:
         MarkerStyle(marker)
         return True
     except ValueError:
         return False
-
-import itertools as it
 
 def plot_scatter_with_dict(xs, ys, **kwargs):
 

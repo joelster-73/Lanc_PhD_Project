@@ -46,7 +46,7 @@ def plot_with_side_figs(series_1, series_2, bottom_panel=None, right_panel=None,
     kwargs['as_text'] = True
     kwargs['data_colour'] = kwargs['colouring']
 
-    _, axis = compare_series(series_2, series_1, fig=fig, ax=ax, return_objs=True, **kwargs)
+    _, axis = compare_series(series_1, series_2, fig=fig, ax=ax, return_objs=True, **kwargs)
     #ylim = np.max(np.abs(ax.get_ylim()))
     #ax.set_ylim(-ylim,ylim)
 

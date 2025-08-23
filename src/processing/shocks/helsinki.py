@@ -11,7 +11,7 @@ import numpy as np
 from ..utils import add_unit
 
 from ..speasy.retrieval import retrieve_omni_value
-from ..speasy.config import speasy_variables, sw_monitors
+from ..speasy.config import sw_monitors
 
 from collections import Counter
 from ..speasy.retrieval import retrieve_position_unc
@@ -134,7 +134,7 @@ def convert_helsinki_df_training(df_helsinki):
 
             rad_dist = np.linalg.norm(position)
             if np.isnan(rad_dist):
-                position, _ = retrieve_position_unc(sc, speasy_variables, time, time_unc)
+                position, _ = retrieve_position_unc(sc, time, time_unc)
                 if position is None:
                     continue
             event_shocks.loc[len(event_shocks)] = [time, str(i+1), time_unc, sc, position[0], position[1], position[2]]
@@ -155,17 +155,16 @@ def convert_helsinki_df_plotting(helsinki_shocks):
     new_columns = {}
 
     new_columns['detectors'] = ''
-    for sc in (all_spacecraft + ('OMNI',)):
+    for sc in (all_spacecraft + ['OMNI']):
 
         new_columns[f'{sc}_time'] = pd.NaT
         new_columns[f'{sc}_time_unc_s'] = np.nan
+        new_columns[f'{sc}_coeff']      = np.nan
+        new_columns[f'{sc}_sc']         = ''
 
         for comp in ('x','y','z'):
             new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
             new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
-
-        if sc=='OMNI':
-            new_columns['OMNI_sc'] = ''
 
     eventIDs = range(1,len(event_list)+1)
     helsinki_events = pd.concat([helsinki_events, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
@@ -176,7 +175,8 @@ def convert_helsinki_df_plotting(helsinki_shocks):
         event_num = ind+1
 
         detectors = [sc for sc in (sw_monitors + ('OMNI',)) if sc in list(shock_dict.keys())]
-        helsinki_events.at[event_num,'detectors'] = ','.join(detectors)
+        #helsinki_events.at[event_num,'detectors'] = ','.join(detectors)
+        helsinki_events.at[event_num,'detectors'] = detectors
 
         for sc, sc_info in shock_dict.items():
             helsinki_events.at[event_num, f'{sc}_time'] = sc_info[0]
@@ -190,7 +190,7 @@ def convert_helsinki_df_plotting(helsinki_shocks):
                 continue
             helsinki_events.loc[event_num,[f'{sc}_r_x_GSE',f'{sc}_r_y_GSE',f'{sc}_r_z_GSE']] = position
             if sc=='OMNI':
-                helsinki_events.at[event_num,'OMNI_sc'] = retrieve_omni_value(speasy_variables, sc_info[0], omni_var='OMNI_sc')
+                helsinki_events.at[event_num,'OMNI_sc'] = retrieve_omni_value(sc_info[0], omni_var='OMNI_sc')
 
 
     return helsinki_events

@@ -11,7 +11,7 @@ from src.processing.reading import import_processed_data
 all_processed_shocks = import_processed_data(PROC_SHOCKS_DIR)
 
 # %% Initialise
-from src.analysing.shocks.intercepts import find_all_shocks
+from src.methods.shock_intercepts.intercepts import find_all_shocks
 shocks_intercepted = find_all_shocks(all_processed_shocks, 'B_mag')
 
 

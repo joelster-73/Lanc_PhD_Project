@@ -2,9 +2,10 @@
 
 import numpy as np
 import pandas as pd
+import itertools as it
 
 from uncertainties import ufloat, unumpy as unp
-from ..calculations import vec_mag
+from ...analysing.calculations import vec_mag
 
 from ...config import R_E
 from ...processing.speasy.retrieval import get_shock_position, retrieve_omni_value
@@ -77,13 +78,98 @@ def accuracy_against_earth_sun():
     return
 
 
+def get_shock_propagations(shocks, normals=None):
 
 
+    monitors = ('ACE','WIND','DSC','C1','C3','C4','OMNI')
 
-def get_time_dist_differences(shocks, normals=None):
 
-    # For quantifying the error on OMNI
-    # Can adapt for the different methods (i.e. two spacecraft, omni and its spacecraft, omni and any other spacecraft)
+    df = pd.DataFrame(columns=['detector','interceptor','time','time_unc','delta_x','delta_x_unc','delta_r','delta_r_unc','delta_n','delta_n_unc','delta_t','delta_t_unc'])
+
+    for index, shock in shocks.iterrows():
+
+        for upstream, downstream in it.combinations(monitors, 2):
+
+            if downstream=='OMNI':
+                if pd.isnull(shock['OMNI_time']):
+                    continue
+                omni_sc = retrieve_omni_value(shock['OMNI_time'], 'OMNI_sc')
+                if omni_sc is not None:
+                    omni_sc = omni_sc.upper()
+                if upstream!=omni_sc:
+                    continue
+
+            up_time = shock[f'{upstream}_time']
+            up_unc  = shock[f'{upstream}_time_unc_s']
+            if pd.isnull(up_time):
+                continue
+            if pd.isnull(up_unc):
+                up_unc = np.zeros(3)
+
+            up_pos  = shock[[f'{upstream}_r_{comp}_GSE' for comp in ('x','y','z')]]
+            up_pos_unc = shock[[f'{upstream}_r_{comp}_GSE_unc' for comp in ('x','y','z')]]
+            up_pos_u = unp.uarray(up_pos.to_numpy(),up_pos_unc.to_numpy())
+
+            if isinstance(up_pos, pd.DataFrame):
+                up_pos = up_pos.iloc[0].to_numpy()
+            else:
+                up_pos = up_pos.to_numpy()
+
+            dw_time = shock[f'{downstream}_time']
+            dw_unc  = shock[f'{downstream}_time_unc_s']
+            if pd.isnull(dw_time):
+                continue
+            if pd.isnull(dw_unc):
+                dw_unc = np.zeros(3)
+
+            dw_pos  = shock[[f'{downstream}_r_{comp}_GSE' for comp in ('x','y','z')]]
+            dw_pos_unc = shock[[f'{downstream}_r_{comp}_GSE_unc' for comp in ('x','y','z')]]
+            dw_pos_u = unp.uarray(dw_pos.to_numpy(),dw_pos_unc.to_numpy())
+
+            if isinstance(dw_pos, pd.DataFrame):
+                dw_pos = dw_pos.iloc[0].to_numpy()
+            else:
+                dw_pos = dw_pos.to_numpy()
+
+            if downstream=='OMNI' and np.sum(np.abs(dw_pos)>=9999)>1: # Bad data flag
+                continue
+
+            normal_vec = None
+            if normals is not None:
+                normal_row = normals[(normals.index==shock[f'{upstream}_time'])&(normals['spacecraft']==upstream)]
+                if len(normal_row)>0:
+                    normal_row = normal_row.iloc[0]
+                normal_vec = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
+
+            new_row = []
+
+            new_row += [upstream, downstream]
+
+            time_diff     = (up_time - dw_time).total_seconds()
+            time_diff_unc = ufloat(time_diff,up_unc) - ufloat(0,dw_unc)
+            new_row += [time_diff, time_diff_unc.s]
+
+            for method in ('x_comp', 'dist', 'normal', 'normal time'):
+
+                diff = calc_sc_dist_diff(up_pos_u, dw_pos_u, shock=normal_vec, method=method)
+
+                if diff is None:
+                    new_row += [np.nan, np.nan]
+                else:
+                    new_row += [np.float64(diff[0]), np.float64(diff[1])]
+
+            df.loc[len(df)] = new_row
+
+    df.attrs = {}
+    df_units = {key: 'STRING' for key in ('detector', 'interceptor')}
+    df_units |= {key: 's' for key in ('time', 'time_unc', 'delta_t', 'delta_t_unc')}
+    df_units |= {key: r'$\mathrm{R_E}$' for key in ('delta_x', 'delta_x_unc', 'delta_r', 'delta_r_unc', 'delta_n', 'delta_n_unc')}
+    df.attrs['units'] = df_units
+
+    return df
+
+
+def get_diffs_with_OMNI(shocks, normals=None):
 
 
     df = pd.DataFrame(columns=['detector','interceptor','time','time_unc','delta_x','delta_x_unc','delta_r','delta_r_unc','delta_n','delta_n_unc','delta_t','delta_t_unc'])
@@ -116,7 +202,7 @@ def get_time_dist_differences(shocks, normals=None):
 
             new_row = []
 
-            # Want to compare spacecraft only not used by OMNI
+            # Want to compare only spacecraft not used by OMNI
             if  sc=='OMNI' or sc==shock['OMNI_sc']:
                 continue
 

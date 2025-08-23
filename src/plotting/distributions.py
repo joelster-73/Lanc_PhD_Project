@@ -48,6 +48,7 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
     func = fit_dict['func']
     popt = (v.n for v in fit_dict['params'].values())
     param_dict = fit_dict['params']
+    R2 = fit_dict['R2']
 
     if x_range is None and func.__name__ == 'straight_line':
         m, c = popt
@@ -85,8 +86,16 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
             label = gaussian_label(param_dict,inc_errs,unit)
         elif fit_type=='lognormal':
             label = lognormal_label(param_dict,inc_errs,unit)
-        elif fit_type=='straight':
-            label = straight_label(param_dict,inc_errs,unit)
+        elif fit_type=='straight' and as_text:
+            label = straight_label(param_dict,inc_errs,unit,R2)
+        elif fit_type=='straight' and not as_text:
+            try:
+                xunit = xs.attrs.get('units',{}).get(xs.name,'')
+            except:
+                xunit = kwargs.get('unit','')
+            if xunit=='1':
+                xunit = ''
+            label = straight_label_params(param_dict,inc_errs,unit,xunit,R2)
         else:
             label = None
 
@@ -402,7 +411,21 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
 # %% Labels
 
-def straight_label(param_dict, detailed=True, unit=''):
+def straight_label_params(param_dict, detailed=True, unity='', unitx='', R2=''):
+
+    m = param_dict['m']
+    c = param_dict['c']
+
+    if detailed:
+        try:
+            return f'$m$: ${m:L}$ {unity} {unitx}${-1}$\n$c$: ${c:L}$ {unity}\n$R^2$: {R2:.3g}'
+        except:
+            return f'$m$: {m:.3g} {unity} {unitx}${-1}$\n$c$: {c:.3g} {unity}\n$R^2$: {R2:.3g}'
+
+    return f'$m$: {m:.3g} {unity} {unitx}${-1}$\n$c$: {c:.3g} {unity}\n$R^2$: {R2:.3g}'
+
+
+def straight_label(param_dict, detailed=True, unit='', R2=''):
 
     m = param_dict['m']
     c = param_dict['c']
@@ -415,11 +438,11 @@ def straight_label(param_dict, detailed=True, unit=''):
 
     if detailed:
         try:
-            return f'$y=({m:L})\\cdot x {sign} ({c:L})$ {unit}'
+            return f'$y=({m:L})\\cdot x {sign} ({c:L})$ {unit}\n$R^2$: {R2:.3g}'
         except:
-            return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}'
+            return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}\n$R^2$: {R2:.3g}'
 
-    return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}'
+    return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}\n$R^2$: {R2:.3g}'
 
 
 def gaussian_label(param_dict, detailed=True, unit=''):
