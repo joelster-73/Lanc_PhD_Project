@@ -6,6 +6,7 @@ Created on Thu May  8 18:33:37 2025
 """
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -32,15 +33,8 @@ def analyse_all_events(helsinki_events, **kwargs):
     # Shocks contains the known shock times used in training
     # Dataframe to store shock times in shocks_intercepts
 
-    correlated_delays = []
-    helsinki_delays   = []
-    coefficients      = []
 
-    shock_times      = []
-    detectors        = []
-    interceptors     = []
-
-    event_numbers    = []
+    df_all_events = pd.DataFrame(columns=['event_num','shock_time','shock_time_unc','detector','interceptor','helsinki_delay','correlated_delay','corr_coeff'])
 
     for eventID_str, event in helsinki_events.groupby(by='eventNum'):
 
@@ -48,44 +42,14 @@ def analyse_all_events(helsinki_events, **kwargs):
         if len(event)<=1:
             continue
 
-        all_lists = find_shock_times_training(eventID, event, **kwargs)
+        find_shock_times_training(eventID, event, df_all_events, **kwargs)
 
-        number_of_times = len(all_lists[0])
-        if number_of_times>0:
-            for main_list, sub_list in zip((correlated_delays,helsinki_delays,coefficients,shock_times,detectors,interceptors), all_lists):
-                main_list += sub_list
-            event_numbers += number_of_times*[eventID]
-
-    if len(correlated_delays)<=2:
-        return None
-
-    helsinki_delays   = np.array(helsinki_delays)/60
-    correlated_delays = np.array(correlated_delays)/60
-    coefficients      = np.array(coefficients)
-
-    shock_times       = np.array(shock_times)
-    detectors         = np.array(detectors)
-    interceptors      = np.array(interceptors)
-
-    event_numbers     = np.array(event_numbers)
-
-    return correlated_delays, helsinki_delays, coefficients, shock_times, detectors, interceptors, event_numbers
+    return df_all_events
 
 
-def find_shock_times_training(eventID, event, **kwargs):
+def find_shock_times_training(eventID, event, df_all, **kwargs):
 
     parameter = kwargs.get('parameter','B_mag')
-
-    # Event contains the known shock times we're using
-    # df_shocks is where we store the correlated times
-
-    correlated_delays = []
-    helsinki_delays   = []
-    detection_times   = []
-
-    coefficients     = []
-    detectors        = []
-    interceptors     = []
 
     ###-------------------INITIAL CHECKS-------------------###
 
@@ -121,14 +85,9 @@ def find_shock_times_training(eventID, event, **kwargs):
 
                 time_diff = (omni_time-detect_time).total_seconds()
                 time_diff = ufloat(time_diff,omni_unc) - ufloat(0,detect_unc)
-                # Found suitable lag
-                correlated_delays.append(delay) # ufloat
-                helsinki_delays.append(time_diff) # ufloat
-                detection_times.append((detect_time,detect_unc)) # time and unc
 
-                coefficients.append(coeff)
-                detectors.append(omni_sc)
-                interceptors.append('OMNI')
+                # Found suitable lag
+                df_all.loc[len(df_all)] = [eventID, detect_time, detect_unc, omni_sc, 'OMNI', time_diff, delay, coeff]
 
     # Need time to check against
     if len(spacecraft)>1:
@@ -157,32 +116,25 @@ def find_shock_times_training(eventID, event, **kwargs):
 
             interceptor_event = event[event['spacecraft']==interceptor]
             interceptor_time, interceptor_unc = spacecraft_dict[interceptor]
-            interceptor_pos = interceptor_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+            interceptor_pos = interceptor_event.iloc[0,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
 
             detector_event = event[event['spacecraft']==detector]
             detector_time, detector_unc = spacecraft_dict[detector]
-            detector_pos = detector_event.iloc[0][['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
+            detector_pos = detector_event.iloc[0,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
 
             # Find how long shocks takes to intercept spacecraft
             time_lag = find_propagation_time(detector_time, detector, interceptor, parameter, detector_pos, intercept_pos=interceptor_pos, **kwargs)
 
             if time_lag is not None:
 
-                delay, coeff = time_lag
+                corr_delay, corr_coeff = time_lag
 
                 time_diff = (interceptor_time-detector_time).total_seconds()
                 time_diff = ufloat(time_diff,interceptor_unc) - ufloat(0,detector_unc)
 
                 # Found suitable lag
-                correlated_delays.append(delay) # ufloat
-                helsinki_delays.append(time_diff) # ufloat
-                detection_times.append((detector_time,detector_unc)) # time and unc
+                df_all.loc[len(df_all)] = [eventID, detector_time, detector_unc, detector, interceptor, time_diff, corr_delay, corr_coeff]
 
-                coefficients.append(coeff)
-                detectors.append(detector)
-                interceptors.append(interceptor)
-
-    return correlated_delays, helsinki_delays, detection_times, coefficients, detectors, interceptors
 
 # %% Compare_correlated_helsinki
 
@@ -211,7 +163,7 @@ def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
     sc_dws  = sc_dws[coeff_mask]
 
     fit_dict = fit_function(xs,ys,fit_type='straight',ys_unc=ys_unc)
-    slope, intercept, r2 = fit_dict['params']['m']. fit_dict['params']['c'], fit_dict['R2']
+    slope, intercept, r2 = fit_dict['params']['m'], fit_dict['params']['c'], fit_dict['R2']
 
     fig, ax = plt.subplots()
 
@@ -303,10 +255,7 @@ def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_li
         else:
             raise Exception(f'Not valid parameter for vary: {vary}')
 
-    num_shocks = np.zeros(len(vary_array))
-    fit_R2     = np.zeros(len(vary_array))
-    fit_slope  = np.empty(len(vary_array), dtype=object)
-    fit_int    = np.empty(len(vary_array), dtype=object)
+    df_trained_params = pd.DataFrame(columns=[vary,'num_shocks','fit_R2','fit_slope','fit_intercept'], index=np.arange(len(vary_array)))
 
     key_map = {
         'buffer_up': 'buffer_up',
@@ -320,25 +269,22 @@ def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_li
     for i, ind in enumerate(vary_array):
         kwargs[param_key] = ind
 
-        correlated_delays, helsinki_delays, _, coefficients, _, _, _ = analyse_all_events(df_events, **kwargs)
+        df_all_events = analyse_all_events(df_events, **kwargs)
 
         ###-------------------MINIMUM CROSS-CORR-------------------###
 
-        coeff_mask = coefficients>=coeff_lim
+        coeff_mask = df_all_events.loc[:,'corr_coeff']>=coeff_lim
 
-        xs      = unp.nominal_values(helsinki_delays[coeff_mask])
-        ys      = unp.nominal_values(correlated_delays[coeff_mask])
-        ys_unc  = unp.std_devs(correlated_delays[coeff_mask])
+        xs      = df_all_events[coeff_mask,'helsinki_delay'] # get nominal value
+        ys      = df_all_events[coeff_mask,'correlated_delay'] # get nominal value
+        ys_unc  = df_all_events[coeff_mask,'correlated_delay'] # get standard deviation
 
         fit_dict = fit_function(xs,ys,fit_type='straight',ys_unc=ys_unc)
         slope, intercept, r2 = fit_dict['params']['m']. fit_dict['params']['c'], fit_dict['R2']
 
-        num_shocks[i]= len(xs)
-        fit_R2[i]    = r2
-        fit_slope[i] = slope
-        fit_int[i]   = intercept
+        df_trained_params.iloc[i] = [ind, len(xs),r2,slope,intercept]
 
-    return fit_slope, fit_int, fit_R2, num_shocks, vary_array
+    return df_trained_params
 
 def plot_single_param_vary(independent, **kwargs):
 
@@ -437,144 +383,6 @@ def plot_single_param_vary(independent, **kwargs):
 
     plt.show()
     plt.close()
-
-
-
-# %% 2d_variation
-
-def train_algorithm_buffers(df_shocks, event_list, buffer_up_range=range(25,36), buffer_dw_range=range(10,26), coeff_lim=0.7):
-
-    buffer_up_values = list(buffer_up_range)
-    buffer_dw_values = list(buffer_dw_range)
-
-    slopes = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-    counts = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-    r2_val = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-    diffs  = np.zeros((len(buffer_dw_values), len(buffer_up_values)))
-
-    for j, buffer_up in enumerate(buffer_up_values):
-        for i, buffer_dw in enumerate(buffer_dw_values):
-
-            events_data = analyse_all_events(df_shocks, event_list, buffer_up, buffer_dw)
-            if events_data is None:
-                for struc in (slopes,counts,r2_val,diffs):
-                    struc[i, j] = np.nan
-                continue
-
-            helsinki_delays, correlated_delays, correlated_uncs, coefficients = events_data
-
-
-            ###-------------------CLOSEST-------------------###
-            coeff_mask = coefficients>=coeff_lim
-
-            x_vals     = helsinki_delays[coeff_mask]
-            y_vals     = correlated_delays[coeff_mask]
-            y_uncs     = correlated_uncs[coeff_mask]
-
-            fit_dict = fit_function(x_vals,y_vals,fit_type='straight',ys_unc=y_uncs)
-            slope, r2 = fit_dict['params']['m'], fit_dict['R2']
-
-            slopes[i, j] = slope.n
-            counts[i, j] = len(x_vals)
-            r2_val[i, j] = r2
-
-    return slopes, counts, r2_val
-
-def plot_buffer_training(structures, limits=None, buffer_up_range=range(25,36), buffer_dw_range=range(30,41), coeff_lim=0.7, num_events=0):
-
-
-    buffer_up_values = list(buffer_up_range)
-    buffer_dw_values = list(buffer_dw_range)
-
-
-    if limits is not None:
-
-        limits_ind = ((buffer_dw_values.index(limits[1][0]),buffer_dw_values.index(limits[1][1])),
-                      (buffer_up_values.index(limits[0][0]),buffer_up_values.index(limits[0][1])))
-
-        up_lims = range(limits[0][0],limits[0][1])
-        dw_lims = range(limits[1][0],limits[1][1])
-
-    else:
-        up_lims = buffer_up_values
-        dw_lims = buffer_dw_values
-
-    for name, struc in structures.items():
-        # Plot heatmap
-        fig, ax = plt.subplots()
-        ax.set_facecolor('k')
-
-        structure = struc
-        if limits is not None:
-            structure = struc[limits_ind[0][0]:limits_ind[0][1],limits_ind[1][0]:limits_ind[1][1]].copy()
-
-        struc_zeros = structure.copy()
-        struc_zeros[np.isnan(struc_zeros)] = 0
-        best = np.max(struc_zeros)
-
-        max_coords = np.unravel_index(np.argmax(struc_zeros), struc_zeros.shape)
-        x_coord = up_lims[max_coords[1]]+0.5
-        y_coord = dw_lims[max_coords[0]]+0.5
-
-        heat = ax.imshow(structure, cmap='Blues_r', aspect='auto',
-                  extent=[min(up_lims), max(up_lims)+1,
-                          max(dw_lims)+1, min(dw_lims)])
-
-        if limits is not None:
-            min_val = np.min(structure[~np.isnan(structure)])
-            max_val = np.max(structure[~np.isnan(structure)])
-            mid_val = (min_val+max_val)/2
-
-            for i in range(len(structure)):
-                for j in range(len(structure[0])):
-                    value = structure[i, j]
-
-                    x = up_lims[j]+0.5
-                    y = dw_lims[i]+0.5
-
-                    if np.isnan(value):
-                        tc = 'k'
-                    elif value == best:
-                        tc = 'r'
-                    elif value < mid_val:
-                        tc = 'w'
-                    else:
-                        tc = 'k'
-
-                    ax.text(x, y, f'{value:.4g}', color=tc, ha='center', va='center', fontsize=12)
-        else:
-            ax.scatter(x_coord, y_coord, color='red', label=f"Max: {best:.2f}")
-
-
-        cbar = plt.colorbar(heat)
-        name_label = name if name!='R2' else r'$R^2$'
-        cbar.set_label(name_label)
-        ax.invert_yaxis()
-
-        ax.set_xticks(np.array(up_lims)+0.5)
-        ax.set_xticklabels(up_lims)
-
-        ax.set_yticks(np.array(dw_lims)+0.5)
-        ax.set_yticklabels(dw_lims)
-
-        ax.get_xticklabels()[max_coords[1]].set_color('red')
-        ax.get_yticklabels()[max_coords[0]].set_color('red')
-
-
-        if limits is not None:
-            ax.set_xlim(limits[0])
-            ax.set_ylim(limits[1])
-
-        ax.set_aspect('equal')
-
-        ax.set_xlabel('Buffer up [mins]')
-        ax.set_ylabel('Buffer dw [mins]')
-        ax.set_title(f'Best fit {name_label} of {num_events} events; $\\rho\\geq${coeff_lim}')
-
-        plt.tight_layout()
-        save_figure(fig, file_name=f'{name}_up_{min(buffer_up_values)}_{max(buffer_up_values)}_dw_{min(buffer_dw_values)}_{max(buffer_dw_values)}')
-        plt.show()
-        plt.close()
 
 
 # %%
