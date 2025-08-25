@@ -25,3 +25,8 @@ plot_compressions_both(helsinki_shocks, plot_type='hist')
 from src.methods.shock_intercepts.plotting import plot_propagations_both
 
 plot_propagations_both(helsinki_events, x_axis='delta_x', colouring='spacecraft')
+
+
+# %% FIND_ERRORS
+import warnings
+warnings.simplefilter('error', RuntimeWarning)

@@ -37,9 +37,6 @@ shocks_with_normals = shocks[shocks['spacecraft'].isin(('WIND','ACE','DSC'))]
 
 
 # WRITE TO FILE
-# Create paper figures file and create the histogram plots and the other ones
-# Clean up code with normals
-# Think about threshold for errors
 
 
 # %%

@@ -11,8 +11,8 @@ import pandas as pd
 from datetime import timedelta, datetime
 from uncertainties import ufloat
 
-from .discontinuities import find_peak_cross_corr
-from .in_sw import in_solar_wind
+from ...analysing.discontinuities import find_peak_cross_corr
+from ...analysing.in_sw import in_solar_wind
 
 from ...processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc, retrieve_position_unc
 from ...processing.speasy.config import sw_monitors, cluster_sc, themis_sc

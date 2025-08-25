@@ -99,6 +99,7 @@ def get_shock_propagations(shocks, normals=None):
                 if upstream!=omni_sc:
                     continue
 
+            ###----- Upstream spacecraft time and position -----###
             up_time = shock[f'{upstream}_time']
             up_unc  = shock[f'{upstream}_time_unc_s']
             if pd.isnull(up_time):
@@ -106,15 +107,14 @@ def get_shock_propagations(shocks, normals=None):
             if pd.isnull(up_unc):
                 up_unc = np.zeros(3)
 
-            up_pos  = shock[[f'{upstream}_r_{comp}_GSE' for comp in ('x','y','z')]]
-            up_pos_unc = shock[[f'{upstream}_r_{comp}_GSE_unc' for comp in ('x','y','z')]]
-            up_pos_u = unp.uarray(up_pos.to_numpy(),up_pos_unc.to_numpy())
+            up_pos  = shock[[f'{upstream}_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy(dtype=float)
+            up_pos_unc = shock[[f'{upstream}_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy(dtype=float)
+            if not np.all(np.isfinite(up_pos_unc)):
+                up_pos_unc = np.zeros(3)
 
-            if isinstance(up_pos, pd.DataFrame):
-                up_pos = up_pos.iloc[0].to_numpy()
-            else:
-                up_pos = up_pos.to_numpy()
+            up_pos_u = unp.uarray(up_pos,up_pos_unc)
 
+            ###----- Downstream spacecraft time and position -----###
             dw_time = shock[f'{downstream}_time']
             dw_unc  = shock[f'{downstream}_time_unc_s']
             if pd.isnull(dw_time):
@@ -122,18 +122,17 @@ def get_shock_propagations(shocks, normals=None):
             if pd.isnull(dw_unc):
                 dw_unc = np.zeros(3)
 
-            dw_pos  = shock[[f'{downstream}_r_{comp}_GSE' for comp in ('x','y','z')]]
-            dw_pos_unc = shock[[f'{downstream}_r_{comp}_GSE_unc' for comp in ('x','y','z')]]
-            dw_pos_u = unp.uarray(dw_pos.to_numpy(),dw_pos_unc.to_numpy())
+            dw_pos  = shock[[f'{downstream}_r_{comp}_GSE' for comp in ('x','y','z')]].to_numpy(dtype=float)
+            dw_pos_unc = shock[[f'{downstream}_r_{comp}_GSE_unc' for comp in ('x','y','z')]].to_numpy(dtype=float)
+            if not np.all(np.isfinite(dw_pos_unc)):
+                dw_pos_unc = np.zeros(3)
 
-            if isinstance(dw_pos, pd.DataFrame):
-                dw_pos = dw_pos.iloc[0].to_numpy()
-            else:
-                dw_pos = dw_pos.to_numpy()
+            dw_pos_u = unp.uarray(dw_pos,dw_pos_unc)
 
             if downstream=='OMNI' and np.sum(np.abs(dw_pos)>=9999)>1: # Bad data flag
                 continue
 
+            ###----- Normal vector of the upstream spacecraft -----###
             normal_vec = None
             if normals is not None:
                 normal_row = normals[(normals.index==shock[f'{upstream}_time'])&(normals['spacecraft']==upstream)]

@@ -134,6 +134,7 @@ def gaussian(x, *params):
 
 def gaussian_fit(x, y, **kwargs):
 
+    yerr          = kwargs.get('ys_unc',None)
     simple_bounds = kwargs.get('simple_bounds',False)
 
     # Initial guesses
@@ -150,7 +151,7 @@ def gaussian_fit(x, y, **kwargs):
 
     try:
         # Perform the curve fitting
-        popt, pcov = curve_fit(gaussian, x, y, p0=initial_guess, bounds=bounds)
+        popt, pcov = curve_fit(gaussian, x, y, p0=initial_guess, bounds=bounds, sigma=yerr, absolute_sigma=True)
 
         return popt, np.sqrt(np.diag(pcov)), ('A','mu','sigma')
 
@@ -181,6 +182,7 @@ def bimodal(x, *params):
 
 def bimodal_fit(x, y, **kwargs):
 
+    yerr          = kwargs.get('ys_unc',None)
     simple_bounds = kwargs.get('simple_bounds',False)
 
     # Initial guesses
@@ -202,7 +204,7 @@ def bimodal_fit(x, y, **kwargs):
 
     try:
         # Perform the curve fitting
-        popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds)
+        popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds, sigma=yerr, absolute_sigma=True)
 
         return popt, np.sqrt(np.diag(pcov)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
 
@@ -218,6 +220,7 @@ def bimodal_offset(x, *params):
 
 def bimodal_fit_offset(x, y, **kwargs):
 
+    yerr          = kwargs.get('ys_unc',None)
     simple_bounds = kwargs.get('simple_bounds',True)
 
     # Initial guesses
@@ -242,7 +245,7 @@ def bimodal_fit_offset(x, y, **kwargs):
 
     try:
         # Perform the curve fitting
-        popt, pcov = curve_fit(bimodal_offset, x, y, p0=initial_guess, bounds=bounds)
+        popt, pcov = curve_fit(bimodal_offset, x, y, p0=initial_guess, bounds=bounds, sigma=yerr, absolute_sigma=True)
 
         return popt, np.sqrt(np.diag(pcov)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
 
@@ -256,8 +259,9 @@ def lognormal(x, *params):
     scale = np.exp(mu)
     return A * lognorm.pdf(x, sigma, scale=scale)
 
-def lognormal_fit(x, y):
+def lognormal_fit(x, y, **kwargs):
 
+    yerr = kwargs.get('ys_unc',None)
     # Initial guesses
     _, sigma_guess, median, amplitude_guess = histogram_params(x, y)
 
@@ -267,7 +271,7 @@ def lognormal_fit(x, y):
 
     try:
         # Perform the curve fitting
-        popt, pcov = curve_fit(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf))
+        popt, pcov = curve_fit(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf), sigma=yerr, absolute_sigma=True)
 
         return popt, np.sqrt(np.diag(pcov)), ('A', 'mu', 'sigma')
 

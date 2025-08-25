@@ -14,15 +14,14 @@ from uncertainties import unumpy as unp
 import itertools as it
 
 from .intercepts import find_propagation_time
-from ..fitting import straight_best_fit
 
-from ...plotting.utils import save_figure
-from ...plotting.additions import plot_error_region
-
+from ...analysing.fitting import fit_function
 
 from ...processing.speasy.config import colour_dict
 from ...processing.speasy.retrieval import retrieve_omni_value
 
+from ...plotting.utils import save_figure
+from ...plotting.additions import plot_error_region
 from ...plotting.formatting import add_legend
 
 
@@ -211,8 +210,8 @@ def plot_comparison(database, correlated, coeffs, sc_ups, sc_dws, **kwargs):
     sc_ups  = sc_ups[coeff_mask]
     sc_dws  = sc_dws[coeff_mask]
 
-    slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
-
+    fit_dict = fit_function(xs,ys,fit_type='straight',ys_unc=ys_unc)
+    slope, intercept, r2 = fit_dict['params']['m']. fit_dict['params']['c'], fit_dict['R2']
 
     fig, ax = plt.subplots()
 
@@ -331,7 +330,8 @@ def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_li
         ys      = unp.nominal_values(correlated_delays[coeff_mask])
         ys_unc  = unp.std_devs(correlated_delays[coeff_mask])
 
-        slope, intercept, r2 = straight_best_fit(xs,ys,ys_unc,detailed=True)
+        fit_dict = fit_function(xs,ys,fit_type='straight',ys_unc=ys_unc)
+        slope, intercept, r2 = fit_dict['params']['m']. fit_dict['params']['c'], fit_dict['R2']
 
         num_shocks[i]= len(xs)
         fit_R2[i]    = r2
@@ -471,7 +471,8 @@ def train_algorithm_buffers(df_shocks, event_list, buffer_up_range=range(25,36),
             y_vals     = correlated_delays[coeff_mask]
             y_uncs     = correlated_uncs[coeff_mask]
 
-            slope, intercept, r2 = straight_best_fit(x_vals,y_vals,y_uncs,detailed=True)
+            fit_dict = fit_function(x_vals,y_vals,fit_type='straight',ys_unc=y_uncs)
+            slope, r2 = fit_dict['params']['m'], fit_dict['R2']
 
             slopes[i, j] = slope.n
             counts[i, j] = len(x_vals)
