@@ -33,7 +33,7 @@ c1_omni_jel_0 = merge_dataframes(c1_sw_jel_0, omni, 'C1', 'OMNI') # C1 vs OMNI u
 from src.methods.bowshock_filtering.comparing import plot_compare_columns_with_compression
 from src.config import COMPRESSIONS_DIR
 
-plot_compare_columns_with_compression(c1_omni_jel_0, 'B_avg_C1', 'B_avg_OMNI', display='Heat', bin_width=(0.2,0.4), brief_title='Comparing |B| for Cluster and OMNI', compressions=COMPRESSIONS_DIR, contam_info=True)
+plot_compare_columns_with_compression(c1_omni_jel_0, 'B_avg_OMNI', 'B_avg_C1', display='heat', bin_width=(0.2,0.4), brief_title='Comparing |B| for Cluster and OMNI', compressions=COMPRESSIONS_DIR, contam_info=True)
 
 
 # %% Kobel
@@ -48,7 +48,7 @@ plot_over_B(Pd_0,B_unit_0,quantity='min',show_both=True,max_B=30)
 # %% Against_r
 from src.plotting.comparing.parameter import investigate_difference
 
-investigate_difference(c1_omni_jel_0, 'B_avg_C1', 'B_avg_OMNI', ind_col='r_bs_diff_C1', display='Heat', bin_width=(0.05,0.5), brief_title='Comparing |B| for Cluster and OMNI', ind_name='r_C1 - r_BS')
+investigate_difference(c1_omni_jel_0, 'B_avg_OMNI', 'B_avg_C1', ind_col='r_bs_diff_C1', display='heat', bin_width=(0.05,0.5), add_count=False, want_legend=False, ind_name_lat='r_C1 - r_BS', brief_title='Comparing |B| for Cluster and OMNI')
 
 # %% Best_Buffer
 from src.config import COMPRESSIONS_DIR
@@ -60,7 +60,7 @@ find_best_buffer(c1_omni, 'r_bs_diff_C1', 'B_avg_C1', 'B_avg_OMNI', plot=True, s
 # %% Grid
 from src.methods.bowshock_filtering.grid_gif_plots import plot_grid_bowshock_buffer
 
-plot_grid_bowshock_buffer(c1_omni, 'r_bs_diff_C1', 'B_avg_C1', 'B_avg_OMNI', 'r_x_GSE_C1', 'r_rho_C1', buff_max=4, display='Heat', compressions=COMPRESSIONS_DIR, sc_key='C1', r_diff_name='r_C1 - r_BS', df_omni=omni)
+plot_grid_bowshock_buffer(c1_omni, 'r_bs_diff_C1', 'B_avg_OMNI', 'B_avg_C1', 'r_x_GSE_C1', 'r_rho_C1', buff_max=4, display='heat', compressions=COMPRESSIONS_DIR, sc_key='C1', r_diff_lat='r_C1 - r_BS', df_omni=omni)
 
 
 

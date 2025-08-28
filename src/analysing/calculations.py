@@ -10,17 +10,23 @@ import pandas as pd
 from uncertainties import unumpy as unp
 from uncertainties import ufloat
 
+from scipy.stats import circmean, circstd, circvar
 
-def calc_mean_error(series, start=None, end=None):
+
+def calc_mean_error(series, start=None, end=None, unit=None):
 
     if start:
         series = series[series.index >= pd.Timestamp(start)]
     if end:
         series = series[series.index <= pd.Timestamp(end)]
 
-    unit = series.attrs.get('units', {}).get(series.name, None)
+    if unit is None:
+        unit = series.attrs.get('units', {}).get(series.name, None)
 
     series = series.dropna().to_numpy()
+
+    if len(series)==0:
+        return np.nan
 
     if unit in ('rad', 'deg', '°'):
         if unit in ('deg', '°'):
@@ -40,33 +46,84 @@ def calc_simple_mean_error(data):
 
     try: # check if data has errors
         errors  = unp.std_devs(data)
-        weights = 1 / errors**2
-        weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
 
-        data    = unp.nominal_values(data)
-        err     = np.sqrt(1 / np.sum(weights))
+        if np.all(errors == 0):
+            mean    = np.mean(data)
+            err     = sem(data)
+
+        else:
+            weights = 1 / errors**2
+            weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
+
+            data    = unp.nominal_values(data)
+            err     = np.sqrt(1 / np.sum(weights))
+            mean    = np.average(data, weights)
 
     except:
-        weights = np.ones_like(data)
+        mean    = np.mean(data)
         err     = sem(data)
 
-    mean = np.average(data, weights)
     return ufloat(mean, err)
+
+def calc_sample_std(series, start=None, end=None, unit=None):
+
+    if start:
+        series = series[series.index >= pd.Timestamp(start)]
+    if end:
+        series = series[series.index <= pd.Timestamp(end)]
+
+    if unit is None:
+        unit = series.attrs.get('units', {}).get(series.name, None)
+
+    series = series.dropna().to_numpy()
+
+    if len(series)<=1:
+        return 0
+
+    if unit in ('rad', 'deg', '°'):
+        if unit in ('deg', '°'):
+            series = np.radians(series)
+
+        unc = circular_stddev(series)
+
+        if unit in ('deg', '°'):
+            return np.degrees(unc)
+
+        return unc
+
+    return np.std(series,ddof=1)
+
+def sem(series, nu=1):
+
+    if len(series)<=nu:
+        return 0
+
+    # Standard Error of the Mean using sample std
+    std = np.std(series, ddof=nu)
+    sqrt_count = np.sqrt(np.size(series))
+    return std / sqrt_count
 
 def calc_circular_mean_error(data):
 
     try: # check if data has errors
         errors  = unp.std_devs(data)
-        weights = 1 / errors**2
-        weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
 
-        data    = unp.nominal_values(data)
+        if np.all(errors == 0):
+            mean = circmean(data)
+            err  = circular_stddev(data) / np.sqrt(len(data))
+
+        else:
+            weights = 1 / errors**2
+            weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
+
+            data    = unp.nominal_values(data)
+
+            mean = circular_mean(data, weights)
+            err = circular_sem(data, weights)
 
     except:
-        weights = np.ones_like(data)
-
-    mean = circular_mean(data, weights)
-    err = circular_sem(data, weights)
+        mean = circmean(data)
+        err  = circular_stddev(data) / np.sqrt(len(data))
 
     return ufloat(mean, err)
 
@@ -93,10 +150,23 @@ def circular_sem(angles, weights=None):
     return std / np.sqrt(n_eff)
 
 
-def circular_variance(angles, dof=1):
-    n = len(angles) - dof
-    R = np.sqrt((np.sum(np.cos(angles)) / n)**2 + (np.sum(np.sin(angles)) / n)**2)
-    return 1 - R
+def circular_variance(angles):
+
+    # n = len(angles)
+    # R = np.sqrt((np.sum(np.cos(angles)) / n)**2 + (np.sum(np.sin(angles)) / n)**2)
+    # return 1-R
+
+    return circvar(angles, low=-np.pi, high=np.pi)
+
+
+def circular_stddev(angles):
+
+    # n = len(angles)
+    # R = np.sqrt((np.sum(np.cos(angles)) / n)**2 + (np.sum(np.sin(angles)) / n)**2)
+    # return sqrt(1-2lnR)
+
+    return circstd(angles, low=-np.pi, high=np.pi)
+
 
 def vec_mag(vec):
 
@@ -120,12 +190,6 @@ def iqr(series):
     Q3 = percentile_func(series, 75)
     Q1 = percentile_func(series, 25)
     return Q3 - Q1
-
-def sem(series, nu=1):
-    # Standard Error of the Mean using sample std
-    std = np.std(series, ddof=nu)
-    sqrt_count = np.sqrt(np.size(series))
-    return std / sqrt_count
 
 def kps(series, nu=1):
     # Karl Pearson Second Skewness Coefficient

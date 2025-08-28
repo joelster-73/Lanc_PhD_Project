@@ -15,7 +15,9 @@ from src.methods.shock_intercepts.intercepts import find_all_shocks
 shocks_intercepted = find_all_shocks(all_processed_shocks, 'B_mag')
 
 
-shocks_intercepted = find_all_shocks(all_processed_shocks, 'B_mag', shocks_intercepts_started=shocks_intercepted, starting_ID=1403)
+#shocks_intercepted = find_all_shocks(all_processed_shocks, 'B_mag', shocks_intercepts_started=shocks_intercepted, starting_ID=1402)
+
+# usually gets stuck at #1402
 
 # %%
 import os

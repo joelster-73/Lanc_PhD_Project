@@ -151,6 +151,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     bin_width     = kwargs.get('bin_width',None)
     x_name        = kwargs.get('x_name',None)
     y_name        = kwargs.get('y_name',None)
+    show_key      = kwargs.get('show_key',False)
 
     sc_key        = kwargs.get('sc_key', None)
     models        = kwargs.get('models', 'None')
@@ -236,7 +237,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     if fig is None or ax is None:
         fig, ax = plt.subplots()
 
-    if display == 'Heat':
+    if display == 'heat':
         n_bins = (calculate_bins(df[x_label],bin_width), calculate_bins(df[y_label],bin_width))
         h = ax.hist2d(df[x_label], df[y_label],
                       bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
@@ -247,10 +248,10 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         cbar.outline.set_edgecolor(black)
         ax.set_facecolor('k')
 
-    elif display == 'Scatter':
+    elif display == 'scatter':
         ax.scatter(df[x_label], df[y_label], c='b', s=0.3)
 
-    elif display == 'Scatter_regions':
+    elif display == 'scatter_regions':
         cmap = plt.get_cmap('tab20c')
         if regions is None:
             regions = df['GRMB_region'].unique()
@@ -378,6 +379,10 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         ax.invert_xaxis()
     elif plane in ('yx',):
         ax.invert_yaxis()
+
+    if not show_key:
+        x_label = x_label.replace(f'_{sc_key}', '')
+        y_label = y_label.replace(f'_{sc_key}', '')
 
     x_axis_label = create_label(x_label, data_name=x_name, unit=unit)
     y_axis_label = create_label(y_label, data_name=y_name, unit=unit)

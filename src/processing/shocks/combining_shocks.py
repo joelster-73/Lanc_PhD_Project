@@ -10,7 +10,6 @@ from src.processing.reading import import_processed_data
 from src.processing.shocks.helsinki import process_helsinki_shocks, get_list_of_events_all
 from src.processing.shocks.donki import get_donki_shocks
 from src.processing.speasy.retrieval import retrieve_datum
-from src.processing.speasy.config import speasy_variables
 
 import numpy as np
 import pandas as pd
@@ -45,7 +44,7 @@ for col in ('r_x_GSE','r_y_GSE','r_z_GSE'):
 from collections import Counter
 
 shocks = pd.concat([helsinki_shocks,cfa_shocks,donki_shocks]).sort_index()
-shocks = shocks[shocks['spacecraft'].isin(('WIND','ACE','DSC'))]
+shocks = shocks[shocks['spacecraft'].isin(('WIND','ACE','DSC','C1','C2','C3','C4'))]
 event_list = get_list_of_events_all(shocks)
 print(sum([len(d) for d in event_list]))
 
@@ -68,8 +67,8 @@ for i, event_dict in enumerate(event_list):
         df = source_dict.get(info[2])
         position = df.loc[time,['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
         rad_dist = np.linalg.norm(position)
-        if np.isnan(rad_dist) or np.linalg.norm(rad_dist)<=20:
-            position, _ = retrieve_datum(position_var, sc, speasy_variables, time, add_omni_sc=False)
+        if np.isnan(rad_dist) or (np.linalg.norm(rad_dist)<=20 and sc in ('WIND','ACE','DSC')):
+            position, _ = retrieve_datum(position_var, sc, time, add_omni_sc=False)
             if position is None:
                 continue
         all_shocks.loc[len(all_shocks)] = [time, str(i+1), info[1], sc, position[0], position[1], position[2], info[2]]
@@ -95,7 +94,7 @@ import os
 
 output_file = os.path.join(PROC_SHOCKS_DIR, 'all_shocks.cdf')
 
-write_to_cdf(all_shocks, output_file, new_attrs)
+write_to_cdf(all_shocks, output_file, new_attrs, reset_index=True)
 
 # %%
 

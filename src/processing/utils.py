@@ -19,15 +19,9 @@ def add_unit(key):
         return 'km/s'
     elif any(keyword in key for keyword in ['ni','np','n_i','n_p']): # densities
         return 'n/cc'
-    elif any(keyword in key for keyword in ['N_x','N_y','N_z', 'M_']):
+    elif any(keyword in key for keyword in ['N_x','N_y','N_z', 'M_', 'ratio', 'Beta_', 'coeff']):
         return '1'
-    elif 'ratio' in key:
-        return '1'
-    elif 'Beta_' in key:
-        return 'bool'
-    elif 'unc_s' in key:
-        return 's'
-    elif '_s' in key:
+    elif any(keyword in key for keyword in ['unc_s','_s','_delay']):
         return 's'
     elif '_time' in key:
         return 'datetime'

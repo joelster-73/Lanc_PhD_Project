@@ -18,7 +18,7 @@ from collections import Counter
 
 from ..config import black, white, blue
 from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
-from ..utils import save_figure, calculate_bins
+from ..utils import save_figure, calculate_bins, change_series_name
 from ..distributions import plot_fit
 
 from ...analysing.comparing import difference_columns
@@ -36,13 +36,16 @@ def compare_columns(df, col1, col2, **kwargs):
 def investigate_difference(df, col1, col2, ind_col, **kwargs):
 
     diff_type = kwargs.get('diff_type','absolute')
-    ind_name  = kwargs.get('ind_name',None)
 
-    series1 = difference_columns(df, col1, col2, diff_type)
-    series2 = df.loc[:,ind_col]
+
+    series1 = df.loc[:,ind_col]
+    series2 = difference_columns(df, col2, col1, diff_type)
 
     kwargs['reference_line'] = 0
-    kwargs['data2_name'] = ind_name
+    if kwargs.get('ind_name_lat',None) is not None:
+        change_series_name(series1, kwargs.get('ind_name_lat'))
+    if kwargs.get('ind_name_str',None) is not None:
+        kwargs['data1_name'] = kwargs.get('ind_name_str')
 
     compare_series(series1, series2, **kwargs)
 
@@ -52,6 +55,7 @@ def compare_series(series1, series2, **kwargs):
     bin_width       = kwargs.get('bin_width',None)
     want_legend     = kwargs.get('want_legend',True)
     reference_line  = kwargs.get('reference_line',None)
+    add_count       = kwargs.get('add_count',False)
 
     data1_name    = kwargs.get('data1_name',None)
     data2_name    = kwargs.get('data2_name',None)
@@ -69,11 +73,11 @@ def compare_series(series1, series2, **kwargs):
 
     data1_str = data_string(series1.name)
     data2_str = data_string(series2.name)
-    unit1 = series1.attrs['units'].get(series1.name, None)
-    unit2 = series2.attrs['units'].get(series2.name, None)
+    unit1 = series1.attrs.get('units',{}).get(series1.name, None)
+    unit2 = series2.attrs.get('units',{}).get(series2.name, None)
 
-    data1_label = create_label(data1_str, unit=unit1, data_name=data1_name, name_latex=True)
-    data2_label = create_label(data2_str, unit=unit2, data_name=data2_name, name_latex=True)
+    data1_label = create_label(data1_str, unit=unit1, data_name=data1_name)
+    data2_label = create_label(data2_str, unit=unit2, data_name=data2_name)
     brief_title = f'Comparing ${data1_str}$ and ${data2_str}$' if brief_title is None else brief_title
 
 
@@ -128,7 +132,7 @@ def compare_series(series1, series2, **kwargs):
 
     if brief_title=='amount':
         brief_title = f'{len(series1):,}'
-    elif brief_title != '':
+    elif brief_title != '' and add_count:
         brief_title += f', N={len(series1):,}'
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###

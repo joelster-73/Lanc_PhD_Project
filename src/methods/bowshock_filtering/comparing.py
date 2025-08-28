@@ -10,7 +10,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
-from ...analysing.calculations import calc_mean_error, calc_circular_mean_error, circular_standard_deviation, percentile_func
+from ...analysing.calculations import calc_mean_error, percentile_func, calc_sample_std
 from ...analysing.kobel import load_compression_ratios, are_points_above_line
 
 from ...plotting.comparing.parameter import compare_series
@@ -29,7 +29,7 @@ def plot_compare_columns_with_compression(df, col1, col2, **kwargs):
     compressions    = kwargs.get('compressions',None)
     contam_info     = kwargs.get('contam_info',False)
 
-    fig, ax, _ = compare_series(series1, series2, return_objs=True, **kwargs)
+    fig, ax, _ = compare_series(series1, series2, return_objs=True, reference_line='x', line_color='w', **kwargs)
 
     if compressions is not None:
         B_imf, B_msh, _ = load_compression_ratios(compressions)
@@ -39,7 +39,7 @@ def plot_compare_columns_with_compression(df, col1, col2, **kwargs):
         limit = B_msh[-1]/B_imf[-1]
         limit_text = f'y≃{limit:.2f}x'
 
-        extreme_times = are_points_above_line(B_imf, B_msh, series2, series1)
+        extreme_times = are_points_above_line(B_imf, B_msh, series1, series2)
         total_text   = f'{len(df):,}'
         num_text     = f'{np.sum(extreme_times):,}'
         perc_text    = f'{np.sum(extreme_times)/len(df)*100:.2f}%'
@@ -50,7 +50,7 @@ def plot_compare_columns_with_compression(df, col1, col2, **kwargs):
         display         = kwargs.get('display','Scatter')
         want_legend     = kwargs.get('want_legend',True)
         is_heat = False
-        if display == 'Heat':
+        if display == 'heat':
             is_heat = True
 
         add_legend(fig, ax, legend_on=want_legend, heat=is_heat)
@@ -219,7 +219,8 @@ def compare_datasets(df1, df2, df_omni, *columns, **kwargs):
 
         x_unit = units[col]
         if x_unit == 'rad':
-            x_unit = 'deg'
+            series = np.degrees(series)
+            x_unit = '°'
 
         col_name = column_names.get(col,col)
         new_row = [f'{col_name} [{x_unit}]']
@@ -228,16 +229,10 @@ def compare_datasets(df1, df2, df_omni, *columns, **kwargs):
 
         for df in (df1, df2):
 
-            series = df[col].to_numpy()
-            series = series[~np.isnan(series)]
+            series = df.loc[:,col].dropna()
 
-            if x_unit == 'deg':
-                mean = calc_circular_mean_error(series,unit=x_unit)
-                std = np.degrees(circular_standard_deviation(series))
-                series = np.degrees(series)
-            else:
-                mean = calc_mean_error(series)
-                std = np.std(series,ddof=1)
+            mean = calc_mean_error(series, unit=x_unit)
+            std = calc_sample_std(series, unit=x_unit)
 
             new_row.extend([mean,std,percentile_func(series)])
 

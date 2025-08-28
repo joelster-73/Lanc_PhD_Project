@@ -44,7 +44,7 @@ def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
     n_cols = 3 if (compare_type is not None) else 2
     n_rows = len(columns)
     fig, axs = plt.subplots(
-        n_rows, n_cols, figsize=(n_cols*6, n_rows*4+0.5)
+        n_rows, n_cols, figsize=(n_cols*6.5, n_rows*4+0.5)
     )
 
     units = df1.attrs['units']
@@ -52,6 +52,8 @@ def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
     if n_rows == 1:
         axs = (axs,)
 
+    if kwargs.get('edge_width',None) is None:
+        kwargs['edge_width'] = 0
     ###-------------------PLOT PARAMETERS-------------------###
 
     for ax_row, col in zip(axs, columns):
@@ -81,10 +83,13 @@ def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
             ax3 = ax_row[-1]
 
             if compare_type=='q_q_plot':
-                _ = plot_q_q(series1, series2, series1_colour=df1_colour, series2_colour=df2_colour, series1_name=df1_name, series2_name=df2_name, fig=fig, ax=ax3, return_objs=True, **kwargs)
+                kwargs3 = kwargs.copy()
+                kwargs3['brief_title']  = 'amount'
+
+                _ = plot_q_q(series1, series2, series1_colour=df1_colour, series2_colour=df2_colour, series1_name=df1_name, series2_name=df2_name, fig=fig, ax=ax3, return_objs=True, **kwargs3)
 
             elif compare_type=='hist_diff':
-                kwargs3 = kwargs
+                kwargs3 = kwargs.copy()
                 kwargs3['fit_type']  = 'mean'
                 kwargs3['data_name'] = compare_label
                 kwargs3['bin_width'] = 0.5*kwargs['bin_width']

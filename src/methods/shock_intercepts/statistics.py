@@ -93,9 +93,12 @@ def get_shock_propagations(shocks, normals=None):
             if downstream=='OMNI':
                 if pd.isnull(shock['OMNI_time']):
                     continue
-                omni_sc = retrieve_omni_value(shock['OMNI_time'], 'OMNI_sc')
-                if omni_sc is not None:
-                    omni_sc = omni_sc.upper()
+                try:
+                    omni_sc = shock['OMNI_sc']
+                except:
+                    omni_sc = retrieve_omni_value(shock['OMNI_time'], 'OMNI_sc')
+                    if omni_sc is not None:
+                        omni_sc = omni_sc.upper()
                 if upstream!=omni_sc:
                     continue
 
@@ -138,7 +141,8 @@ def get_shock_propagations(shocks, normals=None):
                 normal_row = normals[(normals.index==shock[f'{upstream}_time'])&(normals['spacecraft']==upstream)]
                 if len(normal_row)>0:
                     normal_row = normal_row.iloc[0]
-                normal_vec = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
+                if len(normal_row)==1:
+                    normal_vec = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
 
             new_row = []
 
@@ -173,7 +177,7 @@ def get_diffs_with_OMNI(shocks, normals=None):
 
     df = pd.DataFrame(columns=['detector','interceptor','time','time_unc','delta_x','delta_x_unc','delta_r','delta_r_unc','delta_n','delta_n_unc','delta_t','delta_t_unc'])
 
-    sc_labels = [col.split('_')[0] for col in shocks if '_time_unc_s' in col]
+    sc_labels = [col.split('_')[0] for col in shocks if '_time_unc_s' in col and 'OMNI' not in col]
 
     for index, shock in shocks.iterrows():
 
@@ -194,7 +198,8 @@ def get_diffs_with_OMNI(shocks, normals=None):
                 normal_row = normals[(normals.index==shock[f'{det}_time'])&(normals['spacecraft']==det)]
                 if len(normal_row)>0:
                     normal_row = normal_row.iloc[0]
-                normal_vecs[det] = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
+                if not normal_row.empty:
+                    normal_vecs[det] = normal_row[['Nx','Nx_unc','Ny','Ny_unc','Nz','Nz_unc','v_sh','v_sh_unc']]
 
         # Distance and times of spacecraft from BSN
         for sc in sc_labels:
@@ -202,7 +207,7 @@ def get_diffs_with_OMNI(shocks, normals=None):
             new_row = []
 
             # Want to compare only spacecraft not used by OMNI
-            if  sc=='OMNI' or sc==shock['OMNI_sc']:
+            if  sc==shock['OMNI_sc']:
                 continue
 
             sc_time = shock[f'{sc}_time']
@@ -221,8 +226,10 @@ def get_diffs_with_OMNI(shocks, normals=None):
             time_diff_unc = ufloat(time_diff,sc_time_unc) - ufloat(0,BS_time_unc)
             new_row += [time_diff, time_diff_unc.s]
 
-            detector = shock[f'{sc}_sc']
-            normal = normal_vecs.get(detector,None)
+            try:
+                normal = normal_vecs.get(sc)
+            except:
+                normal = normal_vecs.get(shock[f'{sc}_sc'],None)
 
             for method in ('x_comp', 'dist', 'normal', 'normal time'):
 
@@ -341,7 +348,8 @@ def shock_compressions(shocks):
 
             new_row += [upstream, downstream]
 
-            up_time, up_unc = event.get(upstream)
+
+            up_time, up_unc = event[upstream][0], event[upstream][1]
             up_comp = shocks.loc[up_time, ['B_ratio','B_ratio_unc']]
             if isinstance(up_comp, pd.DataFrame):
                 up_comp = up_comp.iloc[0].to_numpy()
@@ -349,8 +357,7 @@ def shock_compressions(shocks):
                 up_comp = up_comp.to_numpy()
             up_comp = ufloat(up_comp[0],up_comp[1])
 
-            dw_time_u = event.get(downstream)
-            dw_time, dw_unc = dw_time_u
+            dw_time, dw_unc = event[downstream][0], event[downstream][1]
 
             dw_comp = shocks.loc[dw_time, ['B_ratio','B_ratio_unc']]
             if isinstance(dw_comp, pd.DataFrame):

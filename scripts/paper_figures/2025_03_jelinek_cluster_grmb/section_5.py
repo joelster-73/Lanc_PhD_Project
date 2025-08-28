@@ -67,29 +67,29 @@ c1_sw_jel_times_no_2023 = c1_sw_jel[c1_sw_jel.index.year<2023].index
 
 common_times = c1_sw_grmb_times.intersection(c1_sw_jel_times)
 print('\nData')
+print(f'Total Cluster:   {len(cluster1):,}')
 print(f'Overlap:         {len(common_times):,}')
 print(f'GRMB:            {len(c1_sw_grmb_times):,}, {len(common_times)/len(c1_sw_grmb_times)*100:.2f}%, '
       f'{len(c1_sw_grmb_times)-len(common_times):,}')
-print(f'Jelinek:         {len(c1_sw_jel_times):,}, {len(common_times)/len(c1_sw_jel_times)*100:.2f}%, '
+print(f'Jelinek:         {len(c1_sw_jel_times):,},   {len(common_times)/len(c1_sw_jel_times)*100:.2f}%, '
       f'{len(c1_sw_jel_times)-len(common_times):,}')
-print(f'Jelinek no 2023: {len(c1_sw_jel_times_no_2023):,}, {len(common_times)/len(c1_sw_jel_times_no_2023)*100:.2f}%, '
+print(f'Jelinek no 2023: {len(c1_sw_jel_times_no_2023):,},   {len(common_times)/len(c1_sw_jel_times_no_2023)*100:.2f}%, '
       f'{len(c1_sw_jel_times_no_2023)-len(common_times):,}')
 
 # %% Pressures
-from src.analysing.calculations import calc_mean_error
-from numpy import std
+from src.analysing.calculations import calc_mean_error, calc_sample_std
 
 print('\nPressures')
-print('OMNI:',calc_mean_error(omni['p_flow']),f"{std(omni['p_flow']):.4f}")
-print('Jel: ',calc_mean_error(c1_omni_jel['p_flow_OMNI']),f"{std(c1_omni_jel['p_flow_OMNI']):.4f}")
-print('GRMB:',calc_mean_error(c1_omni_grmb['p_flow_OMNI']),f"{std(c1_omni_grmb['p_flow_OMNI']):.4f}")
+print(f'OMNI: mu={calc_mean_error(omni.loc[:,"p_flow"]):u} nPa, s={calc_sample_std(omni.loc[:,"p_flow"]):.4f} nPa')
+print(f'Jel:  mu={calc_mean_error(c1_omni_jel.loc[:,"p_flow_OMNI"]):u} nPa, s={calc_sample_std(c1_omni_jel.loc[:,"p_flow_OMNI"]):.4f} nPa')
+print(f'GRMB: mu={calc_mean_error(c1_omni_grmb.loc[:,"p_flow_OMNI"]):u} nPa, s={calc_sample_std(c1_omni_grmb.loc[:,"p_flow_OMNI"]):.4f} nPa')
 
 # %% Comparison_Plots
 
-from src.plotting.comparing.distribution import plot_compare_datasets_space
+from src.plotting.comparing.space_time import plot_compare_datasets_space
 from src.methods.bowshock_filtering.comparing import plot_compare_years_with_apogee
 
-plot_compare_datasets_space(c1_sw_jel, c1_sw_grmb, plane='x-rho', coords='GSE', df1_name='Jelínek Bow shock', df2_name='Grison Database', display='Heat', bin_width=0.1, df_omni=omni)
+plot_compare_datasets_space(c1_sw_jel, c1_sw_grmb, plane='x-rho', coords='GSE', df1_name='Jelínek Bow shock', df2_name='Grison Database', display='heat', bin_width=0.1, df_omni=omni)
 
 plot_compare_years_with_apogee(c1_sw_jel, c1_sw_grmb, cluster1, df1_name='Jelínek Bow shock', df2_name='Grison Database', df1_colour='g', df2_colour='b', show_apogee=True, print_data=True)
 
@@ -114,10 +114,10 @@ fit_types = {'B_avg':'lognormal',
 omni_columns={'B_cos(th)':'B_x_GSE',
               'B_sin(th)_sin(ph)':'B_y_GSM',
               'B_sin(th)_cos(ph)':'B_z_GSM'}
-bin_widths = {'B_avg':0.25,
-                     'B_cos(th)':0.25,
-                     'B_sin(th)_sin(ph)':0.25,
-                     'B_sin(th)_cos(ph)':0.25,
+bin_widths = {'B_avg':0.1,
+                     'B_cos(th)':0.05,
+                     'B_sin(th)_sin(ph)':0.05,
+                     'B_sin(th)_cos(ph)':0.05,
                      'B_clock':5}
 
 # %% Comparing_B
@@ -125,10 +125,8 @@ plot_compare_dataset_parameters(c1_sw_jel, c1_sw_grmb, 'B_avg', df1_name='Jelín
 
 # %% Comparing_all_q_q
 
-plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',
-                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='q_q_plot', df2_columns=omni_columns)
+plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='q_q_plot', df2_columns=omni_columns)
 
 # %% Comparing_all_hist
-plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',
-                 df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='hist_diff', df2_columns=omni_columns, compare_label='C1 - OMNI')
+plot_compare_dataset_parameters(c1_sw_com, omni, 'B_avg', 'B_cos(th)', 'B_sin(th)_sin(ph)', 'B_sin(th)_cos(ph)', 'B_clock',df1_colour='deepskyblue', df1_name='Cluster', df2_colour='orange', df2_name='OMNI', bin_widths=bin_widths, column_names=column_names, display_ranges=display_ranges, fit_types=fit_types, compare_type='hist_diff', df2_columns=omni_columns, compare_label='C1 - OMNI')
 

@@ -200,7 +200,7 @@ def plot_compare_datasets_with_activity(*dfs, **kwargs):
     ax2.set_ylabel('SIDC Sunspot Count')
     ax2.legend(facecolor='w')
 
-    add_figure_title(fig, 'Cluster Solar Wind Yearly Data Counts')
+    add_figure_title(fig, black, 'Cluster Solar Wind Yearly Data Counts')
     #plt.grid()
     dark_mode_fig(fig,black,white)
     plt.tight_layout()

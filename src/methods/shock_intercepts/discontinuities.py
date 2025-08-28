@@ -31,7 +31,7 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
     min_points       = kwargs.get('min_points',3)
 
     shock_type = 'FF'
-    while True:
+    for i in range(2):
         data1_up_start, data1_up_end = get_average_interval(shock_time, 'up', shock_type)
         data1_dw_start, data1_dw_end = get_average_interval(shock_time, 'dw', shock_type)
 
@@ -76,7 +76,6 @@ def sufficient_compression(parameter, detector, interceptor, shock_time, interce
 def find_peak_cross_corr(parameter, series1, series2, source1, source2, shock_time, lags, check_compression=True, overlap_mins=3, **kwargs):
     # lag > 0 implies source2 measures later than source1
     # lag < 0 implies source2 measures before source1
-
 
     correlations = []
 

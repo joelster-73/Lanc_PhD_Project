@@ -44,13 +44,12 @@ c1_omni_grmb_11 = merge_dataframes(c1_sw_grmb_11, omni, 'C1', 'OMNI') # C1 vs OM
 
 
 # %% Region_11
-from src.plotting.comparing.parameter import compare_columns
+from src.methods.bowshock_filtering.comparing import plot_compare_columns_with_compression
 from src.config import COMPRESSIONS_DIR
 
-compare_columns(c1_omni_grmb_11, 'B_avg_C1', 'B_avg_OMNI',
-                display='Heat', bin_width=(0.2,0.4), brief_title='Region 11 Comparison',
-                compressions=COMPRESSIONS_DIR, contam_info=True)
+plot_compare_columns_with_compression(c1_omni_grmb_11, 'B_avg_OMNI', 'B_avg_C1', display='heat', bin_width=(0.2,0.4), brief_title='Region 11 Comparison', compressions=COMPRESSIONS_DIR, contam_info=True)
 
+# %% Buffer
 from src.methods.bowshock_filtering.jelinek import find_best_buffer
 
 find_best_buffer(c1_omni_grmb_11, 'r_bs_diff_C1', 'B_avg_C1', 'B_avg_OMNI', plot=False, scale='lin', compressions=COMPRESSIONS_DIR, buff_max=6)

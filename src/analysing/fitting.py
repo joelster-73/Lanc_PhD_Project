@@ -16,6 +16,13 @@ from uncertainties import ufloat, umath
 
 def fit_function(xs, ys, print_text=False, **kwargs):
 
+    if len(xs)==0:
+        print('xs is empty')
+        return {}
+    if len(ys)==0:
+        print('ys is empty')
+        return {}
+
     fit_type = kwargs.get('fit_type','straight')
 
 
@@ -84,6 +91,48 @@ def fit_function(xs, ys, print_text=False, **kwargs):
 
 # %% Functions
 
+def reduced_chi2(y_obs, y_model, n_params, y_err=None):
+
+    residuals = y_obs - y_model
+    dof = len(y_obs) - n_params
+
+    if y_err is None:
+        chi2_red = np.sum(residuals**2) / dof
+    else:
+        chi2_red = np.sum((residuals / y_err)**2) / dof
+
+    return chi2_red
+
+def fit_with_errors(model_func, x, y, p0=None, bounds=(-np.inf, np.inf), yerr=None):
+
+    try:
+        popt, pcov = curve_fit(
+            model_func, x, y,
+            p0=p0,
+            bounds=bounds,
+            sigma=yerr,
+            absolute_sigma=(yerr is not None)
+        )
+
+        if yerr is None:
+            # Scale covariance by reduced chi-square
+            residuals = y - model_func(x, *popt)
+            dof = len(y) - len(popt)
+            chi2_red = np.sum(residuals**2) / dof
+            perr = np.sqrt(np.diag(pcov) * chi2_red)
+        else:
+            perr = np.sqrt(np.diag(pcov))
+
+        return popt, perr
+
+    except RuntimeError:
+        print(f'Fit for {model_func.__name__} failed!')
+        if p0 is None:
+            return None, None
+        return p0, np.zeros(len(p0))
+
+
+
 def histogram_perc(mids, counts, perc=50):
 
     cum_counts = np.cumsum(counts)
@@ -116,16 +165,21 @@ def straight_best_fit(x, y, **kwargs):
     origin = kwargs.get('origin',False)
 
     if origin:
-        def func(xt,m):
-            return m*xt
-        popt, pcov = curve_fit(func,x,y,sigma=yerr,absolute_sigma=True)
+        def func(xt, m):
+            return m * xt
     else:
-        if yerr is not None:
-            popt, pcov = np.polyfit(x, y, 1, w=1/yerr, cov=True) # Weighted
-        else:
-            popt, pcov = np.polyfit(x, y, 1, cov=True)
+        def func(xt, m, c):
+            return m * xt + c
 
-    return popt, np.sqrt(np.diag(pcov)), ('m','c')
+    if origin:
+        p0 = (1.0,)
+    else:
+        m0, c0 = np.polyfit(x, y, 1)
+        p0 = (m0, c0)
+
+    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
+    return popt, perr, ('m', 'c') if not origin else ('m',)
+
 
 # %% Gaussian
 def gaussian(x, *params):
@@ -149,15 +203,10 @@ def gaussian_fit(x, y, **kwargs):
         bounds = ([amplitude_guess*0.75, mean_guess-std_guess, 0],
                   [amplitude_guess*1.25, mean_guess+std_guess, 2*std_guess])
 
-    try:
-        # Perform the curve fitting
-        popt, pcov = curve_fit(gaussian, x, y, p0=initial_guess, bounds=bounds, sigma=yerr, absolute_sigma=True)
+    # Perform the curve fitting
+    popt, perr = fit_with_errors(gaussian, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
+    return popt, perr, ('A','mu','sigma')
 
-        return popt, np.sqrt(np.diag(pcov)), ('A','mu','sigma')
-
-    except RuntimeError:
-        print('Gaussian fit failed!')
-        return initial_guess, np.zeros(len(initial_guess)), ('A','mu','sigma')
 
 # %% Bimodal
 
@@ -166,7 +215,7 @@ def rough_peaks(x,y,npeaks=2):
     prom_perc = 0.1
     for i in range(10):
         mask = (y!=0) & (y>0.0005*np.max(y))
-        peaks, _ = find_peaks(y[mask],prominence=0.1*np.max(y))
+        peaks, _ = find_peaks(y[mask],prominence=prom_perc*np.max(y))
         if len(peaks)<npeaks:
             prom_perc *= 0.9
         elif len(peaks)>npeaks:
@@ -199,18 +248,13 @@ def bimodal_fit(x, y, **kwargs):
                   [np.inf, median, np.inf, np.inf, np.max(x), np.inf])
 
     else:
-        bounds = ([0.5*amplitude_guess, np.min(x), 0.5*sigma, 0.5*amplitude_guess, median, 0.5*sigma],
-                  [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, np.max(x), sigma])
+        bounds = ([0.5*amplitude_guess, x1_guess-std_guess, 0.4*sigma, 0.5*amplitude_guess, median, 0.4*sigma],
+                  [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, x2_guess+std_guess,    sigma])
 
-    try:
-        # Perform the curve fitting
-        popt, pcov = curve_fit(bimodal, x, y, p0=initial_guess, bounds=bounds, sigma=yerr, absolute_sigma=True)
+    # Perform the curve fitting
+    popt, perr = fit_with_errors(bimodal, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
+    return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
 
-        return popt, np.sqrt(np.diag(pcov)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
-
-    except RuntimeError:
-        print('Gaussian fit failed!')
-        return initial_guess, np.zeros(len(initial_guess)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
 
 
 def bimodal_offset(x, *params):
@@ -243,15 +287,10 @@ def bimodal_fit_offset(x, y, **kwargs):
         bounds = ([0.5*amplitude_guess, np.min(x), 0.5*sigma, 0.5*amplitude_guess, median, 0.5*sigma, 0.8*np.min(y)],
                   [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, np.max(x), sigma, 1.1*np.min(y)])
 
-    try:
-        # Perform the curve fitting
-        popt, pcov = curve_fit(bimodal_offset, x, y, p0=initial_guess, bounds=bounds, sigma=yerr, absolute_sigma=True)
+    # Perform the curve fitting
+    popt, perr = fit_with_errors(bimodal_offset, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
+    return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
 
-        return popt, np.sqrt(np.diag(pcov)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
-
-    except RuntimeError:
-        print('Gaussian fit failed!')
-        return initial_guess, np.zeros(len(initial_guess)), ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
 
 # %% Lognormal
 def lognormal(x, *params):
@@ -261,7 +300,7 @@ def lognormal(x, *params):
 
 def lognormal_fit(x, y, **kwargs):
 
-    yerr = kwargs.get('ys_unc',None)
+    yerr          = kwargs.get('ys_unc',None)
     # Initial guesses
     _, sigma_guess, median, amplitude_guess = histogram_params(x, y)
 
@@ -269,12 +308,8 @@ def lognormal_fit(x, y, **kwargs):
     mu_guess = np.log(median)  # Use median for scale as an initial guess
     initial_guess = (amplitude_guess, mu_guess, sigma_guess)
 
-    try:
-        # Perform the curve fitting
-        popt, pcov = curve_fit(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf), sigma=yerr, absolute_sigma=True)
+    # Perform the curve fitting
+    popt, perr = fit_with_errors(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf), yerr=yerr)
+    return popt, perr, ('A', 'mu', 'sigma')
 
-        return popt, np.sqrt(np.diag(pcov)), ('A', 'mu', 'sigma')
 
-    except RuntimeError:
-        print('Log-normal fit failed!')
-        return initial_guess, np.zeros(len(initial_guess)), ('A', 'mu', 'sigma')

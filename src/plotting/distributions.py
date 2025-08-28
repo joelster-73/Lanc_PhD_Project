@@ -6,8 +6,11 @@ Created on Fri May 16 10:38:41 2025
 """
 import numpy as np
 
+from uncertainties import UFloat
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+
 from matplotlib import ticker as mticker
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -28,6 +31,9 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
     lw          = kwargs.get('fit_width',2)
     as_text     = kwargs.get('as_text',False)
     orientation = kwargs.get('orientation','vertical')
+    ys_unc      = kwargs.get('ys_unc',None)
+    if ys_unc is None:
+        inc_errs = False
 
     ax = kwargs.get('ax', None)
     if ax is None:
@@ -45,6 +51,10 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
         unit = ''
 
     fit_dict = fit_function(xs, ys, **kwargs)
+
+    if len(fit_dict)==0:
+        return {}
+
     func = fit_dict['func']
     popt = (v.n for v in fit_dict['params'].values())
     param_dict = fit_dict['params']
@@ -114,6 +124,8 @@ def plot_freq_hist(series, **kwargs):
     fit_type    = kwargs.get('fit_type','mean')
     want_legend = kwargs.get('want_legend',True)
     brief_title = kwargs.get('brief_title','')
+    add_count   = kwargs.get('add_count',False)
+    orientation = kwargs.get('orientation','vertical')
 
     colour      = kwargs.get('colour','k')
     cmap        = kwargs.get('cmap',None)
@@ -121,7 +133,8 @@ def plot_freq_hist(series, **kwargs):
     perc_low    = kwargs.get('perc_low',0)
     perc_high   = kwargs.get('perc_high',100)
     bin_width   = kwargs.get('bin_width',None)
-    orientation = kwargs.get('orientation','vertical')
+    edge_colour = kwargs.get('edge_color','#444444')
+    edge_width  = kwargs.get('edge_width',1)
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
@@ -131,6 +144,7 @@ def plot_freq_hist(series, **kwargs):
     data_str = data_string(series.name)
     unit = series.attrs.get('units', {}).get(series.name, None)
 
+    series_0 = series.copy().dropna()
     series = series.dropna().to_numpy()
 
     if unit == 'rad':
@@ -146,7 +160,7 @@ def plot_freq_hist(series, **kwargs):
         kwargs['ax'] = ax
 
     n_bins = calculate_bins(series,bin_width)
-    counts, bins, patches = ax.hist(series, bins=n_bins, alpha=1.0, color=colour, edgecolor='#333333', linewidth=1, orientation=orientation)
+    counts, bins, patches = ax.hist(series, bins=n_bins, alpha=1.0, color=colour, edgecolor=edge_colour, linewidth=edge_width, orientation=orientation)
 
     norm = mcolors.Normalize(vmin=min(counts), vmax=max(counts)*clipping)
     if cmap is not None:
@@ -156,7 +170,7 @@ def plot_freq_hist(series, **kwargs):
 
     ###-------------------FITTING-------------------###
     if fit_type in ('mean','median'):
-        plot_metric(series, metric=fit_type, **kwargs)
+        plot_metric(series_0, metric=fit_type, **kwargs)
     else:
         mids = 0.5 * (bins[1:] + bins[:-1])
         bin_width = bins[1] - bins[0]
@@ -167,16 +181,23 @@ def plot_freq_hist(series, **kwargs):
         fit_dict = plot_fit(mids, counts, x_range=x_plot, unit=unit, **kwargs)
 
         if fit_type=='lognormal':
+            yerrs = kwargs.get('ys_unc',None)
             peak = fit_dict['peaks'][0][0] # x position
-            try:
-                position = peak.n
-                label = f'${peak:L}$'
-            except:
-                position = peak
-                label = f'{peak:.3g}'
+            if yerrs is not None:
+                try:
+                    position = peak.n
+                    label = f'${peak:L}$'
+                except:
+                    position = peak
+                    label = f'$x\\simeq{peak:.3g}$ {unit}'
+            else:
+                position = peak.n if isinstance(peak, UFloat) else peak
+                label = f'$x\\simeq{position:.3g}$ {unit}'
             ax.text(position+0.75, 0.9*ax.get_ylim()[1], s=label)
 
     perc_range = [None, None]
+    if np.min(series)>=0: # If all positive data
+        perc_range[0] = 0
     if perc_low>0:
         perc_range[0] = np.percentile(series, perc_low)
         ax.text(0.025, 0.075, f'$\\longleftarrow$\n{np.min(series):.1f}', transform=ax.transAxes)
@@ -205,7 +226,7 @@ def plot_freq_hist(series, **kwargs):
 
     if brief_title=='amount':
         brief_title = f'{len(series):,}'
-    elif brief_title != '':
+    elif brief_title != '' and add_count:
         brief_title += f', N={len(series):,}'
 
     loc = 'split' if fit_type in ('bimodal','bimodal_offset') else 'upper right'
@@ -333,26 +354,28 @@ def plot_q_q(series1, series2, **kwargs):
 
 def plot_metric(series, metric='mean', **kwargs):
 
-
     ax     = kwargs.get('ax',None)
     colour = kwargs.get('lc','r')
     ls     = kwargs.get('ls','-')
+
+    unit = series.attrs.get('units',{}).get(series.name,'')
 
     if ax is not None:
 
         if metric=='mean':
             value = calc_mean_error(series)
             try:
-                label = f'$\\mu={metric:L}$'
+                label = f'$\\mu={value:L}$'
             except:
-                label = f'$\\mu=${metric:.3g}'
+                label = f'$\\mu=${value:.3g} {unit}'
         elif metric=='median':
             value = np.median(series)
             try:
-                label = f'$\\nu={metric:L}$'
+                label = f'$\\nu={value:L}$'
             except:
-                label = f'$\\nu=${metric:.3g}'
+                label = f'$\\nu=${value:.3g} {unit}'
 
+        value = value.n if isinstance(value, UFloat) else value
         ax.axvline(value, lw=1, ls=ls, c=colour, label=label)
 
 def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
@@ -410,7 +433,6 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
 
 # %% Labels
-
 def straight_label_params(param_dict, detailed=True, unity='', unitx='', R2=''):
 
     m = param_dict['m']
@@ -422,7 +444,10 @@ def straight_label_params(param_dict, detailed=True, unity='', unitx='', R2=''):
         except:
             return f'$m$: {m:.3g} {unity} {unitx}${-1}$\n$c$: {c:.3g} {unity}\n$R^2$: {R2:.3g}'
 
-    return f'$m$: {m:.3g} {unity} {unitx}${-1}$\n$c$: {c:.3g} {unity}\n$R^2$: {R2:.3g}'
+    m = m.n if isinstance(m, UFloat) else m
+    c = c.n if isinstance(c, UFloat) else c
+
+    return f'$m$ = {m:.3g} {unity} {unitx}${-1}$\n$c$ = {c:.3g} {unity}\n$R^2$: {R2:.3g}'
 
 
 def straight_label(param_dict, detailed=True, unit='', R2=''):
@@ -440,9 +465,12 @@ def straight_label(param_dict, detailed=True, unit='', R2=''):
         try:
             return f'$y=({m:L})\\cdot x {sign} ({c:L})$ {unit}\n$R^2$: {R2:.3g}'
         except:
-            return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}\n$R^2$: {R2:.3g}'
+            return f'$y=${m:.3g}$\\cdot x {sign} ${c:.3g} {unit}\n$R^2$: {R2:.3g}'
 
-    return f'$y=$({m:.3g})$\\cdot x {sign} $({c:.3g}) {unit}\n$R^2$: {R2:.3g}'
+    m = m.n if isinstance(m, UFloat) else m
+    c = c.n if isinstance(c, UFloat) else c
+
+    return f'$y=${m:.3g}$\\cdot x {sign} ${c:.3g} {unit}\n$R^2$: {R2:.3g}'
 
 
 def gaussian_label(param_dict, detailed=True, unit=''):
@@ -454,9 +482,12 @@ def gaussian_label(param_dict, detailed=True, unit=''):
         try:
             return f'$\\mu$: ${mu:L}$ {unit}\n$\\sigma$: ${std:L}$ {unit}'
         except:
-            return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
+            return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
 
-    return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
+    mu = mu.n if isinstance(mu, UFloat) else mu
+    std = std.n if isinstance(std, UFloat) else std
+
+    return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
 
 def bimodal_label(param_dict, detailed=True, unit=''):
 
@@ -470,11 +501,17 @@ def bimodal_label(param_dict, detailed=True, unit=''):
             label1=f'$\\mu_1$: ${mu1:L}$ {unit}\n$\\sigma_1$: ${std1:L}$ {unit}'
             label2=f'$\\mu_2$: ${mu2:L}$ {unit}\n$\\sigma_2$: ${std2:L}$ {unit}'
         except:
-            label1=f'$\\mu_1$: {mu1:.3g} {unit}\n$\\sigma_1$: {std1:.3g} {unit}'
-            label2=f'$\\mu_2$: {mu2:.3g} {unit}\n$\\sigma_2$: {std2:.3g} {unit}'
+            label1=f'$\\mu_1$ = {mu1:.3g} {unit}\n$\\sigma_1$ = {std1:.3g} {unit}'
+            label2=f'$\\mu_2$ = {mu2:.3g} {unit}\n$\\sigma_2$ = {std2:.3g} {unit}'
     else:
-        label1=f'$\\mu_1$: {mu1:.3g} {unit}\n$\\sigma_1$: {std1:.3g} {unit}'
-        label2=f'$\\mu_2$: {mu2:.3g} {unit}\n$\\sigma_2$: {std2:.3g} {unit}'
+        mu1 = mu1.n if isinstance(mu1, UFloat) else mu1
+        std1 = std1.n if isinstance(std1, UFloat) else std1
+
+        mu2 = mu2.n if isinstance(mu2, UFloat) else mu2
+        std2 = std2.n if isinstance(std2, UFloat) else std2
+
+        label1=f'$\\mu_1$ = {mu1:.3g} {unit}\n$\\sigma_1$ = {std1:.3g} {unit}'
+        label2=f'$\\mu_2$ = {mu2:.3g} {unit}\n$\\sigma_2$ = {std2:.3g} {unit}'
 
     return label1, label2
 
@@ -487,6 +524,9 @@ def lognormal_label(param_dict, detailed=True, unit=''):
         try:
             return f'$\\mu$: ${mu:L}$ {unit}\n$\\sigma$: ${std:L}$ {unit}'
         except:
-            return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
+            return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
 
-    return f'$\\mu$: {mu:.3g} {unit}\n$\\sigma$: {std:.3g} {unit}'
+    mu = mu.n if isinstance(mu, UFloat) else mu
+    std = std.n if isinstance(std, UFloat) else std
+
+    return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'

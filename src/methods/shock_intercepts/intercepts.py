@@ -11,8 +11,8 @@ import pandas as pd
 from datetime import timedelta, datetime
 from uncertainties import ufloat
 
-from ...analysing.discontinuities import find_peak_cross_corr
-from ...analysing.in_sw import in_solar_wind
+from .discontinuities import find_peak_cross_corr
+from .in_sw import in_solar_wind
 
 from ...processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc, retrieve_position_unc
 from ...processing.speasy.config import sw_monitors, cluster_sc, themis_sc
@@ -123,14 +123,17 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
     df_shocks.at[eventID,'detectors'] = detectors
     for _, row in event.iterrows():
         sc = row['spacecraft']
+        source = row['source']
         df_shocks.at[eventID,f'{sc}_time'] = row.name
         df_shocks.at[eventID,f'{sc}_time_unc_s'] = row['time_unc']
+        df_shocks.at[eventID,f'{sc}_coeff'] = 1
+        df_shocks.at[eventID,f'{sc}_sc'] = f'{sc} ({source})'
 
         pos, unc = retrieve_position_unc(sc, row.name, row['time_unc'])
 
         if pos is None:
             pos = row[['r_x_GSE','r_y_GSE','r_z_GSE']].to_numpy()
-            unc = np.array([np.nan,np.nan,np.nan])
+            unc = np.zeros(3)
             if np.isnan(pos[0]):
                 continue
 
@@ -138,7 +141,7 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
         df_shocks.loc[eventID,[f'{sc}_r_x_GSE_unc',f'{sc}_r_y_GSE_unc',f'{sc}_r_z_GSE_unc']] = unc
 
     # Spacecraft OMNI used in its propagation in this time period
-    start, end = min(times), max(times)+timedelta(minutes=90)
+    start, end = min(times), max_time+timedelta(minutes=90)
     sc_info    = retrieve_modal_omni_sc(start, end, return_counts=True)
     if sc_info is None:
         raise Exception(f'#{eventID}: No OMNI info.')
@@ -189,7 +192,7 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
     # Use the shocks we have to find when they intercept the OMNI spacecraft
     # Currently not implemented to see sample size
     if pd.isnull(omni_time):
-        raise Exception(f'#{eventID}: Need to interpolate to find shock in OMNI.')
+        raise Exception(f'#{eventID}: Need to interpolate to find shock in OMNI {list(counts_dict.keys())}.')
 
 
     df_shocks.at[eventID,'OMNI_time'] = omni_time
@@ -338,8 +341,8 @@ def find_propagation_time(shock_time, detector, interceptor, parameter, position
                        left_index=True, right_index=True, how='outer')
 
 
-    series1 = aligned[detector]
-    series2 = aligned[interceptor]
+    series1 = aligned.loc[:,detector]
+    series2 = aligned.loc[:,interceptor]
 
     lag, coeff = find_peak_cross_corr(parameter, series1, series2, detector, interceptor, shock_time, lags, resolution, **kwargs)
     if not np.isnan(lag):

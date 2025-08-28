@@ -18,6 +18,12 @@ import imageio
 from .config import save_fig
 from ..config import FIGURES_DIR
 
+def change_series_name(series, new_name):
+
+    old_name = series.name
+    series.name = new_name
+    series.attrs['units'][new_name] = series.attrs['units'].pop(old_name)
+
 
 def save_figure(figure, directory=None, sub_directory=None, file_name=None):
     """

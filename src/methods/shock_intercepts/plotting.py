@@ -15,13 +15,7 @@ from ...plotting.config import black
 from ...plotting.relationships import plot_with_side_figs
 from ...plotting.distributions import plot_freq_hist
 from ...plotting.comparing.parameter import compare_series
-from ...plotting.utils import save_figure
-
-def change_series_name(series, new_name):
-
-    old_name = series.name
-    series.name = new_name
-    series.attrs['units'][new_name] = series.attrs['units'].pop(old_name)
+from ...plotting.utils import save_figure, change_series_name
 
 def plot_propagations_both(shocks, **kwargs):
 
@@ -43,6 +37,10 @@ def plot_shock_propagations(shocks, **kwargs):
     colouring      = kwargs.get('colouring','spacecraft')
     max_dist       = kwargs.get('max_dist',300)
     normals        = kwargs.get('shock_normals',None)
+
+    if normals is None and x_axis in ('delta_n','delta_t'):
+        print('Haven\'t provided normals; using x-distance instead.')
+        x_axis = 'delta_x'
 
     fig = kwargs.get('fig',None)
     ax  = kwargs.get('ax',None)
@@ -139,63 +137,76 @@ def plot_shock_propagations(shocks, **kwargs):
 
 def plot_time_differences(shocks, bottom_panel='hist', right_panel='hist', **kwargs):
 
-    coeff_lim      = kwargs.get('coeff_lim',0.7)
+    coeff_lim      = kwargs.get('coeff_lim',None)
     selection      = kwargs.get('selection','all')
     x_axis         = kwargs.get('x_axis','delta_x')
     colouring      = kwargs.get('colouring','spacecraft')
     max_dist       = kwargs.get('max_dist',300)
     normals        = kwargs.get('shock_normals',None)
 
+    if normals is None and x_axis in ('delta_n','delta_t'):
+        print('Haven\'t provided normals; using x-distance instead.')
+        x_axis = 'delta_x'
+
     df = get_diffs_with_OMNI(shocks,normals)
 
-    series_x = df.loc[:,x_axis]
-    series_x_unc = df.loc[:,x_axis+'_unc']
-
-    series_y = df.loc[:,'time']
-    series_y_unc = df.loc[:,'time_unc']
-
-    if x_axis=='delta_x':
-        new_x_name = 'X_SC - X_BSN'
-    elif x_axis=='delta_r':
-        new_x_name = '|R_SC - R_BSN |'
-    elif x_axis=='delta_n':
-        new_x_name = 'n•(R_SC - R_BSN )'
-    elif x_axis=='delta_t':
-        new_x_name = 'n•(R_SC - R_BSN ) / v'
-
-    change_series_name(series_x,new_x_name)
-    change_series_name(series_y,'t_SC - t_OMNI')
-
+    ###---------------MASKING---------------###
     if selection=='earth':
         max_dist=100
-        bottom_panel = 'rolling'
+        bottom_panel = 'rolling' if bottom_panel=='hist' else bottom_panel
         kwargs['right_fit'] = 'gaussian'
 
-    closish = series_x<max_dist
-    closish &= series_x>-100 # Second condition just to restrict massive outlier
-    #closish &= df.loc[:,'coeff'] >= coeff_lim
+    mask = np.ones(len(df), dtype=bool)
 
-    ### NEED TO INCLUDE CORR COEFF FOR WHEN NOT USING HELSINKI
+    mask &= (df.loc[:,'delta_x']<max_dist) & (df.loc[:,'delta_x']>-100) # Second condition just to restrict massive outlier
+    if x_axis == 'delta_t':
+        mask &= (df.loc[:,x_axis]<9000) # to restrict massive outlier
+    if coeff_lim is not None and 'corr_coeff' in df:
+        mask &= (df.loc[:,'coeff'] >= coeff_lim)
 
-    xs = series_x[closish]
-    ys = series_y[closish]/60
-    ys.attrs['units'][ys.name] = 'mins'
+    mask &= (~np.isnan(df.loc[:,x_axis])) & (~np.isnan(df.loc[:,'time']))
 
-    xs_unc = series_x_unc[closish]
-    ys_unc = series_y_unc[closish]/60
-    ys_unc.attrs['units'][ys_unc.name] = 'mins'
+    series_x = df.loc[mask,x_axis]
+    series_x_unc = df.loc[mask,x_axis+'_unc']
 
+    series_y = df.loc[mask,'time']/60
+    series_y_unc = df.loc[mask,'time_unc']/60
+
+    series_y.attrs['units'][series_y.name] = 'mins'
+    series_y_unc.attrs['units'][series_y_unc.name] = 'mins'
+
+    ###---------------LABELLING---------------###
     if x_axis=='delta_t':
-        xs /= 60
-        xs_unc /= 60
-        xs.attrs['units'][xs.name] = 'mins'
-        xs_unc.attrs['units'][xs_unc.name] = 'mins'
+        series_x /= 60
+        series_x_unc /= 60
+        series_x.attrs['units'][series_x.name] = 'mins'
+        series_x_unc.attrs['units'][series_x_unc.name] = 'mins'
 
     if colouring=='spacecraft':
-        kwargs['colour_values'] = df.loc[closish,'detector']
+        kwargs['colour_values'] = df.loc[mask,'detector']
         kwargs['error_colour'] = black
 
-    plot_with_side_figs(xs, ys, bottom_panel, right_panel, xs_unc=xs_unc, ys_unc=ys_unc, **kwargs)
+        if x_axis=='delta_x':
+            new_x_name = 'X_SC - X_BSN'
+        elif x_axis=='delta_r':
+            new_x_name = '|R_SC - R_BSN |'
+        elif x_axis=='delta_n':
+            new_x_name = 'n•(R_SC - R_BSN )'
+        elif x_axis=='delta_t':
+            new_x_name = 'n•(R_SC - R_BSN ) / v'
+
+        change_series_name(series_x,new_x_name)
+        change_series_name(series_y,'t_SC - t_OMNI')
+
+    for series in (series_x,series_y,series_x_unc,series_y_unc):
+        return_none = False
+        if len(series.dropna())==0:
+            return_none = True
+            print(f'No "{series.name}" data.')
+        if return_none:
+            return
+
+    plot_with_side_figs(series_x, series_y, bottom_panel, right_panel, xs_unc=series_x_unc, ys_unc=series_y_unc, **kwargs)
 
 
 def plot_compressions_both(shocks, plot_type='hist', *kwargs):

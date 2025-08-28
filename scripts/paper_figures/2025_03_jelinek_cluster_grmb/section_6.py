@@ -69,6 +69,6 @@ from src.plotting.space_time import plot_dataset_years_months
 plot_dataset_years_months(c1_sw_com, colour='deepskyblue')
 
 # %% High_activity
-from data_plotting import plot_compare_datasets_with_activity
+from src.plotting.comparing.space_time import plot_compare_datasets_with_activity
 
 plot_compare_datasets_with_activity(c1_sw_jel, c1_sw_grmb)

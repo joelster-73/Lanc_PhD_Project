@@ -32,12 +32,10 @@ c1_omni_grmb_v0 = merge_dataframes(c1_sw_grmb_v0, omni, 'C1', 'OMNI') # C1 vs OM
 
 
 # %% Region_12
-from src.plotting.comparing.parameter import compare_columns
+from src.methods.bowshock_filtering.comparing import plot_compare_columns_with_compression
 from src.config import COMPRESSIONS_DIR
 
-compare_columns(c1_omni_grmb_v0, 'B_avg_C1', 'B_avg_OMNI',
-                display='Heat', bin_width=(0.2,0.4), brief_title='Region 12 Comparison',
-                compressions=COMPRESSIONS_DIR, contam_info=True)
+plot_compare_columns_with_compression(c1_omni_grmb_v0, 'B_avg_OMNI', 'B_avg_C1', display='heat', bin_width=(0.2,0.4), brief_title='Region 12 Comparison', compressions=COMPRESSIONS_DIR, contam_info=True)
 
 # %% Differences
 from src.methods.bowshock_filtering.extreme import plot_extreme_diffs_windows

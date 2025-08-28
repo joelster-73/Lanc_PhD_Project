@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+from uncertainties import unumpy as unp
 
 from .utils import add_unit, cdf_epoch_to_datetime
-from ..analysing.calculations import circular_mean
+from ..analysing.calculations import calc_mean_error
 
 def add_df_units(df):
     unit_attrs = {}
@@ -150,14 +151,14 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=False
     for column in df.columns:
         if column == 'utc':
             continue
-        elif df.attrs['units'].get(column) == 'rad':
-            # Use circular mean for 'rad' columns
-            if show_print:
-                print('Doing circular mean.')
-            aggregated_columns[column] = grouped[column].apply(lambda x: circular_mean(x))
         else:
             # Use standard mean for other columns
-            aggregated_columns[column] = grouped[column].mean()
+            unit = df.attrs['units'].get(column)
+
+            ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x, unit=unit))
+
+            aggregated_columns[column] = pd.Series(unp.nominal_values(ufloat_series), index=ufloat_series.index)
+            aggregated_columns[f'{column}_unc'] = pd.Series(unp.std_devs(ufloat_series), index=ufloat_series.index)
 
     if show_count:
         aggregated_columns['count'] = grouped.size().astype(int)

@@ -17,8 +17,8 @@ from ...coordinates.boundaries import msh_boundaries
 
 from ...plotting.additions import create_half_circle_marker, plot_segments, plot_vertical_line_unc
 from ...plotting.formatting import custom_date_formatter, add_legend, array_to_string, add_figure_title, create_label
-from ...plotting.config import black, white
-from ...plotting.utils import save_figure
+#from ...plotting.config import black, white
+#from ...plotting.utils import save_figure
 
 from ...processing.speasy.config import speasy_variables, colour_dict, sw_monitors
 from ...processing.speasy.retrieval import retrieve_data, retrieve_datum, retrieve_modal_omni_sc

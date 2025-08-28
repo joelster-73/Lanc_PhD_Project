@@ -4,6 +4,7 @@ Created on Fri May 16 10:37:12 2025
 
 @author: richarj2
 """
+import numpy as np
 from datetime import timedelta
 from pandas import Timedelta
 
@@ -46,10 +47,14 @@ def create_half_circle_marker(ax, centre, radius, angle_start=90, full=True):
 
 def plot_error_region(ax, xs, ys, y_errs, c='k', alpha=0.1, marker='x', label=None, step=None):
 
+    xs = np.array(xs, dtype=float)
+    ys = np.array(ys, dtype=float)
+    y_errs = np.array(y_errs, dtype=float)
+
     ax.fill_between(xs, ys-y_errs, ys+y_errs, color=c, alpha=alpha, step=step)
     ax.plot(xs, ys, marker=marker, c=c, label=label)
-    
-    
+
+
 def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', linestyle='--', uncertainty_tuple=None, return_label=False):
 
     minutes, seconds = divmod(int(uncertainty), 60) # uncertainty in seconds

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from ...plotting.config import black, white
 from ...plotting.additions import create_half_circle_marker
 from ...plotting.formatting import add_legend, add_figure_title, create_label, dark_mode_fig
-from ...plotting.utils import save_figure, calculate_bins, save_frame, save_gif
+from ...plotting.utils import save_figure, calculate_bins, save_frame, save_gif, change_series_name
 from ...plotting.space_time import plot_orbit
 
 from ...plotting.comparing.parameter import compare_series
@@ -34,9 +34,8 @@ def plot_grid_bowshock_buffer(df, r_diff_col, y1_col, y2_col, rx_col, ryz_col, *
 
     compressions = kwargs.get('compressions',None)
     bin_width    = kwargs.get('bin_width',0.1)
-
-
-    r_diff_name  = kwargs.get('r_diff_name',None)
+    r_diff_str   = kwargs.get('r_diff_str',None)
+    r_diff_lat   = kwargs.get('r_diff_lat',None)
 
     n_cols = 3
     n_rows = len(buffers)
@@ -54,10 +53,12 @@ def plot_grid_bowshock_buffer(df, r_diff_col, y1_col, y2_col, rx_col, ryz_col, *
     kwargs['fig'] = fig
     kwargs['return_objs'] = True
 
-    delta_B = np.abs(difference_columns(df_sw, y1_col, y2_col))
+    delta_B = np.abs(difference_columns(df_sw, y2_col, y1_col))
     delta_r = df_sw.loc[:,r_diff_col]
+    if r_diff_lat is not None:
+        change_series_name(delta_r, r_diff_lat)
 
-    kwargs_1 = kwargs.copy() | {'data2_name': r_diff_name, 'bin_width': (bin_width, 4*bin_width)}
+    kwargs_1 = kwargs.copy() | {'data1_name': r_diff_str, 'bin_width': (bin_width, 4*bin_width)}
     kwargs_2 = kwargs.copy() | {'brief_title': 'Comparing B', 'bin_width': (bin_width, 2*bin_width)}
     kwargs_3 = kwargs.copy() | {'equal_axes': False, 'models':' Median BS', 'bin_width': bin_width}
 
@@ -72,7 +73,7 @@ def plot_grid_bowshock_buffer(df, r_diff_col, y1_col, y2_col, rx_col, ryz_col, *
         kwargs_1['brief_title'] = f'{buffer} $\\mathrm{{R_E}}$ Buffer'
         kwargs_1['ax'] = ax_row[0]
 
-        _, _, cbar = compare_series(delta_B, delta_r, **kwargs_1)
+        _, _, cbar = compare_series(delta_r, delta_B, **kwargs_1)
 
         ax_row[0].set_xlim(left=0,right=10)
         ax_row[0].set_ylim(top=40)
@@ -90,7 +91,7 @@ def plot_grid_bowshock_buffer(df, r_diff_col, y1_col, y2_col, rx_col, ryz_col, *
         if compressions is not None:
             ax_row[1].plot(B_imf, B_msh, c='cyan', lw=2)
 
-            num_ext = np.sum(are_points_above_line(B_imf, B_msh, series2, series1))
+            num_ext = np.sum(are_points_above_line(B_imf, B_msh, series1, series2))
             perc_ext = num_ext/len(df_out)*100
 
             kwargs_2['brief_title'] = f'{perc_ext:.2g}%, {num_ext:,} mins'

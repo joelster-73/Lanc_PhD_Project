@@ -159,12 +159,13 @@ def convert_helsinki_df_plotting(helsinki_shocks):
 
         new_columns[f'{sc}_time'] = pd.NaT
         new_columns[f'{sc}_time_unc_s'] = np.nan
-        new_columns[f'{sc}_coeff']      = np.nan
         new_columns[f'{sc}_sc']         = ''
 
         for comp in ('x','y','z'):
             new_columns[f'{sc}_r_{comp}_GSE'] = np.nan
             new_columns[f'{sc}_r_{comp}_GSE_unc'] = np.nan
+
+    new_columns['OMNI_sc'] = ''
 
     eventIDs = range(1,len(event_list)+1)
     helsinki_events = pd.concat([helsinki_events, pd.DataFrame(new_columns, index=eventIDs)], axis=1)
@@ -190,7 +191,10 @@ def convert_helsinki_df_plotting(helsinki_shocks):
                 continue
             helsinki_events.loc[event_num,[f'{sc}_r_x_GSE',f'{sc}_r_y_GSE',f'{sc}_r_z_GSE']] = position
             if sc=='OMNI':
-                helsinki_events.at[event_num,'OMNI_sc'] = retrieve_omni_value(sc_info[0], omni_var='OMNI_sc')
+                omni_sc = retrieve_omni_value(sc_info[0], omni_var='OMNI_sc')
+                if omni_sc is None:
+                    omni_sc = ''
+                helsinki_events.at[event_num,'OMNI_sc'] = omni_sc
 
 
     return helsinki_events
