@@ -58,14 +58,8 @@ PROC_WIND_DIR_3SEC     = f'{WIND_DIR}/3_sec/'
 # Processed THEMIS Data
 PROC_THEMIS_DIR        = THEMIS_DIR
 
-# Processed CFA Data
-PROC_CFA_DIR           = CFA_DIR
-
 # Processed Shocks Data
 PROC_SHOCKS_DIR        = f'{PROCESSED_DATA_DIR}/SHOCKS'
-
-# Processed Shocks Data
-PROC_INTERCEPTS_DIR        = f'{PROCESSED_DATA_DIR}/INTERCEPTS'
 
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'

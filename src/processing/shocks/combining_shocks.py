@@ -14,7 +14,7 @@ from src.processing.speasy.retrieval import retrieve_datum
 import numpy as np
 import pandas as pd
 
-# %%
+# %% Combining
 
 helsinki_shocks = process_helsinki_shocks(HELSINKI_DIR, 'Helsinki_database.dat')
 helsinki_shocks = helsinki_shocks[['spacecraft','r_x_GSE','r_y_GSE','r_z_GSE','res_B','res_p']]
@@ -40,7 +40,7 @@ donki_shocks['source'] = 'D'
 for col in ('r_x_GSE','r_y_GSE','r_z_GSE'):
     donki_shocks[col] = np.nan
 
-# %%
+# %% Count
 from collections import Counter
 
 shocks = pd.concat([helsinki_shocks,cfa_shocks,donki_shocks]).sort_index()
@@ -54,7 +54,7 @@ for d in event_list:
 
 print(key_counts)
 
-# %%
+# %% Processing
 columns = ['epoch','eventNum','time_unc','spacecraft','r_x_GSE','r_y_GSE','r_z_GSE','source']
 all_shocks = pd.DataFrame(columns=columns)
 
@@ -76,7 +76,7 @@ for i, event_dict in enumerate(event_list):
 all_shocks.set_index('epoch',inplace=True)
 
 
-# %%
+# %% Attributes
 new_attrs = cfa_shocks.attrs.copy()
 for col in list(cfa_shocks.attrs['units']):
     if col not in all_shocks:
@@ -87,7 +87,7 @@ new_attrs['units']['time_unc'] = 's'
 
 all_shocks.attrs = new_attrs
 
-# %%
+# %% Writing
 from src.processing.writing import write_to_cdf
 from src.config import PROC_SHOCKS_DIR
 import os
@@ -95,7 +95,4 @@ import os
 output_file = os.path.join(PROC_SHOCKS_DIR, 'all_shocks.cdf')
 
 write_to_cdf(all_shocks, output_file, new_attrs, reset_index=True)
-
-# %%
-
 

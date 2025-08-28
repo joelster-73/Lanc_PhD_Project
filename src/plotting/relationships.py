@@ -51,6 +51,8 @@ def plot_with_side_figs(series_1, series_2, bottom_panel=None, right_panel=None,
     #ax.set_ylim(-ylim,ylim)
 
     if right_panel == 'hist':
+        kwargs['xs_unc'] = None
+        kwargs['ys_unc'] = None
         kwargs['bin_width'] = 5
         kwargs['orientation'] = 'horizontal'
         kwargs['fit_type'] = kwargs.get('right_fit','bimodal')
@@ -62,6 +64,8 @@ def plot_with_side_figs(series_1, series_2, bottom_panel=None, right_panel=None,
     # change label positions etc
 
     if bottom_panel == 'hist':
+        kwargs['xs_unc'] = None
+        kwargs['ys_unc'] = None
         kwargs['bin_width'] = 5
         kwargs['orientation'] = 'vertical'
         kwargs['fit_type'] = kwargs.get('bottom_fit','bimodal')

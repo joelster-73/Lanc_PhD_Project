@@ -9,12 +9,12 @@ import pandas as pd
 from spacepy import pycdf
 
 from .filtering import exclude_days, filter_data
-from .handling import get_processed_files
+from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices
 
 
 
-def import_processed_data(directory, year=None, date_range=None, bad_data=None):
+def import_processed_data(directory, year=None, date_range=None, bad_data=None, file_name=None):
     """
     Imports and processes CDF files from a specified directory, filtering by keyword and date range.
 
@@ -41,11 +41,16 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
         A DataFrame containing the merged and filtered data from the CDF files. The DataFrame will have a 'time' column
         (converted from CDF epoch to datetime) as the index, and it will be filtered to the specified date range.
     """
-    # Find all .cdf files containing the specified keyword in their names and within the date range
-    cdf_files = get_processed_files(directory, year)
+    if file_name:
+        cdf_file = get_cdf_file(directory, filename=file_name)
+        file_data = pycdf.CDF(cdf_file)
+    else:
+        # Find all .cdf files containing the specified keyword in their names and within the date range
+        cdf_files = get_processed_files(directory, year)
+        cdf_file = cdf_files[0]
+        file_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
 
-    merged_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
-    df = read_spacepy_object(merged_data)
+    df = read_spacepy_object(file_data)
     for column in df.columns:
         if df.attrs['units'].get(column, '') == 'STRING':
             df[column] = df[column].str.strip()
@@ -53,7 +58,7 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None):
             str_series = df[column].str.strip()
             df[column] = [s.split(',') for s in str_series]
 
-    with pycdf.CDF(cdf_files[0]) as cdf:
+    with pycdf.CDF(cdf_file) as cdf:
         global_attrs = {}
         crossings_attrs = {}
         for key, value in cdf.attrs.items():

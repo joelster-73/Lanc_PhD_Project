@@ -5,11 +5,11 @@ Created on Tue Aug 19 10:30:06 2025
 @author: richarj2
 """
 # %% Imports
-from src.config import HELSINKI_DIR
+from src.config import PROC_SHOCKS_DIR
 from src.processing.reading import import_processed_data
 from src.processing.shocks.helsinki import convert_helsinki_df_plotting
 
-helsinki_shocks = import_processed_data(HELSINKI_DIR)
+helsinki_shocks = import_processed_data(PROC_SHOCKS_DIR, file_name='helsinki_shocks.cdf')
 helsinki_events = convert_helsinki_df_plotting(helsinki_shocks)
 
  # %% Training

@@ -86,33 +86,21 @@ def get_processed_files(directory, year=None, keyword=None):
     return files_processed
 
 
-def get_cdf_file(directory):
-    """
-    Retrieves a single CDF file from a specified directory.
+def get_cdf_file(directory, filename=None):
+    if filename:
+        file_path = os.path.join(directory, filename)
+        if not file_path.lower().endswith('.cdf'):
+            raise ValueError(f"Provided file '{filename}' is not a .cdf file.")
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"Specified file '{file_path}' not found.")
+        return file_path
 
-    Parameters
-    ----------
-    directory : str
-        The path to the directory containing the CDF files to search.
-
-    Returns
-    -------
-    str
-        The path to the found CDF file.
-
-    Raises
-    ------
-    ValueError
-        If there is more than one CDF file in the directory.
-    """
-    # Search for all CDF files in the directory
+    # If no filename provided, look for CDF files in the directory
     cdf_files = glob.glob(os.path.join(directory, '*.cdf'))
 
-    # Check if there is exactly one CDF file
     if len(cdf_files) != 1:
         raise ValueError(f"Expected one CDF file in the directory, found {len(cdf_files)}.")
 
-    # Return the single found CDF file
     return cdf_files[0]
 
 

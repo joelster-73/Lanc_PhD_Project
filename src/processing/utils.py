@@ -19,7 +19,7 @@ def add_unit(key):
         return 'km/s'
     elif any(keyword in key for keyword in ['ni','np','n_i','n_p']): # densities
         return 'n/cc'
-    elif any(keyword in key for keyword in ['N_x','N_y','N_z', 'M_', 'ratio', 'Beta_', 'coeff']):
+    elif any(keyword in key for keyword in ['N_x','N_y','N_z', 'Nx','Ny','Nz', 'M_', 'ratio', 'Beta_', 'coeff']):
         return '1'
     elif any(keyword in key for keyword in ['unc_s','_s','_delay']):
         return 's'
