@@ -23,6 +23,233 @@ sw_monitors = ('WIND','ACE','DSC','C1','C2','C3','C4','THA','THB','THC','GEO','I
 cluster_sc = ('C1','C2','C3','C4')
 themis_sc  = ('THA','THB','THC')
 
+
+C1_dict = {
+    'B_mag': 'c1_btot_5vps',    # 0.2s resolution
+    'B_GSE': 'c1_b_5vps',       # 0.2s resolution
+    'B_GSM': 'c1_bgsm_5vps',    # 0.2s resolution
+    'R_GSE': 'c1_xyz_gse',      # 60s resolution
+    'V_mag': 'c1_hia_vtot',     # Hot ion bulk velocity mag, spin resolution
+    'V_GSE': 'c1_hia_v',        # Hot ion bulk velocity, spin resolution
+    'P_dyn': 'c1_hia_press',    # Hot ion pressure, spin resolution
+    'N_tot': 'c1_hia_dens',     # Hot ion number density, spin resolution
+    'T_tot': 'c1_hia_t'         # (eV) Hot Ion temperature, spin resolution
+}
+
+C2_dict = {
+    'B_mag': 'c2_btot_5vps',
+    'B_GSE': 'c2_b_5vps',
+    'B_GSM': 'c2_bgsm_5vps',
+    'R_GSE': 'c2_xyz_gse',
+    'V_mag': 'c2_hia_vtot',
+    'V_GSE': 'c2_hia_v',
+    'P_dyn': 'c2_hia_press',
+    'N_tot': 'c2_hia_dens',
+    'T_tot': 'c2_hia_t'
+}
+
+C3_dict = {
+    'B_mag': 'c3_btot_5vps',
+    'B_GSE': 'c3_b_5vps',
+    'B_GSM': 'c3_bgsm_5vps',
+    'R_GSE': 'c3_xyz_gse',
+    'V_mag': 'c3_hia_vtot',
+    'V_GSE': 'c3_hia_v',
+    'P_dyn': 'c3_hia_press',
+    'N_tot': 'c3_hia_dens',
+    'T_tot': 'c3_hia_t'
+}
+
+C4_dict = {
+    'B_mag': 'c4_btot_5vps',
+    'B_GSE': 'c4_b_5vps',
+    'B_GSM': 'c4_bgsm_5vps',
+    'R_GSE': 'c4_xyz_gse',
+    'V_mag': 'c4_hia_vtot',
+    'V_GSE': 'c4_hia_v',
+    'P_dyn': 'c4_hia_press',
+    'N_tot': 'c4_hia_dens',
+    'T_tot': 'c4_hia_t'
+}
+
+THA_dict = {
+    'B_mag': 'tha_bl',          # only in low (0.25s) resolution
+    'B_GSE': 'tha_bl',          # only in low (0.25s) resolution
+    'B_GSM': 'tha_bl_gsm',      # only in low (0.25s) resolution
+    'R_GSE': 'tha_xyz',         # 60s resolution
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+THB_dict = {
+    'B_mag': 'thb_bl',
+    'B_GSE': 'thb_bl',
+    'B_GSM': 'thb_bl_gsm',
+    'R_GSE': 'thb_xyz',
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+THC_dict = {
+    'B_mag': 'thc_bl',
+    'B_GSE': 'thc_bl',
+    'B_GSM': 'thc_bl_gsm',
+    'R_GSE': 'thc_xyz',
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+THD_dict = {
+    'B_mag': 'thd_bl',
+    'B_GSE': 'thd_bl',
+    'B_GSM': 'thd_bl_gsm',
+    'R_GSE': 'thd_xyz',
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+THE_dict = {
+    'B_mag': 'the_bl',
+    'B_GSE': 'the_bl',
+    'B_GSM': 'the_bl_gsm',
+    'R_GSE': 'the_xyz',
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+ACE_dict = {
+    'B_mag': 'imf_mag',         # 16s resolution
+    'B_GSE': 'imf',             # 16s resolution
+    'B_GSM': 'imf_gsm',         # 16s resolution
+    'R_GSE': 'ace_xyz_gse',     # 12m resolution
+    'V_mag': None,
+    'V_GSE': 'sw_v_gse',        # 64s resolution
+    'P_dyn': 'sw_pdyn',         # 64s resolution
+    'N_tot': None,
+    'T_tot': None
+}
+
+DSC_dict = {
+    'B_mag': 'cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1',  # 1s resolution
+    'B_GSE': 'dsc_b_gse',       # 1m resolution (1s res only for 2025+)
+    'B_GSM': 'dsc_b_gsm',       # 1m resolution (1s res only for 2025+)
+    'R_GSE': 'ssc_tree.Trajectories.dscovr',            # 12m resolution, in km
+    'V_mag': None,
+    'V_GSE': 'dsc_vpr_3s_gse',  # 3s resolution
+    'P_dyn': 'dsc_pdyn_3s',     # 3s resolution
+    'N_tot': None,
+    'T_tot': None
+}
+
+GEO_dict = {
+    'B_mag': 'gtl_bmag_edb',    # 3s resolution
+    'B_GSE': 'gtl_b_edb',       # 3s resolution
+    'B_GSM': 'gtl_b_edb_gsm',   # 3s resolution
+    'R_GSE': 'gtl_xyz',         # 10m resolution
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+IMP8_dict = {
+    'B_mag': 'imp8_btot',       # 15s resolution
+    'B_GSE': 'imp8_b',          # 15s resolution
+    'B_GSM': 'imp8_b_gsm',      # 15s resolution
+    'R_GSE': 'imp8_xyz',        # 12m resolution
+    'V_mag': None,
+    'V_GSE': None,
+    'P_dyn': None,
+    'N_tot': None,
+    'T_tot': None
+}
+
+WIND_dict = {
+    'B_mag': 'wnd_bmagh',       # 3s resolution
+    'B_GSE': 'wnd_bh',          # 3s resolution
+    'B_GSM': 'cda_tree.Wind.WIND.MFI.WI_H0_MFI.B3GSM',  # GSM data reference
+    'R_GSE': 'wnd_xyz_gse',     # 10m resolution
+    'V_mag': None,
+    'V_GSE': 'wnd_swe_v',       # 90s resolution
+    'P_dyn': 'wnd_swe_pdyn',    # 90s resolution
+    'N_tot': None,
+    'T_tot': None
+}
+
+OMNI_dict = { # 1m resolution
+    'B_mag': 'omni_hro2_1min_b_amag',
+    'B_GSE': 'omni_hro2_1min_b_gse',
+    'B_GSM': [OMNI_CDA_TREE.BX_GSE, OMNI_CDA_TREE.BY_GSM, OMNI_CDA_TREE.BZ_GSM],  # GSM components
+    'R_GSE': 'omni_hro2_1min_bsn_gse',  # BS nose location, Rt = - |Rt| * V/|V|
+    'V_mag': 'omni_hro2_1min_sw_vb',    # Flow speed
+    'V_GSE': 'omni_hro2_1min_sw_vgse',  # Bulk velocity
+    'P_dyn': 'omni_hro2_1min_sw_p',     # (2*10**-6)*Np*Vp**2 nPa
+    'N_tot': 'omni_hro2_1min_sw_n',     # Proton number density
+    'T_tot': 'omni_hro2_1min_sw_t',     # (K) solar wind temp
+    'sc'   : OMNI_CDA_TREE.IMF,         # 51=WIND, 52=WIND-V2, 50=IMP8, 60=GEO, 71=ACE
+    'lag'  : OMNI_CDA_TREE.Timeshift,
+    'MA'   : 'omni_hro2_1min_mach_num', # (V * Np**0.5) / (20 * B)
+    'beta' : 'omni_hro2_1min_beta',     # [(T*4.16/10**5) + 5.34] * Np / B**2 (B in nT)
+    'Ey'   : 'omni_hro2_1min_sw_e'      # -V(km/s) * Bz (nT; GSM) * 10**-3, mV/m
+}
+
+
+speasy_variables = {
+    'C1': C1_dict,
+    'C2': C2_dict,
+    'C3': C3_dict,
+    'C4': C4_dict,
+    'THA': THA_dict,
+    'THB': THB_dict,
+    'THC': THC_dict,
+    'THD': THD_dict,
+    'THE': THE_dict,
+    'ACE': ACE_dict,
+    'DSC': DSC_dict,
+    'GEO': GEO_dict,
+    'IMP8': IMP8_dict,
+    'WIND': WIND_dict,
+    'OMNI': OMNI_dict
+}
+
+
+colour_dict = {
+    'OMNI': 'orange',
+    'C1':   'blue',
+    'C2':   'cornflowerblue',
+    'C3':   'lightskyblue',
+    'C4':   'lightblue',
+    'THA':  'forestgreen',
+    'THB':  'seagreen',
+    'THC':  'mediumseagreen',
+    'THD':  'lightgreen',
+    'THE':  'palegreen',
+    'ACE':  'darkviolet',
+    'DSC':  'deeppink',
+    'GEO':  'cyan',
+    'IMP8': 'crimson',
+    'WIND': 'magenta'
+}
+
+database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}
+
+
 data_availability = {
     'C1':   (datetime(2000, 8, 22),          datetime(2024, 10, 3, 20, 35)),
     'C2':   (datetime(2000, 8, 22),          datetime(2024, 9, 8, 18, 45)),
@@ -58,167 +285,3 @@ data_availability_mag = {
     'WIND': (datetime(1994, 11, 1),          datetime(2024, 9, 29)),
     'OMNI': (datetime(1995, 1, 1),           datetime(2025, 1, 9))
 }
-
-
-B_dict_gse = {
-    'C1':   'c1_b_5vps',           # 0.2s resolution
-    'C2':   'c2_b_5vps',
-    'C3':   'c3_b_5vps',
-    'C4':   'c4_b_5vps',
-    'THA':  'tha_bl',              # only in low (0.25s) resolution
-    'THB':  'thb_bl',
-    'THC':  'thc_bl',
-    'THD':  'thd_bl',
-    'THE':  'the_bl',
-    'ACE':  'imf',                 # 16s resolution
-    'DSC':  'dsc_b_gse',           # 1m resolution (1s res only for 2025+)
-    'GEO':  'gtl_b_edb',           # 3s resolution
-    'IMP8': 'imp8_b',              # 15s resolution
-    'WIND': 'wnd_bh',              # 3s resolution
-    'OMNI': 'omni_hro2_1min_b_gse' # 1m resolution
-}
-
-B_dict_gsm = {
-    'C1':   'c1_bgsm_5vps',  # 0.2s resolution
-    'C2':   'c2_bgsm_5vps',
-    'C3':   'c3_bgsm_5vps',
-    'C4':   'c4_bgsm_5vps',
-    'THA':  'tha_bl_gsm',    # only in low (0.25s) resolution
-    'THB':  'thb_bl_gsm',
-    'THC':  'thc_bl_gsm',
-    'THD':  'thd_bl_gsm',
-    'THE':  'the_bl_gsm',
-    'ACE':  'imf_gsm',       # 16s resolution
-    'DSC':  'dsc_b_gsm',     # 1m resolution (1s res only for 2025+)
-    'GEO':  'gtl_b_edb_gsm', # 3s resolution
-    'IMP8': 'imp8_b_gsm',    # 15s resolution
-    'WIND': cda_tree.Wind.WIND.MFI.WI_H0_MFI.B3GSM,
-    'OMNI': [OMNI_CDA_TREE.BX_GSE, OMNI_CDA_TREE.BY_GSM, OMNI_CDA_TREE.BZ_GSM]
-
-}
-
-B_dict_tot = {
-    'C1':   'c1_btot_5vps',      # 0.2s resolution
-    'C2':   'c2_btot_5vps',
-    'C3':   'c3_btot_5vps',
-    'C4':   'c4_btot_5vps',
-    'THA':  'tha_bl_tot',        # only in low (0.25s) resolution
-    'THB':  'thb_bl_tot',
-    'THC':  'thc_bl_tot',
-    'THD':  'thd_bl_tot',
-    'THE':  'the_bl_tot',
-    'ACE':  'imf_mag',           # 16s resolution
-    'DSC':  cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1,  # 1s resolution
-    #'DSC':  'dsc_b_mag',         # 1m resolution
-    #'DSC':  'dsc_b_1s_mag',      # 1s resolution (only for 2025+)
-    'GEO':  'gtl_bmag_edb',      # 3s resolution
-    'IMP8': 'imp8_btot',         # 15s resolution
-    'WIND': 'wnd_bmagh',         # 3s resolution
-    'OMNI': 'omni_hro2_1min_b_amag' # 1m resolution    - omni_hro2_1min_mag is magnitude of avg (I think)
-}
-
-B_dict_tot = {
-    'C1':   'c1_btot_5vps',      # 0.2s resolution
-    'C2':   'c2_btot_5vps',
-    'C3':   'c3_btot_5vps',
-    'C4':   'c4_btot_5vps',
-    'THA':  'tha_bl_tot',        # only in low (0.25s) resolution
-    'THB':  'thb_bl_tot',
-    'THC':  'thc_bl_tot',
-    'THD':  'thd_bl_tot',
-    'THE':  'the_bl_tot',
-    'ACE':  'imf_mag',           # 16s resolution
-    'DSC':  cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1,  # 1s resolution
-    #'DSC':  'dsc_b_mag',         # 1m resolution (1s res only for 2025+)
-    'GEO':  'gtl_bmag_edb',      # 3s resolution
-    'IMP8': 'imp8_btot',         # 15s resolution
-    'WIND': 'wnd_bmagh',         # 3s resolution
-    'OMNI': 'omni_hro2_1min_b_amag' # 1m resolution    - omni_hro2_1min_mag is magnitude of avg (I think)
-}
-
-R_dict_gse = { # Re
-    'C1':   'c1_xyz_gse',            # 60s resolution
-    'C2':   'c2_xyz_gse',
-    'C3':   'c3_xyz_gse',
-    'C4':   'c4_xyz_gse',
-    'THA':  'tha_xyz',               # 60s resolution
-    'THB':  'thb_xyz',
-    'THC':  'thc_xyz',
-    'THD':  'thd_xyz',
-    'THE':  'the_xyz',
-    'ACE':  'ace_xyz_gse',           # 12m resolution
-    'DSC':  ssc_tree.Trajectories.dscovr, #12m resolution, in km not Re
-    #'DSC':  'dsc_xyz_gse', # 1h resolution   - amda id is 'dsc_xyz_gse'
-    'GEO':  'gtl_xyz',               # 10m resolution
-    'IMP8': 'imp8_xyz',              # 12m resolution
-    'WIND': 'wnd_xyz_gse',           # 10m resolution
-    'OMNI': 'omni_hro2_1min_bsn_gse' # BS nose location
-}
-
-P_dict_dyn = { # Ram Pressure
-    'C1':   None,                 # X resolution
-    'C2':   None,
-    'C3':   None,
-    'C4':   None,
-    'THA':  None,                 # X resolution
-    'THB':  None,
-    'THC':  None,
-    'THD':  None,
-    'THE':  None,
-    'ACE':  'sw_pdyn',            # 64s resolution
-    'DSC':  'dsc_pdyn_3s',        # 3s resolution
-    'GEO':  None,
-    'IMP8':  None,
-    'WIND': 'wnd_swe_pdyn',       # 90s resolution
-    'OMNI': 'omni_hro2_1min_sw_p' # 1m resolution
-}
-
-V_dict_gse = {
-    'C1':   None,                    # X resolution
-    'C2':   None,
-    'C3':   None,
-    'C4':   None,
-    'THA':  None,                    # X resolution
-    'THB':  None,
-    'THC':  None,
-    'THD':  None,
-    'THE':  None,
-    'ACE':  'sw_v_gse',              # 64s resolution
-    'DSC':  'dsc_vpr_3s_gse',        # 3s resolution (proton velocity)
-    'GEO':   None,
-    'IMP8':  None,
-    'WIND': 'wnd_swe_v',             # 90s resolution
-    'OMNI': 'omni_hro2_1min_sw_vgse' # Bulk Velocitity
-}
-
-
-speasy_variables = {
-    'B_GSE': B_dict_gse,
-    'B_GSM': B_dict_gsm,
-    'B_mag': B_dict_tot,
-    'R_GSE': R_dict_gse,
-    'P_dyn': P_dict_dyn,
-    'V_GSE': V_dict_gse,
-    'OMNI_sc': OMNI_CDA_TREE.IMF,
-    'OMNI_lag': OMNI_CDA_TREE.Timeshift
-}
-
-colour_dict = {
-    'OMNI': 'orange',
-    'C1':   'blue',
-    'C2':   'cornflowerblue',
-    'C3':   'lightskyblue',
-    'C4':   'lightblue',
-    'THA':  'forestgreen',
-    'THB':  'seagreen',
-    'THC':  'mediumseagreen',
-    'THD':  'lightgreen',
-    'THE':  'palegreen',
-    'ACE':  'darkviolet',
-    'DSC':  'deeppink',
-    'GEO':  'cyan',
-    'IMP8': 'crimson',
-    'WIND': 'magenta'
-}
-
-database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}

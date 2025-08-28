@@ -32,12 +32,12 @@ def calc_mean_error(series, start=None, end=None, unit=None):
         if unit in ('deg', '°'):
             series = np.radians(series)
 
-        unc = calc_circular_mean_error(series)
+        val_unc = calc_circular_mean_error(series)
 
         if unit in ('deg', '°'):
-            return np.degrees(unc)
+            return np.degrees(val_unc)
 
-        return unc
+        return val_unc
 
     return calc_simple_mean_error(series)
 

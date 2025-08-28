@@ -50,6 +50,7 @@ def car_to_aGSE(df, column_names=None, simple=False):
         df_aGSE[v_x_name] = np.full(len(df),-400) # default is v_x=-400
 
     if simple:
+        v_Earth = 30
         df_aGSE[v_y_name] = np.zeros(len(df))
         df_aGSE[v_z_name] = np.zeros(len(df))
     else:
@@ -105,6 +106,7 @@ def car_to_aGSE_constant(x, y, z, return_rotation=False, simple=False, **kwargs)
     v_x = kwargs.get('v_sw_x',-400)
 
     if simple:
+        v_Earth = 30
         v_y, v_z = 0, 0
     else:
         v_y = kwargs.get('v_sw_y',0)
@@ -139,6 +141,7 @@ def aGSE_to_car_constant(x_p, y_p, z_p, return_rotation=False, simple=False, rot
         v_x = kwargs.get('v_sw_x',-400)
 
         if simple:
+            v_Earth = 30
             v_y, v_z = 0, 0
         else:
             v_y = kwargs.get('v_sw_y',0)
