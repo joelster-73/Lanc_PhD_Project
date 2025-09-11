@@ -12,49 +12,36 @@ from .filtering import exclude_days, filter_data
 from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices
 
+def import_processed_data(directory, file_name=None, year=None, date_range=None, bad_data=None):
 
 
-def import_processed_data(directory, year=None, date_range=None, bad_data=None, file_name=None):
-    """
-    Imports and processes CDF files from a specified directory, filtering by keyword and date range.
-
-    Parameters
-    ----------
-    directory : str
-        The path to the directory containing the CDF files.
-
-    file_keyword : str
-        A keyword to filter the CDF files by. Only files whose names contain this keyword will be processed.
-
-    start : datetime
-        The start of the date range for filtering the CDF files. Only data from files within this range will be included.
-
-    end : datetime
-        The end of the date range for filtering the CDF files. Only data from files within this range will be included.
-
-    time_col : str, optional
-        The name of the column containing time data in CDF epoch format. Defaults to 'epoch'.
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame containing the merged and filtered data from the CDF files. The DataFrame will have a 'time' column
-        (converted from CDF epoch to datetime) as the index, and it will be filtered to the specified date range.
-    """
     if file_name:
         cdf_file = get_cdf_file(directory, filename=file_name)
         file_data = pycdf.CDF(cdf_file)
+        df = read_spacepy_object(file_data)
     else:
         # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]
-        file_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
+        try:
+            file_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
+            df = read_spacepy_object(file_data)
 
-    df = read_spacepy_object(file_data)
+        except:
+            # CDF files for different parameters
+            df = pd.DataFrame()
+            for f in cdf_files:
+                with pycdf.CDF(f) as cdf:
+                    df_param = read_spacepy_object(cdf)
+                    df = pd.concat([df,df_param],axis=1)
+                    for k, v in df_param.attrs.items():
+                        if k not in df.attrs:
+                            df.attrs[k] = v
+
     for column in df.columns:
-        if df.attrs['units'].get(column, '') == 'STRING':
+        if df.attrs.get('units',{}).get(column, '') == 'STRING':
             df[column] = df[column].str.strip()
-        elif df.attrs['units'].get(column,'') == 'LIST':
+        elif df.attrs.get('units',{}).get(column,'') == 'LIST':
             str_series = df[column].str.strip()
             df[column] = [s.split(',') for s in str_series]
 
@@ -82,7 +69,6 @@ def import_processed_data(directory, year=None, date_range=None, bad_data=None, 
 
     for placeholder_date in placeholder_dates:
         df = df.mask(df == placeholder_date, pd.NaT)
-
 
     if bad_data is not None:
         exclude_days(df, bad_data)
@@ -118,5 +104,10 @@ def read_spacepy_object(cdf_data):
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(data_dict)
     df.attrs['units'] = units_dict  # Stores the units
+
+
+    for key, value in cdf_data.attrs.items():
+        if key not in df.attrs:
+            df.attrs[key] = value
 
     return df

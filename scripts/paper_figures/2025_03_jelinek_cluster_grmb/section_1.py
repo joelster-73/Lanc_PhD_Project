@@ -25,5 +25,5 @@ insert_cyl_coords(omni, field='r', coords='GSE')
 # %% Orbit
 from src.plotting.space_time import plot_orbit
 
-plot_orbit(cluster1, plane='x-rho', coords='GSE', models='Median BS', display='heat', bin_width=0.1, brief_title='Cluster\'s orbit from 2001 to 2023', equal_axes=True, df_omni=omni)
+plot_orbit(cluster1, plane='x-rho', coords='GSE', models='Median BS', display='heat', bin_width=0.1, brief_title='', equal_axes=True, df_omni=omni, centre_Earth='quarter')
 

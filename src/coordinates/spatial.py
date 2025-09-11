@@ -5,6 +5,8 @@ from scipy.spatial.transform import Rotation as R
 if not hasattr(np, "float_"):
     np.float_ = np.float64 #ensures backward compatibility with code expecting np.float_
 
+from uncertainties import UFloat
+from uncertainties import unumpy as unp
 from ..processing.utils import add_unit
 
 v_Earth = 29.78 # km/s
@@ -171,25 +173,8 @@ def aGSE_to_car_constant(x_p, y_p, z_p, return_rotation=False, simple=False, rot
 
 
 def insert_sph_coords(df, field='r', coords='GSE', **kwargs):
-    """
-    Converts the Cartesian coordinates of a field to spherical and cylindrical coordinates, then adds the results as new columns.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing the Cartesian coordinates for the field (e.g., 'r_x_GSE', 'r_y_GSE', 'r_z_GSE').
 
-    field : str, optional
-        The name of the field to process (default is 'r').
-
-    coords : str, optional
-        The coordinate system used (default is 'GSE').
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added columns for the magnitude, cylindrical, and spherical coordinates of the field.
-    """
     x_col = kwargs.get('x_col',f'{field}_x_{coords}')
     y_col = kwargs.get('y_col',f'{field}_y_{coords}')
     z_col = kwargs.get('z_col',f'{field}_z_{coords}')
@@ -206,25 +191,8 @@ def insert_sph_coords(df, field='r', coords='GSE', **kwargs):
     units[f'{field}_phi_{coords}'] = add_unit('phi')
 
 def insert_cyl_coords(df, field='r', coords='GSE', **kwargs):
-    """
-    Converts the Cartesian coordinates of a field to spherical and cylindrical coordinates, then adds the results as new columns.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing the Cartesian coordinates for the field (e.g., 'r_x_GSE', 'r_y_GSE', 'r_z_GSE').
 
-    field : str, optional
-        The name of the field to process (default is 'r').
-
-    coords : str, optional
-        The coordinate system used (default is 'GSE').
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added columns for the magnitude, cylindrical, and spherical coordinates of the field.
-    """
     x_col = kwargs.get('x_col',f'{field}_x_{coords}')
     y_col = kwargs.get('y_col',f'{field}_y_{coords}')
     z_col = kwargs.get('z_col',f'{field}_z_{coords}')
@@ -240,25 +208,8 @@ def insert_cyl_coords(df, field='r', coords='GSE', **kwargs):
     units[f'{field}_phi'] = add_unit('phi')
 
 def insert_car_coords(df, field='r', coords='GSE', **kwargs):
-    """
-    Converts the Cartesian coordinates of a field to spherical and cylindrical coordinates, then adds the results as new columns.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing the Cartesian coordinates for the field (e.g., 'r_x_GSE', 'r_y_GSE', 'r_z_GSE').
 
-    field : str, optional
-        The name of the field to process (default is 'r').
-
-    coords : str, optional
-        The coordinate system used (default is 'GSE').
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added columns for the magnitude, cylindrical, and spherical coordinates of the field.
-    """
     r_col = kwargs.get('r_col',f'{field}_mag')
     th_col = kwargs.get('th_col',f'{field}_theta_{coords}')
     ph_col = kwargs.get('ph_col',f'{field}_phi_{coords}')
@@ -280,38 +231,16 @@ def insert_car_coords(df, field='r', coords='GSE', **kwargs):
 
 
 def cartesian_to_cylindrical(x, y, z):
-    """
-    Converts Cartesian coordinates (x, y, z) to cylindrical coordinates (r, rho, phi).
 
-    Parameters
-    ----------
-    x, y, z : numpy.ndarray
-        The x, y, z coordinates in Cartesian coordinates.
 
-    Returns
-    -------
-    tuple
-        A tuple containing the x coordinate (unchanged), the radial distance rho, and the azimuthal angle phi in cylindrical coordinates.
-    """
     rho = np.sqrt(y**2 + z**2)
     phi = np.arctan2(y, z)
     return x, rho, phi
 
 
 def cartesian_to_spherical(x, y, z):
-    """
-    Converts Cartesian coordinates (x, y, z) to spherical coordinates (r, theta, phi).
 
-    Parameters
-    ----------
-    x, y, z : numpy.ndarray
-        The x, y, z coordinates in Cartesian coordinates.
 
-    Returns
-    -------
-    tuple
-        A tuple containing the radial distance r, the polar angle theta, and the azimuthal angle phi in spherical coordinates.
-    """
     r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
     theta = np.arccos(x / r)
     phi = np.arctan2(y, z)
@@ -319,27 +248,18 @@ def cartesian_to_spherical(x, y, z):
 
 
 def spherical_to_cartesian(r, theta, phi):
-    """
-    Converts spherical coordinates (r, theta, phi) to Cartesian coordinates (x, y, z).
 
-    Parameters
-    ----------
-    r : numpy.ndarray
-        The radial distance in spherical coordinates.
+    if isinstance(theta,UFloat) or isinstance(phi,UFloat):
 
-    theta : numpy.ndarray
-        The polar angle (in radians) in spherical coordinates.
+        x = r * unp.cos(theta)
+        y = r * unp.sin(theta) * unp.sin(phi)
+        z = r * unp.sin(theta) * unp.cos(phi)
 
-    phi : numpy.ndarray
-        The azimuthal angle (in radians) in spherical coordinates.
+    else:
 
-    Returns
-    -------
-    tuple
-        A tuple containing the x, y, and z coordinates in Cartesian coordinates.
-    """
-    x = r * np.cos(theta)
-    y = r * np.sin(theta) * np.sin(phi)
-    z = r * np.sin(theta) * np.cos(phi)
+        x = r * np.cos(theta)
+        y = r * np.sin(theta) * np.sin(phi)
+        z = r * np.sin(theta) * np.cos(phi)
+
     return x, y, z
 

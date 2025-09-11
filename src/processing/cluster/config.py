@@ -25,3 +25,17 @@ CLUSTER_VARIABLES_5VPS_POS = {
     'r_y'   : 'r_y_GSE',
     'r_z'   : 'r_z_GSE',
 }
+
+CLUSTER_VARIABLES_HIA = {
+    'epoch' : 'time_tags__C1_CP_CIS-HIA_ONBOARD_MOMENTS',      # epoch time in milliseconds (scalar)
+    'V'     : 'velocity_gse__C1_CP_CIS-HIA_ONBOARD_MOMENTS',   # plasma velocity in km/s (vector)
+    'T_tot' : 'temperature__C1_CP_CIS-HIA_ONBOARD_MOMENTS',    # temperature (MK)
+    'N_tot' : 'density__C1_CP_CIS-HIA_ONBOARD_MOMENTS',        # density (/cc)
+    'P_tot' : 'pressure__C1_CP_CIS-HIA_ONBOARD_MOMENTS',       # pressure (nPa)
+    'mode'  : 'cis_mode__C1_CP_CIS-HIA_ONBOARD_MOMENTS',       # instrument mode
+}
+
+CLUSTER_VARIABLES_HIA_QUALITY = {
+    'epoch'   : 'time_tags__C1_CP_CIS-HIA_QUALITY',      # epoch time in milliseconds (scalar)
+    'quality' : 'quality_MOM__C1_CP_CIS-HIA_QUALITY',
+}

@@ -52,7 +52,7 @@ def plot_compare_datasets_time(df1, df2, **kwargs):
     df1_colour = kwargs.get('df1_colour','k')
     df2_colour = kwargs.get('df2_colour','k')
 
-    fig, axes = plt.subplots(1, 2, figsize=(14,5))
+    fig, axes = plt.subplots(1, 2, figsize=(14,4))
 
     for i, (df, name, colour, ax) in enumerate(zip((df1, df2), (df1_name, df2_name), (df1_colour, df2_colour), axes)):
 

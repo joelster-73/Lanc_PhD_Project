@@ -9,9 +9,6 @@ from src.config import PROC_SHOCKS_DIR
 from src.processing.reading import import_processed_data
 from src.processing.shocks.helsinki import convert_helsinki_df_plotting
 
-# Need to reprocess data as getting stuck at #1402
-
-
 helsinki_shocks = import_processed_data(PROC_SHOCKS_DIR, file_name='helsinki_shocks.cdf')
 helsinki_events = convert_helsinki_df_plotting(helsinki_shocks)
 

@@ -16,22 +16,57 @@ from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 from collections import Counter
 
-from ..config import black, white, blue
+from ..config import black, white, blue, scatter_markers
 from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
 from ..utils import save_figure, calculate_bins, change_series_name
 from ..distributions import plot_fit
 
+from ...analysing.calculations import average_of_averages
 from ...analysing.comparing import difference_columns
 
 from ...processing.speasy.config import colour_dict, database_colour_dict
 
+def is_marker_like(marker):
+    try:
+        MarkerStyle(marker)
+        return True
+    except ValueError:
+        return False
 
-def compare_columns(df, col1, col2, **kwargs):
+def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, delay_time=None, **kwargs):
+
 
     series1 = df.loc[:,col1]
     series2 = df.loc[:,col2]
 
+    if col3 is not None:
+        kwargs['zs'] = df.loc[:, col3]
+
+    if col1_err is not None:
+        kwargs['xs_unc'] = df.loc[:, col1_err]
+
+    if delay_time is not None:
+        delay = pd.Timedelta(minutes=delay_time)
+
+        series2 = df.loc[:,col2].shift(freq=delay)
+
+        if col2_err is not None:
+            kwargs['ys_unc'] = df.loc[:,col2_err].shift(freq=delay)
+
+        series1, series2 = series1.align(series2)
+        if 'zs' in kwargs:
+            _, kwargs['zs'] = series1.align(kwargs['zs'])
+
+        if 'xs_unc' in kwargs:
+            _, kwargs['xs_unc'] = series1.align(kwargs['xs_unc'])
+
+        if 'ys_unc' in kwargs:
+            _, kwargs['ys_unc'] = series1.align(kwargs['ys_unc'])
+
+
+
     compare_series(series1, series2, **kwargs)
+
 
 def investigate_difference(df, col1, col2, ind_col, **kwargs):
 
@@ -97,6 +132,12 @@ def compare_series(series1, series2, **kwargs):
     if display == 'scatter':
         _ = plot_scatter(series1, series2, **kwargs)
 
+    elif display == 'scatter_binned':
+        _ = plot_scatter_binned(series1, series2, **kwargs)
+
+    elif display == 'scatter_binned_multiple':
+        _ = plot_scatter_binned_multiple(series1, series2, **kwargs)
+
     elif display == 'heat':
         if hasattr(bin_width, '__len__') and len(bin_width) == 2:
             n_bins = (calculate_bins(series1,bin_width[0]), calculate_bins(series2,bin_width[1]))
@@ -151,13 +192,268 @@ def compare_series(series1, series2, **kwargs):
     plt.show()
     plt.close()
 
+def plot_scatter(xs, ys, **kwargs):
 
-def is_marker_like(marker):
-    try:
-        MarkerStyle(marker)
-        return True
-    except ValueError:
-        return False
+    xs_unc       = kwargs.get('xs_unc',None)
+    ys_unc       = kwargs.get('ys_unc',None)
+    zs           = kwargs.get('zs',None)
+
+    data_colour  = kwargs.get('data_colour',blue)
+    error_colour = kwargs.get('error_colour','k')
+    scat_size    = kwargs.get('scatter_size',0.5)
+    scat_marker  = kwargs.get('scat_marker','o')
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+
+    if xs_unc is not None or ys_unc is not None:
+        ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+
+    if not is_marker_like(scat_marker):
+        scat_marker = 'o'
+
+    if zs is not None:
+        # Using a dictionary to map the colours
+        if data_colour in ('spacecraft','detector','database'):
+
+            if data_colour == 'database':
+                sc_colours = database_colour_dict
+            else:
+                sc_colours = colour_dict
+
+            spacecraft_counts = Counter(zs)
+            colours = pd.Series(zs).map(sc_colours).fillna(black).to_numpy()
+
+            scatter = ax.scatter(xs, ys, c=colours, marker=scat_marker, s=scat_size)
+
+            legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1, linestyle='None') for label, colour in sc_colours.items() if spacecraft_counts.get(label, 0) > 0]
+
+            ax.legend(handles=legend_elements, fontsize=8, loc='upper left')
+
+        else:
+            # Using a z-value to apply a continuous colour map
+            cmap = plt.cm.get_cmap('cool').copy()
+            cmap.set_bad(color='black')
+            scatter = ax.scatter(xs, ys, c=zs, cmap=cmap, marker=scat_marker, s=scat_size)
+
+            z_str = data_string(zs.name)
+            z_unit = zs.attrs.get('units',{}).get(zs.name, None)
+            z_label = create_label(z_str, unit=z_unit)
+
+            cbar = plt.colorbar(scatter)
+            cbar.set_label(z_label)
+
+    elif is_color_like(data_colour):
+        ax.scatter(xs, ys, c=data_colour, marker=scat_marker, s=scat_size)
+
+    else:
+        ax.scatter(xs, ys, c=blue, marker=scat_marker, s=scat_size)
+
+
+    ax.axhline(0,c='grey',ls=':')
+    ax.axvline(0,c='grey',ls=':')
+
+
+    return fig, ax
+
+
+def plot_scatter_binned(xs, ys, **kwargs):
+
+    zs           = kwargs.get('zs',None)
+
+    xs_unc       = kwargs.get('xs_unc',None)
+    ys_unc       = kwargs.get('ys_unc',None)
+    zs_unc       = kwargs.get('zs_unc',None)
+
+    xs_counts    = kwargs.get('xs_counts',None)
+    ys_counts    = kwargs.get('ys_counts',None)
+    zs_counts    = kwargs.get('zs_counts',None)
+
+    data_colour  = kwargs.get('data_colour',blue)
+    error_colour = kwargs.get('error_colour','k')
+    scat_size    = kwargs.get('scatter_size',0.5)
+    scat_marker  = kwargs.get('scat_marker','o')
+    bin_step     = kwargs.get('bin_step',1)
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+    if not is_marker_like(scat_marker):
+        scat_marker = 'o'
+
+    for X_bin in calculate_bins(xs,bin_step):
+
+        mask = (xs>=X_bin) & (xs<(X_bin+bin_step))
+
+        if np.sum(mask)<2: # So a standard dev. can be calculated
+            continue
+
+        xs_bin = xs[mask]
+        ys_bin = ys[mask]
+
+        xs_unc_bin = xs_unc[mask] if xs_unc is not None else None
+        ys_unc_bin = ys_unc[mask] if ys_unc is not None else None
+
+        xs_counts_bin = xs_counts[mask] if xs_counts is not None else None
+        ys_counts_bin = ys_counts[mask] if ys_counts is not None else None
+
+        x = average_of_averages(xs_bin, xs_counts_bin, xs_unc_bin)
+        y = average_of_averages(ys_bin, ys_counts_bin, ys_unc_bin)
+
+        ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+
+        if zs is not None:
+
+            zs_bin = zs[mask]
+
+            zs_unc_bin = zs_unc[mask] if zs_unc is not None else None
+            zs_counts_bin = zs_counts[mask] if zs_counts is not None else None
+            z = average_of_averages(zs_bin, zs_counts_bin, zs_unc_bin)
+
+            scatter = ax.scatter(x.n, y.n, c=z.n, cmap='cool', marker=scat_marker, vmin=np.min(zs), vmax=12, s=scat_size)
+
+        else:
+            colour = data_colour if is_color_like(data_colour) else blue
+
+            ax.scatter(x.n, y.n, c=colour, s=scat_size)
+
+    if scatter:
+        cbar = plt.colorbar(scatter)
+
+        z_str = data_string(zs.name)
+        z_unit = zs.attrs.get('units',{}).get(zs.name, None)
+        z_label = create_label(z_str, unit=z_unit)
+
+        cbar.set_label(z_label)
+
+    ax.axhline(0,c='grey',ls=':')
+    ax.axvline(0,c='grey',ls=':')
+
+    return fig, ax, cbar
+
+def plot_scatter_binned_multiple(xs, ys, **kwargs):
+
+    zs           = kwargs.get('zs',None)
+    zs_edges     = kwargs.get('zs_edges',None)
+
+    xs_unc       = kwargs.get('xs_unc',None)
+    ys_unc       = kwargs.get('ys_unc',None)
+
+    xs_counts    = kwargs.get('xs_counts',None)
+    ys_counts    = kwargs.get('ys_counts',None)
+
+    data_colour  = kwargs.get('data_colour',blue)
+    error_colour = kwargs.get('error_colour','k')
+    scat_size    = kwargs.get('scatter_size',0.5)
+
+    bin_step     = kwargs.get('bin_step',1)
+    z_min        = kwargs.get('z_min',None)
+    z_max        = kwargs.get('z_max',None)
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+    if zs_edges is not None and zs is not None:
+
+        z_unit = zs.attrs.get('units',{}).get(zs.name, None)
+        if z_unit is not None and z_unit not in ('1','NUM',''):
+            z_unit = f' {z_unit}'
+        else:
+            z_unit = ''
+
+        if len(zs_edges)==1:
+            z_min = np.min(zs) if z_min is None else z_min
+            z_max = np.max(zs) if z_max is None else z_max
+
+            zs_bins  = [[np.min(zs),zs_edges[0]],[zs_edges[0],np.max(zs)]]
+            z_labels = [f'{zs.name}<{zs_edges[0]}{z_unit}',f'{zs.name}$\\geq${zs_edges[0]}{z_unit}']
+            z_vals   = [z_min, z_max]
+        else:
+            z_min = zs_edges[0]
+            z_max = zs_edges[-1]
+
+            zs_edges = np.array(zs_edges)
+            zs_bins  = []
+            z_labels = []
+            z_vals   = []
+            for z_i, _ in enumerate(zs_edges):
+
+                if z_i==0:
+                    lower = np.min(zs)
+                else:
+                    lower = (zs_edges[z_i]+zs_edges[z_i-1])/2
+
+                if z_i==len(zs_edges)-1:
+                    upper = np.max(zs)
+                else:
+                    upper = (zs_edges[z_i]+zs_edges[z_i+1])/2
+
+                zs_bins.append([lower,upper])
+                z_labels.append(f'{zs.name}={zs_edges[z_i]}{z_unit}')
+                z_vals.append(zs_edges[z_i])
+
+
+    for X_bin in calculate_bins(xs,bin_step):
+
+        mask_X = (xs>=X_bin) & (xs<(X_bin+bin_step))
+
+        if zs is not None:
+
+            for z_i, (z_bin, z_val) in  enumerate(zip(zs_bins, z_vals)):
+
+                mask = mask_X.copy()
+
+                mask &= (zs>=z_bin[0]) & (zs<z_bin[1])
+
+                if np.sum(mask)<2: # So a standard dev. can be calculated
+                    continue
+
+                xs_bin = xs[mask]
+                ys_bin = ys[mask]
+
+                xs_unc_bin = xs_unc[mask] if xs_unc is not None else None
+                ys_unc_bin = ys_unc[mask] if ys_unc is not None else None
+
+                xs_counts_bin = xs_counts[mask] if xs_counts is not None else None
+                ys_counts_bin = ys_counts[mask] if ys_counts is not None else None
+
+                x = average_of_averages(xs_bin, xs_counts_bin, xs_unc_bin)
+                y = average_of_averages(ys_bin, ys_counts_bin, ys_unc_bin)
+
+                if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
+                    continue
+
+                ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.8, capthick=0.4, lw=0.4, zorder=1)
+
+                scatter = ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2))
+
+        else:
+            colour = data_colour if is_color_like(data_colour) else blue
+
+            ax.scatter(x.n, y.n, c=colour, s=scat_size)
+
+    if scatter:
+        for z_i, (z_val, z_label) in enumerate(zip(z_vals, z_labels)):
+
+            ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2), label=z_label)
+
+
+    ax.axhline(0,c='grey',ls=':')
+    ax.axvline(0,c='grey',ls=':')
+
+    return fig, ax
+
 
 def plot_scatter_with_dict(xs, ys, **kwargs):
 
@@ -218,93 +514,3 @@ def plot_scatter_with_dict(xs, ys, **kwargs):
 
 
     return fig, ax
-
-
-def plot_scatter(xs, ys, **kwargs):
-
-    xs_unc       = kwargs.get('xs_unc',None)
-    ys_unc       = kwargs.get('ys_unc',None)
-
-    data_colour  = kwargs.get('data_colour',blue)
-    error_colour = kwargs.get('error_colour','r')
-    scat_size    = kwargs.get('scatter_size',0.5)
-    scat_marker  = kwargs.get('scat_marker','o')
-
-    fig         = kwargs.get('fig',None)
-    ax          = kwargs.get('ax',None)
-
-    if fig is None or ax is None:
-        fig, ax = plt.subplots()
-
-
-    if xs_unc is not None or ys_unc is not None:
-        ax.errorbar(xs, ys, xerr=xs_unc, yerr=ys_unc, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
-
-    have_plotted = False
-
-    if not is_marker_like(scat_marker):
-        scat_marker = 'o'
-
-    if is_color_like(data_colour):
-        have_plotted = True
-        ax.scatter(xs, ys, c=data_colour, marker=scat_marker, s=scat_size)
-
-
-    # Using a z-value to apply a continuous colour map
-    elif data_colour in ('coeff','sun_earth','angle'):
-        colour_values = kwargs.get('colour_values',None)
-
-        if colour_values is not None:
-            have_plotted = True
-
-            if data_colour == 'coeff':
-                zmin   = np.min(colour_values)
-                zmax   = 1
-                zlabel = r'cross-corr $\rho$'
-            elif data_colour == 'sun_earth':
-                zmin   = 0
-                zmax   = 100
-                zlabel = r'$\sqrt{Y^2+Z^2}$ [$\mathrm{R_E}$]'
-            elif data_colour == 'angle':
-                zmin   = 0
-                zmax   = 135
-                zlabel = r'angle [$^\circ$]'
-                colour_values = np.degrees(colour_values)
-
-            scatter = ax.scatter(xs, ys, c=colour_values, cmap='plasma_r', vmin=zmin, vmax=zmax, marker=scat_marker, s=scat_size)
-
-            cbar = plt.colorbar(scatter)
-            cbar.set_label(zlabel)
-
-    # Using a dictionary to map the colours
-    elif data_colour in ('spacecraft','detector','database'):
-        colour_values = kwargs.get('colour_values',None)
-
-        if colour_values is not None:
-            have_plotted = True
-
-            if data_colour == 'database':
-                sc_colours = database_colour_dict
-            else:
-                sc_colours = colour_dict
-
-            spacecraft_counts = Counter(colour_values)
-            colours = pd.Series(colour_values).map(sc_colours).fillna(black).to_numpy()
-
-            scatter = ax.scatter(xs, ys, c=colours, marker=scat_marker, s=scat_size)
-
-            legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1, linestyle='None') for label, colour in sc_colours.items() if spacecraft_counts.get(label, 0) > 0]
-
-            ax.legend(handles=legend_elements, fontsize=8, loc='upper left')
-
-
-    if not have_plotted:
-        ax.scatter(xs, ys, c=blue, marker=scat_marker, s=scat_size)
-
-
-    ax.axhline(0,c='grey',ls=':')
-    ax.axvline(0,c='grey',ls=':')
-
-
-    return fig, ax
-

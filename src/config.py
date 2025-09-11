@@ -30,6 +30,8 @@ CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 # LUNA Directories
 LUNA_CLUS_DIR_SPIN     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_SPIN/'
 LUNA_CLUS_DIR_5VPS     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_5VPS/'
+LUNA_CLUS_DIR_HIAM     = 'Z:/spacecraft/cluster/c1/C1_CP_CIS-HIA_ONBOARD_MOMENTS/'
+LUNA_CLUS_DIR_HIAQ     = 'Z:/spacecraft/cluster/c1/C1_CP_CIS-HIA_QUALITY/'
 LUNA_CROS_DIR          = 'Z:/spacecraft/cluster/c1/C1_CT_AUX_GRMB/'
 #LUNA_OMNI_DIR          = 'Z:/omni/omni_1min_yearly/' - older version
 LUNA_OMNI_DIR          = 'Z:/omni/omni_min_def/'
@@ -37,10 +39,14 @@ LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
 LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
 
 # Processed Cluster Data
-PROC_CLUS_DIR_SPIN     = f'{CLUSTER_DIR}/SPIN/'
-PROC_CLUS_DIR_5VPS     = f'{CLUSTER_DIR}/5VPS/'
-PROC_CLUS_DIR_RAW      = f'{PROC_CLUS_DIR_5VPS}/raw/'
-PROC_CLUS_DIR_1MIN     = f'{PROC_CLUS_DIR_5VPS}/1min/'
+PROC_CLUS_DIR_SPIN     = f'{CLUSTER_DIR}/SPIN'
+PROC_CLUS_DIR_5VPS     = f'{CLUSTER_DIR}/5VPS'
+PROC_CLUS_DIR_FGM      = f'{PROC_CLUS_DIR_5VPS}/raw'
+PROC_CLUS_DIR_FGM1     = f'{PROC_CLUS_DIR_5VPS}/1min'
+PROC_CLUS_DIR_CIS      = f'{PROC_CLUS_DIR_SPIN}/plasma/raw'
+PROC_CLUS_DIR_COM      = f'{PROC_CLUS_DIR_SPIN}/combined/raw'
+PROC_CLUS_DIR_MSH      = f'{PROC_CLUS_DIR_SPIN}/msh/raw'
+PROC_CLUS_DIR_MSHA     = f'{PROC_CLUS_DIR_SPIN}/msh/avg'
 
 # Crossings Data
 GOOD_CROSSINGS         = f'{CROSSINGS_DIR}/good_time_windows.txt'

@@ -1,46 +1,52 @@
   FORMAT OF THE SUBSETTED FILE
-    
-    ITEMS                      FORMAT   
-     
- 0 Year                          I4        
- 1 Day                           I4        
- 2 Hour                          I3        
- 3 Minute                        I3        
- 4 ID for IMF spacecraft         I3        
- 5 ID for SW Plasma spacecraft   I3        
- 6 # of points in IMF averages   I4        
- 7 # of points in Plasma averagesI4        
- 8 Percent of Interpolation      I4        
- 9 Timeshift                     I7        
-10 RMS, Timeshift                I7        
-11 RMS Min_var                   F6.2      
-12 Time btwn observations,sec    I7        
-13 Field magnitude average, nT   F8.2      
-14 BX, nT (GSE, GSM)             F8.2      
-15 BY, nT (GSE)                  F8.2      
-16 BZ, nT (GSE)                  F8.2      
-17 BY, nT (GSM)                  F8.2      
-18 BZ, nT (GSM)                  F8.2 
-     
-19 RMS SD B scalar, nT           F8.2      
-20 RMS SD field vector, nT       F8.2      
-21 Speed, km/s                   F8.1      
-22 Vx Velocity,km/s              F8.1      
-23 Vy Velocity, km/s             F8.1      
-24 Vz Velocity, km/s             F8.1      
-25 Proton Density, n/cc          F7.2      
-26 Proton Temperature, K         F9.0      
-27 Na/Np Ratio                   F7.3      
-28 Flow pressure, nPa            F6.2      
-29 Electric field, mV/m          F7.2      
-30 Plasma beta                   F7.2      
-31 Alfven mach number            F6.1      
-32 Magnetosonic Mach number      F5.1      
-33 S/C, Xgse,Re                  F8.2      
-34 S/C, Ygse,Re                  F8.2      
-35 S/c, Zgse,Re                  F8.2      
-36 BSN location, Xgse,Re         F8.2      
-37 BSN location, Ygse,Re         F8.2      
-38 BSN location, Zgse,Re         F8.2      
-39 AE-index, nT
-      
+
+    ITEMS                      FORMAT
+
+ 0 Year                          I4
+ 1 Day                           I4
+ 2 Hour                          I3
+ 3 Minute                        I3
+ 4 ID for IMF spacecraft         I3
+ 5 ID for SW Plasma spacecraft   I3
+ 6 # of points in IMF averages   I4
+ 7 # of points in Plasma averagesI4
+ 8 Percent of Interpolation      I4
+ 9 Timeshift                     I7
+10 RMS, Timeshift                I7
+11 RMS Min_var                   F6.2
+12 Time btwn observations,sec    I7
+13 Field magnitude average, nT   F8.2
+14 BX, nT (GSE, GSM)             F8.2
+15 BY, nT (GSE)                  F8.2
+16 BZ, nT (GSE)                  F8.2
+17 BY, nT (GSM)                  F8.2
+18 BZ, nT (GSM)                  F8.2
+
+19 RMS SD B scalar, nT           F8.2
+20 RMS SD field vector, nT       F8.2
+21 Speed, km/s                   F8.1
+22 Vx Velocity,km/s              F8.1
+23 Vy Velocity, km/s             F8.1
+24 Vz Velocity, km/s             F8.1
+25 Proton Density, n/cc          F7.2
+26 Proton Temperature, K         F9.0
+27 Na/Np Ratio                   F7.3
+28 Flow pressure, nPa            F6.2
+29 Electric field, mV/m          F7.2
+30 Plasma beta                   F7.2
+31 Alfven mach number            F6.1
+32 Magnetosonic Mach number      F5.1
+33 S/C, Xgse,Re                  F8.2
+34 S/C, Ygse,Re                  F8.2
+35 S/c, Zgse,Re                  F8.2
+36 BSN location, Xgse,Re         F8.2
+37 BSN location, Ygse,Re         F8.2
+38 BSN location, Zgse,Re         F8.2
+39 AE-index, nT                  I6
+40 AL-index, nT                  I6
+41 AU-index, nT                  I6
+42 SYM/D, nT                     I6
+43 SYM/H, nT                     I6
+44 ASY/D, nT                     I6
+45 ASY/H, nT                     I6
+

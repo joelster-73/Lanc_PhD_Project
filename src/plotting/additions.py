@@ -30,6 +30,14 @@ def create_circle(ax, centre, radius, colour='black'):
     ax.add_patch(circle)
 
 
+def create_quarter_circle_marker(ax, centre, radius, angle_start=90):
+
+    # Create one semi-circle
+    white_half = Wedge(centre, radius, angle_start - 90, angle_start, facecolor='w', edgecolor='k', clip_on=False)
+
+    ax.add_patch(white_half)
+
+
 def create_half_circle_marker(ax, centre, radius, angle_start=90, full=True):
     """
     Creates a half-circle Earth marker (half white, half black).

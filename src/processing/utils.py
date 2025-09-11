@@ -17,25 +17,32 @@ def add_unit(key):
         return 'rad'
     elif any(keyword in key for keyword in ['v_','V_']):
         return 'km/s'
-    elif any(keyword in key for keyword in ['ni','np','n_i','n_p']): # densities
-        return 'n/cc'
-    elif any(keyword in key for keyword in ['N_x','N_y','N_z', 'Nx','Ny','Nz', 'M_', 'ratio', 'Beta_', 'coeff']):
+    elif any(keyword in key for keyword in ['Nx', 'Ny', 'Nz', 'M_', 'ratio', 'Beta_', 'coeff', 'beta', 'MA']):
         return '1'
+    elif any(keyword in key for keyword in ['mode','quality']):
+        return 'NUM'
+    elif any(keyword in key for keyword in ['N_tot','ni','np','n_i','n_p']): # densities
+        return 'n/cc'
     elif any(keyword in key for keyword in ['unc_s','_s','_delay']):
         return 's'
     elif '_time' in key:
         return 'datetime'
     elif 'r_' in key:
         return 'Re'
-    elif 'B_' in key:
+    elif any(keyword in key for keyword in ['B_','AE','AU','AL']):
         return 'nT'
+    elif 'E_' in key:
+        return 'mV/m'
     elif 'T_' in key:
         return 'K'
     elif 'epoch' in key:
         return 'cdf_epoch'
     elif 'P_' in key:
         return 'nPa'
+    elif 'S_' in key:
+        return 'uW/m2' # Poynting Flux
     else:
+        print(f'No unit for "{key}"')
         return ''
 
 def create_directory(directory):

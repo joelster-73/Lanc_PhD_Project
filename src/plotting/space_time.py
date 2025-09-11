@@ -15,7 +15,7 @@ from matplotlib import ticker as mticker
 
 from .config import black, white, blue
 
-from .additions import create_circle, create_half_circle_marker, segment_dataframe, plot_segments
+from .additions import create_circle, create_half_circle_marker, create_quarter_circle_marker, segment_dataframe, plot_segments
 from .formatting import add_legend, add_figure_title, create_label, check_labels, dark_mode_fig, data_string
 from .utils import save_figure, calculate_bins
 
@@ -162,8 +162,9 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     equal_axes    = kwargs.get('equal_axes',True)
     signed_rho    = kwargs.get('signed_rho',None)
-    centre_Earth  = kwargs.get('centre_Earth',True)
+    centre_Earth  = kwargs.get('centre_Earth','full')
     nose_text     = kwargs.get('nose_text',None)
+
     brief_title   = kwargs.get('brief_title',None)
     want_legend   = kwargs.get('want_legend',False)
 
@@ -302,12 +303,11 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         bs_stand_off_x = bs_nose_dict.get(x_comp)
         bs_stand_off_y = bs_nose_dict.get(y_comp)
 
-        ax.plot([0,bs_stand_off_x],[0,bs_stand_off_y],c='w',ls=':',lw=2,zorder=1)
-
         # Bow shock
         ax.plot(bs_x_coords, bs_y_coords, color='lime', lw=3, label='Bow shock')
         ax.scatter(bs_stand_off_x, bs_stand_off_y, c='lime')
         if nose_text=='BS':
+            ax.plot([0,bs_stand_off_x],[0,bs_stand_off_y],c='w',ls=':',lw=2,zorder=1)
             ax.text(bs_stand_off_x-0.5, bs_stand_off_y+0.5, f'$R_0$ = {bs_jel.get("R0"):.1f} $\\mathrm{{R_E}}$, {np.degrees(bs_jel.get("alpha_tot")):.1f}$^\\circ$', fontsize=10, color='lime')
 
     if 'MP' in models or 'Both' in models:
@@ -361,9 +361,11 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     # Plot Earth at the origin
     if plane=='yz':
         create_circle(ax, centre=(0,0), radius=1, colour='black')
-    elif plane=='x-rho':
+    elif centre_Earth=='quarter':
+        create_quarter_circle_marker(ax, centre=(0, 0), radius=1)
+    elif centre_Earth=='half':
         create_half_circle_marker(ax, centre=(0, 0), radius=1, full=False)
-    else:
+    elif centre_Earth=='full':
         create_half_circle_marker(ax, centre=(0, 0), radius=1, full=True)
 
 
@@ -373,7 +375,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     elif plane in ('xz','yz'):
         ax.invert_xaxis()
     elif plane in ('x-rho'):
-        if centre_Earth:
+        if centre_Earth != 'none':
             ax.set_xlim(0)
             ax.set_ylim(0)
         ax.invert_xaxis()

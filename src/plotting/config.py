@@ -43,3 +43,4 @@ if large_text:
     plt.rcParams['axes.titlesize'] = 20
     plt.rcParams['axes.labelsize'] = 18
 
+scatter_markers = [ 's', 'o', 'v', '1', '2', '3', '4', '^', '<', '>', '.', ',', 'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_']

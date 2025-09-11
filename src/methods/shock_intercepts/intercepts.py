@@ -11,6 +11,7 @@ import pandas as pd
 from datetime import timedelta, datetime
 from uncertainties import ufloat
 
+from .config import optimal_parameters
 from .discontinuities import find_peak_cross_corr
 from .in_sw import in_solar_wind
 
@@ -270,20 +271,19 @@ def find_shock_times(eventID, event, df_shocks, **kwargs):
 
     #return
 
-
-
 def find_propagation_time(shock_time, detector, interceptor, parameter, position=None, **kwargs):
 
 
     position_var   = kwargs.get('position_var','R_GSE')
-    buffer_up      = kwargs.get('buffer_up',33)
-    buffer_dw      = kwargs.get('buffer_dw',40)
     resolution     = kwargs.get('resolution',None)
     intercept_pos  = kwargs.get('intercept_pos',None)
 
-    distance_buff  = kwargs.get('distance_buff',70)
     max_neg_delay  = kwargs.get('max_neg_delay',40)
     max_pos_delay  = kwargs.get('max_neg_delay',90)
+
+    buffer_up      = kwargs.get('buffer_up',optimal_parameters['buffer_up'])
+    buffer_dw      = kwargs.get('buffer_dw',optimal_parameters['buffer_dw'])
+    distance_buff  = kwargs.get('dist_buff',optimal_parameters['dist_buff'])
 
     if resolution is None:
         if set(['OMNI','ACE','IMP8']).intersection([detector,interceptor]):

@@ -25,16 +25,24 @@ themis_sc  = ('THA','THB','THC')
 
 
 C1_dict = {
-    'B_mag': 'c1_btot_5vps',    # 0.2s resolution
-    'B_GSE': 'c1_b_5vps',       # 0.2s resolution
-    'B_GSM': 'c1_bgsm_5vps',    # 0.2s resolution
-    'R_GSE': 'c1_xyz_gse',      # 60s resolution
-    'V_mag': 'c1_hia_vtot',     # Hot ion bulk velocity mag, spin resolution
-    'V_GSE': 'c1_hia_v',        # Hot ion bulk velocity, spin resolution
-    'P_dyn': 'c1_hia_press',    # Hot ion pressure, spin resolution
-    'N_tot': 'c1_hia_dens',     # Hot ion number density, spin resolution
-    'T_tot': 'c1_hia_t'         # (eV) Hot Ion temperature, spin resolution
+    'B_mag': 'c1_btot_5vps',            # 0.2s resolution
+    'B_GSE': 'c1_b_5vps',               # 0.2s resolution
+    'B_GSM': 'c1_bgsm_5vps',            # 0.2s resolution
+    'R_GSE': 'c1_xyz_gse',              # 60s resolution
+    'V_mag': 'c1_hia_vtot',             # Hot ion bulk velocity mag, spin resolution
+    'V_GSE': 'c1_hia_v',                # Hot ion bulk velocity, spin resolution
+    'E_mag': 'c1_etot',                 # E-field mag (mV/m), spin resolution
+    'E_GSE': 'c1_e_gse',                # E-field gse (mV/m), spin resolution
+    'E_GSM': 'c1_e_gsm',                # E-field gsm (mV/m), spin resolution
+    'S_mag': ('CROSS','E_GSE','B_GSE'), # Calculated from S = E x B (Poynting Flux)
+    'S_GSE': ('CROSS','E_GSE','B_GSE'),
+    'S_GSM': ('CROSS','E_GSM','B_GSM'),
+    'P_dyn': 'c1_hia_press',            # Hot ion pressure, spin resolution
+    'N_tot': 'c1_hia_dens',             # Hot ion number density, spin resolution
+    'T_tot': 'c1_hia_t'                 # (eV) Hot Ion temperature, spin resolution
 }
+
+### CHECK C2, C3, C4 DICTS FOR UPDATES FROM C1
 
 C2_dict = {
     'B_mag': 'c2_btot_5vps',
@@ -43,6 +51,10 @@ C2_dict = {
     'R_GSE': 'c2_xyz_gse',
     'V_mag': 'c2_hia_vtot',
     'V_GSE': 'c2_hia_v',
+    'E_mag': 'c2_etot',
+    'E_GSE': 'c2_e_gse',
+    'S_mag': ('CROSS','E_GSE','B_GSE'),
+    'S_GSE': ('CROSS','E_GSE','B_GSE'),
     'P_dyn': 'c2_hia_press',
     'N_tot': 'c2_hia_dens',
     'T_tot': 'c2_hia_t'
@@ -55,6 +67,10 @@ C3_dict = {
     'R_GSE': 'c3_xyz_gse',
     'V_mag': 'c3_hia_vtot',
     'V_GSE': 'c3_hia_v',
+    'E_mag': 'c3_etot',
+    'E_GSE': 'c3_e_gse',
+    'S_mag': ('CROSS','E_GSE','B_GSE'),
+    'S_GSE': ('CROSS','E_GSE','B_GSE'),
     'P_dyn': 'c3_hia_press',
     'N_tot': 'c3_hia_dens',
     'T_tot': 'c3_hia_t'
@@ -67,6 +83,10 @@ C4_dict = {
     'R_GSE': 'c4_xyz_gse',
     'V_mag': 'c4_hia_vtot',
     'V_GSE': 'c4_hia_v',
+    'E_mag': 'c4_etot',
+    'E_GSE': 'c4_e_gse',
+    'S_mag': ('CROSS','E_GSE','B_GSE'),
+    'S_GSE': ('CROSS','E_GSE','B_GSE'),
     'P_dyn': 'c4_hia_press',
     'N_tot': 'c4_hia_dens',
     'T_tot': 'c4_hia_t'
@@ -145,10 +165,10 @@ ACE_dict = {
 }
 
 DSC_dict = {
-    'B_mag': 'cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1',  # 1s resolution
+    'B_mag': cda_tree.DSCOVR.MAG.DSCOVR_H0_MAG.B1F1,  # 1s resolution
     'B_GSE': 'dsc_b_gse',       # 1m resolution (1s res only for 2025+)
     'B_GSM': 'dsc_b_gsm',       # 1m resolution (1s res only for 2025+)
-    'R_GSE': 'ssc_tree.Trajectories.dscovr',            # 12m resolution, in km
+    'R_GSE': ssc_tree.Trajectories.dscovr,            # 12m resolution, in km
     'V_mag': None,
     'V_GSE': 'dsc_vpr_3s_gse',  # 3s resolution
     'P_dyn': 'dsc_pdyn_3s',     # 3s resolution
@@ -183,7 +203,7 @@ IMP8_dict = {
 WIND_dict = {
     'B_mag': 'wnd_bmagh',       # 3s resolution
     'B_GSE': 'wnd_bh',          # 3s resolution
-    'B_GSM': 'cda_tree.Wind.WIND.MFI.WI_H0_MFI.B3GSM',  # GSM data reference
+    'B_GSM': cda_tree.Wind.WIND.MFI.WI_H0_MFI.B3GSM,  # GSM data reference
     'R_GSE': 'wnd_xyz_gse',     # 10m resolution
     'V_mag': None,
     'V_GSE': 'wnd_swe_v',       # 90s resolution
@@ -193,20 +213,29 @@ WIND_dict = {
 }
 
 OMNI_dict = { # 1m resolution
-    'B_mag': 'omni_hro2_1min_b_amag',
-    'B_GSE': 'omni_hro2_1min_b_gse',
-    'B_GSM': [OMNI_CDA_TREE.BX_GSE, OMNI_CDA_TREE.BY_GSM, OMNI_CDA_TREE.BZ_GSM],  # GSM components
-    'R_GSE': 'omni_hro2_1min_bsn_gse',  # BS nose location, Rt = - |Rt| * V/|V|
-    'V_mag': 'omni_hro2_1min_sw_vb',    # Flow speed
-    'V_GSE': 'omni_hro2_1min_sw_vgse',  # Bulk velocity
-    'P_dyn': 'omni_hro2_1min_sw_p',     # (2*10**-6)*Np*Vp**2 nPa
-    'N_tot': 'omni_hro2_1min_sw_n',     # Proton number density
-    'T_tot': 'omni_hro2_1min_sw_t',     # (K) solar wind temp
-    'sc'   : OMNI_CDA_TREE.IMF,         # 51=WIND, 52=WIND-V2, 50=IMP8, 60=GEO, 71=ACE
-    'lag'  : OMNI_CDA_TREE.Timeshift,
-    'MA'   : 'omni_hro2_1min_mach_num', # (V * Np**0.5) / (20 * B)
-    'beta' : 'omni_hro2_1min_beta',     # [(T*4.16/10**5) + 5.34] * Np / B**2 (B in nT)
-    'Ey'   : 'omni_hro2_1min_sw_e'      # -V(km/s) * Bz (nT; GSM) * 10**-3, mV/m
+    'B_mag':     'omni_hro2_1min_b_amag',
+    'B_GSE':     'omni_hro2_1min_b_gse',
+    'B_GSM':     [OMNI_CDA_TREE.BX_GSE, OMNI_CDA_TREE.BY_GSM, OMNI_CDA_TREE.BZ_GSM],    # GSM components
+    'B_mag_rms':  OMNI_CDA_TREE.RMS_SD_B,                                               # RMS SD of magnitude
+    'B_vec_rms':  OMNI_CDA_TREE.RMS_SD_fld_vec,                                         # RMS SD of vector components
+    'B_mag_unc': ('SEM','B_mag_rms','IMF_count'),                                       # To calculate SEM
+    'B_vec_unc': ('SEM','B_vec_rms','IMF_count'),
+    'R_GSE':     'omni_hro2_1min_bsn_gse',                                              # BS nose location, Rt = - |Rt| * V/|V|
+    'V_mag':     'omni_hro2_1min_sw_vb',                                                # Flow speed
+    'V_GSE':     'omni_hro2_1min_sw_vgse',                                              # Bulk velocity
+    'E_mag':     ('CROSS','B_GSE','V_GSE'),                                             # Calculated from E = -V x B (= B x V)
+    'E_GSE':     ('CROSS','B_GSE','V_GSE'),
+    'E_GSM':     ('CROSS','B_GSM','V_GSM'),
+    'P_dyn':     'omni_hro2_1min_sw_p',                                                 # (2*10**-6)*Np*Vp**2 nPa
+    'N_tot':     'omni_hro2_1min_sw_n',                                                 # Proton number density
+    'T_tot':     'omni_hro2_1min_sw_t',                                                 # (K) solar wind temp
+    'sc'   :      OMNI_CDA_TREE.IMF,                                                    # 51=WIND, 52=WIND-V2, 50=IMP8, 60=GEO, 71=ACE
+    'lag'  :      OMNI_CDA_TREE.Timeshift,
+    'MA'   :     'omni_hro2_1min_mach_num',                                             # (V * Np**0.5) / (20 * B)
+    'beta' :     'omni_hro2_1min_beta',                                                 # [(T*4.16/10**5) + 5.34] * Np / B**2 (B in nT)
+    'Ey'   :     'omni_hro2_1min_sw_e',                                                 # -V(km/s) * Bz (nT; GSM) * 10**-3, mV/m
+    'AE'   :     'omni_hro2_1min_ae_index',                                             # AE = AU - AL, (nT)
+    'IMF_count':  OMNI_CDA_TREE.IMF_PTS                                                 # Number of points averaged for IMF
 }
 
 
@@ -249,12 +278,17 @@ colour_dict = {
 
 database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}
 
+data_availability_electric = {
+    'C1':   (datetime(2000,12,5,19,32),  datetime(2018,12,10,3,1)),
 
-data_availability = {
-    'C1':   (datetime(2000, 8, 22),          datetime(2024, 10, 3, 20, 35)),
-    'C2':   (datetime(2000, 8, 22),          datetime(2024, 9, 8, 18, 45)),
-    'C3':   (datetime(2000, 8, 22),          datetime(2024, 10, 1)),
-    'C4':   (datetime(2000, 8, 22),          datetime(2024, 10, 6, 14, 7)),
+}
+
+
+data_availability_plasma = {
+    'C1':   (datetime(2001, 1, 10, 16, 57),  datetime(2020, 6, 16, 19, 4)),
+    'C2':   (datetime(2001, 1, 10, 16, 57),  datetime(2020, 6, 16, 19, 4)),
+    'C3':   (datetime(2001, 1, 10, 16, 57),  datetime(2020, 6, 16, 19, 4)),
+    'C4':   (datetime(2001, 1, 10, 16, 57),  datetime(2020, 6, 16, 19, 4)),
     'THA':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 17, 23, 59)),
     'THB':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 10, 23, 59)),
     'THC':  (datetime(2007, 2, 17, 23, 36),  datetime(2025, 5, 9, 23, 59)),
@@ -268,7 +302,7 @@ data_availability = {
     'OMNI': (datetime(1995, 1, 1),           datetime(2025, 1, 9))
 }
 
-data_availability_mag = {
+data_availability_magnetic = {
     'C1':   (datetime(2000, 12, 3, 0, 56),   datetime(2023, 12, 31, 23, 59)),
     'C2':   (datetime(2000, 12, 2, 14, 1),   datetime(2023, 12, 31, 23, 59)),
     'C3':   (datetime(2000, 12, 2, 15, 11),  datetime(2023, 12, 31, 23, 59)),

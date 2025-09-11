@@ -59,7 +59,7 @@ def find_shock_times_training(eventID, event, df_all, **kwargs):
 
     ###-------------------FIND WHEN SHOCK ARRIVES AT BSN ACCORDING TO OMNI-------------------###
 
-    spacecraft = event['detectors']
+    spacecraft = event['detectors'].copy()
 
     if 'OMNI' in spacecraft:
         spacecraft.remove('OMNI')
@@ -140,9 +140,10 @@ def find_shock_times_training(eventID, event, df_all, **kwargs):
 
 def plot_comparison(df, **kwargs):
 
-    coeff_lim       = kwargs.get('coeff_lim',0.7)
-    colouring       = kwargs.get('colouring','coeff')
+    coeff_lim  = kwargs.get('coeff_lim',0.8)
+    colouring  = kwargs.get('colouring','coeff')
 
+    print(f'Number in total: {np.sum(df.loc[:,"corr_coeff"]>=0)}')
     coeff_mask = df.loc[:,'corr_coeff']>=coeff_lim
 
     hel_delays = df.loc[coeff_mask,'helsinki_delay'].apply(lambda x: x.nominal_value/60)
@@ -181,33 +182,24 @@ def plot_comparison(df, **kwargs):
 
 # %% Vary_one_param
 
-def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_lim=0.7, **kwargs):
+def train_algorithm_param(df_events, vary='buffer_up', vary_array=None, coeff_lim=0.8, **kwargs):
 
     if vary_array is None:
         if (vary=='buffer_up'):
-            vary_array = range(25,41,1)
+            vary_array = range(28,45,1)
         elif (vary=='buffer_dw'):
-            vary_array = range(20,51,5)
+            vary_array = range(30,39,1)
         elif (vary=='dist_buff'):
-            vary_array = np.arange(10,101,5)
+            vary_array = np.arange(35,86,5)
         elif (vary=='min_ratio'):
-            vary_array = np.arange(0.5,0.91,0.01)
+            vary_array = np.arange(0.7,0.96,0.01)
         else:
             raise Exception(f'Not valid parameter for vary: {vary}')
 
     df_trained_params = pd.DataFrame(columns=[vary,'num_times','fit_R2','fit_slope','fit_intercept'], index=list(range(len(vary_array))))
 
-    key_map = {
-        'buffer_up': 'buffer_up',
-        'buffer_dw': 'buffer_dw',
-        'dist_buff': 'distance_buff',
-        'min_ratio': 'min_ratio_change'
-    }
-
-    param_key = key_map[vary]
-
     for i, param_val in enumerate(vary_array):
-        kwargs[param_key] = param_val
+        kwargs[vary] = param_val
 
         df_all_events = analyse_all_events(df_events, **kwargs)
 
@@ -279,6 +271,8 @@ def plot_grid_param_vary(df_events, *independent, **kwargs):
 
     fig.tight_layout()
 
+    label_dict = {0: '(a)', 1: '(b)', 2: '(c)', 3: '(d)'}
+
     for i, param in enumerate(independent):
         df_params = train_algorithm_param(df_events, vary=param, **kwargs)
 
@@ -293,6 +287,9 @@ def plot_grid_param_vary(df_events, *independent, **kwargs):
         kwargs['show_left_lab']  = (i % cols)==0
         kwargs['show_right_lab'] = (i % cols)==(cols-1)
         kwargs['want_legend']    = (i==0)
+
+        if num_params>1:
+            kwargs['title_letter'] = label_dict[i]
 
         _ = plot_single_param_vary(df_params, param, fig=fig, axs=axs, return_objs=True, **kwargs)
 
@@ -309,6 +306,7 @@ def plot_single_param_vary(df_vary, param, **kwargs):
     want_legend    = kwargs.get('want_legend',False)
     show_left_lab  = kwargs.get('show_left_lab',True)
     show_right_lab = kwargs.get('show_right_lab',True)
+    title_letter   = kwargs.get('title_letter',None)
 
     fig = kwargs.get('fig',None)
     axs = kwargs.get('axs',None)
@@ -324,11 +322,14 @@ def plot_single_param_vary(df_vary, param, **kwargs):
         x_label = r'$d_\mathrm{diff}$ [$\mathrm{R_E}$]'
         title = r'Varying Distance'
     elif param=='min_ratio':
-        x_label = r'$B_{\mathrm{ratio,2}}\geq x\cdot B_{\mathrm{ratio,1}}$'
-        title = r'Varying Compression Change'
+        x_label = r'$B_{\mathrm{thresh}}$'
+        title = r'Varying Minimum Compression'
     else:
         x_label = param
         title = f'Varying {param}'
+
+    if title_letter is not None:
+        title = title_letter + ' ' + title
 
     brief_title = kwargs.get('brief_title',title)
 
@@ -376,7 +377,7 @@ def plot_single_param_vary(df_vary, param, **kwargs):
         ax2 = ax.twinx()
         axs.append(ax2)
 
-        plot_error_region(ax2, vary_values, unp.nominal_values(fit_intercepts), unp.std_devs(fit_intercepts), c='g', marker='^', label='Intercept')
+        plot_error_region(ax2, vary_values, unp.nominal_values(fit_intercepts), unp.std_devs(fit_intercepts), c='darkcyan', marker='^', label='Intercept')
         ax2.axhline(y=0, c='grey', ls=':', lw='1', alpha=0.1)
 
         if param=='min_ratio':
@@ -384,7 +385,7 @@ def plot_single_param_vary(df_vary, param, **kwargs):
             ax2.set_ylim(ax2_lims[0],2.5*ax2_lims[1])
 
         if show_right_lab:
-            ax2.set_ylabel('Fitted Intercept')
+            ax2.set_ylabel('Fitted Intercept [mins]')
         add_legend(fig, ax2, loc='upper right', legend_on=want_legend)
 
     ###-------------------FITTED COUNTS-------------------###
@@ -395,7 +396,7 @@ def plot_single_param_vary(df_vary, param, **kwargs):
         histx_ax.plot(vary_values, counts, c='k', marker='|', label=label)
 
         if show_left_lab:
-            histx_ax.set_ylabel('Counts')
+            histx_ax.set_ylabel('Count')
 
         loc = 'upper left'
         if param=='min_ratio':

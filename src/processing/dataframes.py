@@ -3,7 +3,7 @@ import pandas as pd
 from uncertainties import unumpy as unp
 
 from .utils import add_unit, cdf_epoch_to_datetime
-from ..analysing.calculations import calc_mean_error
+from ..analysing.calculations import calc_mean_error, calc_average_vector
 
 def add_df_units(df):
     unit_attrs = {}
@@ -113,28 +113,8 @@ def replace_inf(df, replace_large=False, threshold=1e28):
 
     return df
 
-def resample_data(df, time_col='epoch', sample_interval='1min', show_count=False, show_print=False):
-    """
-    Resamples time series data in a DataFrame to specified intervals, calculating the mean for each bin
-    and removing rows with NaN values. The time for each bin is set to the beginning of the bin in CDF epoch format.
+def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True, show_print=False):
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing time data (in CDF epoch format) and other data columns.
-
-    time_col : str, optional
-        Name of the column containing time data to be resampled. Defaults to 'epoch'.
-
-    sample_interval : str, optional
-        The sampling interval for resampling. Default is '1min' (1-minute intervals).
-
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame resampled to the specified interval with mean values calculated for each bin.
-        The time for each bin corresponds to the beginning of the bin (not the midpoint) and is in CDF epoch format.
-    """
     df = df.copy()
     if time_col == 'index':
         df['utc'] = df.index.floor(sample_interval)
@@ -149,24 +129,38 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=False
         return df
 
     for column in df.columns:
-        if column == 'utc':
+        print(column)
+        if column in('utc',time_col):
             continue
+
+        elif '_GS' in column:
+
+            field, _, coords = column.split('_')
+            if column in aggregated_columns:
+                continue
+
+            ufloat_series = grouped[[f'{field}_{comp}_{coords}' for comp in ('x','y','z')]].apply(lambda x: calc_average_vector(x, param=f'{field}_{coords}'))
+
+            nominals = pd.DataFrame([unp.nominal_values(arr) for arr in ufloat_series], index=ufloat_series.index)
+            uncs = pd.DataFrame([unp.std_devs(arr) for arr in ufloat_series], index=ufloat_series.index)
+
+            for i, comp in enumerate(['x', 'y', 'z']):
+                aggregated_columns[f'{field}_{comp}_{coords}'] = nominals[i]
+                aggregated_columns[f'{field}_{comp}_{coords}_unc'] = uncs[i]
+
+            aggregated_columns[f'{field}_{coords}_count'] = grouped.size().astype(int)
+
         else:
             # Use standard mean for other columns
             unit = df.attrs['units'].get(column)
-
             ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x, unit=unit))
 
             aggregated_columns[column] = pd.Series(unp.nominal_values(ufloat_series), index=ufloat_series.index)
             aggregated_columns[f'{column}_unc'] = pd.Series(unp.std_devs(ufloat_series), index=ufloat_series.index)
-
-    if show_count:
-        aggregated_columns['count'] = grouped.size().astype(int)
+            aggregated_columns[f'{column}_count'] = grouped.size().astype(int)
 
     resampled_df = pd.DataFrame(aggregated_columns)
 
-    if time_col != 'index':
-        resampled_df.drop(columns=[time_col], inplace=True)
     resampled_df.rename_axis('epoch', inplace=True)
     if time_col != 'index':
         resampled_df.reset_index(inplace=True)

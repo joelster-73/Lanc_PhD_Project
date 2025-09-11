@@ -13,23 +13,161 @@ from uncertainties import unumpy as unp
 
 from collections import Counter
 
-from speasy import amda
 from speasy.signal.resampling import interpolate
 from datetime import timedelta
 
-from .config import data_availability, data_availability_mag, speasy_variables
+from .config import data_availability_plasma, data_availability_magnetic, data_availability_electric, speasy_variables
+from .calculations import cross_product
 from ..dataframes import resample_data
-from ...config import R_E
 
 from ..omni.config import omni_spacecraft
 
+
+
+# %% Multiple_parameters
+
+def retrieve_multiple_data(source, parameters, intervals, print_error=False):
+
+    products = []
+    labels   = []
+    tuples   = []
+
+    for param in parameters:
+
+        data_path = speasy_variables.get(source,None)
+        if data_path is None:
+            if print_error:
+                print(f'{source} not valid source variable.')
+            return pd.DataFrame()
+
+        data_id = data_path.get(param, None)
+        if data_id is None:
+            if print_error:
+                print(f'{param} data for {source} not implemented.')
+            return pd.DataFrame()
+
+        if isinstance(data_id, tuple):
+            method, id1, id2 = data_id
+            tuples.append({param: data_id})
+            if id1 not in parameters:
+                parameters.append(id1)
+            if id2 not in parameters:
+                parameters.append(id2)
+        elif isinstance(data_id, str):
+            products.append('amda/'+data_id)
+            labels.append(param)
+        else:
+            products.append(data_id)
+            labels.append(param)
+
+    if len(products)>0:
+        spz_data = spz.get_data(products, intervals)
+
+    df_dict = {}
+
+    for i, name in enumerate(labels):
+        if len(spz_data[i])==0:
+            continue
+
+        df_param = pd.DataFrame()
+
+        if not isinstance(spz_data[i][0],list):
+
+            for interval_obj in spz_data[i]:
+                if interval_obj is not None:
+                    unit = interval_obj.unit
+                    try:
+                        convert = interval_obj.meta['SI_CONVERSION']
+                    except:
+                        convert = 1
+                    #print_spz_data(interval_obj)
+                    try:
+                        df_new = interval_obj.replace_fillval_by_nan().to_dataframe()
+                    except:
+                        df_new = interval_obj.to_dataframe()
+                    df_param = pd.concat([df_param,df_new])
+        else:
+
+            for j, comp in enumerate(('x','y','z')):
+
+                df_comp = pd.DataFrame()
+
+                for interval_obj in spz_data[i][j]:
+                    if interval_obj is not None:
+                        unit = interval_obj.unit
+                        try:
+                            convert = interval_obj.meta['SI_CONVERSION']
+                        except:
+                            convert = 1
+                        #print_spz_data(interval_obj)
+                        try:
+                            df_new = interval_obj.replace_fillval_by_nan().to_dataframe()
+                        except:
+                            df_new = interval_obj.to_dataframe()
+                        df_comp = pd.concat([df_comp,df_new])
+
+                df_param = pd.concat([df_param, df_comp], axis=1)
+
+        df_param.index.name = 'epoch'
+        df_param.attrs = {'units': {}, 'conversions': {}}
+        if not df_param.empty:
+
+            if '_GS' in name:
+                field, coords = name.split('_')
+                df_param.columns = [f'{field}_{comp}_{coords}' for comp in ('x','y','z')]
+            else:
+                df_param.columns = [name]
+
+            df_param.attrs['units'][name] = unit
+            df_param.attrs['conversions'][name] = convert
+            for col in df_param.columns:
+                df_param.attrs['units'][col] = unit
+                df_param.attrs['conversions'][name] = convert
+
+        df_dict[name] = df_param
+
+    for param, df in df_dict.items():
+        df_dict[param] = df[~df.index.duplicated(keep='first')]
+
+    for tuple_dict in tuples:
+        for tuple_param, tuple_id in tuple_dict.items():
+            method, id1, id2 = tuple_id
+
+            if method=='CROSS':
+                df_dict[tuple_param] = cross_product(df_dict[id1],df_dict[id2],tuple_param)
+            else:
+                print(f'{method} not implemented for {tuple_param}')
+
+    return df_dict
+
+
+
+def print_spz_data(spz_data):
+
+    print("===========================================")
+    print(f"Name:         {spz_data.name}")
+    print(f"Columns:      {spz_data.columns}")
+    print(f"Values Unit:  {spz_data.unit}")
+    print(f"Memory usage: {spz_data.nbytes} Bytes")
+    print(f"Axes Labels:  {spz_data.axes_labels}")
+    print("-------------------------------------------")
+    print(f"Meta-data:    {spz_data.meta}")
+    print(f"Conversion    {spz_data.meta['SI_CONVERSION']}")
+    print("-------------------------------------------")
+    print(f"Time Axis:    {spz_data.time[:3]}")
+    print("-------------------------------------------")
+    print(f"Values:       {spz_data.values[:3]}")
+    print("===========================================")
+
+# %% Single_parameter_time
+
 def clean_retrieved_data(spz_data, upsample_data=None):
     if spz_data is None or len(spz_data.time) == 0:
-        return None
+        return pd.DataFrame()
     spz_data = spz_data.replace_fillval_by_nan()
 
     if spz_data.values is None or len(spz_data.values) == 0:
-        return None
+        return pd.DataFrame()
 
     if upsample_data is not None:
         if len(upsample_data.time) == 0 or len(spz_data.time) == 0:
@@ -39,111 +177,51 @@ def clean_retrieved_data(spz_data, upsample_data=None):
     return spz_data
 
 
-def retrieve_data(parameter, source, start_time, end_time, downsample=False, upsample=False, print_bounds=False, resolution='1min', add_omni_sc=False):
+
+def retrieve_data(parameter, source, start_time, end_time, downsample=False, upsample=False, resolution='1min', print_error=False):
     if 'B_' in parameter:
-        data_range = data_availability_mag
+        data_range = data_availability_magnetic
+    elif 'E_' in parameter:
+        data_range = data_availability_electric
     else:
-        data_range = data_availability
-    available_start, available_end = data_range.get(source)
+        data_range = data_availability_plasma
+    available_range = data_range.get(source,None)
 
-    if start_time < available_start and end_time < available_start:
-        if print_bounds:
-            print(f'{source} outside available range: {available_start} to {available_end}')
-        return pd.DataFrame()
-    elif start_time > available_end and end_time > available_end:
-        if print_bounds:
-            print(f'{source} outside available range: {available_start} to {available_end}')
-        return pd.DataFrame()
+    if available_range is not None:
+        available_start, available_end = available_range
 
-    data_path = speasy_variables.get(source,None)
-    if data_path is None:
-        print(f'{source} not valid source variable.')
-        return pd.DataFrame()
+        if start_time < available_start and end_time < available_start:
+            if print_error:
+                print(f'{source} outside available range: {available_start} to {available_end}')
+            return pd.DataFrame()
+        elif start_time > available_end and end_time > available_end:
+            if print_error:
+                print(f'{source} outside available range: {available_start} to {available_end}')
+            return pd.DataFrame()
 
-    data_id = data_path.get(parameter, None)
-    if data_id is None:
-        print(f'{parameter} data for {source} not implemented.')
-        return pd.DataFrame()
+    df_dict = retrieve_multiple_data(source, [parameter], [[str(start_time), str(end_time)]], print_error)
+    df = df_dict[parameter]
 
-    upsample_data = None
     if upsample: # used to upsample to 1-minute resolution
-        upsample_data = amda.get_data(speasy_variables.get('OMNI').get('B_mag'), start_time, end_time)
+        df = df.resample('1min').interpolate(method='time')
 
-    if isinstance(data_id, list):
-        vec_data = spz.get_data(data_id, start_time, end_time)
-        vec_data = clean_retrieved_data(vec_data, upsample_data)
-
-        if vec_data is None:
-            print(f'No {parameter} vec data for {source} in interval.')
-            return pd.DataFrame()
-
-        times = vec_data[0].time
-        values = np.column_stack((vec_data[0].values,vec_data[1].values,vec_data[2].values))
-        unit = vec_data[0].unit
-
-    else:
-        if isinstance(data_id, str):
-            spz_data = amda.get_data(data_id, start_time, end_time)
-        else:
-            spz_data = spz.get_data(data_id, start_time, end_time)
-
-        spz_data = clean_retrieved_data(spz_data, upsample_data)
-        if spz_data is None:
-            print(f'No {parameter} data for {source} in interval.')
-            return pd.DataFrame()
-
-        times, values, unit = spz_data.time, spz_data.values, spz_data.unit
-
-    if source == 'IMP8':
-        # seems to be problem with the fill value, metadata says 9999.9, but seems to be about double
-        values[values>=9999.9] = np.nan
-
-    if unit=='km':
-        values /= R_E
-        unit = 'Re'
-
-    times = pd.to_datetime(times, unit='ms')
-
-    df = pd.DataFrame()
-
-    if values.ndim == 1 or values.shape[1] == 1:
-        values = values.flatten()
-        df = pd.DataFrame(values, columns=[parameter], index=times)
-        df.attrs['units'] = {}
-        df.attrs['units'][parameter] = unit
-    else:
-        column_names = [f'{parameter}_x', f'{parameter}_y', f'{parameter}_z']
-        df = pd.DataFrame(values, columns=column_names, index=times)
-        df.attrs['units'] = {}
-        df.attrs['units'][parameter] = unit
-        for col in column_names:
-            df.attrs['units'][col] = unit
-
-    if add_omni_sc and source == 'OMNI':
-        sc_ID = speasy_variables.get('OMNI').get('sc')
-        id_data = spz.get_data(sc_ID, start_time, end_time)
-        _, ids, _ = id_data.time, id_data.values, id_data.unit
-        df['spacecraft'] = ids
-
-    if downsample:
+    elif downsample:
         attributes = df.attrs
         df = resample_data(df, 'index', sample_interval=resolution)
         df.attrs = attributes
 
-    # In case duplicate times are returned
-    df = df.loc[~df.index.duplicated(keep='first')]
 
     return df
 
 
-def retrieve_datum(parameter, source, time, print_bounds=False, add_omni_sc=False):
+def retrieve_datum(parameter, source, time, print_error=False, add_omni_sc=False):
 
     if time is None:
         return None, None
 
-    available_start, available_end = data_availability.get(source)
+    available_start, available_end = data_availability_magnetic.get(source)
     if time < available_start or time > available_end:
-        if print_bounds:
+        if print_error:
             print(f'{source} outside available range: {available_start} to {available_end}')
         return None, None
 

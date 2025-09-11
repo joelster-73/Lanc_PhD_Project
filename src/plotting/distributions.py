@@ -122,6 +122,8 @@ def plot_freq_hist(series, **kwargs):
 
     data_name   = kwargs.get('data_name',None)
     fit_type    = kwargs.get('fit_type','mean')
+    fit_err     = kwargs.get('fit_err',None)
+
     want_legend = kwargs.get('want_legend',True)
     brief_title = kwargs.get('brief_title','')
     add_count   = kwargs.get('add_count',False)
@@ -144,12 +146,15 @@ def plot_freq_hist(series, **kwargs):
     data_str = data_string(series.name)
     unit = series.attrs.get('units', {}).get(series.name, None)
 
-    series_0 = series.copy().dropna()
-    series = series.dropna().to_numpy()
+    series = series.dropna()
 
     if unit == 'rad':
         series = np.degrees(series)
         unit = '°'
+        series.attrs['units'][series.name] = unit
+
+    series_0 = series.copy()
+    series = series.to_numpy()
 
     data_label = create_label(data_str, unit=unit, data_name=data_name)
 
@@ -177,6 +182,9 @@ def plot_freq_hist(series, **kwargs):
         xmin = mids[0] - 0.5 * bin_width
         xmax = mids[-1] + 0.5 * bin_width
         x_plot = np.linspace(xmin, xmax, 500)
+
+        if fit_err=='count':
+            kwargs['ys_unc'] = np.sqrt(counts+1) # +1 to avoid /0 errors
 
         fit_dict = plot_fit(mids, counts, x_range=x_plot, unit=unit, **kwargs)
 
@@ -357,26 +365,29 @@ def plot_metric(series, metric='mean', **kwargs):
     ax     = kwargs.get('ax',None)
     colour = kwargs.get('lc','r')
     ls     = kwargs.get('ls','-')
+    unit   = kwargs.get('unit',None)
 
-    unit = series.attrs.get('units',{}).get(series.name,'')
+    if unit is None:
+        unit = series.attrs.get('units',{}).get(series.name,'')
 
     if ax is not None:
 
         if metric=='mean':
             value = calc_mean_error(series)
             try:
-                label = f'$\\mu={value:L}$'
+                label = f'$\\mu={value:L}$ {unit}'
             except:
                 label = f'$\\mu=${value:.3g} {unit}'
         elif metric=='median':
             value = np.median(series)
             try:
-                label = f'$\\nu={value:L}$'
+                label = f'$\\nu={value:L}$ {unit}'
             except:
                 label = f'$\\nu=${value:.3g} {unit}'
 
         value = value.n if isinstance(value, UFloat) else value
-        ax.axvline(value, lw=1, ls=ls, c=colour, label=label)
+        ax.axvline(value, lw=1, ls=ls, c=colour)
+        ax.plot([], [], ' ', label=label)
 
 def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 

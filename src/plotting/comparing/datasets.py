@@ -35,6 +35,9 @@ def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
     df2_columns    = kwargs.get('df2_columns',{})
     contemp_times  = kwargs.get('contemp_times',False)
 
+    if compare_type=='hist_diff':
+        contemp_times = True
+
     if contemp_times:
         if len(df2)>len(df1):
             df2 = df2[df2.index.isin(df1.index)]
@@ -100,6 +103,7 @@ def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
                         kwargs3['perc_high'] = 99.5
 
                 _ = plot_freq_hist(difference_series(series1,series2), colour='grey', fig=fig, ax=ax3, return_objs=True, **kwargs3)
+                ax3.set_ylabel(None)
 
             else:
                 print(f'{compare_type} is not valid compare type.')

@@ -79,10 +79,10 @@ def plot_compare_years_with_apogee(df1, df2, full_cluster, **kwargs):
     apogees = r_mag.rolling(window=window_size, center=True).max()
     apogees.index = datetime_to_decimal_year_vectorised(apogees.index)
 
-    apo_max = np.max(apogees)
-    apo_max_time = apogees.idxmax()
+    #apo_max = np.max(apogees)
+    #apo_max_time = apogees.idxmax()
 
-    fig, axes = plt.subplots(1, 2, figsize=(14,5))
+    fig, axes = plt.subplots(1, 2, figsize=(14,4))
 
     for i, (df, name, colour, ax) in enumerate(zip((df1, df2), (df1_name, df2_name), (df1_colour, df2_colour), axes)):
 
@@ -90,8 +90,8 @@ def plot_compare_years_with_apogee(df1, df2, full_cluster, **kwargs):
 
         ax_twin = ax.twinx()
         ax_twin.plot(apogees, color='r', lw=2.25)
-        ax_twin.set_ylabel(r'$C_1$ Apogee [$\mathrm{R_E}$]', c='r')
-        ax_twin.scatter(apo_max_time, apo_max, c='r', s=60, zorder=5)
+        ax_twin.set_ylabel(r'C1 Apogee [$\mathrm{R_E}$]', c='r')
+        #ax_twin.scatter(apo_max_time, apo_max, c='r', s=60, zorder=5)
 
         if i==0:
             ax_twin.set_ylabel(None)

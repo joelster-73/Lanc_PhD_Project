@@ -1,4 +1,4 @@
-Log created on 2025-08-28 09:15:48
+Log created on 2025-08-30 13:12:05
 #1: No OMNI info.
 #2: No downstream monitors recorded shock.
 #3: Need to interpolate to find shock in OMNI ['Bad Data', 'IMP8'].
@@ -33,7 +33,7 @@ Log created on 2025-08-28 09:15:48
 #32: Need to interpolate to find shock in OMNI ['Bad Data'].
 #33: Need to interpolate to find shock in OMNI ['Bad Data'].
 #34: Need to interpolate to find shock in OMNI ['IMP8'].
-#35: Found OMNI time.
+#35: No downstream monitors recorded shock.
 #36: No downstream monitors recorded shock.
 #37: Found OMNI time.
 #38: No downstream monitors recorded shock.
@@ -55,7 +55,7 @@ Log created on 2025-08-28 09:15:48
 #54: Found OMNI time.
 #55: Found OMNI time.
 #56: Need to interpolate to find shock in OMNI ['IMP8', 'Bad Data'].
-#57: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#57: No downstream monitors recorded shock.
 #58: No downstream monitors recorded shock.
 #59: No downstream monitors recorded shock.
 #60: No downstream monitors recorded shock.
@@ -89,7 +89,7 @@ Log created on 2025-08-28 09:15:48
 #88: Found OMNI time.
 #89: Found OMNI time.
 #90: Need to interpolate to find shock in OMNI ['IMP8', 'Bad Data'].
-#91: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#91: No downstream monitors recorded shock.
 #92: Found OMNI time.
 #93: No downstream monitors recorded shock.
 #94: No downstream monitors recorded shock.
@@ -125,12 +125,12 @@ Log created on 2025-08-28 09:15:48
 #124: Need to interpolate to find shock in OMNI ['Ace'].
 #125: Found OMNI time.
 #126: Found OMNI time.
-#127: Need to interpolate to find shock in OMNI ['Ace'].
+#127: Found OMNI time.
 #128: Found OMNI time.
 #129: No downstream monitors recorded shock.
 #130: Found OMNI time.
 #131: Found OMNI time.
-#132: No downstream monitors recorded shock.
+#132: Found OMNI time.
 #133: No downstream monitors recorded shock.
 #134: Need to interpolate to find shock in OMNI ['IMP8', 'Bad Data'].
 #135: Need to interpolate to find shock in OMNI ['IMP8', 'Bad Data'].
@@ -160,6 +160,7 @@ Log created on 2025-08-28 09:15:48
 #159: Found OMNI time.
 #160: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #161: Found OMNI time.
+#162: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #163: Found OMNI time.
 #164: Found OMNI time.
 #165: Found OMNI time.
@@ -170,6 +171,7 @@ Log created on 2025-08-28 09:15:48
 #170: Found OMNI time.
 #171: Found OMNI time.
 #172: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#173: Found OMNI time.
 #174: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #175: Need to interpolate to find shock in OMNI ['IMP8', 'Bad Data'].
 #176: Found OMNI time.
@@ -197,7 +199,7 @@ Log created on 2025-08-28 09:15:48
 #198: Found OMNI time.
 #199: Found OMNI time.
 #200: Found OMNI time.
-#201: Need to interpolate to find shock in OMNI ['Ace', 'Wind-v2'].
+#201: No downstream monitors recorded shock.
 #202: Found OMNI time.
 #203: Found OMNI time.
 #204: Need to interpolate to find shock in OMNI ['Ace'].
@@ -251,11 +253,11 @@ Log created on 2025-08-28 09:15:48
 #252: Need to interpolate to find shock in OMNI ['Ace'].
 #253: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #254: Found OMNI time.
-#255: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
-#256: Need to interpolate to find shock in OMNI ['Ace'].
+#255: No downstream monitors recorded shock.
+#256: Found OMNI time.
 #257: No downstream monitors recorded shock.
-#258: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
-#259: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#258: Found OMNI time.
+#259: Found OMNI time.
 #260: No downstream monitors recorded shock.
 #261: No downstream monitors recorded shock.
 #262: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -295,7 +297,7 @@ Log created on 2025-08-28 09:15:48
 #296: Found OMNI time.
 #297: Need to interpolate to find shock in OMNI ['Ace'].
 #298: Found OMNI time.
-#299: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#299: No downstream monitors recorded shock.
 #300: No downstream monitors recorded shock.
 #301: No downstream monitors recorded shock.
 #302: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -309,7 +311,7 @@ Log created on 2025-08-28 09:15:48
 #310: No downstream monitors recorded shock.
 #311: No downstream monitors recorded shock.
 #312: Need to interpolate to find shock in OMNI ['Ace'].
-#313: Found OMNI time.
+#313: Need to interpolate to find shock in OMNI ['Wind-v2', 'Ace', 'Bad Data'].
 #314: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #315: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #316: Need to interpolate to find shock in OMNI ['Geo'].
@@ -337,7 +339,7 @@ Log created on 2025-08-28 09:15:48
 #338: Need to interpolate to find shock in OMNI ['Geo'].
 #339: No downstream monitors recorded shock.
 #340: Found OMNI time.
-#341: Need to interpolate to find shock in OMNI ['Geo', 'Wind-v2', 'Bad Data'].
+#341: Found OMNI time.
 #342: Need to interpolate to find shock in OMNI ['Geo'].
 #343: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #344: Need to interpolate to find shock in OMNI ['Ace'].
@@ -382,14 +384,14 @@ Log created on 2025-08-28 09:15:48
 #383: Need to interpolate to find shock in OMNI ['Ace'].
 #384: No downstream monitors recorded shock.
 #385: No downstream monitors recorded shock.
-#386: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#386: No downstream monitors recorded shock.
 #387: Found OMNI time.
 #388: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #389: Need to interpolate to find shock in OMNI ['Ace'].
 #390: No downstream monitors recorded shock.
 #391: No downstream monitors recorded shock.
 #392: No downstream monitors recorded shock.
-#393: No downstream monitors recorded shock.
+#393: Found OMNI time.
 #394: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #395: No downstream monitors recorded shock.
 #396: Found OMNI time.
@@ -403,14 +405,14 @@ Log created on 2025-08-28 09:15:48
 #404: No downstream monitors recorded shock.
 #405: Found OMNI time.
 #406: Found OMNI time.
-#407: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#407: No downstream monitors recorded shock.
 #408: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #409: Found OMNI time.
 #410: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #411: Found OMNI time.
 #412: Need to interpolate to find shock in OMNI ['Ace'].
 #413: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
-#414: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#414: No downstream monitors recorded shock.
 #415: Found OMNI time.
 #416: Found OMNI time.
 #417: Found OMNI time.
@@ -447,19 +449,19 @@ Log created on 2025-08-28 09:15:48
 #448: No downstream monitors recorded shock.
 #449: No downstream monitors recorded shock.
 #450: No downstream monitors recorded shock.
-#451: Need to interpolate to find shock in OMNI ['Ace'].
+#451: No downstream monitors recorded shock.
 #452: No downstream monitors recorded shock.
 #453: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #454: Found OMNI time.
-#455: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#455: Found OMNI time.
 #456: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #457: No downstream monitors recorded shock.
-#458: Need to interpolate to find shock in OMNI ['Ace'].
+#458: No downstream monitors recorded shock.
 #459: Found OMNI time.
-#460: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#460: Found OMNI time.
 #461: No downstream monitors recorded shock.
 #462: No downstream monitors recorded shock.
-#463: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#463: No downstream monitors recorded shock.
 #464: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #465: No downstream monitors recorded shock.
 #466: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -476,7 +478,7 @@ Log created on 2025-08-28 09:15:48
 #477: No downstream monitors recorded shock.
 #478: Found OMNI time.
 #479: Found OMNI time.
-#480: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#480: No downstream monitors recorded shock.
 #481: Need to interpolate to find shock in OMNI ['Bad Data', 'Wind-v2'].
 #482: No downstream monitors recorded shock.
 #483: No downstream monitors recorded shock.
@@ -486,14 +488,14 @@ Log created on 2025-08-28 09:15:48
 #487: Found OMNI time.
 #488: Found OMNI time.
 #489: Found OMNI time.
-#490: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#490: Found OMNI time.
 #491: Found OMNI time.
 #492: Found OMNI time.
 #493: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #494: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #495: Found OMNI time.
 #496: No downstream monitors recorded shock.
-#497: Need to interpolate to find shock in OMNI ['Ace'].
+#497: Found OMNI time.
 #498: Found OMNI time.
 #499: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #500: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -520,7 +522,7 @@ Log created on 2025-08-28 09:15:48
 #521: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #522: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #523: Need to interpolate to find shock in OMNI ['Ace'].
-#524: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#524: No downstream monitors recorded shock.
 #525: No downstream monitors recorded shock.
 #526: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #527: No downstream monitors recorded shock.
@@ -529,7 +531,7 @@ Log created on 2025-08-28 09:15:48
 #530: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #531: No downstream monitors recorded shock.
 #532: No downstream monitors recorded shock.
-#533: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#533: No downstream monitors recorded shock.
 #534: Found OMNI time.
 #535: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #536: Found OMNI time.
@@ -538,7 +540,7 @@ Log created on 2025-08-28 09:15:48
 #539: Need to interpolate to find shock in OMNI ['Ace'].
 #540: Found OMNI time.
 #541: Found OMNI time.
-#542: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#542: Found OMNI time.
 #543: Found OMNI time.
 #544: Found OMNI time.
 #545: No downstream monitors recorded shock.
@@ -574,7 +576,7 @@ Log created on 2025-08-28 09:15:48
 #575: Need to interpolate to find shock in OMNI ['Ace'].
 #576: Found OMNI time.
 #577: Need to interpolate to find shock in OMNI ['Ace'].
-#578: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#578: Found OMNI time.
 #579: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #580: Found OMNI time.
 #581: No downstream monitors recorded shock.
@@ -583,12 +585,11 @@ Log created on 2025-08-28 09:15:48
 #584: Found OMNI time.
 #585: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #586: Found OMNI time.
-#587: Need to interpolate to find shock in OMNI ['Ace'].
+#587: Found OMNI time.
 #588: Need to interpolate to find shock in OMNI ['Bad Data', 'Wind-v2'].
 #589: No downstream monitors recorded shock.
 #590: No downstream monitors recorded shock.
 #591: No downstream monitors recorded shock.
-#592: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #593: Found OMNI time.
 #594: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #595: Found OMNI time.
@@ -619,7 +620,7 @@ Log created on 2025-08-28 09:15:48
 #620: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #621: Need to interpolate to find shock in OMNI ['Ace'].
 #622: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
-#623: Found OMNI time.
+#623: No downstream monitors recorded shock.
 #624: Need to interpolate to find shock in OMNI ['Ace'].
 #625: Found OMNI time.
 #626: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -648,7 +649,7 @@ Log created on 2025-08-28 09:15:48
 #649: Found OMNI time.
 #650: Found OMNI time.
 #651: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#652: Found OMNI time.
+#652: No downstream monitors recorded shock.
 #653: Need to interpolate to find shock in OMNI ['Bad Data', 'Wind-v2'].
 #654: Need to interpolate to find shock in OMNI ['Ace'].
 #655: Found OMNI time.
@@ -665,7 +666,7 @@ Log created on 2025-08-28 09:15:48
 #666: Found OMNI time.
 #667: Found OMNI time.
 #668: No downstream monitors recorded shock.
-#669: Found OMNI time.
+#669: No downstream monitors recorded shock.
 #670: No downstream monitors recorded shock.
 #671: Found OMNI time.
 #672: Found OMNI time.
@@ -723,7 +724,7 @@ Log created on 2025-08-28 09:15:48
 #725: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #726: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #727: Found OMNI time.
-#728: Found OMNI time.
+#728: No downstream monitors recorded shock.
 #729: No downstream monitors recorded shock.
 #730: Found OMNI time.
 #731: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -743,7 +744,7 @@ Log created on 2025-08-28 09:15:48
 #745: No downstream monitors recorded shock.
 #746: Found OMNI time.
 #747: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#748: Need to interpolate to find shock in OMNI ['Ace'].
+#748: No downstream monitors recorded shock.
 #749: Need to interpolate to find shock in OMNI ['Ace'].
 #750: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #751: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
@@ -769,7 +770,7 @@ Log created on 2025-08-28 09:15:48
 #771: No downstream monitors recorded shock.
 #772: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #773: Found OMNI time.
-#774: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#774: No downstream monitors recorded shock.
 #775: Need to interpolate to find shock in OMNI ['Bad Data', 'Wind-v2'].
 #776: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #777: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -791,7 +792,7 @@ Log created on 2025-08-28 09:15:48
 #794: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #795: Found OMNI time.
 #796: Found OMNI time.
-#797: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#797: Found OMNI time.
 #798: Found OMNI time.
 #799: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #800: Found OMNI time.
@@ -801,7 +802,7 @@ Log created on 2025-08-28 09:15:48
 #804: Found OMNI time.
 #805: Found OMNI time.
 #806: No downstream monitors recorded shock.
-#807: Found OMNI time.
+#807: No downstream monitors recorded shock.
 #808: Found OMNI time.
 #809: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace', 'Wind-v2'].
 #810: Found OMNI time.
@@ -810,19 +811,19 @@ Log created on 2025-08-28 09:15:48
 #814: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #815: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #816: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#817: Found OMNI time.
+#817: No downstream monitors recorded shock.
 #818: No downstream monitors recorded shock.
 #819: Found OMNI time.
 #820: Found OMNI time.
-#821: Found OMNI time.
+#821: No downstream monitors recorded shock.
 #822: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #823: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace', 'Wind-v2'].
-#824: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#824: No downstream monitors recorded shock.
 #825: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #826: Found OMNI time.
 #827: Found OMNI time.
-#828: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#829: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#828: No downstream monitors recorded shock.
+#829: No downstream monitors recorded shock.
 #830: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #831: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #832: Need to interpolate to find shock in OMNI ['Bad Data'].
@@ -831,16 +832,16 @@ Log created on 2025-08-28 09:15:48
 #835: Found OMNI time.
 #836: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #837: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#838: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#838: No downstream monitors recorded shock.
 #839: Found OMNI time.
 #840: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#841: Need to interpolate to find shock in OMNI ['Ace', 'Wind-v2'].
+#841: No downstream monitors recorded shock.
 #842: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #843: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #844: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#845: Found OMNI time.
+#845: No downstream monitors recorded shock.
 #846: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#847: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#847: No downstream monitors recorded shock.
 #848: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #849: Found OMNI time.
 #850: Found OMNI time.
@@ -866,7 +867,7 @@ Log created on 2025-08-28 09:15:48
 #870: Found OMNI time.
 #871: Found OMNI time.
 #872: Found OMNI time.
-#873: Found OMNI time.
+#873: No downstream monitors recorded shock.
 #874: No downstream monitors recorded shock.
 #875: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #876: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -880,9 +881,9 @@ Log created on 2025-08-28 09:15:48
 #884: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #885: No downstream monitors recorded shock.
 #886: Need to interpolate to find shock in OMNI ['Ace'].
-#887: Found OMNI time.
+#887: No downstream monitors recorded shock.
 #888: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#889: Found OMNI time.
+#889: No downstream monitors recorded shock.
 #890: No downstream monitors recorded shock.
 #891: Found OMNI time.
 #892: Found OMNI time.
@@ -907,7 +908,7 @@ Log created on 2025-08-28 09:15:48
 #911: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #912: Need to interpolate to find shock in OMNI ['Bad Data'].
 #913: Need to interpolate to find shock in OMNI ['Bad Data'].
-#914: Found OMNI time.
+#914: No downstream monitors recorded shock.
 #915: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #916: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #917: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -916,8 +917,8 @@ Log created on 2025-08-28 09:15:48
 #920: Need to interpolate to find shock in OMNI ['Bad Data'].
 #921: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #922: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#923: Found OMNI time.
-#924: Found OMNI time.
+#923: No downstream monitors recorded shock.
+#924: No downstream monitors recorded shock.
 #925: No downstream monitors recorded shock.
 #926: Found OMNI time.
 #927: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -931,7 +932,7 @@ Log created on 2025-08-28 09:15:48
 #935: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #936: Found OMNI time.
 #937: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
-#938: Need to interpolate to find shock in OMNI ['Ace'].
+#938: No downstream monitors recorded shock.
 #939: No downstream monitors recorded shock.
 #940: Found OMNI time.
 #941: Found OMNI time.
@@ -946,29 +947,29 @@ Log created on 2025-08-28 09:15:48
 #950: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #951: No downstream monitors recorded shock.
 #952: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#953: Found OMNI time.
-#954: Found OMNI time.
+#953: No downstream monitors recorded shock.
+#954: No downstream monitors recorded shock.
 #955: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #956: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #957: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #958: No downstream monitors recorded shock.
-#959: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
+#959: No downstream monitors recorded shock.
 #960: Found OMNI time.
 #961: Found OMNI time.
 #962: Found OMNI time.
-#963: Found OMNI time.
-#964: Found OMNI time.
+#963: No downstream monitors recorded shock.
+#964: No downstream monitors recorded shock.
 #965: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #966: No downstream monitors recorded shock.
-#967: Found OMNI time.
+#967: No downstream monitors recorded shock.
 #968: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data', 'Wind-v2'].
 #969: No downstream monitors recorded shock.
 #970: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #971: Found OMNI time.
 #972: No downstream monitors recorded shock.
-#973: Need to interpolate to find shock in OMNI ['Ace'].
+#973: No downstream monitors recorded shock.
 #974: Found OMNI time.
-#975: Found OMNI time.
+#975: No downstream monitors recorded shock.
 #976: No downstream monitors recorded shock.
 #977: Need to interpolate to find shock in OMNI ['Bad Data'].
 #978: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
@@ -994,7 +995,7 @@ Log created on 2025-08-28 09:15:48
 #998: Found OMNI time.
 #999: Found OMNI time.
 #1000: Found OMNI time.
-#1001: Found OMNI time.
+#1001: No downstream monitors recorded shock.
 #1002: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1003: Found OMNI time.
 #1004: Found OMNI time.
@@ -1008,8 +1009,8 @@ Log created on 2025-08-28 09:15:48
 #1012: Found OMNI time.
 #1013: Found OMNI time.
 #1014: Found OMNI time.
-#1015: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#1016: Found OMNI time.
+#1015: Found OMNI time.
+#1016: No downstream monitors recorded shock.
 #1017: Found OMNI time.
 #1018: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1019: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -1019,7 +1020,7 @@ Log created on 2025-08-28 09:15:48
 #1023: Found OMNI time.
 #1024: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #1025: Found OMNI time.
-#1026: Found OMNI time.
+#1026: No downstream monitors recorded shock.
 #1027: Found OMNI time.
 #1028: Found OMNI time.
 #1029: Found OMNI time.
@@ -1032,17 +1033,17 @@ Log created on 2025-08-28 09:15:48
 #1036: Found OMNI time.
 #1037: Found OMNI time.
 #1038: Found OMNI time.
-#1039: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#1039: Found OMNI time.
 #1040: Found OMNI time.
 #1041: Found OMNI time.
 #1042: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #1043: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#1044: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1044: Found OMNI time.
 #1045: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1046: Found OMNI time.
 #1047: Found OMNI time.
 #1048: Need to interpolate to find shock in OMNI ['Ace'].
-#1049: No downstream monitors recorded shock.
+#1049: Found OMNI time.
 #1050: Found OMNI time.
 #1051: Found OMNI time.
 #1052: Found OMNI time.
@@ -1073,7 +1074,7 @@ Log created on 2025-08-28 09:15:48
 #1077: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #1078: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #1079: Found OMNI time.
-#1080: Found OMNI time.
+#1080: No downstream monitors recorded shock.
 #1081: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1082: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1083: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -1083,7 +1084,7 @@ Log created on 2025-08-28 09:15:48
 #1087: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #1088: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #1089: Need to interpolate to find shock in OMNI ['Ace'].
-#1090: Need to interpolate to find shock in OMNI ['Ace'].
+#1090: No downstream monitors recorded shock.
 #1091: Found OMNI time.
 #1092: Found OMNI time.
 #1093: Need to interpolate to find shock in OMNI ['Wind-v2'].
@@ -1092,16 +1093,16 @@ Log created on 2025-08-28 09:15:48
 #1096: Need to interpolate to find shock in OMNI ['Bad Data', 'Ace'].
 #1097: Need to interpolate to find shock in OMNI ['Ace', 'Bad Data'].
 #1098: Found OMNI time.
-#1099: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#1099: No downstream monitors recorded shock.
 #1100: Found OMNI time.
 #1101: Found OMNI time.
 #1102: No downstream monitors recorded shock.
-#1103: Found OMNI time.
-#1104: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1103: No downstream monitors recorded shock.
+#1104: No downstream monitors recorded shock.
 #1105: No downstream monitors recorded shock.
 #1106: No downstream monitors recorded shock.
 #1107: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#1108: Found OMNI time.
+#1108: No downstream monitors recorded shock.
 #1109: No downstream monitors recorded shock.
 #1110: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1111: Found OMNI time.
@@ -1110,7 +1111,7 @@ Log created on 2025-08-28 09:15:48
 #1114: Found OMNI time.
 #1115: Found OMNI time.
 #1116: Found OMNI time.
-#1117: Found OMNI time.
+#1117: No downstream monitors recorded shock.
 #1118: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1119: Found OMNI time.
 #1120: Found OMNI time.
@@ -1133,7 +1134,7 @@ Log created on 2025-08-28 09:15:48
 #1137: Found OMNI time.
 #1138: Found OMNI time.
 #1139: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#1140: Need to interpolate to find shock in OMNI ['Wind-v2', 'Ace', 'Bad Data'].
+#1140: No downstream monitors recorded shock.
 #1141: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1142: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1143: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -1153,19 +1154,19 @@ Log created on 2025-08-28 09:15:48
 #1157: Found OMNI time.
 #1158: Found OMNI time.
 #1159: Found OMNI time.
-#1160: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1160: No downstream monitors recorded shock.
 #1161: Found OMNI time.
 #1162: No downstream monitors recorded shock.
-#1163: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#1163: No downstream monitors recorded shock.
 #1164: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1165: Need to interpolate to find shock in OMNI ['Ace'].
-#1166: Found OMNI time.
+#1166: No downstream monitors recorded shock.
 #1167: Found OMNI time.
 #1168: No downstream monitors recorded shock.
 #1169: Found OMNI time.
 #1170: Found OMNI time.
-#1171: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#1172: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1171: No downstream monitors recorded shock.
+#1172: Found OMNI time.
 #1173: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1174: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1175: Found OMNI time.
@@ -1238,7 +1239,7 @@ Log created on 2025-08-28 09:15:48
 #1242: Found OMNI time.
 #1243: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1244: Found OMNI time.
-#1245: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#1245: No downstream monitors recorded shock.
 #1246: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1247: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1248: Need to interpolate to find shock in OMNI ['Bad Data'].
@@ -1291,7 +1292,7 @@ Log created on 2025-08-28 09:15:48
 #1295: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1296: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1297: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#1298: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1298: No downstream monitors recorded shock.
 #1299: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1300: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1301: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
@@ -1304,7 +1305,7 @@ Log created on 2025-08-28 09:15:48
 #1308: Found OMNI time.
 #1309: Found OMNI time.
 #1310: Need to interpolate to find shock in OMNI ['Wind-v2'].
-#1311: Need to interpolate to find shock in OMNI ['Wind-v2'].
+#1311: No downstream monitors recorded shock.
 #1312: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1313: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1314: Found OMNI time.
@@ -1354,7 +1355,7 @@ Log created on 2025-08-28 09:15:48
 #1358: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1359: Found OMNI time.
 #1360: Found OMNI time.
-#1361: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1361: No downstream monitors recorded shock.
 #1362: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1363: Found OMNI time.
 #1364: Need to interpolate to find shock in OMNI ['Bad Data', 'Wind-v2'].
@@ -1382,7 +1383,7 @@ Log created on 2025-08-28 09:15:48
 #1386: Found OMNI time.
 #1387: Need to interpolate to find shock in OMNI ['Wind-v2'].
 #1388: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#1389: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1389: Found OMNI time.
 #1390: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1391: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1392: Need to interpolate to find shock in OMNI ['Wind-v2'].
@@ -1420,7 +1421,7 @@ Log created on 2025-08-28 09:15:48
 #1424: Found OMNI time.
 #1425: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1426: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
-#1427: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1427: Found OMNI time.
 #1428: Found OMNI time.
 #1429: Found OMNI time.
 #1430: Found OMNI time.
@@ -1447,6 +1448,7 @@ Log created on 2025-08-28 09:15:48
 #1451: Found OMNI time.
 #1452: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1453: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
+#1454: Found OMNI time.
 #1455: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1456: Need to interpolate to find shock in OMNI ['Wind-v2', 'Bad Data'].
 #1457: Need to interpolate to find shock in OMNI ['Wind-v2'].

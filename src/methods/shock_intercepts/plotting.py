@@ -273,7 +273,7 @@ def plot_compression(shocks, selection='all', plot_type='hist', change='change_r
         xs = compressions.loc[sc_mask,change].apply(lambda x: x.nominal_value)
         change_series_name(xs, count_name)
 
-        _ = plot_freq_hist(xs, cmap=cmap, clipping=clipping, bin_width=bin_width, fit_type='gaussian', simple_bounds=True, fit_colour=black, data_name=count_label, **kwargs)
+        _ = plot_freq_hist(xs, cmap=cmap, clipping=clipping, bin_width=bin_width, fit_type='gaussian', simple_bounds=True, fit_colour=black, data_name=count_label, fit_err='count', **kwargs)
 
     elif plot_type=='scatter':
         x_lim = (1,5)

@@ -16,36 +16,20 @@ helsinki_events = convert_helsinki_df_plotting(helsinki_shocks)
 
 from src.methods.shock_intercepts.training import plot_grid_param_vary
 
-coeff_lim = 0.9
+coeff_lim = 0.8
 
-buffer_up = 33
-buffer_dw = 35
-
-distance_buff = 80
-min_ratio_change = 0.85
-
-
-plot_grid_param_vary(helsinki_events, 'dist_buff', 'min_ratio', 'buffer_dw', 'buffer_up', buffer_up=buffer_up, buffer_dw=buffer_dw, distance_buff=distance_buff, min_ratio_change=min_ratio_change, coeff_lim=coeff_lim)
-
-
- # %% Optimal_parameters
-
-from src.methods.shock_intercepts.training import analyse_all_events
-buffer_up = 33
-buffer_dw = 35
-
-distance_buff = 80
-min_ratio_change = 0.85
-
-df_trained_params = analyse_all_events(helsinki_events, buffer_up=buffer_up, buffer_dw=buffer_dw, distance_buff=distance_buff, min_ratio_change=min_ratio_change)
+plot_grid_param_vary(helsinki_events, 'dist_buff', 'buffer_dw', 'min_ratio', 'buffer_up', coeff_lim=coeff_lim)
 
 
 # %% Comparing
 
-from src.methods.shock_intercepts.training import plot_comparison
+from src.methods.shock_intercepts.training import analyse_all_events, plot_comparison
 
-coeff_lim = 0.9
+df_trained_params = analyse_all_events(helsinki_events)
 
+coeff_lim = 0.8
 colour_style = 'sc' # coeff or sc
 
 plot_comparison(df_trained_params, coeff_lim=coeff_lim, colouring=colour_style)
+
+# %%

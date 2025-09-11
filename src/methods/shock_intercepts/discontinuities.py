@@ -9,9 +9,8 @@ import numpy as np
 import pandas as pd
 from datetime import timedelta
 
+from .config import optimal_parameters
 from ...processing.speasy.retrieval import retrieve_data
-
-
 
 def get_average_interval(time, where='up', shock_type='FF'):
     if where=='up' and shock_type=='FF':
@@ -24,10 +23,9 @@ def get_average_interval(time, where='up', shock_type='FF'):
         return time-timedelta(minutes=10), time-timedelta(minutes=2)
 
 
-
 def sufficient_compression(parameter, detector, interceptor, shock_time, intercept_time, **kwargs):
 
-    min_ratio_change = kwargs.get('min_ratio_change',0.8)
+    min_ratio_change = kwargs.get('min_ratio',optimal_parameters['min_ratio'])
     min_points       = kwargs.get('min_points',3)
 
     shock_type = 'FF'
