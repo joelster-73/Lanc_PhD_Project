@@ -5,6 +5,7 @@ Created on Thu May  8 17:32:02 2025
 @author: richarj2
 """
 import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -12,38 +13,33 @@ import pandas as pd
 from spacepy import pycdf
 
 
+UNIT_MAP = {
+    r'^(B_[XYZ]_(GSE|GSM))': 'nT',
+    r'^(V_[XYZ]_(GSE|GSM))': 'km/s',
+    r'^(E_[XYZ]_(GSE|GSM))': 'mV/m',
+    r'^(S_[XYZ]_(GSE|GSM))': 'uW/m2',
+    r'(theta|phi|alpha|pitch|clock|cone|angle)': 'rad',
+    r'^(Nx|Ny|Nz|M_|ratio|Beta_|coeff|beta|MA)': '1',
+    r'^(mode|quality)': 'NUM',
+    r'_time$': 'datetime',
+    r'^(N_tot|ni|np|n_i|n_p)': 'n/cc',
+    r'(unc_s|_delay|_s)$': 's',
+    r'^r_': 'Re',
+    r'^(B_|AE|AU|AL)': 'nT',
+    r'^(V_|v_)': 'km/s',
+    r'^E_': 'mV/m',
+    r'^T_': 'K',
+    r'^P_': 'nPa',
+    r'^S_': 'uW/m2',  # Poynting flux
+    r'epoch': 'cdf_epoch',
+}
+
 def add_unit(key):
-    if any(keyword in key for keyword in ['theta','phi','alpha', 'pitch', 'clock', 'cone', 'angle']): # angles
-        return 'rad'
-    elif any(keyword in key for keyword in ['v_','V_']):
-        return 'km/s'
-    elif any(keyword in key for keyword in ['Nx', 'Ny', 'Nz', 'M_', 'ratio', 'Beta_', 'coeff', 'beta', 'MA']):
-        return '1'
-    elif any(keyword in key for keyword in ['mode','quality']):
-        return 'NUM'
-    elif any(keyword in key for keyword in ['N_tot','ni','np','n_i','n_p']): # densities
-        return 'n/cc'
-    elif any(keyword in key for keyword in ['unc_s','_s','_delay']):
-        return 's'
-    elif '_time' in key:
-        return 'datetime'
-    elif 'r_' in key:
-        return 'Re'
-    elif any(keyword in key for keyword in ['B_','AE','AU','AL']):
-        return 'nT'
-    elif 'E_' in key:
-        return 'mV/m'
-    elif 'T_' in key:
-        return 'K'
-    elif 'epoch' in key:
-        return 'cdf_epoch'
-    elif 'P_' in key:
-        return 'nPa'
-    elif 'S_' in key:
-        return 'uW/m2' # Poynting Flux
-    else:
-        print(f'No unit for "{key}"')
-        return ''
+    for pattern, unit in UNIT_MAP.items():
+        if re.search(pattern, key):
+            return unit
+    print(f'No unit for "{key}"')
+    return ''
 
 def create_directory(directory):
     if not os.path.exists(directory):

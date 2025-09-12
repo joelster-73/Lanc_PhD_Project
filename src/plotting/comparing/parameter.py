@@ -33,37 +33,41 @@ def is_marker_like(marker):
     except ValueError:
         return False
 
-def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, delay_time=None, **kwargs):
+def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, delay_time=None, **kwargs):
 
 
     series1 = df.loc[:,col1]
     series2 = df.loc[:,col2]
 
     if col3 is not None:
-        kwargs['zs'] = df.loc[:, col3]
+        kwargs['zs'] = df.loc[:,col3]
 
     if col1_err is not None:
-        kwargs['xs_unc'] = df.loc[:, col1_err]
+        kwargs['xs_unc'] = df.loc[:,col1_err]
+
+    if col2_err is not None:
+        kwargs['ys_unc'] = df.loc[:,col2_err]
+
+    if col1_counts is not None:
+        kwargs['xs_counts'] = df.loc[:,col1_counts]
+
+    if col2_counts is not None:
+        kwargs['ys_counts'] = df.loc[:,col2_counts]
 
     if delay_time is not None:
         delay = pd.Timedelta(minutes=delay_time)
 
-        series2 = df.loc[:,col2].shift(freq=delay)
+        series2 = series2.shift(freq=delay)
 
-        if col2_err is not None:
-            kwargs['ys_unc'] = df.loc[:,col2_err].shift(freq=delay)
+        for y_param in ('ys_unc','ys_counts'):
+            if y_param in kwargs:
+                kwargs[y_param] = kwargs[y_param].shift(freq=delay)
 
         series1, series2 = series1.align(series2)
-        if 'zs' in kwargs:
-            _, kwargs['zs'] = series1.align(kwargs['zs'])
 
-        if 'xs_unc' in kwargs:
-            _, kwargs['xs_unc'] = series1.align(kwargs['xs_unc'])
-
-        if 'ys_unc' in kwargs:
-            _, kwargs['ys_unc'] = series1.align(kwargs['ys_unc'])
-
-
+        for x_param in ('zs','xs_unc','xs_counts'):
+            if x_param in kwargs:
+                _, kwargs[x_param] = series1.align(kwargs[x_param])
 
     compare_series(series1, series2, **kwargs)
 
@@ -168,6 +172,14 @@ def compare_series(series1, series2, **kwargs):
 
     _ = plot_fit(series1,series2,**fit_kwargs)
 
+
+
+    if series1.attrs.get('units',{}).get(series1.name,None) == 'rad':
+        print()
+        # Change x-ticks and y-ticks to degrees
+
+
+
     ax.set_xlabel(data1_label, c=black)
     ax.set_ylabel(data2_label, c=black)
 
@@ -202,6 +214,10 @@ def plot_scatter(xs, ys, **kwargs):
     error_colour = kwargs.get('error_colour','k')
     scat_size    = kwargs.get('scatter_size',0.5)
     scat_marker  = kwargs.get('scat_marker','o')
+    zero_lines   = kwargs.get('zero_lines',False)
+
+    z_min        = kwargs.get('z_min',None)
+    z_max        = kwargs.get('z_max',None)
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
@@ -238,7 +254,7 @@ def plot_scatter(xs, ys, **kwargs):
             # Using a z-value to apply a continuous colour map
             cmap = plt.cm.get_cmap('cool').copy()
             cmap.set_bad(color='black')
-            scatter = ax.scatter(xs, ys, c=zs, cmap=cmap, marker=scat_marker, s=scat_size)
+            scatter = ax.scatter(xs, ys, c=zs, cmap=cmap, vmin=z_min, vmax=z_max, marker=scat_marker, s=scat_size)
 
             z_str = data_string(zs.name)
             z_unit = zs.attrs.get('units',{}).get(zs.name, None)
@@ -253,13 +269,11 @@ def plot_scatter(xs, ys, **kwargs):
     else:
         ax.scatter(xs, ys, c=blue, marker=scat_marker, s=scat_size)
 
-
-    ax.axhline(0,c='grey',ls=':')
-    ax.axvline(0,c='grey',ls=':')
-
+    if zero_lines:
+        ax.axhline(0,c='grey',ls=':')
+        ax.axvline(0,c='grey',ls=':')
 
     return fig, ax
-
 
 def plot_scatter_binned(xs, ys, **kwargs):
 
@@ -277,10 +291,16 @@ def plot_scatter_binned(xs, ys, **kwargs):
     error_colour = kwargs.get('error_colour','k')
     scat_size    = kwargs.get('scatter_size',0.5)
     scat_marker  = kwargs.get('scat_marker','o')
+
     bin_step     = kwargs.get('bin_step',1)
+    z_min        = kwargs.get('z_min',None)
+    z_max        = kwargs.get('z_max',None)
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
+
+    z_min = np.min(zs) if z_min is None else z_min
+    z_max = np.max(zs) if z_max is None else z_max
 
     if fig is None or ax is None:
         fig, ax = plt.subplots()
@@ -292,32 +312,22 @@ def plot_scatter_binned(xs, ys, **kwargs):
 
         mask = (xs>=X_bin) & (xs<(X_bin+bin_step))
 
-        if np.sum(mask)<2: # So a standard dev. can be calculated
+        if np.sum(mask)<2: # So a standard dev can be calculated
             continue
 
-        xs_bin = xs[mask]
-        ys_bin = ys[mask]
+        x = average_of_averages(xs, xs_unc, xs_counts, mask)
+        y = average_of_averages(ys, ys_unc, ys_counts, mask)
 
-        xs_unc_bin = xs_unc[mask] if xs_unc is not None else None
-        ys_unc_bin = ys_unc[mask] if ys_unc is not None else None
-
-        xs_counts_bin = xs_counts[mask] if xs_counts is not None else None
-        ys_counts_bin = ys_counts[mask] if ys_counts is not None else None
-
-        x = average_of_averages(xs_bin, xs_counts_bin, xs_unc_bin)
-        y = average_of_averages(ys_bin, ys_counts_bin, ys_unc_bin)
+        if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
+            continue
 
         ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
 
         if zs is not None:
 
-            zs_bin = zs[mask]
+            z = average_of_averages(zs, zs_unc, zs_counts, mask)
 
-            zs_unc_bin = zs_unc[mask] if zs_unc is not None else None
-            zs_counts_bin = zs_counts[mask] if zs_counts is not None else None
-            z = average_of_averages(zs_bin, zs_counts_bin, zs_unc_bin)
-
-            scatter = ax.scatter(x.n, y.n, c=z.n, cmap='cool', marker=scat_marker, vmin=np.min(zs), vmax=12, s=scat_size)
+            scatter = ax.scatter(x.n, y.n, c=z.n, cmap='cool', marker=scat_marker, vmin=z_min, vmax=z_max, s=scat_size)
 
         else:
             colour = data_colour if is_color_like(data_colour) else blue
@@ -332,9 +342,6 @@ def plot_scatter_binned(xs, ys, **kwargs):
         z_label = create_label(z_str, unit=z_unit)
 
         cbar.set_label(z_label)
-
-    ax.axhline(0,c='grey',ls=':')
-    ax.axvline(0,c='grey',ls=':')
 
     return fig, ax, cbar
 
@@ -419,17 +426,8 @@ def plot_scatter_binned_multiple(xs, ys, **kwargs):
                 if np.sum(mask)<2: # So a standard dev. can be calculated
                     continue
 
-                xs_bin = xs[mask]
-                ys_bin = ys[mask]
-
-                xs_unc_bin = xs_unc[mask] if xs_unc is not None else None
-                ys_unc_bin = ys_unc[mask] if ys_unc is not None else None
-
-                xs_counts_bin = xs_counts[mask] if xs_counts is not None else None
-                ys_counts_bin = ys_counts[mask] if ys_counts is not None else None
-
-                x = average_of_averages(xs_bin, xs_counts_bin, xs_unc_bin)
-                y = average_of_averages(ys_bin, ys_counts_bin, ys_unc_bin)
+                x = average_of_averages(xs, xs_unc, xs_counts, mask)
+                y = average_of_averages(ys, ys_unc, ys_counts, mask)
 
                 if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
                     continue
@@ -448,9 +446,6 @@ def plot_scatter_binned_multiple(xs, ys, **kwargs):
 
             ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2), label=z_label)
 
-
-    ax.axhline(0,c='grey',ls=':')
-    ax.axvline(0,c='grey',ls=':')
 
     return fig, ax
 

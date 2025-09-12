@@ -21,7 +21,7 @@ from src.processing.reading import import_processed_data
 from src.processing.writing import write_to_cdf
 
 
-# %% Grison MSH intervals
+# %% Grison
 
 crossings = import_processed_data(CROSSINGS_DIR)
 cross_labels = crossings.attrs['crossings']
@@ -32,26 +32,36 @@ time_ranges = [[str(start), str(end)] for start, end in zip(
         msh_times.index,
         msh_times.index + pd.to_timedelta(msh_times['region_duration'], unit='s'))]
 
-# %% Cluster_and_OMNI
+# %% Imprts
 
 omni = import_processed_data(PROC_OMNI_DIR)
 kan_lee_field(omni)
+
+cluster = import_processed_data(PROC_CLUS_DIR_MSH)
 
 # Removing erroneous values
 omni.loc[omni['AE']>5000,'AE'] = np.nan
 omni.loc[omni['E_y']>25,'E_y'] = np.nan
 
+cluster.loc[cluster['B_z_GSM']<-100,'B_z_GSM'] = np.nan
+cluster.loc[cluster['B_avg']>200,'B_avg'] = np.nan
+cluster.loc[cluster['E_y_GSM']<-100,'E_y_GSM'] = np.nan
+cluster.loc[cluster['V_mag']>2e3,'V_mag'] = np.nan
+cluster.loc[cluster['N_tot']>500,'N_tot'] = np.nan
+cluster.loc[cluster['S_mag']>1e4,'S_mag'] = np.nan
 
-df_msh = import_processed_data(PROC_CLUS_DIR_MSH)
+lag = 17 # sw to pc lag
 
 # Data want to process
-df_regions = {'sw': omni, 'msh': df_msh, 'pc': omni}
-var_regions = {'sw': ['B_mag', 'B_GSM','n_p', 'V_flow', 'P_flow', 'E_mag', 'E_GSM', 'E_y', 'E_R', 'MA', 'S_mag'],
-               'msh': ['r_GSE', 'B_mag', 'B_GSM', 'N_tot', 'V_mag', 'E_mag', 'E_GSM', 'P_tot'],
-               'pc': ['AE', 'AE_17m']}
+df_regions = {'sw': omni, 'msh': cluster, 'pc': omni}
+var_regions = {'sw': ['B_mag', 'B_GSM', 'B_clock', 'n_p', 'V_flow', 'P_flow', 'E_mag', 'E_GSM', 'E_y', 'E_R', 'MA', 'S_mag'],
+               'msh': ['r_GSE', 'B_avg', 'B_GSM', 'B_clock', 'N_tot', 'V_mag', 'E_mag', 'E_GSM', 'P_tot', 'S_mag', 'beta'],
+               'pc': ['AE', f'AE_{lag}m']}
+
 # %% Average
 
 # from datetime import datetime
+time_lag = pd.Timedelta(minutes=lag)
 
 for start, interval in msh_times.iterrows():
 
@@ -65,11 +75,15 @@ for start, interval in msh_times.iterrows():
         time_mask = (df_region.index>=start) & (df_region.index<end)
         if region=='msh':
             time_mask &= (df_region['r_x_GSE']>0)
-        if not time_mask.any():
+        if np.sum(time_mask)==0:
             continue
 
-        df_filtered = df_region[time_mask].dropna()
-        df_filtered_lag = df_region[time_mask+pd.Timedelta(minutes=17)].dropna()
+        df_filtered = df_region.loc[time_mask]
+
+        time_mask_lag = (df_region.index >= (start + time_lag)) & (df_region.index < (end + time_lag))
+        if region=='msh':
+            time_mask_lag &= (df_region['r_x_GSE']>0)
+        df_filtered_lag = df_region.loc[time_mask_lag]
 
         for param in var_regions[region]:
             if '_GS' in param:
@@ -83,22 +97,24 @@ for start, interval in msh_times.iterrows():
                     print(f'Skipping {param} in {region} due to missing columns')
                     continue
 
-                vector = calc_average_vector(df_filtered[param_cols], param)
+                vector = calc_average_vector(df_filtered.loc[:,param_cols].dropna(), param)
+                if len(vector)==0:
+                    continue
 
                 # Assign results
-                msh_times.loc[start, [f'{vec}_{c}_{coords}_{region}' for c in ('x','y','z')]] = unp.nominal_values(vector)
-                msh_times.loc[start, [f'{vec}_{c}_{coords}_unc_{region}' for c in ('x','y','z')]] = unp.std_devs(vector)
+                msh_times.loc[start, [f'{vec}_{comp}_{coords}_{region}' for comp in ('x','y','z')]] = unp.nominal_values(vector)
+                msh_times.loc[start, [f'{vec}_{comp}_{coords}_unc_{region}' for comp in ('x','y','z')]] = unp.std_devs(vector)
                 msh_times.at[start, f'{param}_count_{region}'] = len(df_filtered)
 
             else:
                 # Scalar parameter
-                if param == 'AE_17m':
-                    param_data = df_filtered_lag['AE'].dropna()
+                if param == f'AE_{lag}m':
+                    param_data = df_filtered_lag.loc[:,'AE'].dropna()
                 else:
-                    param_data = df_filtered[param].dropna()
+                    param_data = df_filtered.loc[:,param].dropna()
 
                 # Map parameter names
-                param_map = {'n_p': 'N_tot', 'V_flow': 'V_mag', 'P_flow': 'P_tot'}
+                param_map = {'n_p': 'N_tot', 'V_flow': 'V_mag', 'P_flow': 'P_tot', 'B_mag': 'B_avg'}
                 param_name = param_map.get(param, param)
 
                 if not param_data.empty:
@@ -111,8 +127,8 @@ for start, interval in msh_times.iterrows():
 
                     # Account for omni's error
 
-# %%
+# %% Write
 output_file = os.path.join(PROC_CLUS_DIR_MSHA, 'msh_times.cdf')
-write_to_cdf(msh_times, output_file)
+write_to_cdf(msh_times, output_file, reset_index=True)
 
-
+# %%

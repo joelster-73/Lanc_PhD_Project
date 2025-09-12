@@ -16,9 +16,9 @@ omni_spacecraft = {
     99: 'Bad Data'
 }
 
-omni_columns = ['Year', 'Day', 'Hour', 'Minute', 'imf_sc', 'plasma_sc', 'imf_counts', 'plasma_counts', 'percent_interp', 'prop_time_s', 'rms_timeshift', 'rms_minvar', 'dt_seconds', 'B_mag', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_mag_rms', 'B_vec_rms', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'n_p', 'T_p', 'na_np_ratio', 'P_flow', 'E_y', 'beta', 'MA', 'Mms', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H']
+omni_columns = ['Year', 'Day', 'Hour', 'Minute', 'imf_sc', 'plasma_sc', 'imf_counts', 'plasma_counts', 'percent_interp', 'prop_time_s', 'rms_timeshift', 'rms_minvar', 'dt_seconds', 'B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'n_p', 'T_p', 'na_np_ratio', 'P_flow', 'E_y', 'beta', 'MA', 'Mms', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H']
 
-imf_bad_cols = ['B_mag', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_mag_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'MA', 'beta']
+imf_bad_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'MA', 'beta']
 
 plasma_bad_cols = ['P_flow', 'n_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'MA', 'beta']
 
@@ -36,13 +36,13 @@ column_units = {
     'rms_timeshift' : 's',
     'rms_minvar'    : 'nT',
     'dt_seconds'    : 's',
-    'B_mag'         : 'nT',
+    'B_avg'         : 'nT',
     'B_x_GSE'       : 'nT',
     'B_y_GSE'       : 'nT',
     'B_z_GSE'       : 'nT',
     'B_y_GSM'       : 'nT',
     'B_z_GSM'       : 'nT',
-    'B_mag_rms'     : 'nT',
+    'B_avg_rms'     : 'nT',
     'B_vec_rms'     : 'nT',
     'V_flow'        : 'km/s',
     'V_x_GSE'       : 'km/s',

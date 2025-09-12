@@ -16,12 +16,23 @@ from uncertainties import ufloat, umath
 
 def fit_function(xs, ys, print_text=False, **kwargs):
 
+
     if len(xs)==0:
         print('xs is empty')
         return {}
     if len(ys)==0:
         print('ys is empty')
         return {}
+
+    mask = (~np.isnan(xs)) & (~np.isnan(ys))
+    if kwargs.get('ys_unc',None) is not None:
+        mask &= ~np.isnan(kwargs['ys_unc'])
+        mask &= kwargs['ys_unc']>0
+
+    xs = xs[mask]
+    ys = ys[mask]
+    if kwargs.get('ys_unc',None) is not None:
+        kwargs['ys_unc'] = kwargs['ys_unc'][mask]
 
     fit_type = kwargs.get('fit_type','straight')
 

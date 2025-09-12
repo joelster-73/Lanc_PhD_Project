@@ -306,7 +306,7 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
             print('GSE to GSM.')
 
         # Clock Angle
-        merged_df['B_clock'] = np.arctan2(merged_df[f'B_y_{vec_coords}'], merged_df[f'B_y_{vec_coords}'])
+        merged_df['B_clock'] = np.arctan2(merged_df[f'B_y_{vec_coords}'], merged_df[f'B_z_{vec_coords}'])
 
         # Kan and Lee Electric Field
         # E_R = |V| * B_T * sin^2 (clock/2)

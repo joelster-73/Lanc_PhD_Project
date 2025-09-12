@@ -8,8 +8,7 @@ from datetime import datetime, timedelta
 
 from .config import omni_columns, imf_bad_cols, plasma_bad_cols, column_units
 from ..handling import create_log_file, log_missing_file
-from ..reading import import_processed_data
-from ..writing import write_to_cdf, add_columns_to_cdf
+from ..writing import write_to_cdf
 from ..dataframes import add_df_units
 from ..speasy.calculations import cross_product, gse_to_gsm_with_angle
 from ...coordinates.magnetic import calc_B_GSM_angles

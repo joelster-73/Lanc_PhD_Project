@@ -17,25 +17,45 @@ from ..coordinates.spatial import cartesian_to_spherical, spherical_to_cartesian
 
 # %% Mean_error
 
-def average_of_averages(means, counts=None, sems=None):
+def average_of_averages(series, series_uncs=None, series_counts=None, mask=None):
 
-    if counts is None:
-        return calc_mean_error(means)
+    if mask is None:
+        mask = np.ones(len(series), dtype=bool)
 
-    means = np.array(means, dtype=float)
-    sems = np.array(sems, dtype=float)
-    counts = np.array(counts, dtype=float)
+    for data in (series,series_uncs,series_counts):
+        if data is not None:
+            mask &= ~np.isnan(data)
 
+    # Case 1: No counts provided (or all zero) → fall back to simple mean/error
+    if series_counts is None or np.nansum(series_counts.loc[mask]) == 0:
+        if series_uncs is not None:
+            ufloats = series.loc[mask].combine(series_uncs.loc[mask], lambda v, u: ufloat(v, u))
+            return calc_mean_error(ufloats)
+        return calc_mean_error(series.loc[mask])
+
+    # Extract arrays
+    means  = np.array(series.loc[mask], dtype=float)
+    counts = np.array(series_counts.loc[mask], dtype=float)
+
+    # Case 2: Counts provided, SEMs missing
+    if series_uncs is None:
+        overall_mean = np.average(means, weights=counts)
+
+        N = np.nansum(counts)
+        numerator = np.nansum(counts * (means - overall_mean) ** 2)
+        pooled_var = numerator / (N - 1)
+        overall_sem = np.sqrt(pooled_var / N)
+
+        return ufloat(overall_mean, overall_sem)
+
+    # Case 3: Counts and SEMs both provided
+    sems = np.array(series_uncs.loc[mask], dtype=float)  # group SEMs
     overall_mean = np.average(means, weights=counts)
 
-    if sems is None:
-        return ufloat(overall_mean,0)
-
-    N = counts.sum()
-    s_i = sems * np.sqrt(counts)
-    numerator = np.sum((counts - 1) * (s_i ** 2) + counts * (means - overall_mean) ** 2)
+    N = np.nansum(counts)
+    s_i = sems * np.sqrt(counts)   # convert SEMs back to SDs
+    numerator = np.nansum((counts - 1) * (s_i ** 2) + counts * (means - overall_mean) ** 2)
     pooled_var = numerator / (N - 1)
-
     overall_sem = np.sqrt(pooled_var / N)
 
     return ufloat(overall_mean, overall_sem)
@@ -148,16 +168,16 @@ def calc_circular_mean_error(data):
 
             data    = unp.nominal_values(data)
 
-            mean = circular_mean(data, weights)
+            mean = circular_avg(data, weights)
             err = circular_sem(data, weights)
 
     except:
-        mean = stats.circmean(data)
+        mean = circular_mean(data)
         err  = circular_stddev(data) / np.sqrt(len(data))
 
     return ufloat(mean, err)
 
-def circular_mean(angles, weights=None):
+def circular_avg(angles, weights=None):
 
     if weights is None:
         weights = np.ones_like(angles)
@@ -178,6 +198,9 @@ def circular_sem(angles, weights=None):
 
     return std / np.sqrt(n_eff)
 
+def circular_mean(angles):
+
+    return stats.circmean(angles, low=-np.pi, high=np.pi)
 
 def circular_variance(angles):
 
@@ -210,6 +233,9 @@ def vec_mag(vec):
 
 def calc_average_vector(df_vec, param=None):
 
+    if len(df_vec)==0:
+        return []
+
     x_label = 'x'
     y_label = 'y'
     z_label = 'z'
@@ -225,22 +251,22 @@ def calc_average_vector(df_vec, param=None):
     y_data = df_vec.loc[:,y_label].to_numpy()
     z_data = df_vec.loc[:,z_label].to_numpy()
 
-    if len(df_vec)>1:
+    if len(df_vec)==1:
+        return unp.uarray([x_data[0],y_data[0],z_data[0]], [0, 0, 0])
 
-        r, theta, phi = cartesian_to_spherical(x_data, y_data, z_data)
+    r, theta, phi = cartesian_to_spherical(x_data, y_data, z_data)
 
-        r_avg = calc_simple_mean_error(r)
-        theta_avg = calc_circular_mean_error(theta)
-        phi_avg = calc_circular_mean_error(phi)
+    r_avg = calc_simple_mean_error(r)
+    theta_avg = calc_circular_mean_error(theta)
+    phi_avg = calc_circular_mean_error(phi)
 
-        x, y, z = spherical_to_cartesian(r_avg, theta_avg, phi_avg)
+    x, y, z = spherical_to_cartesian(r_avg, theta_avg, phi_avg)
 
-        uarr = unp.uarray([x.n, y.n, z.n],
-                      [x.s, y.s, z.s])
+    uarr = unp.uarray([x.n, y.n, z.n],[x.s, y.s, z.s])
 
-        return uarr
+    return uarr
 
-    return unp.uarray(df_vec[[x_label,y_label,z_label]].to_numpy(), [0, 0, 0])
+
 
 
 # %% Statistics

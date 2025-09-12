@@ -26,12 +26,15 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
 
     fit_type    = kwargs.get('fit_type',None)
     inc_errs    = kwargs.get('inc_errs',True)
+    ys_unc      = kwargs.get('ys_unc',None)
+
     colour      = kwargs.get('fit_colour','r')
     ls          = kwargs.get('fit_style','-')
     lw          = kwargs.get('fit_width',2)
+
     as_text     = kwargs.get('as_text',False)
     orientation = kwargs.get('orientation','vertical')
-    ys_unc      = kwargs.get('ys_unc',None)
+
     if ys_unc is None:
         inc_errs = False
 
