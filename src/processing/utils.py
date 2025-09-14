@@ -20,17 +20,17 @@ UNIT_MAP = {
     r'^(S_[XYZ]_(GSE|GSM))': 'uW/m2',
     r'(theta|phi|alpha|pitch|clock|cone|angle)': 'rad',
     r'^(Nx|Ny|Nz|M_|ratio|Beta_|coeff|beta|MA)': '1',
-    r'^(mode|quality)': 'NUM',
+    r'(mode|quality|_num)': 'NUM',
     r'_time$': 'datetime',
     r'^(N_tot|ni|np|n_i|n_p)': 'n/cc',
-    r'(unc_s|_delay|_s)$': 's',
+    r'(unc_s|_delay|_s|_duration)$': 's',
     r'^r_': 'Re',
     r'^(B_|AE|AU|AL)': 'nT',
     r'^(V_|v_)': 'km/s',
     r'^E_': 'mV/m',
     r'^T_': 'K',
     r'^P_': 'nPa',
-    r'^S_': 'uW/m2',  # Poynting flux
+    r'^S_': 'uW/m2',
     r'epoch': 'cdf_epoch',
 }
 

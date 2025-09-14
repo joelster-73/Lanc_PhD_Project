@@ -11,6 +11,7 @@ import itertools as it
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 from matplotlib.colors import is_color_like
 from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
@@ -172,13 +173,23 @@ def compare_series(series1, series2, **kwargs):
 
     _ = plot_fit(series1,series2,**fit_kwargs)
 
-
+    ###---------------CONVERT TICKS TO DEGREES---------------###
+    def rad2deg(x, pos):
+            return f'{np.degrees(x):.0f}'
 
     if series1.attrs.get('units',{}).get(series1.name,None) == 'rad':
-        print()
-        # Change x-ticks and y-ticks to degrees
 
+        ax.xaxis.set_major_formatter(FuncFormatter(rad2deg))
+        ax.set_xticks(np.linspace(-np.pi, np.pi, 9))  # every 45°
 
+        data1_label = create_label(data1_str, unit='°', data_name=data1_name)
+
+    if series2.attrs.get('units',{}).get(series2.name,None) == 'rad':
+
+        ax.yaxis.set_major_formatter(FuncFormatter(rad2deg))
+        ax.set_yticks(np.linspace(-np.pi, np.pi, 9))
+
+        data2_label = create_label(data2_str, unit='°', data_name=data2_name)
 
     ax.set_xlabel(data1_label, c=black)
     ax.set_ylabel(data2_label, c=black)

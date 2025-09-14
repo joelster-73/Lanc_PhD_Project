@@ -238,7 +238,6 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
             print(f'No data for {year}.')
             continue
 
-
         print(f'Processing {year} data.')
 
         ###----------GSE to GSM----------###
@@ -305,34 +304,42 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
 
             print('GSE to GSM.')
 
-        # Clock Angle
+        ###----------CONTAMINATION----------###
+
+        merged_df.loc[merged_df['B_avg']>200,'B_avg'] = np.nan
+        for comp in ('x','y','z'):
+            merged_df.loc[np.abs(merged_df[f'B_{comp}_GSM'])>150,f'B_{comp}_GSM'] = np.nan
+
+        merged_df.loc[merged_df['V_mag']>2e3,'V_mag'] = np.nan
+        for comp, limit in zip(('x','y','z'),(2000,400,400)):
+            merged_df.loc[np.abs(merged_df[f'V_{comp}_GSM'])>limit,f'V_{comp}_GSM'] = np.nan
+
+        merged_df.loc[merged_df['N_tot']>500,'N_tot'] = np.nan
+        merged_df.loc[merged_df['P_tot']>100,'N_tot'] = np.nan
+
+        ###----------CALCULATIONS----------###
+
+        # Clock Angle: theta = atan2(By,Bz)
         merged_df['B_clock'] = np.arctan2(merged_df[f'B_y_{vec_coords}'], merged_df[f'B_z_{vec_coords}'])
 
-        # Kan and Lee Electric Field
-        # E_R = |V| * B_T * sin^2 (clock/2)
+        # Kan and Lee Electric Field: E_R = |V| * B_T * sin^2 (clock/2)
+        merged_df['E_R'] = (merged_df['V_mag'] * np.sqrt(merged_df[f'B_y_{vec_coords}']**2+merged_df[f'B_z_{vec_coords}']**2) * (np.sin(merged_df['B_clock']/2))**2) * 1e-3
         # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
 
-        merged_df['E_R'] = (merged_df['V_mag'] * np.sqrt(merged_df[f'B_y_{vec_coords}']**2+merged_df[f'B_z_{vec_coords}']**2) * (np.sin(merged_df['B_clock']/2))**2) * 1e-3
-
-        # Beta = p_dyn / p_mag
-        # p_mag = B^2/2mu_0
-        # p_dyn *= 1e-9, B_mag *= 1e18, so beta *= 1e9
-
+        # Beta = p_dyn / p_mag, p_mag = B^2/2mu_0
         merged_df['beta'] = merged_df['P_tot'] / (merged_df['B_avg']**2 / (2*mu_0)) * 1e9
+        # p_dyn *= 1e-9, B_mag *= 1e18, so beta *= 1e9
 
         ###----------CROSS PRODUCTS----------###
 
         # E = -V x B = B x V
-        # V *= 1e3, B *= 1e-9, and E *= 1e3 so e_gse *= 1e-3
         merged_df[[f'E_{comp}_{vec_coords}' for comp in ('x','y','z')]] = np.cross(merged_df[[f'B_{comp}_{vec_coords}' for comp in ('x','y','z')]],merged_df[[f'V_{comp}_{vec_coords}' for comp in ('x','y','z')]]) * 1e-3
-
+        # V *= 1e3, B *= 1e-9, and E *= 1e3 so e_gse *= 1e-3
         merged_df['E_mag'] =  np.linalg.norm(merged_df[[f'E_{comp}_{vec_coords}' for comp in ('x','y','z')]],axis=1)
 
         # S = E x H = E x B / mu_0
-        # E *= 1e-3, B *= 1e-9, and S *= 1e6 so s_gse *= 1e-6
-
         merged_df[[f'S_{comp}_{vec_coords}' for comp in ('x','y','z')]] = np.cross(merged_df[[f'E_{comp}_{vec_coords}' for comp in ('x','y','z')]],merged_df[[f'B_{comp}_{vec_coords}' for comp in ('x','y','z')]]) * 1e-6 / mu_0
-
+        # E *= 1e-3, B *= 1e-9, and S *= 1e6 so s_gse *= 1e-6
         merged_df['S_mag'] =  np.linalg.norm(merged_df[[f'S_{comp}_{vec_coords}' for comp in ('x','y','z')]],axis=1)
 
         ###----------WRITE TO FILE----------###
@@ -340,7 +347,7 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
             os.makedirs(combined_dir)
 
         output_file = os.path.join(combined_dir, f'C1_SPIN_{year}.cdf')
-        write_to_cdf(merged_df, output_file, {'R_E': R_E}, True, reset_index=True)
+        write_to_cdf(merged_df, output_file, {'R_E': R_E}, overwrite=True, reset_index=True)
 
         print(f'{year} processed.')
 

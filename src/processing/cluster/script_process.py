@@ -36,3 +36,5 @@ for year in range(2001,2022):
 for year in range(2001,2022):
     filter_spin_data(PROC_CLUS_DIR_SPIN, region='msh', year=year)
 
+# %%
+

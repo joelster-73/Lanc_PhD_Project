@@ -41,6 +41,9 @@ from src.plotting.comparing.parameter import compare_columns
 # Also include beta MA plot
 for param in ('B_avg','B_z_GSM','B_clock','E_y_GSM','V_mag','N_tot','S_mag','V_x_GSM'):
 
+    if param!='B_clock':
+        continue
+
     sw_param  = f'{param}_sw'
     msh_param = f'{param}_msh'
     sw_err    = f'{param}_unc_sw'
@@ -55,6 +58,8 @@ for param in ('B_avg','B_z_GSM','B_clock','E_y_GSM','V_mag','N_tot','S_mag','V_x
 
     if 'V_' in param:
         step = 50
+    elif '_clock' in param:
+        step = np.pi/5
     elif 'B_' in param:
         step = 2.5
     else:

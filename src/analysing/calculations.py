@@ -159,8 +159,7 @@ def calc_circular_mean_error(data):
         errors  = unp.std_devs(data)
 
         if np.all(errors == 0):
-            mean = stats.circmean(data)
-            err  = circular_stddev(data) / np.sqrt(len(data))
+            raise Exception('No errors')
 
         else:
             weights = 1 / errors**2
