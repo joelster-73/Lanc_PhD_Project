@@ -6,26 +6,31 @@ import pandas as pd
 
 from datetime import datetime, timedelta
 
-from .config import omni_columns, imf_bad_cols, plasma_bad_cols, column_units
+from .config import imf_bad_cols, plasma_bad_cols, column_units
+
 from ..handling import create_log_file, log_missing_file
 from ..writing import write_to_cdf
 from ..dataframes import add_df_units
+from ..utils import create_directory
 from ..speasy.calculations import cross_product, gse_to_gsm_with_angle
+
 from ...coordinates.magnetic import calc_B_GSM_angles
+from ...analysing.coupling import kan_lee_field
 
-
-### Main Code
-"""
-# Process all the data from the CDF files and save to a new CDF file
-from handling_omni import process_omni_files
-process_omni_files(luna_omni_dir, proc_omni_dir, omni_variables)
-"""
 
 def process_omni_files(directory, data_directory, variables, year=None, overwrite=True, ext='asc'):
 
     print('Processing OMNI.\n')
     # Gather all OMNI files for the specified year (or all files if no year is specified)
     files_to_process = get_omni_files(directory, year=year, ext=ext)
+
+    if '5min' in data_directory:
+        raw_dir = os.path.join(data_directory, '5min')
+    elif 'min' in data_directory:
+        raw_dir = os.path.join(data_directory, 'min')
+    else:
+        raw_dir = os.path.join(data_directory, 'raw')
+    create_directory(raw_dir)
 
     directory_name = os.path.basename(os.path.normpath(directory))
     log_file_path = os.path.join(data_directory, f'{directory_name}_not_added_files.txt')  # Log for unprocessed files
@@ -35,6 +40,7 @@ def process_omni_files(directory, data_directory, variables, year=None, overwrit
     for i, omni_file in enumerate(files_to_process):
         file_name = os.path.basename(omni_file)
         print(f'Processing {file_name}.')
+
         try:
             if ext=='asc':
                 data_dict = extract_omni_data_old(omni_file, variables)
@@ -47,26 +53,25 @@ def process_omni_files(directory, data_directory, variables, year=None, overwrit
                 raise Exception(f'Unknown file type "{ext}".')
 
             print(f'Data from {file_name} extracted.')
-            if ext=='asc':
-                # Extract the year from the filename assuming the format omni_minYYYY.asc
-                file_year = file_name.split('_')[1][3:7]
-            elif ext=='lst':
-                # Extract the year from the filename assuming the format omni_min_def_YYYY.lst
-                file_year = file_name.split('_')[3][0:4]
-            else:
-                file_year = i+1
 
-            output_file = os.path.join(data_directory, f'{directory_name}_{file_year}.cdf')
-            attributes = {'time_col': 'epoch'}
-            write_to_cdf(df, output_file, attributes, overwrite)
-            print(f'Written {file_name} to file.\n')
-
-        except (AttributeError, ValueError, RuntimeError) as e:
-            print('Known error.')
-            log_missing_file(log_file_path, omni_file, e)
         except Exception as e:
-            print('Unknown error.')
-            log_missing_file(log_file_path, omni_file, e)
+            log_missing_file(log_file_path, file_name, e)
+            continue
+
+        if ext=='asc':
+            # Extract the year from the filename assuming the format omni_minYYYY.asc
+            file_year = file_name.split('_')[1][3:7]
+        elif ext=='lst':
+            # Extract the year from the filename assuming the format omni_min_def_YYYY.lst
+            file_year = file_name.split('_')[3][0:4]
+        else:
+            file_year = i+1
+
+        output_file = os.path.join(raw_dir, f'{directory_name}_{file_year}.cdf')
+        attributes = {'time_col': 'epoch'}
+        write_to_cdf(df, output_file, attributes, overwrite)
+        print(f'Written {file_name} to file.\n')
+
 
 
 def get_omni_files(directory, year=None, ext='asc'):
@@ -85,7 +90,7 @@ def get_omni_files(directory, year=None, ext='asc'):
 
     return files_to_process
 
-def extract_omni_data(lst_file, variables):
+def extract_omni_data(lst_file, omni_columns):
 
     df = pd.read_csv(lst_file, sep=r'\s+', names=omni_columns)
 
@@ -107,18 +112,18 @@ def extract_omni_data(lst_file, variables):
     df.drop(columns=['Year','Day','Hour','Minute'],inplace=True)
 
     # B_uncertainties
-    B_mag_unc = df.loc[:, 'B_mag_rms'] / np.sqrt(df.loc[:, 'imf_counts'])
+    B_avg_unc = df.loc[:, 'B_avg_rms'] / np.sqrt(df.loc[:, 'imf_counts'])
     B_vec_unc = df.loc[:, 'B_vec_rms'] / np.sqrt(df.loc[:, 'imf_counts'])
 
-    df.insert(df.columns.get_loc('B_mag')+1, 'B_mag_unc', B_mag_unc)
-    df.insert(df.columns.get_loc('B_mag')+2, 'B_vec_unc', B_vec_unc)
-    df.drop(columns=['B_mag_rms'],inplace=True)
+    df.insert(df.columns.get_loc('B_avg')+1, 'B_avg_unc', B_avg_unc)
+    df.insert(df.columns.get_loc('B_avg')+2, 'B_vec_unc', B_vec_unc)
+    df.drop(columns=['B_avg_rms'],inplace=True)
     df.drop(columns=['B_vec_rms'],inplace=True)
 
     # B_angles
     b_gsm = calc_B_GSM_angles(df, time_col='epoch')
+    b_gsm.drop(columns=['|B|'],inplace=True) # drops magntiude of average component
     df = pd.concat([df, b_gsm], axis=1)
-    df.drop(columns=['|B|'],inplace=True) # drops magntiude of average component from gsm
 
     # E_GSM
     v_gsm = gse_to_gsm_with_angle(df, ref='B', vec='V')
@@ -132,6 +137,18 @@ def extract_omni_data(lst_file, variables):
     # S = E x H = E x B / mu0
     s_gsm = cross_product(df, cross_name='S_GSM', var1_name='E_GSM', var2_name='B_GSM')
     df = pd.concat([df, s_gsm], axis=1)
+
+    kan_lee_field(df)
+
+    # Removing erroneous values
+    df.loc[df['AE']>2000,'AE'] = np.nan
+    df.loc[df['E_y']>20,'E_y'] = np.nan
+    df.loc[df['S_mag']>150,'S_mag'] = np.nan
+
+    # Only in 5-minute data
+    for flux_param in ('PSI_P_10','PSI_P_10','PSI_P_10'):
+        if flux_param in df:
+            df.loc[df[flux_param]==99999.99,flux_param] = np.nan
 
     return df
 

@@ -18,6 +18,8 @@ omni_spacecraft = {
 
 omni_columns = ['Year', 'Day', 'Hour', 'Minute', 'imf_sc', 'plasma_sc', 'imf_counts', 'plasma_counts', 'percent_interp', 'prop_time_s', 'rms_timeshift', 'rms_minvar', 'dt_seconds', 'B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'n_p', 'T_p', 'na_np_ratio', 'P_flow', 'E_y', 'beta', 'MA', 'Mms', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H']
 
+omni_columns_5min = ['Year', 'Day', 'Hour', 'Minute', 'imf_sc', 'plasma_sc', 'imf_counts', 'plasma_counts', 'percent_interp', 'prop_time_s', 'rms_timeshift', 'rms_minvar', 'dt_seconds', 'B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'n_p', 'T_p', 'na_np_ratio', 'P_flow', 'E_y', 'beta', 'MA', 'Mms', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H', 'PSI_P_10', 'PSI_P_30', 'PSI_P_60']
+
 imf_bad_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'MA', 'beta']
 
 plasma_bad_cols = ['P_flow', 'n_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'MA', 'beta']
@@ -77,6 +79,9 @@ column_units = {
     'SYM_D'         : 'nT',
     'SYM_H'         : 'nT',
     'ASY_D'         : 'nT',
-    'ASY_H'         : 'nT'
+    'ASY_H'         : 'nT',
+    'PSI_P_10'      : '1/scm2sr',
+    'PSI_P_30'      : '1/scm2sr',
+    'PSI_P_60'      : '1/scm2sr'
 }
 

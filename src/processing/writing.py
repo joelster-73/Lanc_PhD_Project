@@ -10,6 +10,10 @@ from spacepy import pycdf
 
 from .utils import datetime_to_cdf_epoch, add_unit, create_directory
 from .handling import get_processed_files
+from .reading import import_processed_data
+from .dataframes import resample_data, add_df_units
+from ..config import R_E
+
 
 def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=False, time_col='epoch', update_column=False, reset_index=False):
 
@@ -120,3 +124,42 @@ def update_cdf_attributes(directory, new_values, add=True):
                 print(f'Error processing {cdf_file}: {e}')
 
     print('Attribute update complete.')
+
+
+def resample_cdf_files(directory, sample_interval):
+
+    parent = os.path.dirname(directory)
+    samp_dir = os.path.join(parent, sample_interval)
+    create_directory(samp_dir)
+
+    cdf_files = get_processed_files(directory)
+
+    raw_df = import_processed_data(directory)
+    time_col = raw_df.attrs.get('global',{}).get('time_col','epoch')
+
+    print(f'Resampling to {sample_interval} resolution.')
+
+    for year in range(2000,2023):
+
+        print(f'Processing {year} data.')
+
+        year_mask = raw_df.index.year==year
+        if np.sum(year_mask)==0:
+            print(f'No {year} data.\n')
+            continue
+
+        file_name = next((os.path.basename(f) for f in cdf_files if f'_{year}' in os.path.basename(f)),None)
+        if file_name is None:
+            continue
+
+        yearly_df = raw_df.loc[year_mask]
+
+        # resample and write to file
+        sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
+        add_df_units(sampled_df)
+
+        output_file = os.path.join(samp_dir, file_name)
+        attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
+        write_to_cdf(sampled_df, output_file, attributes, overwrite=True, reset_index=True)
+
+        print(f'{year} processed.\n')

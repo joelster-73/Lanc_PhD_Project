@@ -12,11 +12,13 @@ def kan_lee_field(df):
     # Kan and Lee Electric Field
     # E_R = |V| * B_T * sin^2 (clock/2)
 
-    if 'V_flow' in df:
-        V = df.loc[:,'V_flow'].copy()
-    elif 'V_mag' in df:
-        V = df.loc[:,'V_mag'].copy()
-    else:
+    found_v = False
+    for v_param in ('V_flow','V_mag','|V|'):
+        if v_param in df:
+            V = df.loc[:,v_param].copy()
+            found_v = True
+
+    if not found_v:
         raise Exception('No velocity column')
     V *= 1e3
 

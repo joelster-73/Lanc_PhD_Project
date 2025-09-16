@@ -8,6 +8,7 @@ Created on Fri May 16 11:27:55 2025
 import numpy as np
 import pandas as pd
 import itertools as it
+from uncertainties import UFloat
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -89,6 +90,8 @@ def investigate_difference(df, col1, col2, ind_col, **kwargs):
 
     compare_series(series1, series2, **kwargs)
 
+# %% Main function
+
 def compare_series(series1, series2, **kwargs):
 
     display         = kwargs.get('display','scatter')
@@ -111,14 +114,10 @@ def compare_series(series1, series2, **kwargs):
 
     ###---------------CONSTRUCT COLUMN LABELS---------------###
 
-    data1_str = data_string(series1.name)
-    data2_str = data_string(series2.name)
     unit1 = series1.attrs.get('units',{}).get(series1.name, None)
     unit2 = series2.attrs.get('units',{}).get(series2.name, None)
 
-    data1_label = create_label(data1_str, unit=unit1, data_name=data1_name)
-    data2_label = create_label(data2_str, unit=unit2, data_name=data2_name)
-    brief_title = f'Comparing ${data1_str}$ and ${data2_str}$' if brief_title is None else brief_title
+    brief_title = f'Comparing ${data_string(series1.name)}$ and ${data_string(series2.name)}$' if brief_title is None else brief_title
 
 
     ###---------------PLOTS MAIN SCATTER/HEAT DATA---------------###
@@ -177,19 +176,25 @@ def compare_series(series1, series2, **kwargs):
     def rad2deg(x, pos):
             return f'{np.degrees(x):.0f}'
 
-    if series1.attrs.get('units',{}).get(series1.name,None) == 'rad':
+    unit1 = series1.attrs.get('units',{}).get(series1.name, None)
+    unit2 = series2.attrs.get('units',{}).get(series2.name, None)
+
+    if unit1 == 'rad':
 
         ax.xaxis.set_major_formatter(FuncFormatter(rad2deg))
         ax.set_xticks(np.linspace(-np.pi, np.pi, 9))  # every 45°
 
-        data1_label = create_label(data1_str, unit='°', data_name=data1_name)
+        unit1 = '°'
 
-    if series2.attrs.get('units',{}).get(series2.name,None) == 'rad':
+    if unit2 == 'rad':
 
         ax.yaxis.set_major_formatter(FuncFormatter(rad2deg))
         ax.set_yticks(np.linspace(-np.pi, np.pi, 9))
 
-        data2_label = create_label(data2_str, unit='°', data_name=data2_name)
+        unit2 = '°'
+
+    data1_label = create_label(series1.name, unit=unit1, data_name=data1_name)
+    data2_label = create_label(series2.name, unit=unit2, data_name=data2_name)
 
     ax.set_xlabel(data1_label, c=black)
     ax.set_ylabel(data2_label, c=black)
@@ -215,11 +220,15 @@ def compare_series(series1, series2, **kwargs):
     plt.show()
     plt.close()
 
+# %% Plot types
+
 def plot_scatter(xs, ys, **kwargs):
 
     xs_unc       = kwargs.get('xs_unc',None)
     ys_unc       = kwargs.get('ys_unc',None)
     zs           = kwargs.get('zs',None)
+
+    data3_name    = kwargs.get('data3_name',None)
 
     data_colour  = kwargs.get('data_colour',blue)
     error_colour = kwargs.get('error_colour','k')
@@ -267,9 +276,7 @@ def plot_scatter(xs, ys, **kwargs):
             cmap.set_bad(color='black')
             scatter = ax.scatter(xs, ys, c=zs, cmap=cmap, vmin=z_min, vmax=z_max, marker=scat_marker, s=scat_size)
 
-            z_str = data_string(zs.name)
-            z_unit = zs.attrs.get('units',{}).get(zs.name, None)
-            z_label = create_label(z_str, unit=z_unit)
+            z_label = create_label(zs.name, data_name=data3_name, units=zs.attrs.get('units',{}))
 
             cbar = plt.colorbar(scatter)
             cbar.set_label(z_label)
@@ -297,6 +304,8 @@ def plot_scatter_binned(xs, ys, **kwargs):
     xs_counts    = kwargs.get('xs_counts',None)
     ys_counts    = kwargs.get('ys_counts',None)
     zs_counts    = kwargs.get('zs_counts',None)
+
+    data3_name    = kwargs.get('data3_name',None)
 
     data_colour  = kwargs.get('data_colour',blue)
     error_colour = kwargs.get('error_colour','k')
@@ -337,8 +346,10 @@ def plot_scatter_binned(xs, ys, **kwargs):
         if zs is not None:
 
             z = average_of_averages(zs, zs_unc, zs_counts, mask)
+            if isinstance(z, UFloat):
+                z = z.n
 
-            scatter = ax.scatter(x.n, y.n, c=z.n, cmap='cool', marker=scat_marker, vmin=z_min, vmax=z_max, s=scat_size)
+            scatter = ax.scatter(x.n, y.n, c=z, cmap='cool', marker=scat_marker, vmin=z_min, vmax=z_max, s=scat_size)
 
         else:
             colour = data_colour if is_color_like(data_colour) else blue
@@ -348,9 +359,7 @@ def plot_scatter_binned(xs, ys, **kwargs):
     if scatter:
         cbar = plt.colorbar(scatter)
 
-        z_str = data_string(zs.name)
-        z_unit = zs.attrs.get('units',{}).get(zs.name, None)
-        z_label = create_label(z_str, unit=z_unit)
+        z_label = create_label(zs.name, data_name=data3_name, units=zs.attrs.get('units',{}))
 
         cbar.set_label(z_label)
 
@@ -514,9 +523,49 @@ def plot_scatter_with_dict(xs, ys, **kwargs):
         ax.scatter(xs[sc_mask], ys[sc_mask], c=sc_c, s=scat_size, marker=marker_dict[upstream], label=f'{upstream} | {downstream}: {count}')
 
 
-
-    ax.axhline(0,c='grey',ls=':')
-    ax.axvline(0,c='grey',ls=':')
-
-
     return fig, ax
+
+# %% Nguyen
+
+
+
+def plot_nguyen(df, col_n, col_b, **kwargs):
+
+    mask = np.ones(len(df),dtype=bool)
+    for param in (f'{col_n}_msh',f'{col_n}_sw',f'{col_b}_msh',f'{col_b}_sw'):
+        mask &= ~np.isnan(df[param])
+
+    series_n = (df.loc[mask,f'{col_n}_msh']/df.loc[mask,f'{col_n}_sw'])
+    series_b = (df.loc[mask,f'{col_b}_msh']/df.loc[mask,f'{col_b}_sw'])
+
+    series_n.name = r'N_C1 / N_OMNI'
+    series_b.name = r'B_C1 / B_OMNI'
+
+    # rename
+
+    kwargs['bin_width'] = (0.025,0.05)
+    kwargs['display'] = 'heat'
+    kwargs['return_objs'] = True
+
+    fig, ax, cbar = compare_series(series_n, series_b, **kwargs)
+
+    x1 = np.linspace(0, 6, 200)
+    m1 = 10
+    y_upper = m1*x1
+
+    c2 = 2.5
+    m2 = -(c2/2)
+
+    x2 = np.linspace(c2/(m1-m2),-c2/m2, 200)
+    y_lower = m2*x2 + c2
+
+    ax.plot(x1, y_upper, 'c', lw=4) # MS/MSH boundary
+    ax.plot(x2, y_lower, 'c', lw=4) # SW/MSH boundary
+
+    ax.set_xlim(right=8)
+    ax.set_ylim(top=12)
+
+    save_figure(fig)
+    plt.show()
+    plt.close()
+

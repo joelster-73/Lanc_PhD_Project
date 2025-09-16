@@ -7,15 +7,13 @@ Created on Thu Aug 28 12:29:26 2025
 
 # %%
 import os
-import numpy as np
 import pandas as pd
 
 from uncertainties import unumpy as unp
 
-from src.config import CROSSINGS_DIR, PROC_OMNI_DIR, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_MSHA
+from src.config import CROSSINGS_DIR, PROC_OMNI_DIR, PROC_CLUS_DIR_MSH, PROC_CLUS_OMNI_MSHA
 
 from src.analysing.calculations import calc_average_vector, calc_mean_error
-from src.analysing.coupling import kan_lee_field
 
 from src.processing.reading import import_processed_data
 from src.processing.writing import write_to_cdf
@@ -25,34 +23,50 @@ from src.processing.writing import write_to_cdf
 
 crossings = import_processed_data(CROSSINGS_DIR)
 cross_labels = crossings.attrs['crossings']
-msh_times = crossings.loc[(crossings['loc_num']==10)&(crossings['region_duration']>60)].copy()
+
+mask = (crossings['loc_num']==10) & (crossings['quality_num']>=2)
+
+msh_times = crossings.loc[mask].copy()
 msh_times.loc[:,'end_time'] = msh_times.index + pd.to_timedelta(msh_times.loc[:,'region_duration'], unit='s')
+msh_times.drop(columns=['loc_num','quality_num','complexity_num'], inplace=True)
+
+msh_times['new_group'] = (msh_times.index != msh_times['end_time'].shift()).cumsum()
+
+# Combine consecutive groups
+result = msh_times.groupby('new_group').agg(
+    start_time=('end_time', lambda x: msh_times.loc[x.index[0]].name),
+    region_duration=('region_duration', 'sum'),
+    end_time=('end_time', 'last')
+).set_index('start_time')
+
+msh_times = result.loc[result['region_duration']>60]
 
 time_ranges = [[str(start), str(end)] for start, end in zip(
         msh_times.index,
         msh_times.index + pd.to_timedelta(msh_times['region_duration'], unit='s'))]
 
+
 # %% Imports
 
 omni = import_processed_data(PROC_OMNI_DIR)
-kan_lee_field(omni)
+
+lag = 17 # sw to pc lag
+omni[f'AE_{lag}m'] = omni['AE'].shift(freq=pd.Timedelta(minutes=lag))
 
 cluster = import_processed_data(PROC_CLUS_DIR_MSH)
 
-# Removing erroneous values
-omni.loc[omni['AE']>5000,'AE'] = np.nan
-omni.loc[omni['E_y']>25,'E_y'] = np.nan
-omni.loc[omni['S_mag']>1e3,'S_mag'] = np.nan
-
-lag = 17 # sw to pc lag
-
 # Data want to process
 df_regions = {'sw': omni, 'msh': cluster, 'pc': omni}
-var_regions = {'sw': ['B_mag', 'B_GSM', 'B_clock', 'n_p', 'V_flow', 'V_GSM', 'P_flow', 'E_mag', 'E_GSM', 'E_y', 'E_R', 'MA', 'S_mag'],
+var_regions = {'sw': ['B_avg', 'B_GSM', 'B_clock', 'n_p', 'V_flow', 'V_GSM', 'P_flow', 'E_mag', 'E_GSM', 'E_y', 'E_R', 'MA', 'S_mag'],
                'msh': ['r_GSE', 'B_avg', 'B_GSM', 'B_clock', 'N_tot', 'V_mag', 'V_GSM', 'E_mag', 'E_GSM', 'P_tot', 'S_mag', 'beta'],
                'pc': ['AE', f'AE_{lag}m']}
 
 # %% Average
+
+
+# Change to assign number based on interval
+# Then group by
+# And apply average similar to the resample_df
 
 time_lag = pd.Timedelta(minutes=lag)
 
@@ -68,11 +82,6 @@ for start, interval in msh_times.iterrows():
         if region == 'msh':
             time_mask &= (df_region['r_x_GSE'] > 0)
         df_filtered = df_region.loc[time_mask]
-
-        time_mask_lag = (df_region.index >= (start + time_lag)) & (df_region.index < (end + time_lag))
-        if region == 'msh':
-            time_mask_lag &= (df_region['r_x_GSE'] > 0)
-        df_filtered_lag = df_region.loc[time_mask_lag]
 
         for param in var_regions[region]:
 
@@ -100,10 +109,7 @@ for start, interval in msh_times.iterrows():
 
             else:
 
-                if param == f'AE_{lag}m':
-                    param_data = df_filtered_lag.loc[:, 'AE'].dropna()
-                else:
-                    param_data = df_filtered.loc[:, param].dropna()
+                param_data = df_filtered.loc[:, param].dropna()
 
                 param_map = {'n_p': 'N_tot', 'V_flow': 'V_mag', 'P_flow': 'P_tot', 'B_mag': 'B_avg'}
                 param_name = param_map.get(param, param)
@@ -124,7 +130,7 @@ msh_times = msh_times.join(results_df)
 
 
 # %% Write
-output_file = os.path.join(PROC_CLUS_DIR_MSHA, 'msh_times.cdf')
+output_file = os.path.join(PROC_CLUS_OMNI_MSHA, 'msh_times_avg.cdf')
 write_to_cdf(msh_times, output_file, reset_index=True)
 
 # %%

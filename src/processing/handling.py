@@ -61,5 +61,3 @@ def get_cdf_file(directory, filename=None):
 
     return cdf_files[0]
 
-
-

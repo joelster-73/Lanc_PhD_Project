@@ -14,7 +14,6 @@ from .dataframes import set_df_indices
 
 def import_processed_data(directory, file_name=None, year=None, date_range=None, bad_data=None):
 
-
     if file_name:
         cdf_file = get_cdf_file(directory, filename=file_name)
         file_data = pycdf.CDF(cdf_file)
@@ -23,6 +22,7 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
         # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]
+
         try:
             file_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
             df = read_spacepy_object(file_data)
@@ -79,20 +79,7 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
 
 
 def read_spacepy_object(cdf_data):
-    """
-    Reads data from a merged CDF object and stores it in a pandas DataFrame.
 
-    Parameters
-    ----------
-    cdf_data : spacepy.pycdf.CDF
-        The merged CDF object containing the data to be read.
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame containing all data from the merged CDF, with each variable as a column.
-        The units for each variable are stored as attributes in the DataFrame.
-    """
     data_dict = {}
     units_dict = {}
 

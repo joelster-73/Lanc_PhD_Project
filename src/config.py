@@ -25,6 +25,7 @@ THEMIS_DIR             = f'{PROCESSED_DATA_DIR}/THEMIS'
 CFA_DIR                = f'{PROCESSED_DATA_DIR}/CFA'
 HELSINKI_DIR           = f'{PROCESSED_DATA_DIR}/HELSINKI'
 SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
+MSH_DIR                = f'{PROCESSED_DATA_DIR}/MSH'
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 
 # LUNA Directories
@@ -33,8 +34,9 @@ LUNA_CLUS_DIR_5VPS     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_5VPS/'
 LUNA_CLUS_DIR_HIAM     = 'Z:/spacecraft/cluster/c1/C1_CP_CIS-HIA_ONBOARD_MOMENTS/'
 LUNA_CLUS_DIR_HIAQ     = 'Z:/spacecraft/cluster/c1/C1_CP_CIS-HIA_QUALITY/'
 LUNA_CROS_DIR          = 'Z:/spacecraft/cluster/c1/C1_CT_AUX_GRMB/'
-#LUNA_OMNI_DIR          = 'Z:/omni/omni_1min_yearly/' - older version
+
 LUNA_OMNI_DIR          = 'Z:/omni/omni_min_def/'
+LUNA_OMNI_DIR_5MIN     = 'Z:/omni/omni_5min_def/'
 LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
 LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
 
@@ -45,8 +47,17 @@ PROC_CLUS_DIR_FGM      = f'{PROC_CLUS_DIR_5VPS}/raw'
 PROC_CLUS_DIR_FGM1     = f'{PROC_CLUS_DIR_5VPS}/1min'
 PROC_CLUS_DIR_CIS      = f'{PROC_CLUS_DIR_SPIN}/plasma/raw'
 PROC_CLUS_DIR_COM      = f'{PROC_CLUS_DIR_SPIN}/combined/raw'
-PROC_CLUS_DIR_MSH      = f'{PROC_CLUS_DIR_SPIN}/msh/raw'
-PROC_CLUS_DIR_MSHA     = f'{PROC_CLUS_DIR_SPIN}/msh/avg'
+
+PROC_CLUS_DIR_MSH      = f'{PROC_CLUS_DIR_SPIN}/msh'
+
+PROC_CLUS_DIR_MSHS     = f'{PROC_CLUS_DIR_MSH}/raw'
+PROC_CLUS_DIR_MSH1     = f'{PROC_CLUS_DIR_MSH}/1min'
+PROC_CLUS_DIR_MSH5     = f'{PROC_CLUS_DIR_MSH}/5min'
+
+# Combined Cluster OMNI Data in MSH
+PROC_CLUS_OMNI_MSH1    = f'{MSH_DIR}/1min'
+PROC_CLUS_OMNI_MSH5    = f'{MSH_DIR}/5min'
+PROC_CLUS_OMNI_MSHA    = f'{MSH_DIR}/avg'
 
 # Crossings Data
 GOOD_CROSSINGS         = f'{CROSSINGS_DIR}/good_time_windows.txt'
@@ -54,7 +65,8 @@ BAD_CROSSINGS          = f'{CROSSINGS_DIR}/bad_time_windows.txt'
 COMPRESSIONS_DIR       = f'{CROSSINGS_DIR}/compression_ratios.npz'
 
 # Processed OMNI Data
-PROC_OMNI_DIR          = OMNI_DIR
+PROC_OMNI_DIR_1MIN     = f'{OMNI_DIR}/1min'
+PROC_OMNI_DIR_5MIN     = f'{OMNI_DIR}/5min'
 
 # Processed WIND Data
 PROC_WIND_DIR_1MIN     = f'{WIND_DIR}/1_min/'

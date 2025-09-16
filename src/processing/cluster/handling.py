@@ -110,7 +110,7 @@ def process_cluster_files(directory, data_directory, variables, sample_interval=
         ###----------WRITE RAW DATA----------###
         output_file = os.path.join(raw_dir, f'{directory_name}_{the_year}.cdf')
 
-        attributes = {'sample_interval': raw_sample, 'time_col': time_col, 'R_E_km': R_E}
+        attributes = {'sample_interval': raw_sample, 'time_col': time_col, 'R_E': R_E}
         write_to_cdf(yearly_df, output_file, attributes, overwrite)
 
         ###----------RESAMPLE----------###
@@ -124,7 +124,7 @@ def process_cluster_files(directory, data_directory, variables, sample_interval=
         add_df_units(sampled_df)
 
         output_file = os.path.join(samp_dir, f'{directory_name}_{the_year}.cdf')
-        attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E_km': R_E}
+        attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
         write_to_cdf(sampled_df, output_file, attributes, overwrite)
 
         print(f'{the_year} processed.')
@@ -315,7 +315,7 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
             merged_df.loc[np.abs(merged_df[f'V_{comp}_GSM'])>limit,f'V_{comp}_GSM'] = np.nan
 
         merged_df.loc[merged_df['N_tot']>500,'N_tot'] = np.nan
-        merged_df.loc[merged_df['P_tot']>100,'N_tot'] = np.nan
+        merged_df.loc[merged_df['P_tot']>100,'P_tot'] = np.nan
 
         ###----------CALCULATIONS----------###
 

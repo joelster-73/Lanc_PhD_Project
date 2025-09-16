@@ -85,8 +85,8 @@ def format_string(s):
                      'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi',
                      'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega')
 
-    # Create a regex pattern to match Greek letters (as whole words, not parts of other words)
-    greek_pattern = r'\b(' + '|'.join(greek_letters) + r')\b'
+    # Create a regex pattern to match Greek letters anywhere
+    greek_pattern = r'(' + '|'.join(greek_letters) + r')'
 
     s = re.sub(greek_pattern, r'\\\1', s)
 
@@ -128,13 +128,15 @@ def create_label(column, unit=None, data_name=None, name_latex=False, units=None
         label = f'{data_name}'
     else:
         label = f'${data_string(column)}$'
+
     if unit is None and units is not None:
         unit = units.get(column,None)
     if unit is not None:
         if unit == 'Re':
             label += r' [$\mathrm{R_E}$]'
-        elif unit not in ('','1','STRING','LIST'):
+        elif unit not in ('','1','STRING','LIST','NUM'):
             label += f' [{unit}]'
+
     return label
 
 def ordinal_suffix(n):

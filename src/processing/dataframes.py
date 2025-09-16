@@ -12,26 +12,7 @@ def add_df_units(df):
     df.attrs['units'] = unit_attrs
 
 def merge_dataframes(df1, df2, suffix_1=None, suffix_2=None, clean=True, print_info=False):
-    """
-    Merges two DataFrames based on their indices and relabels their columns with specified suffixes.
 
-    Parameters
-    ----------
-    df1 : pandas.DataFrame
-        The first DataFrame to be merged.
-    df2 : pandas.DataFrame
-        The second DataFrame to be merged.
-    suffix_1 : str
-        The suffix to be added to the column names of the first DataFrame (`df1`).
-    suffix_2 : str
-        The suffix to be added to the column names of the second DataFrame (`df2`).
-
-    Returns
-    -------
-    pandas.DataFrame
-        A merged DataFrame with the columns from both input DataFrames,
-        with the specified suffixes appended to their names.
-    """
     if print_info:
         print(f'Length of df1: {len(df1):,}')
         print(f'Length of df2: {len(df2):,}')
@@ -62,23 +43,7 @@ def merge_dataframes(df1, df2, suffix_1=None, suffix_2=None, clean=True, print_i
 
 
 def relabel_columns(df, label):
-    """
-    Relabels the columns of a DataFrame by appending a suffix to each column name.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame whose columns are to be relabeled.
-
-    label : str
-        The suffix to be appended to each column name.
-
-    Returns
-    -------
-    pandas.DataFrame
-        A new DataFrame with the columns renamed by appending the specified label.
-        The `attrs['units']` attribute is also updated to match the new column names.
-    """
     # Generate new column names by appending the label
     if label is not None:
         old_cols = list(df.columns)
@@ -129,7 +94,6 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
         return df
 
     for column in df.columns:
-        print(column)
         if column in('utc',time_col):
             continue
 
@@ -139,12 +103,20 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
             if column in aggregated_columns:
                 continue
 
+            vector_columns = [f'{field}_{comp}_{coords}' for comp in ('x','y','z')]
+            skip_x = False
+            if '{field}_{comp}_{coords}' not in grouped:
+                vector_columns[0] = '{field}_{comp}_GSE'
+                skip_x = True
+
             ufloat_series = grouped[[f'{field}_{comp}_{coords}' for comp in ('x','y','z')]].apply(lambda x: calc_average_vector(x, param=f'{field}_{coords}'))
 
             nominals = pd.DataFrame([unp.nominal_values(arr) for arr in ufloat_series], index=ufloat_series.index)
             uncs = pd.DataFrame([unp.std_devs(arr) for arr in ufloat_series], index=ufloat_series.index)
 
             for i, comp in enumerate(['x', 'y', 'z']):
+                if comp=='x' and skip_x:
+                    continue
                 aggregated_columns[f'{field}_{comp}_{coords}'] = nominals[i]
                 aggregated_columns[f'{field}_{comp}_{coords}_unc'] = uncs[i]
 
@@ -170,26 +142,16 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
 
     return resampled_df
 
-
-
 def set_df_indices(df, time_col):
-    """
-    Converts epoch time to datetime and sets the 'time' column as the index of the DataFrame.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame containing the data with a time column in CDF epoch format.
-
-    time_col : str
-        The name of the column containing the time data in CDF epoch format.
-
-    Returns
-    -------
-        None : The function modifies the DataFrame in-place, setting 'time' as the index and removing the original time column.
-    """
     # Converts epoch time to datetimes
-    df[time_col] = cdf_epoch_to_datetime(df[time_col])
+    if time_col not in df:
+        raise Exception(f'"{time_col}" not in df.')
+    try:
+        df[time_col] = cdf_epoch_to_datetime(df[time_col])
+    except:
+        print('Data already in datetime format')
+
     df[time_col] = pd.to_datetime(df[time_col])
     df.set_index(time_col, inplace=True)  # Set 'time_col' as the index
 

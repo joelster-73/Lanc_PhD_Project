@@ -50,3 +50,9 @@
 44 ASY/D, nT                     I6
 45 ASY/H, nT                     I6
 
+--- FOR THE 5-MINUTE DATA ---
+
+46 Proton flux (>10 Mev)         F9.2
+47 Proton flux (>30 Mev)         F9.2
+48 Proton flux (>60 Mev)         F9.2
+
