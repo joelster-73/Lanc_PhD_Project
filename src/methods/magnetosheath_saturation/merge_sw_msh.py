@@ -51,7 +51,7 @@ param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'A
 for sample_interval in ('1min','5min'):
 
     # Solar wind data
-    omni_dir = os.path.join(OMNI_DIR,sample_interval)
+    omni_dir = os.path.join(OMNI_DIR, sample_interval)
     df_sw    = import_processed_data(omni_dir)
 
     # Lagged AE
@@ -72,7 +72,7 @@ for sample_interval in ('1min','5min'):
     df_sw.attrs['units'] = {param_map.get(col,col): df_sw.attrs['units'].get(col,col) for col in df_sw.attrs['units']}
 
     # Magnetosheath data
-    clus_dir = os.path.join(PROC_CLUS_DIR_MSH,sample_interval)
+    clus_dir = os.path.join(PROC_CLUS_DIR_MSH, sample_interval)
     df_msh = import_processed_data(clus_dir)
 
     df_merged = merge_dataframes(df_sw, df_msh, suffix_1='sw', suffix_2='msh')
@@ -89,7 +89,11 @@ for sample_interval in ('1min','5min'):
     idxr = interval_index.get_indexer(df_merged.index)
     mask = idxr != -1
     df_merged = df_merged[mask]
+    print(list(df_merged.columns))
+    continue
 
     # Write
     output_file = os.path.join(MSH_DIR, sample_interval, f'msh_times_{sample_interval}.cdf')
     write_to_cdf(df_merged, output_file, reset_index=True)
+
+# %%

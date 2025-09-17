@@ -80,6 +80,12 @@ def format_string(s):
     if 'mag' in s or 'avg' in s:
         s = f'|{s[0]}|' + s[5:]
 
+    #s = s.replace('r_rho', r'\\rho')
+    s = s.replace('r_rho', r'\sqrt{Y^2+Z^2}')
+    s = s.replace('r_x', 'X')
+    s = s.replace('r_y', 'Y')
+    s = s.replace('r_z', 'Z')
+
     # List of common Greek letters
     greek_letters = ('alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
                      'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi',
@@ -89,12 +95,6 @@ def format_string(s):
     greek_pattern = r'(' + '|'.join(greek_letters) + r')'
 
     s = re.sub(greek_pattern, r'\\\1', s)
-
-    #s = s.replace('r_rho', r'\\rho')
-    s = s.replace('r_rho', r'\sqrt{Y^2+Z^2}')
-    s = s.replace('r_x', 'X')
-    s = s.replace('r_y', 'Y')
-    s = s.replace('r_z', 'Z')
 
     # Split the string on the first underscore
     parts = s.split('_', 1)

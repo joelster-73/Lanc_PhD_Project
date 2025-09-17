@@ -94,6 +94,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
         return df
 
     for column in df.columns:
+
         if column in('utc',time_col):
             continue
 
@@ -101,20 +102,21 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
 
             field, _, coords = column.split('_')
             if column in aggregated_columns:
+                # Skips y and z as done with x
                 continue
 
             vector_columns = [f'{field}_{comp}_{coords}' for comp in ('x','y','z')]
             skip_x = False
-            if '{field}_{comp}_{coords}' not in grouped:
-                vector_columns[0] = '{field}_{comp}_GSE'
+            if vector_columns[0] not in df.columns:
                 skip_x = True
+                vector_columns[0] = f'{field}_x_GSE'
 
-            ufloat_series = grouped[[f'{field}_{comp}_{coords}' for comp in ('x','y','z')]].apply(lambda x: calc_average_vector(x, param=f'{field}_{coords}'))
+            ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x, param=f'{field}_{coords}'))
 
             nominals = pd.DataFrame([unp.nominal_values(arr) for arr in ufloat_series], index=ufloat_series.index)
             uncs = pd.DataFrame([unp.std_devs(arr) for arr in ufloat_series], index=ufloat_series.index)
 
-            for i, comp in enumerate(['x', 'y', 'z']):
+            for i, comp in enumerate(('x','y','z')):
                 if comp=='x' and skip_x:
                     continue
                 aggregated_columns[f'{field}_{comp}_{coords}'] = nominals[i]

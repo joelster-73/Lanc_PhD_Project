@@ -147,7 +147,7 @@ def plot_time_distribution(series, **kwargs):
 def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     df = df.copy()
-    display       = kwargs.get('display','Scatter')
+    display       = kwargs.get('display','heat')
     bin_width     = kwargs.get('bin_width',None)
     x_name        = kwargs.get('x_name',None)
     y_name        = kwargs.get('y_name',None)
@@ -168,9 +168,9 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     brief_title   = kwargs.get('brief_title',None)
     want_legend   = kwargs.get('want_legend',False)
 
-    fig         = kwargs.get('fig',None)
-    ax          = kwargs.get('ax',None)
-    return_objs = kwargs.get('return_objs',False)
+    fig           = kwargs.get('fig',None)
+    ax            = kwargs.get('ax',None)
+    return_objs   = kwargs.get('return_objs',False)
 
     is_heat = False
     if display == 'Heat':
@@ -240,8 +240,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
 
     if display == 'heat':
         n_bins = (calculate_bins(df[x_label],bin_width), calculate_bins(df[y_label],bin_width))
-        h = ax.hist2d(df[x_label], df[y_label],
-                      bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
+        h = ax.hist2d(df[x_label], df[y_label], bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
 
         cbar = fig.colorbar(h[3], ax=ax)
         cbar.ax.tick_params(colors=black)

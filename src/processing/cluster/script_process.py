@@ -5,7 +5,7 @@ Created on Thu May  8 15:58:08 2025
 @author: richarj2
 """
 
-from src.config import LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, LUNA_CLUS_DIR_HIAM, LUNA_CLUS_DIR_HIAQ, PROC_CLUS_DIR_5VPS, LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_FGM, PROC_CLUS_DIR_MSH
+from src.config import LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, LUNA_CLUS_DIR_HIAM, LUNA_CLUS_DIR_HIAQ, PROC_CLUS_DIR_5VPS, LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_FGM, PROC_CLUS_DIR_MSHS
 
 from src.processing.writing import resample_cdf_files
 
@@ -38,10 +38,10 @@ filter_spin_data(PROC_CLUS_DIR_SPIN, region='msh')
 
 # %% Average_1min
 
-resample_cdf_files(PROC_CLUS_DIR_MSH, sample_interval='1min')
+resample_cdf_files(PROC_CLUS_DIR_MSHS, sample_interval='1min')
 
 # %% Average_5min
 
-resample_cdf_files(PROC_CLUS_DIR_MSH, sample_interval='5min')
+resample_cdf_files(PROC_CLUS_DIR_MSHS, sample_interval='5min')
 
 

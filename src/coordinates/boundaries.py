@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 
 from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant
 
-def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, **kwargs):
+def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, **kwargs):
 
     if model is None:
         model = 'jelinek' if surface=='BS' else 'shue'
@@ -15,19 +15,20 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
     elif aberration=='complete':
         simple_ab = False
 
-    column_names = {
-        'r_x_name': 'r_x_GSE',
-        'r_y_name': 'r_y_GSE',
-        'r_z_name': 'r_z_GSE',
-        'r_name': 'r',
-        'r_ax_name': 'r_x_aGSE',
-        'r_ay_name': 'r_y_aGSE',
-        'r_az_name': 'r_z_aGSE',
-        'v_x_name': 'v_x_GSE',
-        'v_y_name': 'v_y_GSE',
-        'v_z_name': 'v_z_GSE',
-        'p_name': 'p_flow'
-    }
+    if column_names is None:
+        column_names = {
+            'r_x_name'  : 'r_x_GSE',
+            'r_y_name'  : 'r_y_GSE',
+            'r_z_name'  : 'r_z_GSE',
+            'r_name'    : 'r',
+            'r_ax_name' : 'r_x_aGSE',
+            'r_ay_name' : 'r_y_aGSE',
+            'r_az_name' : 'r_z_aGSE',
+            'v_x_name'  : 'v_x_GSE',
+            'v_y_name'  : 'v_y_GSE',
+            'v_z_name'  : 'v_z_GSE',
+            'p_name'    : 'p_flow'
+        }
 
 
     # Update position-related names
@@ -40,17 +41,24 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         for key in ['v_x_name', 'v_y_name', 'v_z_name', 'p_name']:
             column_names[key] += f'_{data_key}'
 
-    # New df
-    df_bs = car_to_aGSE(df, column_names=column_names, simple=simple_ab)
+    for key, val in column_names.items():
+        if key in ('r_ax_name','r_ay_name','r_az_name'):
+            continue
+        if val not in df:
+            print(key,'not in df')
 
-    r_name   = column_names['r_name']
+    # New df
+    df_ab = car_to_aGSE(df, column_names=column_names, simple=simple_ab)
+
+    r_name    = column_names['r_name']
     r_ax_name = column_names['r_ax_name']
     r_ay_name = column_names['r_ay_name']
     r_az_name = column_names['r_az_name']
-    v_x_name = column_names['v_x_name']
-    p_name = column_names['p_name']
+    v_x_name  = column_names['v_x_name']
+    p_name    = column_names['p_name']
 
-    valid_mask = ~df_bs[v_x_name].isna()
+
+    valid_mask = ~df_ab[v_x_name].isna()
     if valid_mask.any():
         try:
             p = df.loc[valid_mask,p_name].to_numpy()
@@ -58,37 +66,53 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
             p = 2.056
 
         theta_ps = np.arccos(
-            df_bs.loc[valid_mask, r_ax_name] / df_bs.loc[valid_mask, r_name]
+            df_ab.loc[valid_mask, r_ax_name] / df_ab.loc[valid_mask, r_name]
         )
 
         # Compute the radial distances based on the selected model
-        if surface == 'BS':
-            if model == 'jelinek':
-                r  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
-            else:
-                raise ValueError(f'Model {model} not valid')
-        elif surface == 'MP':
-            if model == 'shue':
-                r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
-            elif model == 'jelinek':
-                r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
-            else:
-                raise ValueError(f'Model {model} not valid')
+        if surface == 'BOTH':
+            r_mp  = mp_shue1998(theta_ps, Pd=p, **kwargs)
+            r_bs  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+
+            df_ab.loc[valid_mask, 'r_MP'] = r_mp
+            df_ab.loc[valid_mask, 'r_BS'] = r_bs
+            df_ab.loc[valid_mask, 'r_phi'] = theta_ps
+            df_ab.loc[valid_mask, 'r_F'] = (df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, 'r_MP']) / (df_ab.loc[valid_mask, 'r_BS'] - df_ab.loc[valid_mask, 'r_MP'])
+
+            df_ab.loc[~valid_mask, ['r_MP','r_BS','r_phi','r_F']] = np.nan
+
         else:
-            raise ValueError(f'Surface {surface} not valid')
 
-        df_bs.loc[valid_mask, f'r_{surface}'] = r
-        df_bs.loc[valid_mask, f'r_{surface}_diff'] = df_bs.loc[valid_mask, r_name] - df_bs.loc[valid_mask, f'r_{surface}']
+            if surface == 'BS':
+                if model == 'jelinek':
+                    r  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+                else:
+                    raise ValueError(f'Model {model} not valid')
+
+            elif surface == 'MP':
+                if model == 'shue':
+                    r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
+                elif model == 'jelinek':
+                    r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
+                else:
+                    raise ValueError(f'Model {model} not valid')
+
+            else:
+                raise ValueError(f'Surface {surface} not valid')
+
+            # Set NaN for invalid rows
+            df_ab.loc[~valid_mask, f'r_{surface}'] = np.nan
+            df_ab.loc[~valid_mask, f'r_{surface}_diff'] = np.nan
+
+            df_ab.loc[valid_mask, f'r_{surface}'] = r
+            df_ab.loc[valid_mask, f'r_{surface}_diff'] = df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, f'r_{surface}']
 
 
-    # Set NaN for invalid rows
-    df_bs.loc[~valid_mask, f'r_{surface}'] = np.nan
-    df_bs.loc[~valid_mask, f'r_{surface}_diff'] = np.nan
-    df_bs.loc[~valid_mask, r_ax_name] = np.nan
-    df_bs.loc[~valid_mask, r_ay_name] = np.nan
-    df_bs.loc[~valid_mask, r_az_name] = np.nan
+    df_ab.loc[~valid_mask, r_ax_name] = np.nan
+    df_ab.loc[~valid_mask, r_ay_name] = np.nan
+    df_ab.loc[~valid_mask, r_az_name] = np.nan
 
-    return df_bs
+    return df_ab
 
 def msh_boundaries(model, surface='BS', aberration='model', **kwargs):
     """
