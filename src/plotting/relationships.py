@@ -76,7 +76,7 @@ def plot_with_side_figs(series_1, series_2, bottom_panel=None, right_panel=None,
 
     elif bottom_panel == 'rolling':
         kwargs['brief_title'] = ''
-        _, plot_rolling_window(series_1, series_2, window_width=10, window_step=0.5, ax=histx_ax, **kwargs)
+        _ = plot_rolling_window(series_1, series_2, window_width=10, window_step=0.5, ax=histx_ax, **kwargs)
         histx_ax.set_xlabel(None)
 
     if series_1.attrs.get('units',{}).get(series_1.name,'')!='mins':

@@ -19,7 +19,7 @@ from .formatting import add_legend, add_figure_title, create_label, dark_mode_fi
 from .utils import save_figure, calculate_bins
 
 from ..analysing.fitting import fit_function
-from ..analysing.calculations import calc_mean_error
+from ..analysing.calculations import calc_mean_error, average_of_averages, std_of_averages
 
 
 def plot_fit(xs, ys, x_range=None, **kwargs):
@@ -394,25 +394,38 @@ def plot_metric(series, metric='mean', **kwargs):
 
 def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
+    ys_unc       = kwargs.get('ys_unc',None)
+    ys_counts    = kwargs.get('ys_counts',None)
+
+    mean_colour = kwargs.get('data_colour',blue)
+    std_colour  = kwargs.get('error_colour','r')
+    region      = kwargs.get('region','std') # std or sem
+
+    fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
-    mean_colour = kwargs.get('mean_colour',blue)
-    std_colour  = kwargs.get('std_colour','r')
+    return_objs = kwargs.get('return_objs',False)
 
     y_unit = ys.attrs.get('units',{}).get(ys.name,'')
 
     while window_step>(window_width/10):
         window_step /= 2
 
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+
     x_centres = np.arange(int(np.min(xs)),int(np.max(xs))+window_step,window_step)
     y_means   = np.full(len(x_centres),np.nan)
+    y_errs    = np.zeros(len(x_centres))
     y_stds    = np.zeros(len(x_centres))
 
     for i, x_c in enumerate(x_centres):
+
         mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
-        if np.sum(mask) >= 1:
-            y_means[i] = np.mean(ys[mask])
-            if np.sum(mask) >= 2:
-                y_stds[i] = np.std(ys[mask], ddof=1)
+        if np.sum(mask)>0:
+            val = average_of_averages(ys, ys_unc, ys_counts, mask)
+            y_means[i], y_errs[i] = val.n, val.s
+            y_stds[i] = std_of_averages(ys, ys_unc, ys_counts, mask)
 
     not_nan = ~np.isnan(y_means)
 
@@ -420,7 +433,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     current_segment = []
     for i, val in enumerate(y_means):
         if not_nan[i]:
-            current_segment.append((x_centres[i], val, y_stds[i]))
+            current_segment.append((x_centres[i], val, y_stds[i], y_errs[i]))
         else:
             if current_segment:
                 segments.append(current_segment)
@@ -429,20 +442,30 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
         segments.append(current_segment)
 
     for segment in segments:
-        x_vals, y_vals, y_errs = zip(*segment)
+        x_vals, y_vals, y_stds, y_errs = zip(*segment)
         x_vals = np.array(x_vals)
         y_vals = np.array(y_vals)
+        y_stds = np.array(y_stds)
         y_errs = np.array(y_errs)
         if len(x_vals)==1:
             ax.plot(x_vals, y_vals, c=mean_colour, marker='.')
         else:
             ax.plot(x_vals, y_vals, c=mean_colour)
-        ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color=std_colour, alpha=0.3)
+        if region in ('std','both'):
+            ax.fill_between(x_vals, y_vals-y_stds, y_vals+y_stds, color=std_colour, alpha=0.2)
+        if region in ('sem','both'):
+            ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color=mean_colour, alpha=0.3)
+
+    if return_objs:
+        return fig, ax
 
     ax.plot([], [], c=mean_colour, label='mean')
-    ax.fill_between([], [], [], color=std_colour, alpha=0.3, label=r'$\pm$std')
+    if region in ('std','both'):
+        ax.fill_between([], [], [], color=std_colour, alpha=0.3, label=r'$\pm$s')
+    if region in ('sem','both'):
+        ax.fill_between([], [], [], color=std_colour, alpha=0.4, label=r'$\pm s_{\bar{x}}$')
 
-    ax.set_ylabel(r'$\mu \pm \sigma$'+f' [{y_unit}]')
+    ax.set_ylabel(r'$\mu \pm \hat{\sigma}$'+f' [{y_unit}]')
     ax.legend(fontsize=8, loc='upper left')
 
 

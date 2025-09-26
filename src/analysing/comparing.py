@@ -13,7 +13,7 @@ def difference_dataframes(df1, df2, c1, c2, diff_type='absolute'):
     return difference_series(series1,series2,diff_type)
 
 
-def difference_series(series1, series2, diff_type='absolute'):
+def difference_series(series1, series2, diff_type='absolute', unit=None):
     """
     Computes the difference between two columns in a DataFrame, optionally
     adjusting for angular differences (radians).
@@ -43,13 +43,16 @@ def difference_series(series1, series2, diff_type='absolute'):
         data.replace([np.inf, -np.inf], np.nan, inplace=True)
         data.name = f'({series1.name} - {series2.name}) / {series2.name}'
 
-    if series1.attrs['units'][series1.name] == 'rad':
+    if unit is None:
+        unit = series1.attrs.get('units',{}).get(series1.name,None)
+
+    if unit == 'rad':
         data = (data + np.pi) % (2 * np.pi) - np.pi
-    elif series1.attrs['units'][series1.name] in ('deg','°'):
+    elif unit in ('deg','°'):
         data = (data + 180) % 360 - 180
 
     data.attrs = {}
-    data.attrs['units'] = {data.name: series1.attrs['units'][series1.name]}
+    data.attrs['units'] = {data.name: unit}
 
     return data
 

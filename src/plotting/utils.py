@@ -148,7 +148,7 @@ def datetime_to_decimal_year_vectorised(date_index):
 
 def calculate_bins(data, bin_width=None, n_bins=20, number=False):
 
-    if not isinstance(data, (pd.Series, np.ndarray)):
+    if not isinstance(data, (pd.Series, np.ndarray, pd.DataFrame)):
         raise TypeError('Input must be a Pandas Series, single-column DataFrame, or one-dimensional NumPy array.')
 
     if bin_width is None:

@@ -6,7 +6,9 @@ import pandas as pd
 from spacepy import pycdf
 import spacepy.pycdf.istp
 
-from scipy.constants import mu_0
+from scipy.constants import mu_0, m_p
+from scipy.constants import physical_constants
+m_a = physical_constants['alpha particle mass'][0]
 
 from ..handling import create_log_file, log_missing_file
 from ..writing import write_to_cdf
@@ -14,7 +16,7 @@ from ..dataframes import add_df_units, resample_data
 from ..reading import import_processed_data
 from ..utils import create_directory
 from ...coordinates.magnetic import calc_B_GSM_angles
-from ...config import R_E
+from ...config import R_E, PROC_OMNI_DIR_5MIN
 
 def process_cluster_files(directory, data_directory, variables, sample_interval='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, quality_directory=None, quality_variables=None):
 
@@ -212,7 +214,7 @@ def extract_cluster_data(cdf_file, variables):
                 data_dict[f'{var_name}_z_GSE'] = data[:, 2]
 
             else:
-                if var_name == 'T_tot':
+                if var_name == 'T_ion':
                     # data is in MK
                     data *= 1e6
                 data_dict[var_name] = data  # pycdf extracts as datetime, no conversion from epoch needed
@@ -220,7 +222,7 @@ def extract_cluster_data(cdf_file, variables):
     return data_dict
 
 # %%
-def combine_spin_data(spin_directory, fvps_directory=None, year=None):
+def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=PROC_OMNI_DIR_5MIN):
 
     field_dir = os.path.join(spin_directory, 'field', 'raw')
     plasma_dir = os.path.join(spin_directory, 'plasma', 'raw')
@@ -234,10 +236,11 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
         try:
             field_df = import_processed_data(field_dir, year=year)
             plasma_df = import_processed_data(plasma_dir, year=year)
+            print(plasma_df.columns)
         except:
             print(f'No data for {year}.')
             continue
-
+        continue
         print(f'Processing {year} data.')
 
         ###----------GSE to GSM----------###
@@ -314,8 +317,8 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
         for comp, limit in zip(('x','y','z'),(2000,400,400)):
             merged_df.loc[np.abs(merged_df[f'V_{comp}_GSM'])>limit,f'V_{comp}_GSM'] = np.nan
 
-        merged_df.loc[merged_df['N_tot']>500,'N_tot'] = np.nan
-        merged_df.loc[merged_df['P_tot']>100,'P_tot'] = np.nan
+        merged_df.loc[merged_df['N_ion']>500,'N_ion'] = np.nan
+        merged_df.loc[merged_df['P_ion']>100,'P_ion'] = np.nan
 
         ###----------CALCULATIONS----------###
 
@@ -326,9 +329,32 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
         merged_df['E_R'] = (merged_df['V_mag'] * np.sqrt(merged_df[f'B_y_{vec_coords}']**2+merged_df[f'B_z_{vec_coords}']**2) * (np.sin(merged_df['B_clock']/2))**2) * 1e-3
         # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
 
+        ###----------PRESSURES----------###
+
+        try: # find ratio of alpha and proton densities
+            omni_df = import_processed_data(omni_dir,year=year)
+            merged_df = pd.merge_asof(
+                merged_df.sort_index(),
+                omni_df[['na_np_ratio']].sort_index(),
+                left_index=True,
+                right_index=True,
+                direction='backward'   # take the closest value on or before the timestamp
+            )
+
+            del omni_df
+        except:
+            merged_df['na_np_ratio'] = 0.05
+
+        # Dynamic pressure
+        # P = 0.5 * rho * V^2
+
+        m_avg = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1)
+        merged_df['P_flow'] = 0.5 * m_avg * merged_df['N_ion']  * merged_df['V_mag']**2 * 1e21
+        # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
+
         # Beta = p_dyn / p_mag, p_mag = B^2/2mu_0
-        merged_df['beta'] = merged_df['P_tot'] / (merged_df['B_avg']**2 / (2*mu_0)) * 1e9
-        # p_dyn *= 1e-9, B_mag *= 1e18, so beta *= 1e9
+        merged_df['beta'] = merged_df['P_flow'] / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
+        # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
 
         ###----------CROSS PRODUCTS----------###
 
@@ -355,8 +381,8 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
 
 def filter_spin_data(spin_directory, region='msh', year=None):
 
-    data_dir = os.path.join(spin_directory, 'combined', 'raw')
-    region_dir = os.path.join(spin_directory, region, 'raw')
+    data_dir = os.path.join(spin_directory, 'combined', 'raw') # input
+    region_dir = os.path.join(spin_directory, region, 'raw')   # output
 
     # Modes for CIS instrument
     region_modes = {'msh': [8,9,10,11,12,13,14],

@@ -45,7 +45,14 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         if key in ('r_ax_name','r_ay_name','r_az_name'):
             continue
         if val not in df:
-            print(key,'not in df')
+            if key=='r_name':
+                r_x_name = column_names['r_x_name']
+                r_y_name = column_names['r_y_name']
+                r_z_name = column_names['r_z_name']
+                df[val] = np.linalg.norm(df[[r_x_name,r_y_name,r_z_name]],axis=1)
+                print(key,'not in df; has been inserted')
+            else:
+                print(key,'not in df')
 
     # New df
     df_ab = car_to_aGSE(df, column_names=column_names, simple=simple_ab)

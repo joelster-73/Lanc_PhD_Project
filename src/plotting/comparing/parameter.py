@@ -8,7 +8,7 @@ Created on Fri May 16 11:27:55 2025
 import numpy as np
 import pandas as pd
 import itertools as it
-from uncertainties import UFloat
+from uncertainties import UFloat, ufloat
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ from collections import Counter
 from ..config import black, white, blue, scatter_markers
 from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
 from ..utils import save_figure, calculate_bins, change_series_name
-from ..distributions import plot_fit
+from ..distributions import plot_fit, plot_rolling_window
 
 from ...analysing.calculations import average_of_averages
 from ...analysing.comparing import difference_columns
@@ -99,6 +99,7 @@ def compare_series(series1, series2, **kwargs):
     want_legend     = kwargs.get('want_legend',True)
     reference_line  = kwargs.get('reference_line',None)
     add_count       = kwargs.get('add_count',False)
+    legend_loc      = kwargs.get('legend_loc',None)
 
     data1_name    = kwargs.get('data1_name',None)
     data2_name    = kwargs.get('data2_name',None)
@@ -139,6 +140,14 @@ def compare_series(series1, series2, **kwargs):
     elif display == 'scatter_binned':
         _ = plot_scatter_binned(series1, series2, **kwargs)
 
+    elif display == 'rolling':
+        kwargs['window_width'] = kwargs['bin_step']
+        _ = plot_rolling_window(series1, series2, **kwargs)
+
+    elif display == 'rolling_multiple':
+        kwargs['window_width'] = kwargs['bin_step']
+        _ = plot_rolling_multiple(series1, series2, **kwargs)
+
     elif display == 'scatter_binned_multiple':
         _ = plot_scatter_binned_multiple(series1, series2, **kwargs)
 
@@ -171,6 +180,9 @@ def compare_series(series1, series2, **kwargs):
     fit_kwargs['fit_width'] = 1.25
 
     _ = plot_fit(series1,series2,**fit_kwargs)
+
+    if np.max(series1)<=0:
+        ax.invert_xaxis()
 
     ###---------------CONVERT TICKS TO DEGREES---------------###
     def rad2deg(x, pos):
@@ -205,7 +217,7 @@ def compare_series(series1, series2, **kwargs):
         brief_title += f', N={len(series1):,}'
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###
-    add_legend(fig, ax, legend_on=want_legend, heat=is_heat)
+    add_legend(fig, ax, legend_on=want_legend, heat=is_heat, loc=legend_loc)
     add_figure_title(fig, black, brief_title, ax=ax)
     dark_mode_fig(fig,black,white,is_heat)
     plt.tight_layout();
@@ -328,20 +340,32 @@ def plot_scatter_binned(xs, ys, **kwargs):
     if not is_marker_like(scat_marker):
         scat_marker = 'o'
 
+    scatter = None
+
     for X_bin in calculate_bins(xs,bin_step):
 
         mask = (xs>=X_bin) & (xs<(X_bin+bin_step))
 
-        if np.sum(mask)<2: # So a standard dev can be calculated
+        scatter_size = scat_size
+
+        if np.sum(mask)==0:
             continue
 
-        x = average_of_averages(xs, xs_unc, xs_counts, mask)
-        y = average_of_averages(ys, ys_unc, ys_counts, mask)
+        elif np.sum(mask)==1: # No standard dev.
 
-        if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
-            continue
+            x = ufloat(xs.loc[mask].iloc[0],0)
+            y = ufloat(ys.loc[mask].iloc[0],0)
 
-        ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+            scatter_size *= 0.25
+
+        else:
+            x = average_of_averages(xs, xs_unc, xs_counts, mask)
+            y = average_of_averages(ys, ys_unc, ys_counts, mask)
+
+            if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
+                continue
+
+            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
 
         if zs is not None:
 
@@ -349,12 +373,12 @@ def plot_scatter_binned(xs, ys, **kwargs):
             if isinstance(z, UFloat):
                 z = z.n
 
-            scatter = ax.scatter(x.n, y.n, c=z, cmap='cool', marker=scat_marker, vmin=z_min, vmax=z_max, s=scat_size)
+            scatter = ax.scatter(x.n, y.n, c=z, cmap='cool', marker=scat_marker, vmin=z_min, vmax=z_max, s=scatter_size)
 
         else:
             colour = data_colour if is_color_like(data_colour) else blue
 
-            ax.scatter(x.n, y.n, c=colour, s=scat_size)
+            ax.scatter(x.n, y.n, c=colour, s=scatter_size, marker=scat_marker)
 
     if scatter:
         cbar = plt.colorbar(scatter)
@@ -363,7 +387,54 @@ def plot_scatter_binned(xs, ys, **kwargs):
 
         cbar.set_label(z_label)
 
-    return fig, ax, cbar
+        return fig, ax, cbar
+
+    return fig, ax
+
+def plot_rolling_multiple(xs, ys, **kwargs):
+
+    zs           = kwargs.get('zs',None)
+    zs_edges     = kwargs.get('zs_edges',None)
+
+    z_min        = kwargs.get('z_min',None)
+    z_max        = kwargs.get('z_max',None)
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+    if zs is None or zs_edges is None:
+        print('Need zs and zs edges for splitting scatter.')
+        return plot_scatter_binned(xs, ys, **kwargs)
+
+    z_bins, z_labels, z_vals = create_multiple_labels(zs, zs_edges, z_min, z_max)
+
+    z_min = np.min(zs) if z_min is None else z_min
+    z_max = np.max(zs) if z_max is None else z_max
+
+    cmap = plt.get_cmap('cool')
+    norm = plt.Normalize(vmin=z_min, vmax=z_max)
+
+    for z_i, (z_bin, z_val, z_label) in  enumerate(zip(z_bins, z_vals, z_labels)):
+
+        mask = (zs>=z_bin[0]) & (zs<z_bin[1])
+
+        if np.sum(mask)==0:
+            continue
+
+        colour = cmap(norm(z_val))
+        kwargs['data_colour'] = colour
+        kwargs['error_colour'] = colour
+
+        ## NEEDS TO ACCOUNT OF UNCS AND COUNTS
+        _ = plot_rolling_window(xs.loc[mask], ys.loc[mask], **kwargs)
+
+        ax.plot([], [], c=colour, label=z_label)
+
+
+    return fig, ax
 
 def plot_scatter_binned_multiple(xs, ys, **kwargs):
 
@@ -376,7 +447,6 @@ def plot_scatter_binned_multiple(xs, ys, **kwargs):
     xs_counts    = kwargs.get('xs_counts',None)
     ys_counts    = kwargs.get('ys_counts',None)
 
-    data_colour  = kwargs.get('data_colour',blue)
     error_colour = kwargs.get('error_colour','k')
     scat_size    = kwargs.get('scatter_size',0.5)
 
@@ -391,84 +461,98 @@ def plot_scatter_binned_multiple(xs, ys, **kwargs):
     if fig is None or ax is None:
         fig, ax = plt.subplots()
 
-    if zs_edges is not None and zs is not None:
+    if zs is None or zs_edges is None:
+        print('Need zs and zs edges for splitting scatter.')
+        return plot_scatter_binned(xs, ys, **kwargs)
 
-        z_unit = zs.attrs.get('units',{}).get(zs.name, None)
-        if z_unit is not None and z_unit not in ('1','NUM',''):
-            z_unit = f' {z_unit}'
-        else:
-            z_unit = ''
-
-        if len(zs_edges)==1:
-            z_min = np.min(zs) if z_min is None else z_min
-            z_max = np.max(zs) if z_max is None else z_max
-
-            zs_bins  = [[np.min(zs),zs_edges[0]],[zs_edges[0],np.max(zs)]]
-            z_labels = [f'{zs.name}<{zs_edges[0]}{z_unit}',f'{zs.name}$\\geq${zs_edges[0]}{z_unit}']
-            z_vals   = [z_min, z_max]
-        else:
-            z_min = zs_edges[0]
-            z_max = zs_edges[-1]
-
-            zs_edges = np.array(zs_edges)
-            zs_bins  = []
-            z_labels = []
-            z_vals   = []
-            for z_i, _ in enumerate(zs_edges):
-
-                if z_i==0:
-                    lower = np.min(zs)
-                else:
-                    lower = (zs_edges[z_i]+zs_edges[z_i-1])/2
-
-                if z_i==len(zs_edges)-1:
-                    upper = np.max(zs)
-                else:
-                    upper = (zs_edges[z_i]+zs_edges[z_i+1])/2
-
-                zs_bins.append([lower,upper])
-                z_labels.append(f'{zs.name}={zs_edges[z_i]}{z_unit}')
-                z_vals.append(zs_edges[z_i])
-
+    z_bins, z_labels, z_vals = create_multiple_labels(zs, zs_edges, z_min, z_max)
 
     for X_bin in calculate_bins(xs,bin_step):
 
         mask_X = (xs>=X_bin) & (xs<(X_bin+bin_step))
 
-        if zs is not None:
+        for z_i, (z_bin, z_val) in  enumerate(zip(z_bins, z_vals)):
 
-            for z_i, (z_bin, z_val) in  enumerate(zip(zs_bins, z_vals)):
+            mask = mask_X.copy()
 
-                mask = mask_X.copy()
+            mask &= (zs>=z_bin[0]) & (zs<z_bin[1])
 
-                mask &= (zs>=z_bin[0]) & (zs<z_bin[1])
+            if np.sum(mask)==0:
+                continue
 
-                if np.sum(mask)<2: # So a standard dev. can be calculated
-                    continue
+            elif np.sum(mask)==1: # No standard dev.
 
-                x = average_of_averages(xs, xs_unc, xs_counts, mask)
-                y = average_of_averages(ys, ys_unc, ys_counts, mask)
+                ax.scatter(xs.loc[mask].iloc[0], ys.loc[mask].iloc[0], c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2)*0.25)
+                continue
 
-                if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
-                    continue
+            x = average_of_averages(xs, xs_unc, xs_counts, mask)
+            y = average_of_averages(ys, ys_unc, ys_counts, mask)
 
-                ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.8, capthick=0.4, lw=0.4, zorder=1)
+            if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
+                continue
 
-                scatter = ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2))
+            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.8, capthick=0.4, lw=0.4, zorder=1)
 
-        else:
-            colour = data_colour if is_color_like(data_colour) else blue
+            ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2))
 
-            ax.scatter(x.n, y.n, c=colour, s=scat_size)
 
-    if scatter:
-        for z_i, (z_val, z_label) in enumerate(zip(z_vals, z_labels)):
+    for z_i, (z_val, z_label) in enumerate(zip(z_vals, z_labels)):
 
-            ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2), label=z_label)
+        ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2), label=z_label)
 
 
     return fig, ax
 
+def create_multiple_labels(zs, zs_edges, z_min, z_max):
+
+    z_unit = zs.attrs.get('units',{}).get(zs.name, None)
+    z_edges_label = zs_edges
+
+    if z_unit in ('rad','deg','°'):
+        z_unit = ' °'
+        z_edges_label = np.degrees(z_edges_label)
+    elif z_unit is not None and z_unit not in ('1','NUM',''):
+        z_unit = f' {z_unit}'
+    else:
+        z_unit = ''
+
+    if len(zs_edges)==1:
+        z_min = np.min(zs) if z_min is None else z_min
+        z_max = np.max(zs) if z_max is None else z_max
+
+        zs_bins  = [[np.min(zs),zs_edges[0]],[zs_edges[0],np.max(zs)]]
+        z_labels = [f'${data_string(zs.name)}$<{z_edges_label[0]:.1f}{z_unit}',
+                    f'${data_string(zs.name)}$$\\geq${z_edges_label[0]:.1f}{z_unit}']
+        z_vals   = [z_min, z_max]
+
+    else:
+        z_min = zs_edges[0]
+        z_max = zs_edges[-1]
+
+        zs_edges = np.array(zs_edges)
+        zs_bins  = []
+        z_labels = []
+        z_vals   = []
+        for z_i, _ in enumerate(zs_edges):
+
+            if z_i==0:
+                lower = np.min(zs)
+            else:
+                lower = (zs_edges[z_i]+zs_edges[z_i-1])/2
+
+            if z_i==(len(zs_edges)-1):
+                upper = np.max(zs)
+            else:
+                upper = (zs_edges[z_i]+zs_edges[z_i+1])/2
+
+            zs_bins.append([lower,upper])
+            z_labels.append(f'${data_string(zs.name)}$={z_edges_label[z_i]:.1f}{z_unit}')
+            z_vals.append(zs_edges[z_i])
+
+    return zs_bins, z_labels, z_vals
+
+
+# %%
 
 def plot_scatter_with_dict(xs, ys, **kwargs):
 
@@ -529,14 +613,19 @@ def plot_scatter_with_dict(xs, ys, **kwargs):
 
 
 
-def plot_nguyen(df, col_n, col_b, **kwargs):
+def plot_nguyen(df, col_n, col_b, col_n_sw=None, col_b_sw=None, **kwargs):
+
+    if col_n_sw is None:
+        col_n_sw = col_n
+    if col_b_sw is None:
+        col_b_sw = col_b
 
     mask = np.ones(len(df),dtype=bool)
-    for param in (f'{col_n}_msh',f'{col_n}_sw',f'{col_b}_msh',f'{col_b}_sw'):
+    for param in (f'{col_n}_msh',f'{col_n_sw}_sw',f'{col_b}_msh',f'{col_b_sw}_sw'):
         mask &= ~np.isnan(df[param])
 
-    series_n = (df.loc[mask,f'{col_n}_msh']/df.loc[mask,f'{col_n}_sw'])
-    series_b = (df.loc[mask,f'{col_b}_msh']/df.loc[mask,f'{col_b}_sw'])
+    series_n = (df.loc[mask,f'{col_n}_msh']/df.loc[mask,f'{col_n_sw}_sw'])
+    series_b = (df.loc[mask,f'{col_b}_msh']/df.loc[mask,f'{col_b_sw}_sw'])
 
     series_n.name = r'N_C1 / N_OMNI'
     series_b.name = r'B_C1 / B_OMNI'

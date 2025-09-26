@@ -89,7 +89,7 @@ def format_string(s):
     # List of common Greek letters
     greek_letters = ('alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
                      'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi',
-                     'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega')
+                     'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega', 'Delta')
 
     # Create a regex pattern to match Greek letters anywhere
     greek_pattern = r'(' + '|'.join(greek_letters) + r')'
@@ -104,7 +104,7 @@ def format_string(s):
         subscript = parts[1].replace('_', ',')
 
         # Use regex to find and replace Greek letters with their LaTeX format
-        subscript = re.sub(greek_pattern, r'\\\1', subscript)
+        #subscript = re.sub(greek_pattern, r'\\\1', subscript)
 
         return f'{parts[0]}_{{{subscript}}}'
     else:

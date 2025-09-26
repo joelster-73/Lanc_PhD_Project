@@ -33,7 +33,7 @@ def merge_dataframes(df1, df2, suffix_1=None, suffix_2=None, clean=True, print_i
     merged.attrs['global'].update(new_df2.attrs['global'])
 
     if clean:
-        cleaned = merged.dropna()
+        cleaned = merged.dropna(how='all')
         if print_info:
             print(f'Length of merged df: {len(cleaned):,}\n')
         return cleaned
@@ -78,7 +78,7 @@ def replace_inf(df, replace_large=False, threshold=1e28):
 
     return df
 
-def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True, show_print=False):
+def resample_data(df, time_col='epoch', sample_interval='1min'):
 
     df = df.copy()
     if time_col == 'index':
@@ -111,7 +111,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
                 skip_x = True
                 vector_columns[0] = f'{field}_x_GSE'
 
-            ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x, param=f'{field}_{coords}'))
+            ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x.dropna(), param=f'{field}_{coords}'))
 
             nominals = pd.DataFrame([unp.nominal_values(arr) for arr in ufloat_series], index=ufloat_series.index)
             uncs = pd.DataFrame([unp.std_devs(arr) for arr in ufloat_series], index=ufloat_series.index)
@@ -127,7 +127,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
         else:
             # Use standard mean for other columns
             unit = df.attrs['units'].get(column)
-            ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x, unit=unit))
+            ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x.dropna(), unit=unit))
 
             aggregated_columns[column] = pd.Series(unp.nominal_values(ufloat_series), index=ufloat_series.index)
             aggregated_columns[f'{column}_unc'] = pd.Series(unp.std_devs(ufloat_series), index=ufloat_series.index)
@@ -138,7 +138,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', show_count=True,
     resampled_df.rename_axis('epoch', inplace=True)
     if time_col != 'index':
         resampled_df.reset_index(inplace=True)
-    resampled_df.dropna(inplace=True)
+    resampled_df.dropna(how='all',inplace=True)
     if 'utc' in resampled_df:
         resampled_df.drop(columns=['utc'], inplace=True)
 

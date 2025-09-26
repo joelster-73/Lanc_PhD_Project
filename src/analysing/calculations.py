@@ -45,7 +45,6 @@ def average_of_averages(series, series_uncs=None, series_counts=None, mask=None)
         numerator = np.nansum(counts * (means - overall_mean) ** 2)
         pooled_var = numerator / (N - 1)
         overall_sem = np.sqrt(pooled_var / N)
-
         return ufloat(overall_mean, overall_sem)
 
     # Case 3: Counts and SEMs both provided
@@ -57,8 +56,46 @@ def average_of_averages(series, series_uncs=None, series_counts=None, mask=None)
     numerator = np.nansum((counts - 1) * (s_i ** 2) + counts * (means - overall_mean) ** 2)
     pooled_var = numerator / (N - 1)
     overall_sem = np.sqrt(pooled_var / N)
-
     return ufloat(overall_mean, overall_sem)
+
+def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+
+    if mask is None:
+        mask = np.ones(len(series), dtype=bool)
+
+    for data in (series,series_uncs,series_counts):
+        if data is not None:
+            mask &= ~np.isnan(data)
+
+    # Case 1: No counts provided (or all zero) → fall back to simple mean/error
+    if series_counts is None or np.nansum(series_counts.loc[mask]) == 0:
+        if series_uncs is not None:
+            ufloats = series.loc[mask].combine(series_uncs.loc[mask], lambda v, u: ufloat(v, u))
+            return calc_sample_std(ufloats)
+        return calc_sample_std(series.loc[mask])
+
+    # Extract arrays
+    means  = np.array(series.loc[mask], dtype=float)
+    counts = np.array(series_counts.loc[mask], dtype=float)
+
+    # Case 2: Counts provided, SEMs missing
+    if series_uncs is None:
+        overall_mean = np.average(means, weights=counts)
+
+        N = np.nansum(counts)
+        numerator = np.nansum(counts * (means - overall_mean) ** 2)
+        pooled_var = numerator / (N - 1)
+        return np.sqrt(pooled_var)
+
+    # Case 3: Counts and SEMs both provided
+    sems = np.array(series_uncs.loc[mask], dtype=float)  # group SEMs
+    overall_mean = np.average(means, weights=counts)
+
+    N = np.nansum(counts)
+    s_i = sems * np.sqrt(counts)   # convert SEMs back to SDs
+    numerator = np.nansum((counts - 1) * (s_i ** 2) + counts * (means - overall_mean) ** 2)
+    pooled_var = numerator / (N - 1)
+    return np.sqrt(pooled_var)
 
 
 def calc_mean_error(series, start=None, end=None, unit=None):
@@ -89,7 +126,6 @@ def calc_mean_error(series, start=None, end=None, unit=None):
 
     return calc_simple_mean_error(series)
 
-
 def calc_simple_mean_error(data):
 
     try: # check if data has errors
@@ -112,6 +148,7 @@ def calc_simple_mean_error(data):
         err     = sem(data)
 
     return ufloat(mean, err)
+
 
 def calc_sample_std(series, start=None, end=None, unit=None):
 

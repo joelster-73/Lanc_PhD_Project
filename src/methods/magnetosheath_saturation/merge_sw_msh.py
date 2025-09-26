@@ -7,7 +7,7 @@ Created on Tue Sep 16 12:21:25 2025
 import os
 import pandas as pd
 
-from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_MSH, MSH_DIR, OMNI_DIR
+from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_5VPS, MSH_DIR, OMNI_DIR
 from src.processing.reading import import_processed_data
 from src.processing.dataframes import merge_dataframes
 from src.processing.writing import write_to_cdf
@@ -42,13 +42,22 @@ time_ranges = [[str(start), str(end)] for start, end in zip(
 
 # %% SW_MSH_Data
 
+# With Plasma
+data_pop = 'with_plasma'
+cluster_directory = PROC_CLUS_DIR_MSH
+sample_intervals = ('1min','5min')
+
+# Field only
+data_pop = 'field_only'
+cluster_directory = PROC_CLUS_DIR_5VPS
+sample_intervals = ('5min',)
+
 lag    = 17
 dt_lag = pd.Timedelta(minutes=lag)
-param_map = {'n_p': 'N_tot', 'V_flow': 'V_mag', 'P_flow': 'P_tot'}
 param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'AE_17m_sw','SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
 
 
-for sample_interval in ('1min','5min'):
+for sample_interval in sample_intervals:
 
     # Solar wind data
     omni_dir = os.path.join(OMNI_DIR, sample_interval)
@@ -68,11 +77,12 @@ for sample_interval in ('1min','5min'):
         temp = temp.interpolate(method='time')
         df_sw[f'AE_{lag}m'] = temp.loc[target_index].values
 
-    df_sw.columns = [param_map.get(col,col) for col in df_sw.columns]
-    df_sw.attrs['units'] = {param_map.get(col,col): df_sw.attrs['units'].get(col,col) for col in df_sw.attrs['units']}
+    # Writes OMNI with lag to file
+    output_file = os.path.join(OMNI_DIR, 'with_lag', f'omni_{sample_interval}.cdf')
+    write_to_cdf(df_sw, output_file, reset_index=True)
 
     # Magnetosheath data
-    clus_dir = os.path.join(PROC_CLUS_DIR_MSH, sample_interval)
+    clus_dir = os.path.join(cluster_directory, sample_interval)
     df_msh = import_processed_data(clus_dir)
 
     df_merged = merge_dataframes(df_sw, df_msh, suffix_1='sw', suffix_2='msh')
@@ -89,11 +99,7 @@ for sample_interval in ('1min','5min'):
     idxr = interval_index.get_indexer(df_merged.index)
     mask = idxr != -1
     df_merged = df_merged[mask]
-    print(list(df_merged.columns))
-    continue
 
     # Write
-    output_file = os.path.join(MSH_DIR, sample_interval, f'msh_times_{sample_interval}.cdf')
+    output_file = os.path.join(MSH_DIR, data_pop, sample_interval, f'msh_times_{sample_interval}.cdf')
     write_to_cdf(df_merged, output_file, reset_index=True)
-
-# %%

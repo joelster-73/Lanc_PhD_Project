@@ -126,37 +126,49 @@ def update_cdf_attributes(directory, new_values, add=True):
     print('Attribute update complete.')
 
 
-def resample_cdf_files(directory, sample_interval):
+def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
 
     parent = os.path.dirname(directory)
-    samp_dir = os.path.join(parent, sample_interval)
+    samp_dir = os.path.join(parent, sample_interval) # output
     create_directory(samp_dir)
 
     cdf_files = get_processed_files(directory)
 
-    raw_df = import_processed_data(directory)
-    time_col = raw_df.attrs.get('global',{}).get('time_col','epoch')
+    if not yearly_files:
+        raw_df = import_processed_data(directory)
+        time_col = raw_df.attrs.get('global',{}).get('time_col','epoch')
 
     print(f'Resampling to {sample_interval} resolution.')
 
-    for year in range(2000,2023):
+    for year in range(2000,2024):
 
         print(f'Processing {year} data.')
 
-        year_mask = raw_df.index.year==year
-        if np.sum(year_mask)==0:
-            print(f'No {year} data.\n')
-            continue
+        if yearly_files:
+            try:
+                yearly_df = import_processed_data(directory,year=year)
+            except:
+                print(f'No {year} data.\n')
+                continue
+
+            time_col = yearly_df.attrs.get('global',{}).get('time_col','epoch')
+
+        else:
+            year_mask = raw_df.index.year==year
+            if np.sum(year_mask)==0:
+                print(f'No {year} data.\n')
+                continue
+
+            yearly_df = raw_df.loc[year_mask]
 
         file_name = next((os.path.basename(f) for f in cdf_files if f'_{year}' in os.path.basename(f)),None)
         if file_name is None:
             continue
 
-        yearly_df = raw_df.loc[year_mask]
-
         # resample and write to file
         sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
         add_df_units(sampled_df)
+
 
         output_file = os.path.join(samp_dir, file_name)
         attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}

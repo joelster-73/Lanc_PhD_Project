@@ -22,7 +22,6 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
         # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]
-
         try:
             file_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
             df = read_spacepy_object(file_data)
@@ -37,7 +36,6 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
                     for k, v in df_param.attrs.items():
                         if k not in df.attrs:
                             df.attrs[k] = v
-
     for column in df.columns:
         if df.attrs.get('units',{}).get(column, '') == 'STRING':
             df[column] = df[column].str.strip()

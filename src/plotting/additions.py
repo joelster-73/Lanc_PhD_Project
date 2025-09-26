@@ -25,12 +25,12 @@ def plot_segments(ax, data, colour, label, name, lw=0.6, fmt='-', marker=None, d
         else:
             ax.plot(segment[name], c=colour, lw=lw, ls=fmt, marker=marker)
 
-def create_circle(ax, centre, radius, colour='black'):
+def create_circle(ax, centre=(0,0), radius=1, colour='black'):
     circle = Circle(centre, radius, facecolor=colour, edgecolor='grey')
     ax.add_patch(circle)
 
 
-def create_quarter_circle_marker(ax, centre, radius, angle_start=90):
+def create_quarter_circle_marker(ax, centre=(0,0), radius=1, angle_start=90):
 
     # Create one semi-circle
     white_half = Wedge(centre, radius, angle_start - 90, angle_start, facecolor='w', edgecolor='k', clip_on=False)
@@ -38,7 +38,7 @@ def create_quarter_circle_marker(ax, centre, radius, angle_start=90):
     ax.add_patch(white_half)
 
 
-def create_half_circle_marker(ax, centre, radius, angle_start=90, full=True):
+def create_half_circle_marker(ax, centre=(0,0), radius=1, angle_start=90, full=True):
     """
     Creates a half-circle Earth marker (half white, half black).
     """
@@ -46,12 +46,12 @@ def create_half_circle_marker(ax, centre, radius, angle_start=90, full=True):
     if full:
         black_half = Wedge(centre, radius, angle_start, angle_start + 180, facecolor='k', edgecolor='k', clip_on=False)
         white_half = Wedge(centre, radius, angle_start + 180, angle_start + 360, facecolor='w', edgecolor='k', clip_on=False)
+        ax.add_patch(black_half)
     else:
-        black_half = Wedge(centre, radius, angle_start, angle_start + 90, facecolor='k', edgecolor='k', clip_on=False)
-        white_half = Wedge(centre, radius, angle_start - 90, angle_start, facecolor='w', edgecolor='k', clip_on=False)
+        white_half = Wedge(centre, radius, angle_start, angle_start+180, facecolor='w', edgecolor='k', clip_on=False)
 
-    ax.add_patch(black_half)
     ax.add_patch(white_half)
+
 
 def plot_error_region(ax, xs, ys, y_errs, c='k', alpha=0.1, marker='x', label=None, step=None):
 
