@@ -145,9 +145,8 @@ def plot_freq_hist(series, **kwargs):
     ax          = kwargs.get('ax',None)
     return_objs = kwargs.get('return_objs',False)
 
-
     data_str = data_string(series.name)
-    unit = series.attrs.get('units', {}).get(series.name, None)
+    unit     = series.attrs.get('units', {}).get(series.name, None)
 
     series = series.dropna()
 
@@ -179,6 +178,7 @@ def plot_freq_hist(series, **kwargs):
     ###-------------------FITTING-------------------###
     if fit_type in ('mean','median'):
         plot_metric(series_0, metric=fit_type, **kwargs)
+
     else:
         mids = 0.5 * (bins[1:] + bins[:-1])
         bin_width = bins[1] - bins[0]
@@ -186,10 +186,15 @@ def plot_freq_hist(series, **kwargs):
         xmax = mids[-1] + 0.5 * bin_width
         x_plot = np.linspace(xmin, xmax, 500)
 
-        if fit_err=='count':
-            kwargs['ys_unc'] = np.sqrt(counts+1) # +1 to avoid /0 errors
+        kwargs_fit = kwargs.copy()
+        kwargs_fit['xs_unc'] = None
+        if fit_err is None:
+            kwargs_fit['ys_unc'] = None
+        elif fit_err=='count':
+            print('Using counts and uncertainties on fit')
+            kwargs_fit['ys_unc'] = np.sqrt(counts+1) # +1 to avoid /0 errors
 
-        fit_dict = plot_fit(mids, counts, x_range=x_plot, unit=unit, **kwargs)
+        fit_dict = plot_fit(mids, counts, x_range=x_plot, unit=unit, **kwargs_fit)
 
         if fit_type=='lognormal':
             yerrs = kwargs.get('ys_unc',None)

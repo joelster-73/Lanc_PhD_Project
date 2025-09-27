@@ -7,6 +7,7 @@ Created on Thu May  8 18:08:23 2025
 
 import pandas as pd
 from spacepy import pycdf
+from contextlib import ExitStack
 
 from .filtering import exclude_days, filter_data
 from .handling import get_processed_files, get_cdf_file
@@ -16,26 +17,22 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
 
     if file_name:
         cdf_file = get_cdf_file(directory, filename=file_name)
-        file_data = pycdf.CDF(cdf_file)
-        df = read_spacepy_object(file_data)
-    else:
-        # Find all .cdf files containing the specified keyword in their names and within the date range
+        df = read_spacepy_object(cdf_file)
+    else: # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]
         try:
-            file_data = pycdf.concatCDF([pycdf.CDF(f) for f in cdf_files])
-            df = read_spacepy_object(file_data)
-
-        except:
-            # CDF files for different parameters
+            df = read_spacepy_object(cdf_files)
+        except Exception: # CDF files for different parameters
             df = pd.DataFrame()
             for f in cdf_files:
-                with pycdf.CDF(f) as cdf:
-                    df_param = read_spacepy_object(cdf)
-                    df = pd.concat([df,df_param],axis=1)
-                    for k, v in df_param.attrs.items():
-                        if k not in df.attrs:
-                            df.attrs[k] = v
+                df_param = read_spacepy_object(f)
+                df = pd.concat([df, df_param], axis=1)
+
+                for k, v in df_param.attrs.items():
+                    if k not in df.attrs:
+                        df.attrs[k] = v
+
     for column in df.columns:
         if df.attrs.get('units',{}).get(column, '') == 'STRING':
             df[column] = df[column].str.strip()
@@ -76,23 +73,30 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
     return df
 
 
-def read_spacepy_object(cdf_data):
+def read_spacepy_object(file_paths):
+
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
 
     data_dict = {}
     units_dict = {}
 
-    # Extract data and units from each variable in the CDF
-    for col in cdf_data:
-        data_dict[col] = cdf_data[col][...]
-        units_dict[col] = cdf_data[col].attrs.get('units', None)  # Extract units if available
+    with ExitStack() as stack:
+        cdfs = [stack.enter_context(pycdf.CDF(f)) for f in file_paths]
 
-    # Convert the dictionary to a DataFrame
+        # If multiple files: concatCDF
+        if len(cdfs) > 1:
+            cdf_data = pycdf.concatCDF(cdfs)
+        else:
+            cdf_data = cdfs[0]
+
+        # Extract data + units
+        for col in cdf_data:
+            data_dict[col] = cdf_data[col][...]
+            units_dict[col] = cdf_data[col].attrs.get('units', None)
+
+    # Build DataFrame outside the with-block (CDFs closed now)
     df = pd.DataFrame(data_dict)
-    df.attrs['units'] = units_dict  # Stores the units
-
-
-    for key, value in cdf_data.attrs.items():
-        if key not in df.attrs:
-            df.attrs[key] = value
+    df.attrs['units'] = units_dict
 
     return df

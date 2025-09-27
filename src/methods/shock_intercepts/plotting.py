@@ -183,8 +183,9 @@ def plot_time_differences(shocks, bottom_panel='hist', right_panel='hist', **kwa
         series_x_unc.attrs['units'][series_x_unc.name] = 'mins'
 
     if colouring=='spacecraft':
-        kwargs['colour_values'] = df.loc[mask,'detector']
+        kwargs['zs'] = df.loc[mask,'detector']
         kwargs['error_colour'] = black
+        kwargs['display'] = 'scatter_dict'
 
         if x_axis=='delta_x':
             new_x_name = 'X_SC - X_BSN'

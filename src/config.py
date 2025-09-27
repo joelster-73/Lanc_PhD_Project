@@ -82,7 +82,7 @@ PROC_WIND_DIR_3SEC     = f'{WIND_DIR}/3_sec/'
 PROC_THEMIS_DIR        = THEMIS_DIR
 
 # Processed Shocks Data
-PROC_SHOCKS_DIR        = f'{PROCESSED_DATA_DIR}/SHOCKS'
+PROC_SHOCKS_DIR        = SHOCKS_DIR
 
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'

@@ -141,11 +141,9 @@ def compare_series(series1, series2, **kwargs):
         _ = plot_scatter_binned(series1, series2, **kwargs)
 
     elif display == 'rolling':
-        kwargs['window_width'] = kwargs['bin_step']
         _ = plot_rolling_window(series1, series2, **kwargs)
 
     elif display == 'rolling_multiple':
-        kwargs['window_width'] = kwargs['bin_step']
         _ = plot_rolling_multiple(series1, series2, **kwargs)
 
     elif display == 'scatter_binned_multiple':
@@ -280,7 +278,7 @@ def plot_scatter(xs, ys, **kwargs):
 
             legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1, linestyle='None') for label, colour in sc_colours.items() if spacecraft_counts.get(label, 0) > 0]
 
-            ax.legend(handles=legend_elements, fontsize=8, loc='upper left')
+            ax.legend(handles=legend_elements, fontsize=8, loc='upper left', title=f'N={sum(spacecraft_counts.values()):,}', title_fontsize=10)
 
         else:
             # Using a z-value to apply a continuous colour map

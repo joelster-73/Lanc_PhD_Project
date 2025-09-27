@@ -10,8 +10,7 @@ import matplotlib.gridspec as gridspec
 
 from .utils import save_figure
 #from .formatting import add_figure_title
-from .distributions import plot_freq_hist, plot_rolling_window
-
+from .distributions import plot_freq_hist
 from .comparing.parameter import compare_series
 
 
@@ -42,47 +41,65 @@ def plot_with_side_figs(series_1, series_2, bottom_panel=None, right_panel=None,
         fig, ax = plt.subplots()
         axs = (ax,)
 
-    kwargs['fit_type'] = kwargs.get('main_fit','straight')
-    kwargs['as_text'] = True
-    kwargs['data_colour'] = kwargs['colouring']
+    kwargs_main = kwargs.copy()
+    kwargs_main['fit_type'] = kwargs.get('main_fit','straight')
+    kwargs_main['as_text'] = True
+    kwargs_main['data_colour'] = kwargs['colouring']
 
-    _, axis = compare_series(series_1, series_2, fig=fig, ax=ax, return_objs=True, **kwargs)
+    _, axis = compare_series(series_1, series_2, fig=fig, ax=ax, return_objs=True, **kwargs_main)
     #ylim = np.max(np.abs(ax.get_ylim()))
     #ax.set_ylim(-ylim,ylim)
 
-    if right_panel == 'hist':
-        kwargs['xs_unc'] = None
-        kwargs['ys_unc'] = None
-        kwargs['bin_width'] = 5
-        kwargs['orientation'] = 'horizontal'
-        kwargs['fit_type'] = kwargs.get('right_fit','bimodal')
-        kwargs['brief_title'] = ''
-        _, histy_ax = plot_freq_hist(series_2, fig=fig, ax=histy_ax, return_objs=True, **kwargs)
+    #####----------RIGHT PANEL----------#####
 
+
+    kwargs_right = kwargs.copy()
+    kwargs_right['fig'] = fig
+    kwargs_right['ax'] = histy_ax
+    kwargs_right['return_objs'] = True
+    kwargs_right['as_text'] = True
+    kwargs_right['brief_title'] = ''
+
+    if right_panel == 'hist':
+        kwargs_right['bin_width'] = 5
+        kwargs_right['orientation'] = 'horizontal'
+        kwargs_right['fit_type'] = kwargs.get('right_fit','bimodal')
+        kwargs_right['fit_err'] = 'count'
+
+        _, histy_ax = plot_freq_hist(series_2, **kwargs_right)
         histy_ax.set_ylabel(None)
 
-    # change label positions etc
+    #####----------BOTTOM PANEL----------#####
+
+    kwargs_bottom = kwargs.copy()
+    kwargs_bottom['brief_title'] = ''
+    kwargs_bottom['fig'] = fig
+    kwargs_bottom['ax'] = histx_ax
+    kwargs_bottom['return_objs'] = True
 
     if bottom_panel == 'hist':
-        kwargs['xs_unc'] = None
-        kwargs['ys_unc'] = None
-        kwargs['bin_width'] = 5
-        kwargs['orientation'] = 'vertical'
-        kwargs['fit_type'] = kwargs.get('bottom_fit','bimodal')
-        kwargs['simple_bounds'] = True
-        kwargs['brief_title'] = ''
-        _, histx_ax = plot_freq_hist(series_1,  fig=fig, ax=histx_ax, return_objs=True, **kwargs)
+        kwargs_bottom['bin_width'] = 5
+        kwargs_bottom['orientation'] = 'vertical'
+        kwargs_bottom['fit_type'] = kwargs.get('bottom_fit','bimodal')
+        kwargs_bottom['simple_bounds'] = True
+        kwargs_bottom['fit_err'] = 'count'
+        kwargs_bottom['as_text'] = True
+
+        _, histx_ax = plot_freq_hist(series_1, **kwargs_bottom)
         histx_ax.set_xlabel(None)
 
     elif bottom_panel == 'rolling':
-        kwargs['brief_title'] = ''
-        _ = plot_rolling_window(series_1, series_2, window_width=10, window_step=0.5, ax=histx_ax, **kwargs)
+        kwargs_bottom['display'] = 'rolling'
+        kwargs_bottom['window_width'] = 10
+        kwargs_bottom['window_step'] = 0.5
+        kwargs_bottom['error_colour'] = 'red'
+
+        _ = compare_series(series_1, series_2, **kwargs_bottom)
         histx_ax.set_xlabel(None)
+        histx_ax.set_ylabel(None)
 
     if series_1.attrs.get('units',{}).get(series_1.name,'')!='mins':
         ax.invert_xaxis()
-
-
 
     return_objs = kwargs.get('return_objs',False)
 

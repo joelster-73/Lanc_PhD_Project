@@ -265,14 +265,14 @@ if independent == dependent:
 
 elif dep_source!='msh' and ind_source!='msh':
 
-    _ = compare_columns(df_omni_masked, independent, dependent, display='rolling', scatter_size=20, bin_step=bin_step, brief_title='Full OMNI', data_colour=omni_colour, scat_marker='x', region='sem', fig=fig, ax=ax_tl, return_objs=True)
+    _ = compare_columns(df_omni_masked, independent, dependent, display='rolling', window_width=bin_step, brief_title='Full OMNI', data_colour=omni_colour, region='sem', fig=fig, ax=ax_tl, return_objs=True)
 
     df_omni_param = df_omni_masked.loc[:,independent]
     ax_bl2.hist(df_omni_param, bins=calculate_bins(df_omni_param,bin_step), color=omni_colour)
 
-_ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, display='rolling', scatter_size=20, bin_step=bin_step, data_colour=full_colour, error_colour=full_colour, scat_marker='+', region='sem', fig=fig, ax=ax_tl, return_objs=True)
+_ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, display='rolling', window_width=bin_step, data_colour=full_colour, error_colour=full_colour, region='sem', fig=fig, ax=ax_tl, return_objs=True)
 
-_ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, display='rolling_multiple', scatter_size=20, zs_edges=edges, bin_step=bin_step, region='sem', want_legend=False, fig=fig, ax=ax_bl, return_objs=True)
+_ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, display='rolling_multiple', zs_edges=edges, window_width=bin_step, region='sem', want_legend=False, fig=fig, ax=ax_bl, return_objs=True)
 
 
 # colour meshses

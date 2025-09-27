@@ -18,7 +18,10 @@ from ..coordinates.spatial import cartesian_to_spherical, spherical_to_cartesian
 # %% Mean_error
 
 def average_of_averages(series, series_uncs=None, series_counts=None, mask=None):
-
+    """
+    Level 1
+    Average of data with counts and/or uncertainties
+    """
     if mask is None:
         mask = np.ones(len(series), dtype=bool)
 
@@ -58,8 +61,86 @@ def average_of_averages(series, series_uncs=None, series_counts=None, mask=None)
     overall_sem = np.sqrt(pooled_var / N)
     return ufloat(overall_mean, overall_sem)
 
-def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
 
+def calc_mean_error(series, start=None, end=None, unit=None):
+    """
+    Level 2
+    Mean and sem of data (wrapper)
+    Decides if circular or standard functions
+    """
+    if start:
+        series = series[series.index >= pd.Timestamp(start)]
+    if end:
+        series = series[series.index <= pd.Timestamp(end)]
+
+    if unit is None:
+        unit = series.attrs.get('units', {}).get(series.name, None)
+
+    series = series.dropna().to_numpy()
+
+    if len(series)==0:
+        return np.nan
+
+    if unit in ('rad', 'deg', '°'):
+        if unit in ('deg', '°'):
+            series = np.radians(series)
+
+        val_unc = calc_circular_mean_error(series)
+
+        if unit in ('deg', '°'):
+            return ufloat(np.degrees(val_unc.n),np.degrees(val_unc.s))
+
+        return val_unc
+
+    return calc_simple_mean_error(series)
+
+def calc_simple_mean_error(data):
+    """
+    Level 3
+    Mean and sem of non-angular data
+    Decides if with or without uncertainties
+    """
+    try: # check if data has errors
+        errors  = unp.std_devs(data)
+
+        if np.all(errors == 0):
+            data = unp.nominal_values(data)
+            raise Exception
+
+    except:
+        mean    = np.mean(data)
+        err     = sem(data)
+        return ufloat(mean, err)
+
+    data    = unp.nominal_values(data)
+    weights = 1 / errors**2
+    weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
+
+    mean    = np.average(data, weights=weights)
+    err     = np.sqrt(1 / np.sum(weights))
+
+    return ufloat(mean, err)
+
+def sem(series, nu=1):
+    """
+    Level 4
+    sem of non-angular data
+    """
+    if len(series)<=nu:
+        return 0
+
+    # Standard Error of the Mean using sample std
+    std = np.std(series, ddof=nu)
+    sqrt_count = np.sqrt(np.size(series))
+    return std / sqrt_count
+
+# %% Standard_deviation
+
+def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+    """
+    Level 1
+    Sample standard deviation of data with counts
+    """
     if mask is None:
         mask = np.ones(len(series), dtype=bool)
 
@@ -67,7 +148,7 @@ def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
         if data is not None:
             mask &= ~np.isnan(data)
 
-    # Case 1: No counts provided (or all zero) → fall back to simple mean/error
+    # Case 1: No counts provided (or all zero) - fall back to simple mean/error
     if series_counts is None or np.nansum(series_counts.loc[mask]) == 0:
         if series_uncs is not None:
             ufloats = series.loc[mask].combine(series_uncs.loc[mask], lambda v, u: ufloat(v, u))
@@ -97,61 +178,12 @@ def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
     pooled_var = numerator / (N - 1)
     return np.sqrt(pooled_var)
 
-
-def calc_mean_error(series, start=None, end=None, unit=None):
-
-    if start:
-        series = series[series.index >= pd.Timestamp(start)]
-    if end:
-        series = series[series.index <= pd.Timestamp(end)]
-
-    if unit is None:
-        unit = series.attrs.get('units', {}).get(series.name, None)
-
-    series = series.dropna().to_numpy()
-
-    if len(series)==0:
-        return np.nan
-
-    if unit in ('rad', 'deg', '°'):
-        if unit in ('deg', '°'):
-            series = np.radians(series)
-
-        val_unc = calc_circular_mean_error(series)
-
-        if unit in ('deg', '°'):
-            return ufloat(np.degrees(val_unc.n),np.degrees(val_unc.s))
-
-        return val_unc
-
-    return calc_simple_mean_error(series)
-
-def calc_simple_mean_error(data):
-
-    try: # check if data has errors
-        errors  = unp.std_devs(data)
-
-        if np.all(errors == 0):
-            mean    = np.mean(data)
-            err     = sem(data)
-
-        else:
-            weights = 1 / errors**2
-            weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
-
-            data    = unp.nominal_values(data)
-            err     = np.sqrt(1 / np.sum(weights))
-            mean    = np.average(data, weights)
-
-    except:
-        mean    = np.mean(data)
-        err     = sem(data)
-
-    return ufloat(mean, err)
-
-
 def calc_sample_std(series, start=None, end=None, unit=None):
-
+    """
+    Level 2
+    Sample standard deviation of data (wrapper)
+    Decides if circular or standard functions
+    """
     if start:
         series = series[series.index >= pd.Timestamp(start)]
     if end:
@@ -169,60 +201,110 @@ def calc_sample_std(series, start=None, end=None, unit=None):
         if unit in ('deg', '°'):
             series = np.radians(series)
 
-        unc = circular_stddev(series)
+        unc = calc_circular_std(series)
 
         if unit in ('deg', '°'):
             return np.degrees(unc)
 
         return unc
 
-    return np.std(series,ddof=1)
+    return calc_weighted_std(series)
 
-def sem(series, nu=1):
+def calc_weighted_std(data):
+    """
+    Level 3
+    Sample standard deviation of non-angular data
+    Decides if with or without uncertainties
+    """
+    try: # check if data has errors
+        errors  = unp.std_devs(data)
 
-    if len(series)<=nu:
-        return 0
+        if np.all(errors == 0): # All 0
+            data = unp.nominal_values(data)
+            raise Exception
 
-    # Standard Error of the Mean using sample std
-    std = np.std(series, ddof=nu)
-    sqrt_count = np.sqrt(np.size(series))
-    return std / sqrt_count
+    except: # No uncertainties
+        return np.std(data, ddof=1)
+
+    # Weighted
+    data    = unp.nominal_values(data)
+    weights = 1 / errors**2
+    weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
+
+    mean  = np.average(data, weights=weights)
+    var_b = np.average((data - mean)**2, weights=weights) # biased
+
+    N_eff = (np.sum(weights))**2 / np.sum(weights**2)
+    var = var_b * N_eff / (N_eff - 1)
+
+    return np.sqrt(var)
 
 # %% Circular statistics
 
 def calc_circular_mean_error(data):
-
+    """
+    Level 3
+    Mean and sem of angular data
+    Decides if with or without uncertainties
+    """
     try: # check if data has errors
         errors  = unp.std_devs(data)
 
-        if np.all(errors == 0):
-            raise Exception('No errors')
+        if np.all(errors == 0): # All 0
+            data = unp.nominal_values(data)
+            raise Exception
 
-        else:
-            weights = 1 / errors**2
-            weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
-
-            data    = unp.nominal_values(data)
-
-            mean = circular_avg(data, weights)
-            err = circular_sem(data, weights)
-
-    except:
+    except: # No uncertainties
         mean = circular_mean(data)
         err  = circular_stddev(data) / np.sqrt(len(data))
 
+        return ufloat(mean, err)
+
+    # Weighted
+    data    = unp.nominal_values(data)
+    weights = 1 / errors**2
+    weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
+
+    mean = circular_avg(data, weights)
+    err  = circular_sem(data, weights)
+
     return ufloat(mean, err)
 
-def circular_avg(angles, weights=None):
+def calc_circular_std(data):
+    """
+    Level 3
+    Sample standard deviation of angular data
+    Decides if with or without uncertainties
+    """
+    try: # check if data has errors
+        errors  = unp.std_devs(data)
 
+        if np.all(errors == 0): # All 0
+            data = unp.nominal_values(data)
+            raise Exception
+
+    except: # No uncertainties
+        return circular_stddev(data)
+
+    data = unp.nominal_values(data)
+    weights = 1 / errors**2
+    weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
+
+    return circular_std(data, weights)
+
+def circular_avg(angles, weights=None):
+    """
+    Weighted average of circular data
+    """
     if weights is None:
         weights = np.ones_like(angles)
 
     return np.arctan2(np.sum(weights*np.sin(angles)), np.sum(weights=np.cos(angles)))
 
-
 def circular_sem(angles, weights=None):
-
+    """
+    Weighted sem of circular data
+    """
     if weights is None:
         weights = np.ones_like(angles)
 
@@ -233,6 +315,17 @@ def circular_sem(angles, weights=None):
     n_eff = (np.sum(weights)**2) / np.sum(weights**2)
 
     return std / np.sqrt(n_eff)
+
+def circular_std(angles, weights=None):
+    """
+    Weighted sample standard deviation of circular data
+    """
+    if weights is None:
+        weights = np.ones_like(angles)
+
+    R = np.sqrt((np.sum(weights*np.cos(angles)))**2 + (np.sum(weights*np.sin(angles)))**2) / np.sum(weights)
+
+    return np.sqrt(-2 * np.log(R))
 
 def circular_mean(angles):
 
@@ -251,7 +344,7 @@ def circular_stddev(angles):
 
     # n = len(angles)
     # R = np.sqrt((np.sum(np.cos(angles)) / n)**2 + (np.sum(np.sin(angles)) / n)**2)
-    # return sqrt(1-2lnR)
+    # return sqrt(-2lnR)
 
     return stats.circstd(angles, low=-np.pi, high=np.pi)
 
