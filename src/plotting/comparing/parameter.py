@@ -18,15 +18,13 @@ from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 from collections import Counter
 
-from ..config import black, white, blue, scatter_markers
+from ..config import black, white, blue, scatter_markers, colour_dict, database_colour_dict
 from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
 from ..utils import save_figure, calculate_bins, change_series_name
 from ..distributions import plot_fit, plot_rolling_window
 
 from ...analysing.calculations import average_of_averages
 from ...analysing.comparing import difference_columns
-
-from ...processing.speasy.config import colour_dict, database_colour_dict
 
 def is_marker_like(marker):
     try:

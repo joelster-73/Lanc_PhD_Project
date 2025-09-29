@@ -58,11 +58,10 @@ PROC_CLUS_DIR_MSH5     = f'{PROC_CLUS_DIR_MSH}/5min'
 PROC_MSH_FIELD_DIR     = f'{MSH_DIR}/field_only'
 PROC_MSH_PLASMA_DIR    = f'{MSH_DIR}/with_plasma'
 
+PROC_MSH_FIELD_1MIN   = f'{PROC_MSH_FIELD_DIR}/1min'
 PROC_MSH_FIELD_5MIN   = f'{PROC_MSH_FIELD_DIR}/5min'
 PROC_MSH_PLASMA_1MIN  = f'{PROC_MSH_PLASMA_DIR}/1min'
 PROC_MSH_PLASMA_5MIN  = f'{PROC_MSH_PLASMA_DIR}/5min'
-
-
 
 # Crossings Data
 GOOD_CROSSINGS         = f'{CROSSINGS_DIR}/good_time_windows.txt'

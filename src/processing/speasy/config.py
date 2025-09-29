@@ -8,6 +8,10 @@ Created on Thu May  8 17:24:20 2025
 from datetime import datetime
 import speasy as spz
 
+## COLOUR DICTS HAVE BEEN MOVED TO PLOTTING.CONFIG
+
+
+
 # Data trees
 
 amda_tree = spz.inventories.tree.amda
@@ -257,26 +261,6 @@ speasy_variables = {
     'OMNI': OMNI_dict
 }
 
-
-colour_dict = {
-    'OMNI': 'orange',
-    'C1':   'blue',
-    'C2':   'cornflowerblue',
-    'C3':   'lightskyblue',
-    'C4':   'lightblue',
-    'THA':  'forestgreen',
-    'THB':  'seagreen',
-    'THC':  'mediumseagreen',
-    'THD':  'lightgreen',
-    'THE':  'palegreen',
-    'ACE':  'darkviolet',
-    'DSC':  'deeppink',
-    'GEO':  'cyan',
-    'IMP8': 'crimson',
-    'WIND': 'magenta'
-}
-
-database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}
 
 data_availability_electric = {
     'C1':   (datetime(2000,12,5,19,32),  datetime(2018,12,10,3,1)),

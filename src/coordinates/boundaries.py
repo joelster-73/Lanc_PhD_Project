@@ -29,6 +29,8 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
             'v_z_name'  : 'v_z_GSE',
             'p_name'    : 'p_flow'
         }
+    else:
+        column_names = column_names.copy()
 
 
     # Update position-related names

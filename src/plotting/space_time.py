@@ -19,7 +19,7 @@ from .additions import create_circle, create_half_circle_marker, create_quarter_
 from .formatting import add_legend, add_figure_title, create_label, check_labels, dark_mode_fig, data_string
 from .utils import save_figure, calculate_bins
 
-from ..coordinates.boundaries import msh_boundaries
+from ..coordinates.boundaries import msh_boundaries, mp_shue1998, bs_jelinek2012
 
 # %% Time_distributions
 
@@ -403,6 +403,97 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     save_figure(fig)
     plt.show()
     plt.close()
+
+
+def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, fig=None, ax=None, return_objs=False):
+
+
+    ### MAKE MORE LIKE PLOT ORBIT
+
+
+    ###-------------------PLOTTING POSITION-------------------###
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+    f_step = 0.1
+    f_min = 0
+    f_max = 1
+    f_num = int((f_max-f_min)/f_step)+1
+
+    theta_step = 3
+    theta_min = -90
+    theta_max = 90
+    theta_num = int((theta_max-theta_min)/theta_step)+1
+
+    f_edges = np.linspace(f_min, f_max, f_num)
+    theta_edges = np.linspace(np.radians(theta_min), np.radians(theta_max), theta_num)
+
+    if isinstance(sc_keys,str):
+        sc_keys = (sc_keys,)
+
+    phi = []
+    f   = []
+
+    for sc_key in sc_keys:
+
+        phi.append(df[f'r_phi_{sc_key}']*np.sign(df[f'r_y_GSE_{sc_key}']))
+        f.append(df[f'r_F_{sc_key}'])
+
+    phi = pd.concat(phi, ignore_index=True)
+    f   = pd.concat(f, ignore_index=True)
+
+    counts, f_edges, theta_edges = np.histogram2d(f, phi, bins=[f_edges, theta_edges])
+
+    # meshgrid
+    f_centres = 0.5 * (f_edges[:-1] + f_edges[1:])
+    theta_centres = 0.5 * (theta_edges[:-1] + theta_edges[1:])
+
+    f_centres = f_edges
+    theta_centres = theta_edges
+
+    F, P = np.meshgrid(f_centres, theta_centres, indexing='ij')
+
+    # convert back to radius
+    R = mp_shue1998(P) + F * (bs_jelinek2012(P) - mp_shue1998(P))
+
+    X = R * np.cos(P)
+    Y = R * np.sin(P)
+
+    #cm = axis.pcolormesh(X, Y, counts, cmap='hot', norm=mpl.colors.LogNorm())
+    cm = ax.pcolormesh(X, Y, counts, cmap='hot')
+
+
+    ax.plot(mp_shue1998(theta_edges)*np.cos(theta_edges),mp_shue1998(theta_edges)*np.sin(theta_edges),c='w',ls='--')
+    ax.plot(bs_jelinek2012(theta_edges)*np.cos(theta_edges),bs_jelinek2012(theta_edges)*np.sin(theta_edges),c='w',ls='--')
+
+    create_half_circle_marker(ax, angle_start=270, full=False)
+
+    if colourbar:
+        z_label = 'Counts'
+
+        cbar = fig.colorbar(cm, ax=ax)
+        cbar.set_label(z_label)
+
+    ax.set_xlabel('X [aGSE]')
+    ax.set_ylabel(r'$\sqrt{Y^2+Z^2}$')
+    ax.xaxis.set_inverted(True)
+    ax.yaxis.set_inverted(True)
+
+    ax.set_facecolor('k')
+    ax.set_title(title)
+
+    if return_objs:
+
+        return fig, ax, cbar
+
+    ax.set_aspect('equal')
+
+    plt.tight_layout();
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+# %%
 
 def plot_apogee_perigee(df, **kwargs):
 

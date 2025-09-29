@@ -44,3 +44,23 @@ if large_text:
     plt.rcParams['axes.labelsize'] = 18
 
 scatter_markers = [ 's', 'o', 'v', '1', '2', '3', '4', '^', '<', '>', '.', ',', 'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_']
+
+colour_dict = {
+    'OMNI': 'orange',
+    'C1':   'blue',
+    'C2':   'cornflowerblue',
+    'C3':   'lightskyblue',
+    'C4':   'lightblue',
+    'THA':  'forestgreen',
+    'THB':  'seagreen',
+    'THC':  'mediumseagreen',
+    'THD':  'lightgreen',
+    'THE':  'palegreen',
+    'ACE':  'darkviolet',
+    'DSC':  'deeppink',
+    'GEO':  'cyan',
+    'IMP8': 'crimson',
+    'WIND': 'magenta'
+}
+
+database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}

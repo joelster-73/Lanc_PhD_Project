@@ -9,40 +9,163 @@ Created on Thu Aug 28 12:29:26 2025
 # %%
 import os
 import numpy as np
+import itertools as it
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter
 
-from src.plotting.utils import calculate_bins
-from src.plotting.formatting import data_string
-
-from src.config import PROC_MSH_FIELD_5MIN, OMNI_DIR
+from src.config import MSH_DIR, OMNI_DIR
+from src.analysing.comparing import difference_series
 from src.processing.reading import import_processed_data
 
 from src.plotting.comparing.parameter import compare_columns
 from src.plotting.space_time import plot_orbit_msh
+from src.plotting.utils import calculate_bins
+from src.plotting.formatting import data_string
 
-from src.analysing.comparing import difference_series
+sample_interval = '5min'
+data_pop = 'field_only'
 
 # Solar wind data
 omni_dir = os.path.join(OMNI_DIR, 'with_lag')
-df_sw    = import_processed_data(omni_dir, 'omni_5min.cdf')
+df_sw    = import_processed_data(omni_dir, f'omni_{sample_interval}.cdf')
 
-df_merged = import_processed_data(PROC_MSH_FIELD_5MIN, 'msh_times_c1.cdf')
+msh_spacecraft = 'combined'
+msh_dir = os.path.join(MSH_DIR, data_pop, sample_interval)
+df_merged = import_processed_data(msh_dir, f'msh_times_{msh_spacecraft}.cdf')
 
 # Erroneous values
-df_merged.loc[np.abs(df_merged['B_z_GSM_msh'])>100,'B_z_GSM_msh'] = np.nan
-df_merged.loc[df_merged['MA_sw']>60,'MA_sw'] = np.nan
+if msh_spacecraft=='combined':
+    sc_keys = ('c1','tha','thb','thc','thd','the')
+else:
+    sc_keys = (msh_spacecraft,)
+for sc in sc_keys:
 
-# Add uncertainty
-df_merged['Delta B_theta'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged['B_clock_msh'],unit='rad'))
-df_merged.attrs['units']['Delta B_theta'] = 'rad'
+    # Add uncertainty
+    df_merged[f'Delta B_theta_{sc}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock_{sc}'],unit='rad'))
+    df_merged.attrs['units'][f'Delta B_theta_{sc}'] = 'rad'
 
-df_merged['Delta Bz'] = df_merged['B_z_GSM_msh']/df_merged['B_z_GSM_sw']
-df_merged['Delta Bz'] = df_merged['Delta Bz'].replace([np.inf, -np.inf], np.nan)
-df_merged.attrs['units']['Delta Bz'] = '1'
+    df_merged[f'Delta Bz_{sc}'] = df_merged[f'B_z_GSM_{sc}']/df_merged['B_z_GSM_sw']
+    df_merged[f'Delta Bz_{sc}'] = df_merged[f'Delta Bz_{sc}'].replace([np.inf, -np.inf], np.nan)
+    df_merged.attrs['units'][f'Delta Bz_{sc}'] = '1'
 
+
+# %% Orbits
+
+n_cols = min(3,len(sc_keys))
+n_rows = round(len(sc_keys)/n_cols)
+
+fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(4*(n_cols+1),6*(n_rows+1)), dpi=400)
+
+for i, sc_key in enumerate(sc_keys):
+
+    row = i % n_rows
+    col = i // n_rows
+
+    if len(sc_keys)==1:
+        ax = axs
+    else:
+        ax = axs[row,col]
+
+    if sample_interval=='5min':
+        title = f'{sc_key}: {5*len(df_merged[f"r_F_{sc_key}"].dropna()):,} mins'
+    elif sample_interval=='1min':
+        title = f'{sc_key}: {len(df_merged[f"r_F_{sc_key}"].dropna()):,} mins'
+
+    plot_orbit_msh(df_merged, sc_keys=sc_key, title=title, fig=fig, ax=ax, return_objs=True)
+
+plt.tight_layout()
+
+# %%
+from src.plotting.config import colour_dict
+
+n_rows = len(sc_keys)
+n_cols = 1
+
+fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(5*(n_cols+1),2*(n_rows+1)), dpi=400, sharex=True)
+
+for i, sc_key in enumerate(sc_keys):
+
+    if len(sc_keys)==1:
+        ax = axs
+    else:
+        ax = axs[i]
+
+    if i >= 2:
+        ax.sharey(axs[1])
+
+    years = df_merged[f'r_F_{sc_key}'].dropna().index.year.to_numpy()
+    bins = calculate_bins(years,1)
+    counts, _ = np.histogram(years, bins=bins)
+
+    if sample_interval=='5min':
+        label = f'{sc_key}: {5*len(years):,} mins'
+    elif sample_interval=='1min':
+        label = f'{sc_key}: {len(years):,} mins'
+
+    ax.bar(bins[:-1]+0.5, counts, width=1, color=colour_dict.get(sc_key.upper(),'k'), label=label)
+    ax.legend(loc='upper left')
+
+plt.subplots_adjust(wspace=0, hspace=0)
+#plt.tight_layout()
+
+# %%
+import pandas as pd
+all_times = np.ones(len(df_merged),dtype=bool)
+total = 0
+for pair in it.combinations(sc_keys, 2):
+    times = df_merged[f'r_y_GSE_{pair[0]}']*df_merged[f'r_y_GSE_{pair[1]}']<0
+    all_times |= all_times
+    opposite = np.nansum(times)
+    if sample_interval=='5min':
+        opposite *= 5
+    total += opposite
+    print(pair, opposite)
+days = pd.to_datetime(df_merged.index).strftime('%d-%m-%y').unique()
+print('total',total,'mins')
+print('Unique days:',len(days))
+
+# %% Bias
+
+parameters_to_plot = ('B_avg','B_z_GSM','V_flow','V_x_GSE','E_R','E_y_GSM','n_p','P_flow','MA','AE')
+param_width = {'B_avg': 1, 'B_z_GSM': 1, 'V_flow': 50, 'V_x_GSE': 50, 'n_p': 1, 'P_flow': 1, 'MA': 2, 'AE': 50, 'E_mag': 1, 'S_mag': 2}
+
+
+n_params = len(parameters_to_plot)
+n_cols = 2
+n_rows = round(n_params/n_cols)
+
+fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(6*(n_cols+1),4*(n_rows+1)), dpi=400)
+
+for i, param in enumerate(parameters_to_plot):
+
+    col = i % 2
+    row = i // 2
+
+    ax = axs[row,col]
+
+    for j in range(2):
+        if j==0:
+            mask = np.ones(len(df_sw),dtype=bool)
+            colour = 'orange'
+            axis = ax
+        else:
+            mask = df_merged.index
+            colour = 'blue'
+            axis = ax.twinx()
+
+        series = df_sw.loc[mask,param].dropna()
+        if param=='MA':
+            series = series.loc[series<200]
+
+        axis.hist(series, bins=calculate_bins(series,param_width.get(param)), histtype='step', edgecolor=colour)
+        axis.set_yscale('log')
+    ax.set_xlabel(param)
+    #ax.set_yscale('log')
+
+plt.tight_layout()
+plt.show()
 
 
 # %%
@@ -58,7 +181,6 @@ group_param = 'Delta B_theta'
 #group_param = 'Delta Bz'
 #group_param = 'MA_sw'
 
-### CONSIDER LOOKING AT MSH IN THE DAWN AND IN THE DUSK FLANKS SEPARATELY
 
 
 ind_param       = '_'.join((independent,ind_source))
@@ -268,45 +390,6 @@ plt.tight_layout()
 plt.show()
 
 
-# %% Bias
 
-parameters_to_plot = ('B_avg','B_z_GSM','V_flow','V_x_GSE','E_R','E_y_GSM','n_p','P_flow','MA','AE')
-param_width = {'B_avg': 1, 'B_z_GSM': 1, 'V_flow': 50, 'V_x_GSE': 50, 'n_p': 1, 'P_flow': 1, 'MA': 2, 'AE': 50, 'E_mag': 1, 'S_mag': 2}
-
-
-n_params = len(parameters_to_plot)
-n_cols = 2
-n_rows = round(n_params/n_cols)
-
-fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(6*(n_cols+1),4*(n_rows+1)), dpi=400)
-
-for i, param in enumerate(parameters_to_plot):
-
-    col = i % 2
-    row = i // 2
-
-    ax = axs[row,col]
-
-    for j in range(2):
-        if j==0:
-            mask = np.ones(len(df_sw),dtype=bool)
-            colour = 'orange'
-            axis = ax
-        else:
-            mask = df_merged.index
-            colour = 'blue'
-            axis = ax.twinx()
-
-        series = df_sw.loc[mask,param].dropna()
-        if param=='MA':
-            series = series.loc[series<200]
-
-        axis.hist(series, bins=calculate_bins(series,param_width.get(param)), histtype='step', edgecolor=colour)
-        axis.set_yscale('log')
-    ax.set_xlabel(param)
-    #ax.set_yscale('log')
-
-plt.tight_layout()
-plt.show()
 
 

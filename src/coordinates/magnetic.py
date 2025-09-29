@@ -64,7 +64,7 @@ def calc_B_GSM_angles(df, **kwargs):
     B_mag, B_pitch, B_clock = cartesian_to_spherical(Bx, By, Bz)
 
     # Return the new data as a DataFrame
-    new_data = {'|B|': B_mag, 'B_pitch': B_pitch, 'B_clock': B_clock}
+    new_data = {'B_mag': B_mag, 'B_pitch': B_pitch, 'B_clock': B_clock}
     return pd.DataFrame(new_data, index=df.index)
 
 
@@ -86,7 +86,7 @@ def insert_field_mag(df, field='r', coords='GSE'):
 
     magnitude_from_comps = np.sqrt(x_data**2 + y_data**2 + z_data**2)
 
-    df[f'|{field}|'] = magnitude_from_comps
+    df[f'{field}_mag'] = magnitude_from_comps
 
-    df.attrs['units'][f'|{field}|'] = df.attrs['units'][f'{field}_x_{coords}']
+    df.attrs['units'][f'{field}_mag'] = df.attrs['units'][f'{field}_x_{coords}']
 
