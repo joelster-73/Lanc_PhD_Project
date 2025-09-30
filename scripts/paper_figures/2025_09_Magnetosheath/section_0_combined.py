@@ -77,7 +77,7 @@ for i, sc_key in enumerate(sc_keys):
 
 plt.tight_layout()
 
-# %%
+# %% Time
 from src.plotting.config import colour_dict
 
 n_rows = len(sc_keys)
@@ -110,7 +110,7 @@ for i, sc_key in enumerate(sc_keys):
 plt.subplots_adjust(wspace=0, hspace=0)
 #plt.tight_layout()
 
-# %%
+# %% Asymmetry
 import pandas as pd
 all_times = np.ones(len(df_merged),dtype=bool)
 total = 0
