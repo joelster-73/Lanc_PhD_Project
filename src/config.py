@@ -23,6 +23,7 @@ WIND_DIR               = f'{PROCESSED_DATA_DIR}/WIND'
 OMNI_DIR               = f'{PROCESSED_DATA_DIR}/OMNI'
 THEMIS_DIR             = f'{PROCESSED_DATA_DIR}/THEMIS'
 CFA_DIR                = f'{PROCESSED_DATA_DIR}/CFA'
+MMS_DIR                = f'{PROCESSED_DATA_DIR}/MMS1'
 HELSINKI_DIR           = f'{PROCESSED_DATA_DIR}/HELSINKI'
 SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
 MSH_DIR                = f'{PROCESSED_DATA_DIR}/MSH'
@@ -38,6 +39,7 @@ LUNA_CROS_DIR          = 'Z:/spacecraft/cluster/c1/C1_CT_AUX_GRMB/'
 LUNA_OMNI_DIR          = 'Z:/omni/omni_min_def/'
 LUNA_OMNI_DIR_5MIN     = 'Z:/omni/omni_5min_def/'
 LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
+LUNA_MMS_DIR           = 'Z:/spacecraft/mms/mms1/MMS1_FGM_SRVY_L2/'
 LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
 
 # Processed Cluster Data
@@ -82,6 +84,9 @@ PROC_THEMIS_DIR        = THEMIS_DIR
 
 # Processed Shocks Data
 PROC_SHOCKS_DIR        = SHOCKS_DIR
+
+# Processed THEMIS Data
+PROC_MMS_DIR           = f'{MMS_DIR}/field'
 
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'

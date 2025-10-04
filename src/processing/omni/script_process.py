@@ -18,9 +18,7 @@ process_omni_files(LUNA_OMNI_DIR, OMNI_DIR, omni_columns, ext='lst')
 
 # %% Definitive_5min
 
-downloads_dir = r'C:\Users\richarj2\Downloads\omni_5min_def'
-
-process_omni_files(downloads_dir, OMNI_DIR, omni_columns_5min, ext='lst')
+process_omni_files(LUNA_OMNI_DIR_5MIN, OMNI_DIR, omni_columns_5min, ext='lst')
 
 # %% Test
 

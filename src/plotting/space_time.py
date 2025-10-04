@@ -462,13 +462,13 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, f
     #cm = axis.pcolormesh(X, Y, counts, cmap='hot', norm=mpl.colors.LogNorm())
     cm = ax.pcolormesh(X, Y, counts, cmap='hot')
 
-
     ax.plot(mp_shue1998(theta_edges)*np.cos(theta_edges),mp_shue1998(theta_edges)*np.sin(theta_edges),c='w',ls='--')
     ax.plot(bs_jelinek2012(theta_edges)*np.cos(theta_edges),bs_jelinek2012(theta_edges)*np.sin(theta_edges),c='w',ls='--')
 
     create_half_circle_marker(ax, angle_start=270, full=False)
 
     if colourbar:
+
         z_label = 'Counts'
 
         cbar = fig.colorbar(cm, ax=ax)
@@ -483,8 +483,9 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, f
     ax.set_title(title)
 
     if return_objs:
-
-        return fig, ax, cbar
+        if colourbar:
+            return fig, ax, cbar, cm
+        return fig, ax, cm
 
     ax.set_aspect('equal')
 

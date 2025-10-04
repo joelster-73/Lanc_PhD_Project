@@ -21,12 +21,12 @@ helsinki_events = convert_helsinki_df_plotting(helsinki_shocks)
 
 # %% Compression
 
-from src.methods.shock_intercepts.plotting import plot_compressions_both
+from src.methods.shock_intercepts.plotting import plot_compressions_both, plot_omni_compressions
 
 # Do similar plot for angle between normal vectors
 plot_compressions_both(helsinki_shocks, plot_type='hist')
 
-
+plot_omni_compressions(helsinki_shocks, plot_type='hist')
 # %% Scatters
 from src.methods.shock_intercepts.plotting import plot_propagations_both
 

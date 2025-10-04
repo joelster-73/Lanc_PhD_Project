@@ -9,11 +9,13 @@ import pandas as pd
 from spacepy import pycdf
 from contextlib import ExitStack
 
-from .filtering import exclude_days, filter_data
 from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices
 
-def import_processed_data(directory, file_name=None, year=None, date_range=None, bad_data=None):
+def import_processed_data(directory, file_name=None, year=None, axis=0):
+
+    # axis = 0 combines files that have the same columns at different times
+    # axis = 1 combines files that have different columns
 
     if file_name:
         cdf_file = get_cdf_file(directory, filename=file_name)
@@ -21,14 +23,15 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
     else: # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]
+
         try:
             df = read_spacepy_object(cdf_files)
         except Exception: # CDF files for different parameters
+            print('Different file structures')
             df = pd.DataFrame()
             for f in cdf_files:
                 df_param = read_spacepy_object(f)
-                df = pd.concat([df, df_param], axis=1)
-
+                df = pd.concat([df, df_param], axis=axis)
                 for k, v in df_param.attrs.items():
                     if k not in df.attrs:
                         df.attrs[k] = v
@@ -57,18 +60,18 @@ def import_processed_data(directory, file_name=None, year=None, date_range=None,
     # Removes any placeholder dates
     time_col = df.attrs['global'].get('time_col','epoch')
     placeholder_dates = [pd.Timestamp('9999-12-31 23:59:59.999'),pd.Timestamp('9999-12-31 23:59:59.998')]
-
     if time_col!='none':
         placeholder_date = pd.Timestamp('9999-12-31 23:59:59.999')
         set_df_indices(df, time_col)  # Sets the index as datetime
 
+    ########
+    # weighted average overlapping year boundaries
+    # for time being just drop earlier one
+    #######
+    df = df.loc[~df.index.duplicated(keep='last')]
+
     for placeholder_date in placeholder_dates:
         df = df.mask(df == placeholder_date, pd.NaT)
-
-    if bad_data is not None:
-        exclude_days(df, bad_data)
-    if date_range is not None:
-        filter_data(df, 'index', date_range[0], date_range[1])  # Slices data to be in desired time range
 
     return df
 

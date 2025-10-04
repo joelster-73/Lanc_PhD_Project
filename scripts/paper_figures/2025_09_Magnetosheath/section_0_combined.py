@@ -6,7 +6,7 @@ Created on Thu Aug 28 12:29:26 2025
 """
 
 
-# %%
+# %% Import
 import os
 import numpy as np
 import itertools as it
@@ -24,31 +24,32 @@ from src.plotting.space_time import plot_orbit_msh
 from src.plotting.utils import calculate_bins
 from src.plotting.formatting import data_string
 
-sample_interval = '5min'
+sample_interval = '1min'
 data_pop = 'field_only'
+sc_keys = ('c1','m1','tha','thc','thd','the')
 
 # Solar wind data
 omni_dir = os.path.join(OMNI_DIR, 'with_lag')
 df_sw    = import_processed_data(omni_dir, f'omni_{sample_interval}.cdf')
 
-msh_spacecraft = 'combined'
 msh_dir = os.path.join(MSH_DIR, data_pop, sample_interval)
-df_merged = import_processed_data(msh_dir, f'msh_times_{msh_spacecraft}.cdf')
+df_merged = import_processed_data(msh_dir, 'msh_times_combined.cdf')
+
+if sample_interval=='1min':
+    data_type = 'mins'
+else:
+    data_type = 'counts'
 
 # Erroneous values
-if msh_spacecraft=='combined':
-    sc_keys = ('c1','tha','thb','thc','thd','the')
-else:
-    sc_keys = (msh_spacecraft,)
-for sc in sc_keys:
 
-    # Add uncertainty
-    df_merged[f'Delta B_theta_{sc}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock_{sc}'],unit='rad'))
-    df_merged.attrs['units'][f'Delta B_theta_{sc}'] = 'rad'
+# Add uncertainty
 
-    df_merged[f'Delta Bz_{sc}'] = df_merged[f'B_z_GSM_{sc}']/df_merged['B_z_GSM_sw']
-    df_merged[f'Delta Bz_{sc}'] = df_merged[f'Delta Bz_{sc}'].replace([np.inf, -np.inf], np.nan)
-    df_merged.attrs['units'][f'Delta Bz_{sc}'] = '1'
+df_merged['Delta B_theta_msh'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged['B_clock_msh'],unit='rad'))
+df_merged.attrs['units']['Delta B_theta_msh'] = 'rad'
+
+df_merged['Delta Bz_msh'] = df_merged['B_z_GSM_msh']/df_merged['B_z_GSM_sw']
+df_merged['Delta Bz_msh'] = df_merged['Delta Bz_msh'].replace([np.inf, -np.inf], np.nan)
+df_merged.attrs['units']['Delta Bz_msh'] = '1'
 
 
 # %% Orbits
@@ -60,25 +61,27 @@ fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(4*(n_cols+1),6*(n_r
 
 for i, sc_key in enumerate(sc_keys):
 
+    df_sc = import_processed_data(msh_dir, f'msh_times_{sc_key}.cdf')
+
     row = i % n_rows
     col = i // n_rows
 
     if len(sc_keys)==1:
         ax = axs
+    elif n_rows==1:
+        ax = axs[col]
     else:
         ax = axs[row,col]
 
-    if sample_interval=='5min':
-        title = f'{sc_key}: {5*len(df_merged[f"r_F_{sc_key}"].dropna()):,} mins'
-    elif sample_interval=='1min':
-        title = f'{sc_key}: {len(df_merged[f"r_F_{sc_key}"].dropna()):,} mins'
+    title = f'{sc_key}: {len(df_sc[f"B_avg_{sc_key}"].dropna()):,} {data_type}'
 
-    plot_orbit_msh(df_merged, sc_keys=sc_key, title=title, fig=fig, ax=ax, return_objs=True)
+    plot_orbit_msh(df_sc, sc_keys=sc_key, title=title, fig=fig, ax=ax, return_objs=True)
 
 plt.tight_layout()
 
 # %% Time
 from src.plotting.config import colour_dict
+import matplotlib.ticker as ticker
 
 n_rows = len(sc_keys)
 n_cols = 1
@@ -87,28 +90,112 @@ fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(5*(n_cols+1),2*(n_r
 
 for i, sc_key in enumerate(sc_keys):
 
+    df_sc = import_processed_data(msh_dir, f'msh_times_{sc_key}.cdf')
+
     if len(sc_keys)==1:
         ax = axs
     else:
         ax = axs[i]
 
-    if i >= 2:
-        ax.sharey(axs[1])
+    if i >= 3:
+        ax.sharey(axs[2])
 
-    years = df_merged[f'r_F_{sc_key}'].dropna().index.year.to_numpy()
+    years = df_sc[f'B_avg_{sc_key}'].dropna().index.year.to_numpy()
     bins = calculate_bins(years,1)
     counts, _ = np.histogram(years, bins=bins)
 
-    if sample_interval=='5min':
-        label = f'{sc_key}: {5*len(years):,} mins'
-    elif sample_interval=='1min':
-        label = f'{sc_key}: {len(years):,} mins'
+    label = f'{sc_key}: {len(years):,} {data_type}'
 
     ax.bar(bins[:-1]+0.5, counts, width=1, color=colour_dict.get(sc_key.upper(),'k'), label=label)
     ax.legend(loc='upper left')
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
+
 
 plt.subplots_adjust(wspace=0, hspace=0)
 #plt.tight_layout()
+
+# %% Months
+
+from matplotlib.patches import Patch
+
+fig, ax = plt.subplots(figsize=(10,6), dpi=400, sharex=True)
+
+omni_col = 'AE'
+
+months = df_merged.index.to_period('M')
+month_counts = months.value_counts().sort_index()
+counts = month_counts.values
+
+colours = []
+for month in month_counts.index:
+    month_rows = df_merged[months == month]
+    most_common_value = month_rows['sc_msh'].mode()[0]
+    colours.append(colour_dict.get(most_common_value.upper(), 'k'))
+
+month_datetimes = month_counts.index.to_timestamp()
+fractional_years = month_datetimes.year + (month_datetimes.month - 1)/12
+
+ax.bar(fractional_years, counts, width=1/12, color=colours, align='edge')
+ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
+
+sc_total_counts = df_merged['sc_msh'].value_counts()
+legend_patches = [
+    Patch(facecolor=colour_dict.get(sc.upper(), 'k'), label=f'{sc.upper()} ({count:,})')
+    for sc, count in sc_total_counts.items()
+]
+ax.legend(handles=legend_patches, fontsize=8, loc='upper left')
+
+
+
+plt.show()
+
+
+# %% Time_with_Response
+
+
+# Change to be the rolling OMNI value for the full dataset and for times with contemp MSH
+#
+
+
+# Add rolling max Ey and AE to the yearly plot
+
+fig, ax = plt.subplots(figsize=(10,6), dpi=400, sharex=True)
+
+omni_col = 'AE'
+
+months = df_merged.index.to_period('M')
+month_counts = months.value_counts().sort_index()
+
+bins = np.arange(len(month_counts))
+counts = month_counts.values
+
+
+label = f'MSH: {len(months):,} {data_type}'
+
+ax.bar(bins, counts, width=1, color='blue', label=label)
+ax.set_ylim(1000)
+ax.set_yscale('log')
+ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
+
+monthly_max = df_sw[omni_col].resample('ME').max()
+rolling_max = monthly_max.rolling(window=6, min_periods=1).mean()
+rolling_bins = np.arange(len(rolling_max))
+
+ax2 = ax.twinx()
+ax2.plot(rolling_bins, rolling_max.values, linestyle='-', color='orange', label='Monthly Rolling Max')
+
+ax.set_xlim(right=np.max(bins))
+
+ax.legend(loc='upper left')
+
+
+# %% Time_Activity
+
+from src.plotting.comparing.space_time import plot_compare_datasets_with_activity
+
+plot_compare_datasets_with_activity(df_sw, df_merged, df_colours=('orange','blue'), df_names=('All OMNI','Contemp MSH'))
+
+
 
 # %% Asymmetry
 import pandas as pd
@@ -118,17 +205,16 @@ for pair in it.combinations(sc_keys, 2):
     times = df_merged[f'r_y_GSE_{pair[0]}']*df_merged[f'r_y_GSE_{pair[1]}']<0
     all_times |= all_times
     opposite = np.nansum(times)
-    if sample_interval=='5min':
-        opposite *= 5
     total += opposite
     print(pair, opposite)
 days = pd.to_datetime(df_merged.index).strftime('%d-%m-%y').unique()
-print('total',total,'mins')
-print('Unique days:',len(days))
+
+print(f'total: {total} {data_type}')
+print(f'Unique days: {len(days)}')
 
 # %% Bias
 
-parameters_to_plot = ('B_avg','B_z_GSM','V_flow','V_x_GSE','E_R','E_y_GSM','n_p','P_flow','MA','AE')
+parameters_to_plot = ('B_avg','B_z_GSM','V_flow','V_x_GSE','E_R','E_y_GSM','n_p','P_flow','M_A','AE')
 param_width = {'B_avg': 1, 'B_z_GSM': 1, 'V_flow': 50, 'V_x_GSE': 50, 'n_p': 1, 'P_flow': 1, 'MA': 2, 'AE': 50, 'E_mag': 1, 'S_mag': 2}
 
 
@@ -177,8 +263,10 @@ ind_source  = 'sw'
 dependent   = 'AE_17m'
 dep_source  = 'pc'
 
-group_param = 'Delta B_theta'
-#group_param = 'Delta Bz'
+
+group_param = 'Delta B_theta_msh'
+#group_param = 'Delta Bz_msh'
+#group_param = theta_Bn_msh
 #group_param = 'MA_sw'
 
 
@@ -252,19 +340,19 @@ df_omni_masked = df_sw.loc[omni_mask]
 
 median = np.percentile(df_masked[group_param].dropna().to_numpy(),50)
 
-if group_param=='Delta B_theta':
+if group_param=='Delta B_theta_msh':
     edges = [median]
     bin_width = np.pi/36
     z_labels = [f'${data_string(group_param)}$<{np.degrees(edges[0]):.1f}{z_unit_str}',
                 f'${data_string(group_param)}$$\\geq${np.degrees(edges[0]):.1f}{z_unit_str}']
 
-elif group_param=='Delta Bz':
+elif group_param=='Delta Bz_msh':
     edges = [0]
     bin_width = 1
     z_labels = [f'$sgn({data_string(group_param)})$<0{z_unit_str}',
                 f'$sgn({data_string(group_param)})$$\\geq$0{z_unit_str}']
 
-elif group_param=='MA_sw':
+elif group_param=='M_A_sw':
     edges = [median]
     bin_width = 1
     z_labels = [f'${data_string(group_param)}$<{edges[0]:.1f}{z_unit_str}',
@@ -314,7 +402,7 @@ for i, (axis, group_region, colour, label) in enumerate(zip((ax_tr, ax_tr2), ('l
     elif group_region=='high':
         filter_mask = df_masked[group_param]>=edges[0]
 
-    _, cm = plot_orbit_msh(axis, df_masked.loc[filter_mask], title=label, colourbar=False)
+    _, _, cm = plot_orbit_msh(df_masked.loc[filter_mask], title=label, colourbar=False, fig=fig, ax=axis, return_objs=True)
     cms.append(cm)
 
     df_msh_param = df_masked.loc[filter_mask,ind_param]

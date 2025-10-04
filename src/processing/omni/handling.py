@@ -24,15 +24,16 @@ def process_omni_files(directory, data_directory, variables, year=None, overwrit
     # Gather all OMNI files for the specified year (or all files if no year is specified)
     files_to_process = get_omni_files(directory, year=year, ext=ext)
 
-    if '5min' in data_directory:
+    directory_name = os.path.basename(os.path.normpath(directory))
+
+    if '5min' in directory_name:
         raw_dir = os.path.join(data_directory, '5min')
-    elif 'min' in data_directory:
+    elif 'min' in directory_name:
         raw_dir = os.path.join(data_directory, 'min')
     else:
         raw_dir = os.path.join(data_directory, 'raw')
     create_directory(raw_dir)
 
-    directory_name = os.path.basename(os.path.normpath(directory))
     log_file_path = os.path.join(data_directory, f'{directory_name}_not_added_files.txt')  # Log for unprocessed files
     create_log_file(log_file_path)
 
@@ -69,8 +70,8 @@ def process_omni_files(directory, data_directory, variables, year=None, overwrit
 
         output_file = os.path.join(raw_dir, f'{directory_name}_{file_year}.cdf')
         attributes = {'time_col': 'epoch'}
+        print(f'Writing {file_name} to file...')
         write_to_cdf(df, output_file, attributes, overwrite)
-        print(f'Written {file_name} to file.\n')
 
 
 
@@ -122,8 +123,16 @@ def extract_omni_data(lst_file, omni_columns):
 
     # B_angles
     b_gsm = calc_B_GSM_angles(df, time_col='epoch')
-    b_gsm.drop(columns=['|B|'],inplace=True) # drops magntiude of average component
+    b_gsm.drop(columns=['B_mag'],inplace=True) # drops magntiude of average component
     df = pd.concat([df, b_gsm], axis=1)
+
+    # Angle between IMF and BS
+    b = df[[f'B_{comp}_GSE' for comp in ('x','y','z')]].values
+    r = df[[f'R_{comp}_BSN' for comp in ('x','y','z')]].values
+    n = r / np.linalg.norm(r, axis=1)[:, None]
+    cos_theta = np.einsum('ij,ij->i',b,n) / np.linalg.norm(b, axis=1)
+
+    df['theta_Bn'] = np.clip(cos_theta, -1, 1)
 
     # E_GSM
     v_gsm = gse_to_gsm_with_angle(df, ref='B', vec='V')

@@ -60,7 +60,11 @@ colour_dict = {
     'DSC':  'deeppink',
     'GEO':  'cyan',
     'IMP8': 'crimson',
-    'WIND': 'magenta'
+    'WIND': 'magenta',
+    'M1': 'red',
+    'M2': 'tomato',
+    'M3': 'lightsalmon',
+    'M4': 'mistyrose'
 }
 
 database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}

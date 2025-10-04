@@ -317,7 +317,65 @@ def plot_compression(shocks, selection='all', plot_type='hist', change='change_r
     plt.show()
     plt.close()
 
+def plot_omni_compressions(shocks, plot_type='hist', change='change_rel', **kwargs):
 
+    fig = kwargs.get('fig',None)
+    ax  = kwargs.get('ax',None)
+    return_objs = kwargs.get('return_objs',False)
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+        kwargs['fig'] = fig
+        kwargs['ax'] = ax
+
+    compressions = shock_compressions(shocks)
+
+    sign = '/' if change=='change_rel' else '-'
+
+    x_name      = 'r_B (sc)'
+    y_name      = 'r_B (OMNI)'
+    count_name  = f'r_B_OMNI {sign} r_B_sc'
+    count_label = f'Compression Difference (OMNI {sign} sc)'
+
+
+    clipping = 1.3
+    cmap = plt.colormaps['Oranges']
+    kwargs_plot = kwargs.copy()
+    kwargs_plot['return_objs'] = True
+
+    if plot_type=='hist':
+
+        bin_width = 0.05 if change=='change_rel' else 0.1
+
+        xs = compressions.loc[:,change].apply(lambda x: x.nominal_value)
+        change_series_name(xs, count_name)
+
+        _ = plot_freq_hist(xs, cmap=cmap, clipping=clipping, bin_width=bin_width, fit_type='gaussian', simple_bounds=True, fit_colour=black, data_name=count_label, fit_err='count', **kwargs_plot)
+
+    elif plot_type=='scatter':
+
+        xs = compressions.loc[:,'comp_up'].apply(lambda x: x.nominal_value)
+        xs_unc = compressions.loc[:,'comp_up'].apply(lambda x: x.std_dev)
+
+        ys = compressions.loc[:,'comp_dw'].apply(lambda x: x.nominal_value)
+        ys_unc = compressions.loc[:,'comp_dw'].apply(lambda x: x.std_dev)
+
+        change_series_name(xs, x_name)
+        change_series_name(ys, y_name)
+
+        sc_ups = compressions.loc[:,'sc_up']
+        sc_dws = compressions.loc[:,'sc_dw']
+
+        _ = compare_series(xs, ys, xs_unc=xs_unc, ys_unc=ys_unc, display='scatter_dict', sc_ups=sc_ups, sc_dws=sc_dws, fit_type='straight', as_text=True, **kwargs_plot)
+
+
+    ###---------------LABELLING AND FINISHING TOUCHES---------------###
+    if return_objs:
+        return fig, ax
+
+    save_figure(fig)
+    plt.show()
+    plt.close()
 
 
 

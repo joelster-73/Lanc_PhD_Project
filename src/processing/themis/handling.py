@@ -1,9 +1,11 @@
 import os
 import glob
-
-import pandas as pd
 import re
+import numpy as np
+import pandas as pd
+
 from spacepy import pycdf
+import spacepy.pycdf.istp
 
 from ..writing import write_to_cdf
 from ..dataframes import add_df_units, resample_data
@@ -14,7 +16,7 @@ from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E
 
 
-def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_labels, pos_labels, data_resolution='1/128s', sample_interval='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, priority_suffices = ['fgh', 'fgl', 'fge', 'fgs']):
+def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_labels, pos_labels, data_resolution='1/128s', sample_intervals='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, priority_suffices = ['fgh', 'fgl', 'fge', 'fgs']):
     """
     Returns
     -------
@@ -26,19 +28,28 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
     fgm_directory = f'{spacecraft_dir}/FGM'
     pos_directory = f'{spacecraft_dir}/STATE'
 
-    out_directory = os.path.join(proc_directory[spacecraft],sample_interval)
-    pos_variables = pos_labels[spacecraft]
+    out_directory = proc_directory[spacecraft]
+    create_directory(out_directory)
 
     fgm_directory_name = os.path.basename(os.path.normpath(fgm_directory))
     pos_directory_name = os.path.basename(os.path.normpath(pos_directory))
-
-    create_directory(out_directory)
 
     fgm_log_file_path = os.path.join(out_directory, f'{fgm_directory_name}_files_not_added.txt')  # Stores not loaded files
     pos_log_file_path = os.path.join(out_directory, f'{pos_directory_name}_files_not_added.txt')  # Stores not loaded files
 
     create_log_file(fgm_log_file_path)
     create_log_file(pos_log_file_path)
+
+
+    if isinstance(sample_intervals,str):
+        sample_intervals = (sample_intervals,)
+
+    for sample_interval in sample_intervals:
+
+        samp_dir = os.path.join(out_directory, sample_interval)
+        create_directory(samp_dir)
+
+    pos_variables = pos_labels[spacecraft]
 
     print(f'Processing THEMIS: {spacecraft}.')
     fgm_files_by_year = get_themis_files(fgm_directory, year, sub_folders)
@@ -64,14 +75,6 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
                 log_missing_file(pos_log_file_path, pos_file)
                 continue
 
-        # Position data
-        if pos_yearly_list:
-            pos_yearly_df = pd.concat(pos_yearly_list, ignore_index=True)
-            add_df_units(pos_yearly_df)
-
-            pos_yearly_df = resample_data(pos_yearly_df, time_col, sample_interval)
-            add_df_units(pos_yearly_df)
-
         ###---------------FGM DATA------------###
 
         fgm_yearly_list = []
@@ -84,8 +87,12 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
 
                 try:
                     fgm_dict = extract_themis_data(fgm_file, fgm_variables)
-                    fgm_df = pd.DataFrame(fgm_dict)
                     if not fgm_dict:  # Check if the dictionary is empty
+                        raise ValueError(f'{fgm_file} empty.')
+
+                    fgm_df = pd.DataFrame(fgm_dict)
+                    valid_b = ~np.isnan(fgm_df['B_avg'])
+                    if np.sum(valid_b)==0:  # Check if valid B data
                         raise ValueError(f'{fgm_file} empty.')
 
                     # GSM angles
@@ -109,29 +116,41 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
                 # If none of the suffixes worked, log that the file was skipped
                 log_missing_file(fgm_log_file_path, fgm_file, 'No valid suffix data found')
 
-
-        if fgm_yearly_list:
-            # Resampling has to be done after as THEMIS files overlap on times
-            fgm_yearly_df = pd.concat(fgm_yearly_list, ignore_index=True)
-            add_df_units(fgm_yearly_df)
-
-            fgm_yearly_df = resample_data(fgm_yearly_df, time_col, sample_interval)
-            add_df_units(fgm_yearly_df)
-
         ###---------------COMBINING------------###
         if not (fgm_yearly_list and pos_yearly_list):
             print(f'No data for {fgm_year}')
             continue
 
-        # Merge
-        merged_df = pd.merge(pos_yearly_df, fgm_yearly_df, left_on=time_col, right_on=time_col, how='outer')
-        add_df_units(merged_df)
+        # Position data
+        pos_yearly_df = pd.concat(pos_yearly_list, ignore_index=True)
+        add_df_units(pos_yearly_df)
 
-        output_file = os.path.join(out_directory, f'{fgm_directory_name}_{fgm_year}.cdf')
-        attributes = {'sample_interval': data_resolution, 'time_col': time_col, 'R_E': R_E}
-        write_to_cdf(merged_df, output_file, attributes, overwrite)
+        # Field data
+        fgm_yearly_df = pd.concat(fgm_yearly_list, ignore_index=True)
+        add_df_units(fgm_yearly_df)
 
-        print(f'{fgm_year} processed.')
+        # Resampling has to be done after as THEMIS files overlap on times
+        for sample_interval in sample_intervals:
+            samp_dir = os.path.join(out_directory, sample_interval)
+
+            sampled_pos_df = resample_data(pos_yearly_df, time_col, sample_interval)
+            sampled_fgm_df = resample_data(fgm_yearly_df, time_col, sample_interval)
+
+            # Merge
+            merged_df = pd.merge(sampled_pos_df, sampled_fgm_df, left_on=time_col, right_on=time_col, how='outer')
+            add_df_units(merged_df)
+
+            print(f'{sample_interval} reprocessed.')
+
+            # Clear up memory
+            del sampled_pos_df
+            del sampled_fgm_df
+
+            output_file = os.path.join(samp_dir, f'{fgm_directory_name}_{fgm_year}.cdf')
+            attributes = {'sample_interval': data_resolution, 'time_col': time_col, 'R_E': R_E}
+            write_to_cdf(merged_df, output_file, attributes, overwrite)
+
+            print(f'{fgm_year} processed.')
 
 
 def get_themis_files(directory=None, year=None, sub_folders=False):
@@ -216,15 +235,14 @@ def extract_themis_data(cdf_file, variables):
         '_y_GSE', and '_z_GSE' suffixes.
     """
 
-    # Initialise a dictionary to store the data
     data_dict = {}
 
-    # Load the CDF file (auto closes)
     with pycdf.CDF(cdf_file) as cdf:
 
-        # Loop through the dictionary of variables and extract data
         for var_name, var_code in variables.items():
-            data = cdf[var_code][...]  # Extract the data using the CDF variable code
+            if var_name not in ('epoch','epoch_pos'):
+                spacepy.pycdf.istp.nanfill(cdf[var_code])
+            data = cdf[var_code][...]
 
             if data.ndim == 2 and data.shape[1] == 3:  # Assuming a 2D array for vector components
                 system = 'GSE'
@@ -235,7 +253,6 @@ def extract_themis_data(cdf_file, variables):
                         system = 'GSM'
                     var_name = 'B'
 
-                # Split into components (e.g. x, y, z)
                 data_dict[f'{var_name}_x_{system}'] = data[:, 0]
                 data_dict[f'{var_name}_y_{system}'] = data[:, 1]
                 data_dict[f'{var_name}_z_{system}'] = data[:, 2]
@@ -244,7 +261,7 @@ def extract_themis_data(cdf_file, variables):
                 if var_name == 'time':
                     data = pd.to_datetime(data, unit='s', origin='unix')
                     var_name = 'epoch' # consistency with Cluster
-                # Scalar data (not a vector)
+
                 data_dict[var_name] = data  # pycdf extracts as datetime, no conversion from epoch needed
 
     return data_dict

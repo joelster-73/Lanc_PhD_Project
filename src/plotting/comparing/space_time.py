@@ -77,7 +77,7 @@ def plot_compare_datasets_with_activity(*dfs, **kwargs):
     # Load the sunspot data from SILSO (adjust the file path or URL as needed)
     url = 'https://www.sidc.be/silso/DATA/SN_m_tot_V2.0.txt'
     columns = ['year', 'month', 'decimal_year', 'sunspot_count', 'standard_deviation', 'number_of_observations', 'provisional']
-    data = pd.read_csv(url, delim_whitespace=True, names=columns, comment='*')
+    data = pd.read_csv(url, sep='\s+', names=columns, comment='*')
 
     data = data[(data['year'] >= 2000) & (data['year'] <= 2025)]
     data['date'] = pd.to_datetime(data[['year', 'month']].assign(day=1))
@@ -158,7 +158,7 @@ def plot_compare_datasets_with_activity(*dfs, **kwargs):
         first_time = df.index[0]
         last_time = df.index[-1]
 
-        date_range = pd.date_range(start=first_time, end=last_time, freq='T')
+        date_range = pd.date_range(start=first_time, end=last_time, freq='min')
         df_blank = pd.DataFrame(index=date_range)
         mask_total = pd.Series(False, index=df_blank.index)
         for start, end in high_activity:
@@ -170,11 +170,10 @@ def plot_compare_datasets_with_activity(*dfs, **kwargs):
         else:
             plot_label = f'High Activity: {total:.1f}%\nExpected:      {high_activity_percentage:.1f}%'
 
-        ax.plot(bin_midpoints, counts, color=colour, lw=2,
-                marker=marker, markersize=7, markerfacecolor='w', markeredgecolor=colour, label=plot_label)
+        ax.plot(bin_midpoints, counts, color=colour, lw=2, marker=marker, markersize=7, markerfacecolor='w', markeredgecolor=colour, label=plot_label)
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:.1f}%'))
 
-        date_range = pd.date_range(start=first_time, end=last_time, freq='T')
+        date_range = pd.date_range(start=first_time, end=last_time, freq='min')
         df_blank = pd.DataFrame(index=date_range)
         mask_total = pd.Series(False, index=df_blank.index)
         for start, end in high_activity:

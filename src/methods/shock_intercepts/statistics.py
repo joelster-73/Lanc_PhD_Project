@@ -5,7 +5,7 @@ import pandas as pd
 import itertools as it
 
 from uncertainties import ufloat, unumpy as unp
-from ...analysing.calculations import vec_mag
+from ...analysing.calculations import vec_mag, calc_mean_error
 
 from ...config import R_E
 from ...processing.speasy.retrieval import get_shock_position, retrieve_omni_value
@@ -374,5 +374,73 @@ def shock_compressions(shocks):
             new_row += [ufloat(dt,dt_unc.s)]
 
             df.loc[len(df)] = new_row
+
+    return df
+
+
+def compare_omni_compressions(shocks):
+
+    try:
+        event_list = get_list_of_events_all(shocks)
+    except:
+        event_list = get_list_of_events_helsinki(shocks)
+
+    df = pd.DataFrame(columns=['eventID','avg_comp','omni_comp','diff_rel','diff_abs'])
+
+    df.attrs = {'units': {}}
+    df.attrs['units']['eventID'] = ''
+    df.attrs['units']['time'] = 's'
+    df.attrs['units'].update({key: '1' for key in ('avg_comp','omni_comp','diff_rel','diff_abs')})
+
+
+    for eventNum, event in enumerate(event_list):
+
+        if 'OMNI' not in event: # Comparing compression predicted by OMNI
+            continue
+        elif len(event)<=1: # Need more shocks for comparison
+            continue
+
+        # OMNI's info
+        omni_time = event['OMNI'][0]
+        omni_sc = retrieve_omni_value(omni_time, 'OMNI_sc')
+        if omni_sc is None:
+            continue
+        omni_sc = omni_sc.upper()
+
+        if omni_sc=='WIND-V2':
+            upstream = 'WIND'
+        else:
+            upstream = omni_sc
+
+        sc_compressions = []
+
+        for sc, info in event.items():
+
+            if sc=='OMNI' or sc==upstream:
+                continue
+
+            sc_time = event[sc][0]
+            sc_comp = shocks.loc[sc_time, ['B_ratio','B_ratio_unc']]
+            if isinstance(sc_comp, pd.DataFrame):
+                sc_comp = sc_comp.iloc[0].to_numpy()
+            else:
+                sc_comp = sc_comp.to_numpy()
+            sc_comp = ufloat(sc_comp[0],sc_comp[1])
+            sc_compressions.append(sc_comp)
+
+        # Average compression measured by spacecraft
+        avg_comp = calc_mean_error(unp.uarray(sc_compressions))
+
+        # Compression measured by OMNI
+        omni_comp = shocks.loc[omni_time, ['B_ratio','B_ratio_unc']]
+        if isinstance(omni_comp, pd.DataFrame):
+            omni_comp = omni_comp.iloc[0].to_numpy()
+        else:
+            omni_comp = omni_comp.to_numpy()
+        omni_comp = ufloat(omni_comp[0],omni_comp[1])
+
+        avg_comp = calc_mean_error(unp.uarray(sc_compressions))
+
+        df.loc[len(df)] = [eventNum, avg_comp, omni_comp, omni_comp/avg_comp, omni_comp-avg_comp]
 
     return df

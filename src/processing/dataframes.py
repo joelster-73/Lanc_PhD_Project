@@ -86,12 +86,15 @@ def resample_data(df, time_col='epoch', sample_interval='1min'):
     else:
         df['utc'] = df[time_col].dt.floor(sample_interval)
 
-    aggregated_columns = {}
     grouped = df.groupby('utc')
 
     if len(grouped) == len(df):
         df.drop(columns=['utc'],inplace=True)
+        df.rename(columns={time_col: 'epoch'},inplace=True)
         return df
+
+    aggregated_columns = {}
+    non_nan_counts = grouped.count()
 
     for column in df.columns:
 
@@ -113,32 +116,34 @@ def resample_data(df, time_col='epoch', sample_interval='1min'):
 
             ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x.dropna(), param=f'{field}_{coords}'))
 
-            nominals = pd.DataFrame([unp.nominal_values(arr) for arr in ufloat_series], index=ufloat_series.index)
-            uncs = pd.DataFrame([unp.std_devs(arr) for arr in ufloat_series], index=ufloat_series.index)
+            nom_vals = unp.nominal_values(ufloat_series.to_list())
+            std_vals = unp.std_devs(ufloat_series.to_list())
 
             for i, comp in enumerate(('x','y','z')):
                 if comp=='x' and skip_x:
                     continue
-                aggregated_columns[f'{field}_{comp}_{coords}'] = nominals[i]
-                aggregated_columns[f'{field}_{comp}_{coords}_unc'] = uncs[i]
+                aggregated_columns[f'{field}_{comp}_{coords}']     = nom_vals[:, i]
+                aggregated_columns[f'{field}_{comp}_{coords}_unc'] = std_vals[:, i]
 
-            aggregated_columns[f'{field}_{coords}_count'] = grouped.size().astype(int)
+            aggregated_columns[f'{field}_{coords}_count'] = non_nan_counts[vector_columns].min(axis=1)
 
         else:
             # Use standard mean for other columns
             unit = df.attrs['units'].get(column)
             ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x.dropna(), unit=unit))
 
-            aggregated_columns[column] = pd.Series(unp.nominal_values(ufloat_series), index=ufloat_series.index)
-            aggregated_columns[f'{column}_unc'] = pd.Series(unp.std_devs(ufloat_series), index=ufloat_series.index)
-            aggregated_columns[f'{column}_count'] = grouped.size().astype(int)
+            aggregated_columns[column]            = unp.nominal_values(ufloat_series.to_numpy())
+            aggregated_columns[f'{column}_unc']   = unp.std_devs(ufloat_series.to_numpy())
+            aggregated_columns[f'{column}_count'] = non_nan_counts[column].to_numpy()
 
-    resampled_df = pd.DataFrame(aggregated_columns)
 
+    resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
     resampled_df.rename_axis('epoch', inplace=True)
+
     if time_col != 'index':
         resampled_df.reset_index(inplace=True)
     resampled_df.dropna(how='all',inplace=True)
+
     if 'utc' in resampled_df:
         resampled_df.drop(columns=['utc'], inplace=True)
 
@@ -156,6 +161,7 @@ def set_df_indices(df, time_col):
 
     df[time_col] = pd.to_datetime(df[time_col])
     df.set_index(time_col, inplace=True)  # Set 'time_col' as the index
+
 
 def next_index(df, index):
     if index in df.index:
