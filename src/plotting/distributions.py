@@ -402,6 +402,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     ys_unc       = kwargs.get('ys_unc',None)
     ys_counts    = kwargs.get('ys_counts',None)
 
+    line_style  = kwargs.get('line_style','-')
     mean_colour = kwargs.get('data_colour',blue)
     std_colour  = kwargs.get('error_colour','r')
     region      = kwargs.get('region','std') # std or sem
@@ -455,7 +456,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
         if len(x_vals)==1:
             ax.plot(x_vals, y_vals, c=mean_colour, marker='.')
         else:
-            ax.plot(x_vals, y_vals, c=mean_colour)
+            ax.plot(x_vals, y_vals, c=mean_colour, ls=line_style)
         if region in ('std','both'):
             ax.fill_between(x_vals, y_vals-y_stds, y_vals+y_stds, color=std_colour, alpha=0.2)
         if region in ('sem','both'):
@@ -464,7 +465,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     if return_objs:
         return fig, ax
 
-    ax.plot([], [], c=mean_colour, label='mean')
+    ax.plot([], [], c=mean_colour, ls=line_style, label='mean')
     if region in ('std','both'):
         ax.fill_between([], [], [], color=std_colour, alpha=0.3, label=r'$\pm$s')
     if region in ('sem','both'):

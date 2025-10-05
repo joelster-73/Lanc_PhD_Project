@@ -51,6 +51,7 @@ colour_dict = {
     'C2':   'cornflowerblue',
     'C3':   'lightskyblue',
     'C4':   'lightblue',
+    'TH':   'green',
     'THA':  'forestgreen',
     'THB':  'seagreen',
     'THC':  'mediumseagreen',

@@ -162,7 +162,9 @@ def calculate_bins(data, bin_width=None, n_bins=20, number=False):
 
 
     start = np.floor(np.min(data)/bin_width) * bin_width
-    stop  = np.ceil(np.max(data)/bin_width) * bin_width + bin_width
+    stop  = np.ceil(np.max(data)/bin_width) * bin_width
+    if bin_width==1:
+        stop += 1
     num   = int((stop - start)/bin_width) + 1
 
     bin_edges = np.linspace(start, stop, num)

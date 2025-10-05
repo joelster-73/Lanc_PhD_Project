@@ -13,7 +13,8 @@ import itertools as it
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from matplotlib.ticker import FuncFormatter
+import matplotlib.ticker as ticker
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 from src.config import MSH_DIR, OMNI_DIR
 from src.analysing.comparing import difference_series
@@ -22,11 +23,11 @@ from src.processing.reading import import_processed_data
 from src.plotting.comparing.parameter import compare_columns
 from src.plotting.space_time import plot_orbit_msh
 from src.plotting.utils import calculate_bins
-from src.plotting.formatting import data_string
+from src.plotting.formatting import data_string, create_label
+from src.plotting.config import colour_dict
 
 sample_interval = '1min'
 data_pop = 'field_only'
-sc_keys = ('c1','m1','tha','thc','thd','the')
 
 # Solar wind data
 omni_dir = os.path.join(OMNI_DIR, 'with_lag')
@@ -40,19 +41,23 @@ if sample_interval=='1min':
 else:
     data_type = 'counts'
 
-# Erroneous values
-
-# Add uncertainty
-
+# Rotation of clock angle
+# Ignoring sw uncertainty for time being
 df_merged['Delta B_theta_msh'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged['B_clock_msh'],unit='rad'))
+not_nan = ~np.isnan(df_merged['Delta B_theta_msh'])
+df_merged.loc[not_nan,'Delta B_theta_unc_msh'] = df_merged.loc[not_nan,'B_clock_unc_msh']
 df_merged.attrs['units']['Delta B_theta_msh'] = 'rad'
 
+# Reversal of Bz
+# Not interested in error
 df_merged['Delta Bz_msh'] = df_merged['B_z_GSM_msh']/df_merged['B_z_GSM_sw']
 df_merged['Delta Bz_msh'] = df_merged['Delta Bz_msh'].replace([np.inf, -np.inf], np.nan)
 df_merged.attrs['units']['Delta Bz_msh'] = '1'
 
 
 # %% Orbits
+
+sc_keys = ('c1','m1','tha','thc','thd','the')
 
 n_cols = min(3,len(sc_keys))
 n_rows = round(len(sc_keys)/n_cols)
@@ -79,9 +84,12 @@ for i, sc_key in enumerate(sc_keys):
 
 plt.tight_layout()
 
-# %% Time
-from src.plotting.config import colour_dict
-import matplotlib.ticker as ticker
+# %% Years
+
+# Each spacecraft on a separate row
+
+sc_keys = ('c1','m1','tha','thb','thc','thd','the')
+
 
 n_rows = len(sc_keys)
 n_cols = 1
@@ -112,82 +120,76 @@ for i, sc_key in enumerate(sc_keys):
 
 
 plt.subplots_adjust(wspace=0, hspace=0)
-#plt.tight_layout()
+plt.show()
 
-# %% Months
+# %% Years_One_Axis
 
-from matplotlib.patches import Patch
+# One bar for each spacecraft for each year
+# THEMIS combined into one bar
 
-fig, ax = plt.subplots(figsize=(10,6), dpi=400, sharex=True)
+th_keys = ('tha','thb','thc','thd','the')
+sc_keys = ('c1','m1','th')
 
-omni_col = 'AE'
+fig, ax = plt.subplots(figsize=(10, 5), dpi=400)
 
-months = df_merged.index.to_period('M')
-month_counts = months.value_counts().sort_index()
-counts = month_counts.values
+width = 1 / len(sc_keys)  # total group width = 0.8, divided among spacecraft
 
-colours = []
-for month in month_counts.index:
-    month_rows = df_merged[months == month]
-    most_common_value = month_rows['sc_msh'].mode()[0]
-    colours.append(colour_dict.get(most_common_value.upper(), 'k'))
+for i, sc_key in enumerate(sc_keys):
 
-month_datetimes = month_counts.index.to_timestamp()
-fractional_years = month_datetimes.year + (month_datetimes.month - 1)/12
+    if sc_key=='th':
+        years = []
+        for sc in th_keys:
+            df_sc = import_processed_data(msh_dir, f'msh_times_{sc}.cdf')
+            years.append(df_sc[f'B_avg_{sc}'].dropna().index.year.to_numpy())
+        years = np.concatenate(years)
+    else:
+        df_sc = import_processed_data(msh_dir, f'msh_times_{sc_key}.cdf')
+        years = df_sc[f'B_avg_{sc_key}'].dropna().index.year.to_numpy()
 
-ax.bar(fractional_years, counts, width=1/12, color=colours, align='edge')
+    bins = calculate_bins(years, 1)
+    counts, _ = np.histogram(years, bins=bins)
+
+    offset = i * width
+
+    ax.bar(bins[:-1] + offset, counts, width=width, color=colour_dict.get(sc_key.upper(), 'k'), label=f'{sc_key}: {len(years):,} {data_type}', align='edge')
+
+# Formatting
+ax.legend(loc='upper left', framealpha=1)
+ax.set_xlabel('Year')
+ax.set_ylabel('Count')
 ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
 
-sc_total_counts = df_merged['sc_msh'].value_counts()
-legend_patches = [
-    Patch(facecolor=colour_dict.get(sc.upper(), 'k'), label=f'{sc.upper()} ({count:,})')
-    for sc, count in sc_total_counts.items()
-]
-ax.legend(handles=legend_patches, fontsize=8, loc='upper left')
-
-
-
+plt.tight_layout()
 plt.show()
 
 
-# %% Time_with_Response
+# %% Bias_Driver
 
-
-# Change to be the rolling OMNI value for the full dataset and for times with contemp MSH
-#
-
-
-# Add rolling max Ey and AE to the yearly plot
+# Shows driver for full OMNI and for times when contemp. MSH
 
 fig, ax = plt.subplots(figsize=(10,6), dpi=400, sharex=True)
 
-omni_col = 'AE'
+omni_col = 'E_R'
 
-months = df_merged.index.to_period('M')
-month_counts = months.value_counts().sort_index()
+for i, (colour, label) in enumerate(zip(('orange','blue'),('All OMNI','Contemp MSH'))):
+    mask = np.ones(len(df_sw),dtype=bool)
+    if i==1:
+        mask = df_merged.index
+    # full
+    monthly_max = df_sw.loc[mask,omni_col].resample('ME').max()
+    rolling_max = monthly_max.rolling(window=6, min_periods=1).mean()
 
-bins = np.arange(len(month_counts))
-counts = month_counts.values
+    month_datetimes = monthly_max.index
+    fractional_years = month_datetimes.year + (month_datetimes.month - 1)/12
 
+    ax.plot(fractional_years, rolling_max.values, linestyle='-', color=colour, label=label)
 
-label = f'MSH: {len(months):,} {data_type}'
+y_label = create_label(omni_col, units=df_sw.attrs['units'])
 
-ax.bar(bins, counts, width=1, color='blue', label=label)
-ax.set_ylim(1000)
-ax.set_yscale('log')
-ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
-
-monthly_max = df_sw[omni_col].resample('ME').max()
-rolling_max = monthly_max.rolling(window=6, min_periods=1).mean()
-rolling_bins = np.arange(len(rolling_max))
-
-ax2 = ax.twinx()
-ax2.plot(rolling_bins, rolling_max.values, linestyle='-', color='orange', label='Monthly Rolling Max')
-
-ax.set_xlim(right=np.max(bins))
-
+ax.set_ylabel(y_label)
 ax.legend(loc='upper left')
 
+plt.show()
 
 # %% Time_Activity
 
@@ -254,22 +256,24 @@ plt.tight_layout()
 plt.show()
 
 
-# %%
+# %% Overview
 
 
-independent = 'E_R'
+independent = 'B_avg'
 ind_source  = 'sw'
+restrict    = True
 
 dependent   = 'AE_17m'
 dep_source  = 'pc'
 
 
-group_param = 'Delta B_theta_msh'
+grouping = 'Delta B_theta'
 #group_param = 'Delta Bz_msh'
 #group_param = theta_Bn_msh
 #group_param = 'MA_sw'
 
-
+group_source = 'msh'
+group_param = f'{grouping}_{group_source}'
 
 ind_param       = '_'.join((independent,ind_source))
 if ind_source in ('sw','pc'):
@@ -304,7 +308,7 @@ else:
 z_unit = df_merged.attrs['units'].get(group_param,'')
 
 if z_unit in ('rad','deg','°'):
-    z_unit_str = ' °'
+    z_unit_str = '°'
 elif z_unit is not None and z_unit not in ('1','NUM',''):
     z_unit_str = f' {z_unit}'
 else:
@@ -315,12 +319,24 @@ invert = False
 mask = np.ones(len(df_merged),dtype=bool)
 omni_mask = np.ones(len(df_sw),dtype=bool)
 
-if 'B_' in ind_param:
+if 'B_' in ind_param and independent!='B_avg':
     mask = df_merged[ind_param]<0
     omni_mask = df_sw[independent]<0
     bin_step = 2
     invert = True
-elif 'V_' in ind_param and ind_param!='V_flow':
+    if restrict:
+        limit = -15
+        mask &= df_merged[ind_param] >= limit
+        omni_mask &= df_sw[independent] >= limit
+        bin_step = 1
+elif independent=='B_avg':
+    bin_step = 2
+    if restrict:
+        limit = 10
+        mask &= df_merged[ind_param] <= limit
+        omni_mask &= df_sw[independent] <= limit
+        bin_step = 1
+elif 'V_' in ind_param and independent!='V_flow':
     mask = df_merged[ind_param]<0
     omni_mask = df_sw[independent]<0
     invert = True
@@ -329,6 +345,11 @@ elif 'E_' in ind_param:
     mask = df_merged[ind_param]>0
     omni_mask = df_sw[independent]>0
     bin_step = 2
+    if restrict:
+        limit = 12
+        mask &= df_merged[ind_param] <= limit
+        omni_mask &= df_sw[independent] <= limit
+        bin_step = 1
 
 mask &= ~np.isnan(df_merged[dep_param])
 mask &= ~np.isnan(df_merged[group_param])
@@ -343,20 +364,20 @@ median = np.percentile(df_masked[group_param].dropna().to_numpy(),50)
 if group_param=='Delta B_theta_msh':
     edges = [median]
     bin_width = np.pi/36
-    z_labels = [f'${data_string(group_param)}$<{np.degrees(edges[0]):.1f}{z_unit_str}',
-                f'${data_string(group_param)}$$\\geq${np.degrees(edges[0]):.1f}{z_unit_str}']
+    z_labels = [f'${data_string(grouping)}$<{np.degrees(edges[0]):.1f}{z_unit_str}',
+                f'${data_string(grouping)}$$\\geq${np.degrees(edges[0]):.1f}{z_unit_str}']
 
 elif group_param=='Delta Bz_msh':
     edges = [0]
     bin_width = 1
-    z_labels = [f'$sgn({data_string(group_param)})$<0{z_unit_str}',
-                f'$sgn({data_string(group_param)})$$\\geq$0{z_unit_str}']
+    z_labels = [f'$sgn({data_string(grouping)})$<0{z_unit_str}',
+                f'$sgn({data_string(grouping)})$$\\geq$0{z_unit_str}']
 
 elif group_param=='M_A_sw':
     edges = [median]
     bin_width = 1
-    z_labels = [f'${data_string(group_param)}$<{edges[0]:.1f}{z_unit_str}',
-                f'${data_string(group_param)}$$\\geq${edges[0]:.1f}{z_unit_str}']
+    z_labels = [f'${data_string(grouping)}$<{edges[0]:.1f}{z_unit_str}',
+                f'${data_string(grouping)}$$\\geq${edges[0]:.1f}{z_unit_str}']
 
 fig = plt.figure(figsize=(12, 10), dpi=200)
 # nrows, ncols
@@ -389,6 +410,8 @@ elif dep_source!='msh' and ind_source!='msh':
 
 _ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, display='rolling', window_width=bin_step, data_colour=full_colour, error_colour=full_colour, region='sem', fig=fig, ax=ax_tl, return_objs=True)
 
+_ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, display='rolling', window_width=bin_step, data_colour=full_colour, error_colour=full_colour, line_style=':', region='none', fig=fig, ax=ax_bl, return_objs=True)
+
 _ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, display='rolling_multiple', zs_edges=edges, window_width=bin_step, region='sem', want_legend=False, fig=fig, ax=ax_bl, return_objs=True)
 
 
@@ -409,21 +432,20 @@ for i, (axis, group_region, colour, label) in enumerate(zip((ax_tr, ax_tr2), ('l
     df_msh_years = df_masked.loc[(~df_masked[ind_param].isna())&(filter_mask)].index.year.to_numpy()
 
     # Counts each grouping bin
-    bins = calculate_bins(df_masked.loc[filter_mask,group_param],bin_width)
+    df_grouping = df_masked.loc[filter_mask,group_param]
+    bins = calculate_bins(df_grouping,bin_width)
     if bins[-2]<edges[0]<bins[-1]:
         bins[-1] = edges[0]
-    elif bins[1]>edges[0]>bins[0]:
+    elif bins[0]<edges[0]<bins[1]:
         bins[0] = edges[0]
 
-    ax_br.hist(df_masked.loc[filter_mask,group_param], bins=bins, color=colour, label=label)
+    ax_br.hist(df_grouping, bins=bins, color=colour, label=label)
     if group_param=='Delta Bz':
         ax_br.set_xscale('symlog', linthresh=10)
 
     # Counts each independent bin
-    bins = calculate_bins(df_msh_param,bin_step)
-    counts, _ = np.histogram(df_msh_param, bins=bins)
-
-    ax_bl2.bar(bins[:-1] + (i+0.5)*bin_step/2, counts, width=bin_step/2, color=colour, alpha=0.9)
+    ax_bl2.axhline(y=100, ls=':', lw=1, c='w')
+    ax_bl2.hist(df_msh_param, bins=calculate_bins(df_msh_param,bin_step), histtype='step', edgecolor=colour)
 
     # Counts each year
     bins = calculate_bins(df_msh_years,1)
@@ -437,6 +459,8 @@ ax_br.axvline(x=edges[0],c='k',ls='--')
 if z_unit =='rad':
     formatter = FuncFormatter(lambda val, pos: f'{np.degrees(val):.0f}°')
     ax_br.xaxis.set_major_formatter(formatter)
+    tick_spacing_deg = 30
+    ax_br.xaxis.set_major_locator(MultipleLocator(np.radians(tick_spacing_deg)))
 
 vmin = min(cm.get_array().min() for cm in cms)
 vmax = max(cm.get_array().max() for cm in cms)
@@ -470,8 +494,8 @@ ax_br2.set_yscale('log')
 ax_br.legend(loc='upper right', fontsize=8)
 ax_br2.legend(loc='upper right', fontsize=8)
 
-# if invert:
-#     ax_bl.invert_xaxis()
+if invert:
+    ax_bl.invert_xaxis()
 
 
 plt.tight_layout()

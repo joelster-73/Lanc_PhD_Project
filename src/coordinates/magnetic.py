@@ -7,6 +7,8 @@ Created on Thu May  8 17:48:43 2025
 
 import numpy as np
 import pandas as pd
+
+from uncertainties import unumpy as unp
 from spacepy.coordinates import Coords
 from spacepy.time import Ticktock
 
@@ -65,6 +67,42 @@ def calc_B_GSM_angles(df, **kwargs):
 
     # Return the new data as a DataFrame
     new_data = {'B_mag': B_mag, 'B_pitch': B_pitch, 'B_clock': B_clock}
+    return pd.DataFrame(new_data, index=df.index)
+
+def calc_B_angle_uncs(df, **kwargs):
+
+    coords = kwargs.get('coords','GSM')
+
+    x_label = f'B_x_{coords}'
+    if 'B_x_{coords}' not in df:
+        x_label = 'B_x_GSE'
+    if x_label not in df:
+        raise Exception('No x-component')
+    y_label = f'B_y_{coords}'
+    z_label = f'B_z_{coords}'
+
+    x_unc = f'{x_label}_unc'
+    y_unc = f'B_y_{coords}_unc'
+    z_unc = f'B_z_{coords}_unc'
+    if x_unc not in df:
+        x_unc = 'B_vec_unc'
+        y_unc = x_unc
+        z_unc = x_unc
+
+    if x_unc not in df:
+        raise Exception('No B GSM uncertainties.')
+
+    Bx = unp.uarray(df[x_label].to_numpy(), df[x_unc].to_numpy())
+    By = unp.uarray(df[y_label].to_numpy(), df[y_unc].to_numpy())
+    Bz = unp.uarray(df[z_label].to_numpy(), df[z_unc].to_numpy())
+    B_mag, B_pitch, B_clock = cartesian_to_spherical(Bx, By, Bz)
+
+    B_mag = unp.sqrt(Bx ** 2 + By** 2 + Bz ** 2)
+    B_pitch = unp.arccos(Bx / B_mag)
+    B_clock = unp.arctan2(By, Bz)
+
+    # Return the new data as a DataFrame
+    new_data = {'B_mag_unc': unp.std_devs(B_mag), 'B_pitch_unc': unp.std_devs(B_pitch), 'B_clock_unc': unp.std_devs(B_clock)}
     return pd.DataFrame(new_data, index=df.index)
 
 

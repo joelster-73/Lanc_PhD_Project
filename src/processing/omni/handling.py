@@ -126,7 +126,11 @@ def extract_omni_data(lst_file, omni_columns):
     b_gsm.drop(columns=['B_mag'],inplace=True) # drops magntiude of average component
     df = pd.concat([df, b_gsm], axis=1)
 
-    # Angle between IMF and BS
+    # b_gsm_unc = calc_B_angle_uncs(df, coords='GSM')
+    # b_gsm_unc.drop(columns=['B_mag_unc'],inplace=True)
+    # df = pd.concat([df, b_gsm_unc], axis=1)
+
+    # Angle between IMF and BS normal at nose
     b = df[[f'B_{comp}_GSE' for comp in ('x','y','z')]].values
     r = df[[f'R_{comp}_BSN' for comp in ('x','y','z')]].values
     n = r / np.linalg.norm(r, axis=1)[:, None]
