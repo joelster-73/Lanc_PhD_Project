@@ -389,6 +389,9 @@ def plot_scatter_binned(xs, ys, **kwargs):
 
 def plot_rolling_multiple(xs, ys, **kwargs):
 
+    ys_unc       = kwargs.get('ys_unc',None)
+    ys_counts    = kwargs.get('ys_counts',None)
+
     zs           = kwargs.get('zs',None)
     zs_edges     = kwargs.get('zs_edges',None)
 
@@ -420,12 +423,16 @@ def plot_rolling_multiple(xs, ys, **kwargs):
         if np.sum(mask)==0:
             continue
 
+        kwargs_bin = kwargs.copy()
         colour = cmap(norm(z_val))
-        kwargs['data_colour'] = colour
-        kwargs['error_colour'] = colour
+        kwargs_bin['data_colour'] = colour
+        kwargs_bin['error_colour'] = colour
+        if ys_unc is not None:
+            kwargs_bin['ys_unc'] = ys_unc.loc[mask]
+        if ys_counts is not None:
+            kwargs_bin['ys_counts'] = ys_counts.loc[mask]
 
-        ## NEEDS TO ACCOUNT OF UNCS AND COUNTS
-        _ = plot_rolling_window(xs.loc[mask], ys.loc[mask], **kwargs)
+        _ = plot_rolling_window(xs.loc[mask], ys.loc[mask], **kwargs_bin)
 
         ax.plot([], [], c=colour, label=z_label)
 
@@ -505,7 +512,7 @@ def create_multiple_labels(zs, zs_edges, z_min, z_max):
     z_edges_label = zs_edges
 
     if z_unit in ('rad','deg','°'):
-        z_unit = ' °'
+        z_unit = '°'
         z_edges_label = np.degrees(z_edges_label)
     elif z_unit is not None and z_unit not in ('1','NUM',''):
         z_unit = f' {z_unit}'
