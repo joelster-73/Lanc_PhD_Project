@@ -8,11 +8,12 @@ import os
 import numpy as np
 import pandas as pd
 
-from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_5VPS, MSH_DIR, OMNI_DIR, PROC_THEMIS_DIR, PROC_MMS_DIR
+from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_5VPS, MSH_DIR, OMNI_DIR, PROC_THEMIS_DIR, PROC_MMS_DIR, MMS_DIR, THEMIS_DIR
 from src.processing.reading import import_processed_data
 from src.processing.dataframes import merge_dataframes
 from src.processing.writing import write_to_cdf
 from src.coordinates.boundaries import calc_msh_r_diff
+from src.analysing.calculations import average_of_averages
 
 column_names = {
     'r_x_name'  : 'r_x_GSE',
@@ -25,7 +26,8 @@ column_names = {
     'v_x_name'  : 'V_x_GSE',
     'v_y_name'  : 'V_y_GSE',
     'v_z_name'  : 'V_z_GSE',
-    'p_name'    : 'P_flow'
+    'p_name'    : 'P_flow',
+    'bz_name'   : 'B_z_GSM'
 }
 
 
@@ -51,9 +53,91 @@ result = msh_times.groupby('new_group').agg(
 
 msh_times = result.loc[result['region_duration']>60]
 
-time_ranges = [[str(start), str(end)] for start, end in zip(
+c1_intervals = [(pd.to_datetime(str(start)), pd.to_datetime(str(end))) for start, end in zip(
         msh_times.index,
         msh_times.index + pd.to_timedelta(msh_times['region_duration'], unit='s'))]
+
+# %% Lalti_BS_Crossings
+
+file_path = os.path.join(MMS_DIR,'Lalti_2022_BS_crossings.csv')
+
+crossings = pd.read_csv(file_path, skiprows=53)
+crossings = crossings[['#time','direction']]
+crossings['time'] = pd.to_datetime(crossings['#time'],unit='s')
+crossings.set_index('time',inplace=True)
+crossings.drop(columns='#time',inplace=True)
+
+starts = crossings.index[(crossings['direction'] == 1) & (crossings['direction'].shift(1) != 1)]  # previous direction != 1
+ends   = crossings.index[(crossings['direction'] == 1) & (crossings['direction'].shift(-1) != 1)] # next direction != 1
+m1_intervals = list(zip(starts, ends))
+
+
+# %% Staples_MP_Crossings
+
+file_path = os.path.join(THEMIS_DIR,'Staples_2024_MP_Crossings.txt')
+boundaries = pd.read_csv(file_path, skiprows=42, sep='\t')
+boundaries.sort_values(by='TIMESTAMP',inplace=True)
+boundaries['time'] = pd.to_datetime(boundaries['TIMESTAMP'])
+boundaries.set_index('time',inplace=True)
+boundaries.index = boundaries.index.tz_localize(None)
+boundaries.drop(columns='TIMESTAMP',inplace=True)
+
+# Determine direction
+delta_t = pd.Timedelta('10min')
+
+sc_crossings = {}
+
+for sc in ('a','b','c','d','e'):
+    sc_dir = os.path.join(PROC_THEMIS_DIR, f'TH{sc}', '1min')
+    df_msh = import_processed_data(sc_dir)
+    B_z_GSM = df_msh[['B_z_GSM','B_z_GSM_unc','B_GSM_count']].dropna()
+
+
+    sc_boundaries = boundaries[boundaries['PROBE']==sc]
+
+    directions = {}
+
+    for time in sc_boundaries.index:
+        mask_before = (B_z_GSM.index >= time - delta_t) & (B_z_GSM.index < time)
+        mask_after  = (B_z_GSM.index > time) & (B_z_GSM.index <= time + delta_t)
+
+        if np.sum(mask_before)==0 or np.sum(mask_after)==0:
+            continue
+
+        avg_before = average_of_averages(B_z_GSM['B_z_GSM'], series_uncs=B_z_GSM['B_z_GSM_unc'], series_counts=B_z_GSM['B_GSM_count'], mask=mask_before)
+        avg_after = average_of_averages(B_z_GSM['B_z_GSM'], series_uncs=B_z_GSM['B_z_GSM_unc'], series_counts=B_z_GSM['B_GSM_count'], mask=mask_after)
+
+        diff_avg = avg_after - avg_before
+        # Bz increases going from MSH to MS
+        # So diff > 0 means going into magnetosphere
+
+        if diff_avg.s > np.abs(diff_avg.n): # Uncertainty of difference greater than it itself, so not certain
+            direction = 0
+        elif diff_avg.n > 0:
+            direction = 1 # Inbound
+        else:
+            direction = -1 # Outbound
+
+        directions[time] = direction
+
+
+    sc_crossings[f'TH{sc.upper()}'] = directions
+
+# Time intervals
+th_intervals = {}
+
+for key, val in sc_crossings.items():
+
+    sc_df = pd.DataFrame(list(val.items()), columns=['time','direction'])
+    sc_df.set_index('time',inplace=True)
+
+    starts = sc_df.index[(sc_df['direction'] == -1) & (sc_df['direction'].shift(1) != -1)]  # previous direction != -1
+    ends   = sc_df.index[(sc_df['direction'] == -1) & (sc_df['direction'].shift(-1) != -1)] # next direction != -1
+    intervals = list(zip(starts, ends))
+
+    th_intervals[key] = intervals
+
+
 
 # %% OMNI_with_lag
 
@@ -164,15 +248,30 @@ for sample_interval in sample_intervals:
         df_positions = calc_msh_r_diff(df_merged, 'BOTH', position_key=sc, data_key='sw', column_names=column_names)
         df_merged = pd.concat([df_merged,df_positions[pos_cols]],axis=1)
 
-        if sc=='c1': # Grison
-            interval_index = pd.IntervalIndex.from_tuples(
-                [(pd.to_datetime(start), pd.to_datetime(end)) for start, end in time_ranges],
-                closed='both'
-            )
-            df_merged = df_merged.loc[interval_index.get_indexer(df_merged.index) != -1]
+        mask = np.zeros(len(df_merged),dtype=bool)
 
-        else: # Position
-            df_merged = df_merged.loc[(df_merged['r_F']>0)&(df_merged['r_F']<1)]
+        if sc=='c1': # Grison
+            interval_index = pd.IntervalIndex.from_tuples(c1_intervals, closed='both')
+
+            mask |= (interval_index.get_indexer(df_merged.index) != -1)
+
+        elif sc=='m1':
+            interval_index = pd.IntervalIndex.from_tuples(m1_intervals, closed='both')
+
+            mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>0))
+            # Currently this is for BS crossings - can add magnetopause crossings in but using model for now
+            # I think I've found paper on MMS MP crossings but not the database itself
+
+        elif sc in ('tha','thb','thc','thd','the'):
+            interval_index = pd.IntervalIndex.from_tuples(th_intervals[sc.upper()], closed='both')
+
+            mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1))
+            # Currently this is for MP crossings - can add bowshock crossings in but using model for now
+
+        # Mask is an OR to cover times when the database isn't active
+        mask |= (df_merged['r_F']>0)&(df_merged['r_F']<1)
+
+        df_merged = df_merged.loc[mask]
 
         df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix
         df_merged.dropna(how='all',inplace=True)

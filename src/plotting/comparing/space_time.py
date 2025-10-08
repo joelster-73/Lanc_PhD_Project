@@ -8,16 +8,18 @@ Created on Fri May 16 11:53:22 2025
 import numpy as np
 import pandas as pd
 from datetime import datetime
-
 from scipy.signal import find_peaks
 
 import matplotlib.pyplot as plt
 from matplotlib import ticker as mticker
+from matplotlib.ticker import FuncFormatter
 
 from ..config import black, white
 from ..formatting import add_figure_title, dark_mode_fig
 from ..utils import save_figure
 from ..space_time import plot_orbit, plot_time_distribution
+from ..additions import plot_segments
+from ..formatting import custom_date_formatter, add_legend
 
 def plot_compare_datasets_space(df1, df2, plane='x-rho', coords='GSE', **kwargs):
 
@@ -66,6 +68,54 @@ def plot_compare_datasets_time(df1, df2, **kwargs):
     plt.close()
 
 
+def plot_series_against_time(*dfs, df_col_dict={}, delta='1min', **kwargs):
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+    return_objs = kwargs.get('return_objs',False)
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+        kwargs['fig'] = fig
+        kwargs['ax'] = ax
+
+
+    for i, df in enumerate(dfs):
+        columns = df_col_dict.get(f'df{i+1}',{})
+        for column, info in columns.items():
+            if np.sum(~df[column].isna())==0:
+                continue
+            colour = info.get('colour','k')
+            marker = info.get('marker','s')
+            label  = info.get('label',None)
+            plot_segments(ax, df, column, colour=colour, marker=marker, label=label, delta=pd.Timedelta(delta))
+
+            error  = info.get('error',None)
+            if error is not None:
+                series = df.loc[:,column]
+                errors = df.loc[:,error]
+
+                ax.fill_between(series.index, series-errors, series+errors, color=colour, alpha=0.2)
+
+    formatter = FuncFormatter(custom_date_formatter)
+    ax.xaxis.set_major_formatter(formatter)
+    ax.set_ylabel('Parameter')
+    add_legend(fig, ax)
+
+    if return_objs:
+        return fig, ax
+
+    add_figure_title(fig, title=series.index[0].strftime('%Y-%m-%d'))
+
+    plt.tight_layout()
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+
+
+# %%
+
 def plot_compare_datasets_with_activity(*dfs, **kwargs):
 
 
@@ -77,7 +127,7 @@ def plot_compare_datasets_with_activity(*dfs, **kwargs):
     # Load the sunspot data from SILSO (adjust the file path or URL as needed)
     url = 'https://www.sidc.be/silso/DATA/SN_m_tot_V2.0.txt'
     columns = ['year', 'month', 'decimal_year', 'sunspot_count', 'standard_deviation', 'number_of_observations', 'provisional']
-    data = pd.read_csv(url, sep='\s+', names=columns, comment='*')
+    data = pd.read_csv(url, sep=r'\s+', names=columns, comment='*')
 
     data = data[(data['year'] >= 2000) & (data['year'] <= 2025)]
     data['date'] = pd.to_datetime(data[['year', 'month']].assign(day=1))

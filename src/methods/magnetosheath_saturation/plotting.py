@@ -215,12 +215,14 @@ def plot_bias_in_parameters(df_sw, df_msh, params=None):
     plt.show()
     plt.close()
 
+# %%
+
 
 imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'M_A', 'beta']
 
 plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSM', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSM', 'S_y_GSM', 'S_z_GSM', 'E_R']
 
-def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', restrict=True, data_type='counts'):
+def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', grp_split=None, bounds=None, restrict=True, data_type='counts', plot_test=False):
 
     ###----------PARAMETER NAMINGS----------###
 
@@ -282,20 +284,24 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         if restrict:
             bin_step, limits[1] = 1, 15
 
-    elif 'B_' in ind_param:
+    elif 'B_' in ind_var:
         invert = True
         bin_step, limits[1] = 2, 0
         if restrict:
-            bin_step, limits[0] = 1, -15
+            bin_step, limits[0] = 1, -25
 
-    elif 'V_' in ind_param and ind_var!='V_flow':
+    elif 'V_' in ind_var and ind_var!='V_flow':
         invert = True
         bin_step, limits[1] = 50, 0
 
-    elif 'E_' in ind_param:
+    elif 'E_' in ind_var:
         bin_step, limits[0] = 2, 0
         if restrict:
             bin_step, limits[1] = 1, 12
+
+     # Overwrites with those passed in
+    if bounds is not None:
+        limits = bounds
 
     if limits[0] is not None:
         mask      &= df_msh[ind_param] >= limits[0]
@@ -314,6 +320,7 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     ###----------GROUPING PARAMETER LABEL----------###
 
     median = np.percentile(df_masked[group_param].dropna().to_numpy(),50)
+    used_median = True
 
     z_unit = df_msh.attrs['units'].get(group_param,'')
 
@@ -327,28 +334,64 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     grp_string = data_string(grp_var)
     grp_label = create_label(grp_var, '°' if z_unit in ('rad','deg','°') else z_unit)
 
-    if group_param=='Delta B_theta_msh':
+
+    if grp_var=='Delta B_theta':
         edges = [median]
         bin_width = np.pi/36
+
+    elif grp_var=='theta_Bn':
+        used_median = False
+        edges = [np.pi/4]
+        bin_width = np.pi/36
+
+    elif grp_var=='B_clock':
+        used_median = False
+        edges = [0]
+        bin_width = np.pi/36
+
+    elif grp_var=='Delta B_z':
+        used_median = False
+        edges = [0]
+        bin_width = 10
+
+    elif grp_var=='M_A':
+        edges = [median]
+        bin_width = 1
+
+    elif 'E_' in grp_var:
+        edges = [median]
+        bin_width = 0.5
+
+    elif 'V_' in grp_var:
+        used_median = False
+        edges = [400]
+        bin_width = 50
+    else:
+        raise Exception(f'Grouping parameter "{group_param}" not implemented.')
+
+    if grp_split is not None:
+        used_median = False
+        edges = [grp_split]
+
+    if z_unit in ('rad','deg','°'):
+
         z_labels = [f'${grp_string}$<{np.degrees(edges[0]):.1f}{z_unit_str}',
                     f'${grp_string}$$\\geq${np.degrees(edges[0]):.1f}{z_unit_str}',
                     f'${grp_string}$ = {np.degrees(edges[0]):.1f}{z_unit_str}']
 
-    elif group_param=='Delta Bz_msh':
-        edges = [0]
-        bin_width = 1
-        z_labels = [f'$sgn({grp_string})$<0{z_unit_str}',
-                    f'$sgn({grp_string})$$\\geq$0{z_unit_str}',
-                    f'$sgn({grp_string})$ = 0{z_unit_str}']
+    else:
 
-    elif group_param=='M_A_sw':
-        edges = [median]
-        bin_width = 1
         z_labels = [f'${grp_string}$<{edges[0]:.1f}{z_unit_str}',
                     f'${grp_string}$$\\geq${edges[0]:.1f}{z_unit_str}',
                     f'${grp_string}$ = {edges[0]:.1f}{z_unit_str}']
-    else:
-        raise Exception(f'Grouping parameter "{group_param}" not implemented.')
+
+    if plot_test:
+
+        fig, ax = plt.subplots()
+
+        # Splits contemp MSH OMNI by grouping
+        compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, display='rolling_multiple', zs_edges=edges, window_width=bin_step, region='sem', want_legend=True, fig=fig, ax=ax, return_objs=False)
+        return
 
     ###----------PLOT GRIDS----------###
 
@@ -369,8 +412,10 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
     omni_colour = 'k'
     full_colour = 'b'
+    colour_100  = 'w'
 
     if ind_var == dep_var:
+        colour_100 = 'k'
         ax_tl.axline((0,0),slope=1,c='k',ls=':')
 
     elif not (dep_src=='msh' or ind_src=='msh'):
@@ -410,13 +455,12 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
             bins[0] = edges[0]
 
         ax_br.hist(df_grouping, bins=bins, color=colour)
-        if group_param=='Delta Bz':
+        if grp_var=='Delta B_z':
             ax_br.set_xscale('symlog', linthresh=10)
         ax_br.set_xlabel(grp_label)
 
         # Counts each ind_var bin
         df_msh_param = df_masked.loc[filter_mask,ind_param]
-        ax_bl2.axhline(y=100, ls=':', lw=1, c='w')
         ax_bl2.hist(df_msh_param, bins=calculate_bins(df_msh_param,bin_step), histtype='step', edgecolor=colour, linewidth=1.2)
 
         # Counts each year split by grouping
@@ -424,14 +468,16 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         bins = calculate_bins(df_msh_years,1)
         counts, _ = np.histogram(df_msh_years, bins=bins)
 
-        ax_br2.bar(bins[:-1] + (i-0.5)*0.5, counts, width=0.5, color=colour)
+        ax_br2.bar(bins[:-1] + (i-0.5)*0.5, counts, width=0.5, color=colour, label=f'{len(df_msh_years):,}{data_type}' if not used_median else None)
 
+    ax_bl2.axhline(y=100, ls=':', lw=1, c=colour_100)
 
-    ax_br2.plot([], [], ' ', label=f'$n/2$ = {np.sum(filter_mask):,} {data_type}')
+    if used_median:
+        ax_br2.plot([], [], ' ', label=f'$n/2$ = {np.sum(filter_mask):,} {data_type}')
 
     ###----------FORMATTING----------###
 
-    ax_br.axvline(x=edges[0],c='k',ls='--',label=f'${grp_string}$ = {np.degrees(edges[0]):.1f}{z_unit_str}')
+    ax_br.axvline(x=edges[0],c='k',ls='--',label=z_labels[2])
     if z_unit =='rad':
         formatter = FuncFormatter(lambda val, pos: f'{np.degrees(val):.0f}°')
         ax_br.xaxis.set_major_formatter(formatter)

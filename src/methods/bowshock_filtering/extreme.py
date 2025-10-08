@@ -282,10 +282,6 @@ def plot_extreme_diffs_windows(df1, df2, df_merged, data_name, source1, source2,
 
 
 
-
-
-
-
 def plot_on_day(df1, df2, df_regions, data_col, day, **kwargs):
     '''
 
@@ -334,8 +330,8 @@ def plot_on_day(df1, df2, df_regions, data_col, day, **kwargs):
     date_format = mdates.DateFormatter('%H:%M:%S')
     ax.xaxis.set_major_formatter(date_format)
 
-    plt.xlabel(day,c=black)
-    plt.ylabel(data_label,c=black)
+    ax.set_xlabel(day,c=black)
+    ax.set_ylabel(data_label,c=black)
     add_legend(fig, ax)
     add_figure_title(fig, f'Comparing {data_col} for {source1} and {source2} on {day}.')
 

@@ -396,7 +396,21 @@ def calc_average_vector(df_vec, param=None):
     return uarr
 
 
+def calc_angle_between_vecs(df, vec1, vec2):
 
+    vec1_field, vec1_coords = vec1.split('_')[0], '_'.join(vec1.split('_')[1:])
+    vec2_field, vec2_coords = vec2.split('_')[0], '_'.join(vec2.split('_')[1:])
+
+
+    vec1_arr = df[[f'{vec1_field}_{comp}_{vec1_coords}' for comp in ('x','y','z')]].to_numpy()
+    vec2_arr = df[[f'{vec2_field}_{comp}_{vec2_coords}' for comp in ('x','y','z')]].to_numpy()
+
+    dot = np.einsum('ij,ij->i', vec1_arr, vec2_arr)
+
+    vec1_norm = np.linalg.norm(vec1_arr, axis=1)
+    vec2_norm = np.linalg.norm(vec2_arr, axis=1)
+
+    return np.arccos(np.clip(dot / (vec1_norm * vec2_norm), -1.0, 1.0))
 
 # %% Statistics
 

@@ -419,8 +419,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     if fig is None or ax is None:
         fig, ax = plt.subplots()
 
-
-    x_centres = np.arange(int(np.min(xs)),int(np.max(xs))+window_step,window_step)
+    x_centres = np.arange(np.floor(np.min(xs)/window_step)*window_step,np.ceil(np.max(xs)/window_step)*window_step+window_step,window_step)
     y_means   = np.full(len(x_centres),np.nan)
     y_errs    = np.zeros(len(x_centres))
     y_stds    = np.zeros(len(x_centres))

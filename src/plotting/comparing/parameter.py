@@ -23,6 +23,7 @@ from ..formatting import add_legend, add_figure_title, create_label, dark_mode_f
 from ..utils import save_figure, calculate_bins, change_series_name
 from ..distributions import plot_fit, plot_rolling_window
 
+
 from ...analysing.calculations import average_of_averages
 from ...analysing.comparing import difference_columns
 
@@ -72,10 +73,30 @@ def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col
     compare_series(series1, series2, **kwargs)
 
 
+def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
+
+
+    series1 = df1.loc[:,col1]
+    series2 = df2.loc[:,col2]
+
+    if col1_err is not None:
+        kwargs['xs_unc'] = df1.loc[:,col1_err]
+
+    if col2_err is not None:
+        kwargs['ys_unc'] = df2.loc[:,col2_err]
+
+    if col1_counts is not None:
+        kwargs['xs_counts'] = df1.loc[:,col1_counts]
+
+    if col2_counts is not None:
+        kwargs['ys_counts'] = df2.loc[:,col2_counts]
+
+    compare_series(series1, series2, **kwargs)
+
+
 def investigate_difference(df, col1, col2, ind_col, **kwargs):
 
     diff_type = kwargs.get('diff_type','absolute')
-
 
     series1 = df.loc[:,ind_col]
     series2 = difference_columns(df, col2, col1, diff_type)
@@ -98,6 +119,7 @@ def compare_series(series1, series2, **kwargs):
     reference_line  = kwargs.get('reference_line',None)
     add_count       = kwargs.get('add_count',False)
     legend_loc      = kwargs.get('legend_loc',None)
+    invert          = kwargs.get('invert',False)
 
     data1_name    = kwargs.get('data1_name',None)
     data2_name    = kwargs.get('data2_name',None)
@@ -177,7 +199,7 @@ def compare_series(series1, series2, **kwargs):
 
     _ = plot_fit(series1,series2,**fit_kwargs)
 
-    if np.max(series1)<=0:
+    if invert:
         ax.invert_xaxis()
 
     ###---------------CONVERT TICKS TO DEGREES---------------###

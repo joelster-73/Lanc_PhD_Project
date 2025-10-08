@@ -309,7 +309,6 @@ def plot_compression(shocks, selection='all', plot_type='hist', change='change_r
         _ = compare_series(xs, ys, xs_unc=xs_unc, ys_unc=ys_unc, display='scatter_dict', sc_ups=sc_ups, sc_dws=sc_dws, fit_type='straight', as_text=True, **kwargs)
 
 
-    ###---------------LABELLING AND FINISHING TOUCHES---------------###
     if return_objs:
         return fig, ax
 

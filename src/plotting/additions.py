@@ -10,9 +10,16 @@ from pandas import Timedelta
 
 from matplotlib.patches import Wedge, Circle
 from .utils import segment_dataframe
+from .formatting import create_label
 
-def plot_segments(ax, data, colour, label, name, lw=0.6, fmt='-', marker=None, delta=Timedelta(minutes=1)):
-    data = segment_dataframe(data, delta)
+def plot_segments(ax, dataframe, column, lw=0.6, fmt='-', colour='k', label=None, marker=None, delta=Timedelta(minutes=1)):
+
+
+    if label is None:
+        label = column
+    label = create_label(label, unit=dataframe.attrs.get('units',{}).get(column,None))
+
+    data = segment_dataframe(dataframe, delta)
     label_shown = False
     if fmt == 'o':
         marker = 'o'
@@ -20,10 +27,10 @@ def plot_segments(ax, data, colour, label, name, lw=0.6, fmt='-', marker=None, d
         fmt = ':'
     for _, segment in data.groupby('segment'):
         if not label_shown:
-            ax.plot(segment[name], c=colour, lw=lw, ls=fmt, marker=marker, label=label)
+            ax.plot(segment[column], c=colour, lw=lw, ls=fmt, marker=marker, label=label)
             label_shown = True
         else:
-            ax.plot(segment[name], c=colour, lw=lw, ls=fmt, marker=marker)
+            ax.plot(segment[column], c=colour, lw=lw, ls=fmt, marker=marker)
 
 def create_circle(ax, centre=(0,0), radius=1, colour='black'):
     circle = Circle(centre, radius, facecolor=colour, edgecolor='grey')
@@ -53,14 +60,15 @@ def create_half_circle_marker(ax, centre=(0,0), radius=1, angle_start=90, full=T
     ax.add_patch(white_half)
 
 
-def plot_error_region(ax, xs, ys, y_errs, c='k', alpha=0.1, marker='x', label=None, step=None):
+def plot_error_region(ax, xs, ys, y_errs, c='k', alpha=0.1, marker='', label=None, step=None):
 
     xs = np.array(xs, dtype=float)
     ys = np.array(ys, dtype=float)
     y_errs = np.array(y_errs, dtype=float)
 
     ax.fill_between(xs, ys-y_errs, ys+y_errs, color=c, alpha=alpha, step=step)
-    ax.plot(xs, ys, marker=marker, c=c, label=label)
+    if marker !='':
+        ax.plot(xs, ys, marker=marker, c=c, label=label)
 
 
 def plot_vertical_line_unc(ax, time, uncertainty, label_info=None, colour='k', linestyle='--', uncertainty_tuple=None, return_label=False):

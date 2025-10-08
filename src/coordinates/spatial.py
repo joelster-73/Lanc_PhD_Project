@@ -46,6 +46,7 @@ def car_to_aGSE(df, column_names=None, simple=False):
     df_aGSE[r_name] = np.sqrt(df[r_x_name]**2 +
                               df[r_y_name]**2 +
                               df[r_z_name]**2)
+
     try:
         df_aGSE[v_x_name] = df[v_x_name]
     except:

@@ -6,7 +6,7 @@ from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant
 def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, **kwargs):
 
     if model is None:
-        model = 'jelinek' if surface=='BS' else 'shue'
+        model = 'jelinek' if surface =='BS' else 'shue'
 
     if aberration=='simple':
         simple_ab=True
@@ -27,21 +27,21 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
             'v_x_name'  : 'v_x_GSE',
             'v_y_name'  : 'v_y_GSE',
             'v_z_name'  : 'v_z_GSE',
-            'p_name'    : 'p_flow'
+            'p_name'    : 'p_flow',
+            'bz_name'   : 'B_z_GSM'
         }
+
     else:
         column_names = column_names.copy()
 
-
-    # Update position-related names
     if position_key is not None:
         for key in ['r_x_name', 'r_y_name', 'r_z_name', 'r_name', 'r_ax_name', 'r_ay_name', 'r_az_name']:
             column_names[key] += f'_{position_key}'
 
-    # Update data-related names
     if data_key is not None:
-        for key in ['v_x_name', 'v_y_name', 'v_z_name', 'p_name']:
+        for key in ['v_x_name', 'v_y_name', 'v_z_name', 'p_name', 'bz_name']:
             column_names[key] += f'_{data_key}'
+
 
     for key, val in column_names.items():
         if key in ('r_ax_name','r_ay_name','r_az_name'):
@@ -65,6 +65,7 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
     r_az_name = column_names['r_az_name']
     v_x_name  = column_names['v_x_name']
     p_name    = column_names['p_name']
+    bz_name   = column_names['bz_name']
 
 
     valid_mask = ~df_ab[v_x_name].isna()
@@ -74,18 +75,32 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         except:
             p = 2.056
 
+        try:
+            Bz = df.loc[valid_mask,bz_name].to_numpy()
+        except:
+            Bz = -0.001
+
+
         theta_ps = np.arccos(
             df_ab.loc[valid_mask, r_ax_name] / df_ab.loc[valid_mask, r_name]
         )
 
         # Compute the radial distances based on the selected model
         if surface == 'BOTH':
-            r_mp  = mp_shue1998(theta_ps, Pd=p, **kwargs)
-            r_bs  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+            df_ab.loc[valid_mask, 'r_phi'] = theta_ps
+
+            if model=='shue':
+                print('Using Shue mp.')
+                r_mp  = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
+            else:
+                print('Using Jelínek mp.')
+                r_mp  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
 
             df_ab.loc[valid_mask, 'r_MP'] = r_mp
-            df_ab.loc[valid_mask, 'r_BS'] = r_bs
-            df_ab.loc[valid_mask, 'r_phi'] = theta_ps
+
+            print('Using Jelínek bs.')
+            df_ab.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+
             df_ab.loc[valid_mask, 'r_F'] = (df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, 'r_MP']) / (df_ab.loc[valid_mask, 'r_BS'] - df_ab.loc[valid_mask, 'r_MP'])
 
             df_ab.loc[~valid_mask, ['r_MP','r_BS','r_phi','r_F']] = np.nan
@@ -94,14 +109,17 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
 
             if surface == 'BS':
                 if model == 'jelinek':
+                    print('Using Jelínek bs.')
                     r  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
                 else:
                     raise ValueError(f'Model {model} not valid')
 
             elif surface == 'MP':
                 if model == 'shue':
+                    print('Using Shue mp.')
                     r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
                 elif model == 'jelinek':
+                    print('Using Jelínek mp.')
                     r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
                 else:
                     raise ValueError(f'Model {model} not valid')
