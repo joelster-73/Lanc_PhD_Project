@@ -12,8 +12,10 @@ from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_5VPS, MSH
 from src.processing.reading import import_processed_data
 from src.processing.dataframes import merge_dataframes
 from src.processing.writing import write_to_cdf
-from src.coordinates.boundaries import calc_msh_r_diff
-from src.analysing.calculations import average_of_averages
+from src.coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
+from src.coordinates.magnetic import calc_GSE_to_GSM_angles, GSE_to_GSM_with_angles
+from src.analysing.calculations import average_of_averages, calc_angle_between_vecs
+from src.analysing.comparing import difference_series
 
 column_names = {
     'r_x_name'  : 'r_x_GSE',
@@ -166,6 +168,17 @@ for sample_interval in sample_intervals:
         temp = temp.interpolate(method='time')
         df_sw[f'AE_{lag}m'] = temp.loc[target_index].values
 
+    df_sw.loc[df_sw['M_A']>100,'M_A'] = np.nan
+
+    # Theta Bn angle - quasi-perp/quasi-para
+    df_sw['theta_Bn'] = calc_angle_between_vecs(df_sw, 'B_GSE', 'R_BSN')
+    # restrict to be between 0 and 90 degrees
+    df_sw.loc[df_sw['theta_Bn']>np.pi/2,'theta_Bn'] = np.pi - df_sw.loc[df_sw['theta_Bn']>np.pi/2,'theta_Bn']
+    df_sw.attrs['units']['theta_Bn'] = 'rad'
+
+
+    df_sw['gse_to_gsm_angle'] = calc_GSE_to_GSM_angles(df_sw, ref='B')
+
     # Writes OMNI with lag to file
     output_file = os.path.join(OMNI_DIR, 'with_lag', f'omni_{sample_interval}.cdf')
     write_to_cdf(df_sw, output_file, reset_index=True)
@@ -175,21 +188,24 @@ for sample_interval in sample_intervals:
 
 # With Plasma
 data_pop = 'with_plasma'
+couple_vecs = ('B','E','V')
 cluster_directory = PROC_CLUS_DIR_MSH
+# for mms import both and combine
 
 # Field only
 data_pop = 'field_only'
+couple_vecs = ('B',)
 cluster_directory = PROC_CLUS_DIR_5VPS
 themis_directory  = PROC_THEMIS_DIR
 mms_directory     = PROC_MMS_DIR
 
 
 sample_intervals = ('1min','5min')
-msh_keys = ('c1','m1','tha','thb','thc','thd','the')
-pos_cols = ['r_MP','r_BS','r_phi','r_F']
+msh_keys  = ('c1','m1','tha','thb','thc','thd','the')
+pos_cols  = ['r_MP','r_BS','r_phi','r_F']
+norm_cols = [f'N{comp}_GSM_MP' for comp in ('x','y','z')]
 
 param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'AE_17m_sw','SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
-
 
 
 for sample_interval in sample_intervals:
@@ -197,6 +213,7 @@ for sample_interval in sample_intervals:
     # Solar wind data
     omni_dir = os.path.join(OMNI_DIR, 'with_lag')
     df_sw    = import_processed_data(omni_dir, f'omni_{sample_interval}.cdf')
+
 
     dfs_combined = []
 
@@ -222,17 +239,14 @@ for sample_interval in sample_intervals:
 
         if 'r_mag' not in df_msh:
             cols     = [f'r_{comp}_GSE' for comp in ('x','y','z')]
-
-            r = np.linalg.norm(df_msh[cols].values, axis=1)
-            df_msh.insert(0, 'r_mag', r)
-
+            r        = np.linalg.norm(df_msh[cols].values, axis=1)
             unc_cols = [f'r_{comp}_GSE_unc' for comp in ('x','y','z')]
             try:
-                sigma_r = np.sqrt(
-                    ((df_msh[cols].values / r[:, None])**2 * df_msh[unc_cols].values**2).sum(axis=1)
-                )
+                sigma_r = np.sqrt(((df_msh[cols].values / r[:, None])**2 * df_msh[unc_cols].values**2).sum(axis=1))
             except:
                 sigma_r = np.nan
+
+            df_msh.insert(0, 'r_mag', r)
             df_msh.insert(1, 'r_mag_unc', sigma_r)
 
         if 'r_mag_count_msh' in df_msh:
@@ -243,6 +257,8 @@ for sample_interval in sample_intervals:
         df_merged.columns = [param_map_pc.get(col,col) for col in df_merged.columns] # changes sw to pc for some omni
         df_merged.attrs['units'] = {param_map_pc.get(col,col): df_merged.attrs['units'].get(col,col) for col in df_merged.attrs['units']}
         df_merged_attrs = df_merged.attrs # stores
+
+        ###----------FILTER FOR MAGNETOSHEATH----------###
 
         # Filter for MSH
         df_positions = calc_msh_r_diff(df_merged, 'BOTH', position_key=sc, data_key='sw', column_names=column_names)
@@ -272,14 +288,60 @@ for sample_interval in sample_intervals:
         mask |= (df_merged['r_F']>0)&(df_merged['r_F']<1)
 
         df_merged = df_merged.loc[mask]
-
         df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix
-        df_merged.dropna(how='all',inplace=True)
 
+        ###----------NORMAL TO MAGNETOPAUSE----------###
+
+        # Magnetopause normal in direction of spacecraft
+        normals = calc_normal_for_sc(df_merged, 'MP', position_key=sc, data_key='sw', column_names=column_names)
+        normals_gsm = GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
+        df_merged = pd.concat([df_merged,normals_gsm],axis=1)
+
+        N = df_merged[norm_cols].to_numpy()
+        for vec in couple_vecs:
+            A_cols = [f'{vec}_{comp}_GSM_{sc}' for comp in ('x','y','z')]
+
+            if A_cols[0] not in df_merged:
+                A_cols[0] = A_cols[0].replace('GSM','GSE')
+
+            A = df_merged[A_cols].to_numpy()
+            A_dot_N   = np.einsum('ij,ij->i', A, N)
+            A_norm_sq = np.einsum('ij,ij->i', A, A)
+
+            with np.errstate(divide='ignore', invalid='ignore'):
+                tangential_mag = np.sqrt(A_norm_sq - (A_dot_N ** 2))
+                tangential_mag = np.nan_to_num(tangential_mag)  # Replace NaNs with 0
+
+            df_merged[f'{vec}_perp_{sc}'] = A_dot_N
+            df_merged[f'{vec}_parallel_{sc}'] = tangential_mag
+
+        df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
+
+        ###----------EXTRA PARAMETERS----------###
+        df_merged.loc[df_merged[f'B_z_GSM_{sc}'].abs()>250,f'B_z_GSM_{sc}'] = np.nan
+
+        # Rotation of clock angle
+        # Ignoring sw uncertainty for time being
+        df_merged[f'Delta B_theta_{sc}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock_{sc}'],unit='rad'))
+        not_nan = ~np.isnan(df_merged[f'Delta B_theta_{sc}'])
+        if f'B_clock_unc_{sc}' in df_merged: # Not implemented for Cluster currently
+            df_merged.loc[not_nan,f'Delta B_theta_unc_{sc}'] = df_merged.loc[not_nan,f'B_clock_unc_{sc}']
+
+        # Reversal of Bz
+        # Not interested in error
+        df_merged[f'Delta B_z_{sc}'] = df_merged[f'B_z_GSM_{sc}']/df_merged['B_z_GSM_sw'] - 1
+        df_merged[f'Delta B_z_{sc}'] = df_merged[f'Delta B_z_{sc}'].replace([np.inf, -np.inf], np.nan)
+        df_merged.loc[np.abs(df_merged[f'Delta B_z_{sc}'])>1000,f'Delta B_z_{sc}'] = np.nan
+
+        # Add to combined
+        df_merged.dropna(how='all',inplace=True)
         dfs_combined.append(df_merged[[col for col in df_merged if f'_{sc}' in col]])
 
         # Writes individual to file with omni
         df_merged.attrs = df_merged_attrs
+        df_merged.attrs['units'][f'Delta B_theta_{sc}'] = 'rad'
+        df_merged.attrs['units'][f'Delta B_z_{sc}'] = '1'
+
         output_file = os.path.join(MSH_DIR, data_pop, sample_interval, f'msh_times_{sc}.cdf')
         print(f'Writing {sc} to file...')
         write_to_cdf(df_merged, output_file, reset_index=True)
@@ -309,6 +371,8 @@ for sample_interval in sample_intervals:
     df_combined = pd.DataFrame(rows)
     df_combined.index.name = 'epoch'
     df_combined.attrs = df_merged_attrs
+    df_combined.attrs['units']['Delta B_theta_msh'] = 'rad'
+    df_combined.attrs['units']['Delta B_z_msh'] = '1'
 
     print('Merging')
     df_final = merge_dataframes(df_sw, df_combined, suffix_1='sw', suffix_2=None)

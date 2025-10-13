@@ -5,29 +5,19 @@ from scipy.spatial.transform import Rotation as R
 if not hasattr(np, "float_"):
     np.float_ = np.float64 #ensures backward compatibility with code expecting np.float_
 
-from uncertainties import UFloat
-from uncertainties import unumpy as unp
+from uncertainties import UFloat, unumpy as unp
+from .config import DEFAULT_COLUMN_NAMES
 from ..processing.utils import add_unit
 
 v_Earth = 29.78 # km/s
 
 
-def car_to_aGSE(df, column_names=None, simple=False):
+def car_to_aGSE(df, column_names=None, simple=False, return_rotation=False):
 
     if column_names is None:
-        column_names = {
-            'r_x_name': 'r_x_GSE',
-            'r_y_name': 'r_y_GSE',
-            'r_z_name': 'r_z_GSE',
-            'r_name': 'r',
-            'r_ax_name': 'r_x_aGSE',
-            'r_ay_name': 'r_y_aGSE',
-            'r_az_name': 'r_z_aGSE',
-            'v_x_name': 'v_x_GSE',
-            'v_y_name': 'v_y_GSE',
-            'v_z_name': 'v_z_GSE',
-            'p_name': 'p_flow'
-        }
+        column_names = DEFAULT_COLUMN_NAMES
+    else:
+        column_names = column_names.copy()
 
     r_x_name = column_names['r_x_name']
     r_y_name = column_names['r_y_name']
@@ -36,16 +26,14 @@ def car_to_aGSE(df, column_names=None, simple=False):
     r_ax_name = column_names['r_ax_name']
     r_ay_name = column_names['r_ay_name']
     r_az_name = column_names['r_az_name']
-    v_x_name = column_names['v_x_name']
-    v_y_name = column_names['v_y_name']
-    v_z_name = column_names['v_z_name']
+    v_x_name  = column_names['v_x_name']
+    v_y_name  = column_names['v_y_name']
+    v_z_name  = column_names['v_z_name']
 
     df_aGSE = pd.DataFrame(index=df.index)
 
     # Magnitude of cluster vector
-    df_aGSE[r_name] = np.sqrt(df[r_x_name]**2 +
-                              df[r_y_name]**2 +
-                              df[r_z_name]**2)
+    df_aGSE[r_name] = np.sqrt(df[r_x_name]**2 + df[r_y_name]**2 + df[r_z_name]**2)
 
     try:
         df_aGSE[v_x_name] = df[v_x_name]
@@ -70,34 +58,38 @@ def car_to_aGSE(df, column_names=None, simple=False):
     valid_mask = ~df_aGSE[v_x_name].isna()
 
     # Rotation only for valid rows
-    if valid_mask.any():
+    if not valid_mask.any():
+        print('No valid data for aberration.')
+        return pd.DataFrame()
 
-        df_aGSE.loc[valid_mask, 'v_y_shift'] = df_aGSE.loc[valid_mask, v_y_name] + v_Earth
+    # Aberration
+    df_aGSE.loc[valid_mask, 'v_y_shift'] = df_aGSE.loc[valid_mask, v_y_name] + v_Earth
 
-        df_aGSE.loc[valid_mask, 'alpha_z'] = -np.arctan(
-            df_aGSE.loc[valid_mask, 'v_y_shift'] / np.abs(df_aGSE.loc[valid_mask, v_x_name])
-        )
-        df_aGSE.loc[valid_mask, 'alpha_y'] = np.arctan(
-            -df_aGSE.loc[valid_mask, v_z_name] /
-            np.sqrt(df_aGSE.loc[valid_mask, v_x_name]**2 + df_aGSE.loc[valid_mask, 'v_y_shift']**2)
-        )
+    df_aGSE.loc[valid_mask, 'alpha_z'] = -np.arctan(
+        df_aGSE.loc[valid_mask, 'v_y_shift'] / np.abs(df_aGSE.loc[valid_mask, v_x_name])
+    )
+    df_aGSE.loc[valid_mask, 'alpha_y'] = np.arctan(
+        -df_aGSE.loc[valid_mask, v_z_name] /
+        np.sqrt(df_aGSE.loc[valid_mask, v_x_name]**2 + df_aGSE.loc[valid_mask, 'v_y_shift']**2)
+    )
 
-        R_z = R.from_euler('z', -df_aGSE.loc[valid_mask, 'alpha_z'].to_numpy(), degrees=False)
-        R_y = R.from_euler('y',  df_aGSE.loc[valid_mask, 'alpha_y'].to_numpy(), degrees=False)
+    R_z = R.from_euler('z', -df_aGSE.loc[valid_mask, 'alpha_z'].to_numpy(), degrees=False)
+    R_y = R.from_euler('y',  df_aGSE.loc[valid_mask, 'alpha_y'].to_numpy(), degrees=False)
 
-        rotation = R_y * R_z
-        coords = np.column_stack((
-            df.loc[valid_mask, r_x_name],
-            df.loc[valid_mask, r_y_name],
-            df.loc[valid_mask, r_z_name]
-        ))
+    rotation = R_y * R_z
+    coords = np.column_stack((
+        df.loc[valid_mask, r_x_name],
+        df.loc[valid_mask, r_y_name],
+        df.loc[valid_mask, r_z_name]
+    ))
 
-        rotated_coords = rotation.apply(coords)
-        df_aGSE.loc[valid_mask, r_ax_name] = rotated_coords[:, 0]
-        df_aGSE.loc[valid_mask, r_ay_name] = rotated_coords[:, 1]
-        df_aGSE.loc[valid_mask, r_az_name] = rotated_coords[:, 2]
+    rotated_coords = rotation.apply(coords)
+    df_aGSE.loc[valid_mask, r_ax_name] = rotated_coords[:, 0]
+    df_aGSE.loc[valid_mask, r_ay_name] = rotated_coords[:, 1]
+    df_aGSE.loc[valid_mask, r_az_name] = rotated_coords[:, 2]
 
-
+    if return_rotation:
+        return df_aGSE, rotation
     return df_aGSE
 
 def car_to_aGSE_constant(x, y, z, return_rotation=False, simple=False, **kwargs):
@@ -133,6 +125,8 @@ def car_to_aGSE_constant(x, y, z, return_rotation=False, simple=False, **kwargs)
     if return_rotation:
         return x_p, y_p, z_p, rotation, {'alpha_z': alpha_z, 'alpha_y': alpha_y}
     return x_p, y_p, z_p
+
+
 
 def aGSE_to_car_constant(x_p, y_p, z_p, return_rotation=False, simple=False, rotation_matrix=None, **kwargs):
 

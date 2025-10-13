@@ -128,3 +128,76 @@ def insert_field_mag(df, field='r', coords='GSE'):
 
     df.attrs['units'][f'{field}_mag'] = df.attrs['units'][f'{field}_x_{coords}']
 
+# %%
+
+def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
+
+    # Uses GSE and GSM B data to undo transformation
+    uy = df_coords.loc[:, f'{ref}_y_GSM{suffix}']
+    uz = df_coords.loc[:, f'{ref}_z_GSM{suffix}']
+    vy = df_coords.loc[:, f'{ref}_y_GSE{suffix}']
+    vz = df_coords.loc[:, f'{ref}_z_GSE{suffix}']
+
+    dot   = uy * vy + uz * vz
+    cross = uy * vz - uz * vy
+
+    # signed rotation angle from v -> u
+    return np.arctan2(cross, dot)
+
+def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix=''):
+    """
+    df_transform : data to rotate from GSE to GSM
+    vectors : column(s) to transform in df_transform
+    df_coords : contains GSE and GSM vectors
+    ref : column with GSE and GSM data in df_coords
+    """
+
+    print('Converting...')
+
+    if df_coords is None:
+        df_coords = df_transform
+
+    if coords_suffix!='':
+        coords_suffix = f'_{coords_suffix}'
+
+    dfs_rotated = pd.DataFrame(index=df_transform.index)
+
+    if f'gse_to_gsm_angle{coords_suffix}' not in df_coords:
+        theta = calc_GSE_to_GSM_angles(df_coords, ref=ref, suffix=coords_suffix)
+
+        if interp:
+            theta = theta.reindex(df_transform.index, method=None).interpolate(method='time')
+
+        dfs_rotated[f'gse_to_gsm_angle{coords_suffix}'] = theta
+
+    else:
+        theta = df_coords.loc[df_transform.index,f'gse_to_gsm_angle{coords_suffix}'].to_numpy()
+
+    # Builds rotation matrix
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+
+    zeros = np.zeros_like(theta)
+    ones = np.ones_like(theta)
+
+    R = np.stack([
+        np.stack([ones, zeros, zeros], axis=-1),
+        np.stack([zeros, cos_theta, -sin_theta], axis=-1),
+        np.stack([zeros, sin_theta, cos_theta], axis=-1)
+    ], axis=-2)  # shape (N,3,3)
+
+    dfs_to_concat = [dfs_rotated]
+    for vec_cols in vectors: # vectors transforming
+
+        vectors = df_transform.loc[:,vec_cols].to_numpy()  # (N,3)
+
+        vectors_rot = np.einsum('nij,ni->nj', R, vectors)
+
+        df_rot = pd.DataFrame(
+            vectors_rot,
+            columns=[col.replace('GSE','GSM') for col in vec_cols],
+            index=dfs_rotated.index
+        )
+        dfs_to_concat.append(df_rot)
+
+    return pd.concat(dfs_to_concat,axis=1)

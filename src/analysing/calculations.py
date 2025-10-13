@@ -363,7 +363,7 @@ def vec_mag(vec):
 def calc_average_vector(df_vec, param=None):
 
     if len(df_vec)==0:
-        return []
+        return unp.uarray([],[])
 
     x_label = 'x'
     y_label = 'y'

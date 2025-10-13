@@ -1,6 +1,7 @@
 import os
 import glob
 import re
+
 import numpy as np
 import pandas as pd
 
@@ -240,9 +241,15 @@ def extract_themis_data(cdf_file, variables):
     with pycdf.CDF(cdf_file) as cdf:
 
         for var_name, var_code in variables.items():
+
+            if var_code not in cdf:
+                continue
+
+            data = cdf[var_code].copy()
             if var_name not in ('epoch','epoch_pos'):
-                spacepy.pycdf.istp.nanfill(cdf[var_code])
-            data = cdf[var_code][...]
+                spacepy.pycdf.istp.nanfill(data)
+            data = data[...]
+
 
             if data.ndim == 2 and data.shape[1] == 3:  # Assuming a 2D array for vector components
                 system = 'GSE'
@@ -263,6 +270,9 @@ def extract_themis_data(cdf_file, variables):
                     var_name = 'epoch' # consistency with Cluster
 
                 data_dict[var_name] = data  # pycdf extracts as datetime, no conversion from epoch needed
+
+    if os.path.exists(tmp_file):
+        os.remove(tmp_file)
 
     return data_dict
 

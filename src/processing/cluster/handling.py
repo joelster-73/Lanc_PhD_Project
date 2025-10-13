@@ -15,7 +15,7 @@ from ..writing import write_to_cdf
 from ..dataframes import add_df_units, resample_data
 from ..reading import import_processed_data
 from ..utils import create_directory
-from ...coordinates.magnetic import calc_B_GSM_angles
+from ...coordinates.magnetic import calc_B_GSM_angles, GSE_to_GSM_with_angles
 from ...config import R_E, PROC_OMNI_DIR_5MIN
 
 def process_cluster_files(directory, data_directory, variables, sample_interval='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, quality_directory=None, quality_variables=None):
@@ -185,12 +185,14 @@ def extract_cluster_data(cdf_file, variables):
     with pycdf.CDF(cdf_file) as cdf:
 
         for var_name, var_code in variables.items():
-            try:
-                if var_name != 'epoch':
-                    spacepy.pycdf.istp.nanfill(cdf[var_code])
-                data = cdf[var_code][...]
-            except: # Variable not in file
+
+            if var_code not in cdf:
                 continue
+
+            data = cdf[var_code].copy()
+            if var_name != 'epoch':
+                spacepy.pycdf.istp.nanfill(data)
+            data = data[...]
 
             if isinstance(data,float) or isinstance(data,int):
                 # Empty dataset
@@ -254,52 +256,12 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
         if fvps_directory is not None:
             print('Converting...')
             fvps_df = import_processed_data(fvps_directory, year=year)
+            gsm_vectors = GSE_to_GSM_with_angles(merged_df, [[f'{vec}_{comp}_GSE' for comp in ('x','y','z')] for vec in ('V','B')], df_coords=fvps_df, ref='B', interp=True)
 
-            # Uses GSE and GSM B data to undo transformation
-            ref = 'B'
-            uy = fvps_df.loc[:, f'{ref}_y_GSM']
-            uz = fvps_df.loc[:, f'{ref}_z_GSM']
-            vy = fvps_df.loc[:, f'{ref}_y_GSE']
-            vz = fvps_df.loc[:, f'{ref}_z_GSE']
-
-            dot   = uy * vy + uz * vz
-            cross = uy * vz - uz * vy
-
-            # signed rotation angle from v -> u
-            theta = np.arctan2(cross, dot)
-
-            theta = theta.reindex(merged_df.index, method=None).interpolate(method='time')
-            merged_df['gse_to_gsm_theta'] = theta
-
-            # Builds rotation matrix
-            cos_theta = np.cos(theta)
-            sin_theta = np.sin(theta)
-
-            zeros = np.zeros_like(theta)
-            ones = np.ones_like(theta)
-
-            R = np.stack([
-                np.stack([ones, zeros, zeros], axis=-1),
-                np.stack([zeros, cos_theta, -sin_theta], axis=-1),
-                np.stack([zeros, sin_theta, cos_theta], axis=-1)
-            ], axis=-2)  # shape (N,3,3)
-
-            dfs_to_concat = [merged_df]
-            for vec in ('V','B'): # vectors transforming
-
-                vectors = merged_df.loc[:,[f'{vec}_x_GSE', f'{vec}_y_GSE', f'{vec}_z_GSE']].to_numpy()  # (N,3)
-
-                vectors_rot = np.einsum('nij,ni->nj', R, vectors)
-
-                df_rot = pd.DataFrame(
-                    vectors_rot,
-                    columns=[f'{vec}_x_GSM', f'{vec}_y_GSM', f'{vec}_z_GSM'],
-                    index=merged_df.index
-                )
-                dfs_to_concat.append(df_rot)
+            for vec in ('V','B'):
                 merged_df.drop(columns=[f'{vec}_x_GSE', f'{vec}_y_GSE', f'{vec}_z_GSE'],inplace=True)
 
-            merged_df = pd.concat(dfs_to_concat, axis=1)
+            merged_df = pd.concat(gsm_vectors, axis=1)
             vec_coords = 'GSM'
 
             # Freeing up memory

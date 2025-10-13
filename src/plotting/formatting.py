@@ -89,7 +89,8 @@ def format_string(s):
     # List of common Greek letters
     greek_letters = ('alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
                      'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi',
-                     'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega', 'Delta')
+                     'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega', 'Delta',
+                     'parallel', 'perp') # added to regex
 
     # Create a regex pattern to match Greek letters anywhere
     greek_pattern = r'(' + '|'.join(greek_letters) + r')'

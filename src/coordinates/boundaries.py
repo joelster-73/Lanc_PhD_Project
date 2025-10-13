@@ -1,7 +1,10 @@
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 
-from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant
+from .config import DEFAULT_COLUMN_NAMES
+from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant, cartesian_to_spherical
+
 
 def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, **kwargs):
 
@@ -16,21 +19,7 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         simple_ab = False
 
     if column_names is None:
-        column_names = {
-            'r_x_name'  : 'r_x_GSE',
-            'r_y_name'  : 'r_y_GSE',
-            'r_z_name'  : 'r_z_GSE',
-            'r_name'    : 'r',
-            'r_ax_name' : 'r_x_aGSE',
-            'r_ay_name' : 'r_y_aGSE',
-            'r_az_name' : 'r_z_aGSE',
-            'v_x_name'  : 'v_x_GSE',
-            'v_y_name'  : 'v_y_GSE',
-            'v_z_name'  : 'v_z_GSE',
-            'p_name'    : 'p_flow',
-            'bz_name'   : 'B_z_GSM'
-        }
-
+        column_names = DEFAULT_COLUMN_NAMES
     else:
         column_names = column_names.copy()
 
@@ -58,6 +47,8 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
 
     # New df
     df_ab = car_to_aGSE(df, column_names=column_names, simple=simple_ab)
+    if df_ab.empty:
+        raise Exception('Coordinates could not be aberrated.')
 
     r_name    = column_names['r_name']
     r_ax_name = column_names['r_ax_name']
@@ -67,72 +58,75 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
     p_name    = column_names['p_name']
     bz_name   = column_names['bz_name']
 
-
+    # Checks data for aberration
     valid_mask = ~df_ab[v_x_name].isna()
-    if valid_mask.any():
-        try:
-            p = df.loc[valid_mask,p_name].to_numpy()
-        except:
-            p = 2.056
+    if not valid_mask.any():
+        print('Cannot calculate boundaries.')
+        return pd.DataFrame()
 
-        try:
-            Bz = df.loc[valid_mask,bz_name].to_numpy()
-        except:
-            Bz = -0.001
+    # Defaults if data not passed in for empirical models
+    try:
+        p = df.loc[valid_mask,p_name].to_numpy()
+    except:
+        p = 2.056
 
+    try:
+        Bz = df.loc[valid_mask,bz_name].to_numpy()
+    except:
+        Bz = -0.001
 
-        theta_ps = np.arccos(
-            df_ab.loc[valid_mask, r_ax_name] / df_ab.loc[valid_mask, r_name]
-        )
+    theta_ps = np.arccos(
+        df_ab.loc[valid_mask, r_ax_name] / df_ab.loc[valid_mask, r_name]
+    )
 
-        # Compute the radial distances based on the selected model
-        if surface == 'BOTH':
-            df_ab.loc[valid_mask, 'r_phi'] = theta_ps
+    # Compute the radial distances based on the selected model
+    if surface == 'BOTH':
+        df_ab.loc[valid_mask, 'r_phi'] = theta_ps
 
-            if model=='shue':
-                print('Using Shue mp.')
-                r_mp  = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
+        if model=='shue':
+            print('Using Shue mp.')
+            r_mp  = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
+        else:
+            print('Using Jelínek mp.')
+            r_mp  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
+
+        df_ab.loc[valid_mask, 'r_MP'] = r_mp
+
+        print('Using Jelínek bs.')
+        df_ab.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+
+        df_ab.loc[valid_mask, 'r_F'] = (df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, 'r_MP']) / (df_ab.loc[valid_mask, 'r_BS'] - df_ab.loc[valid_mask, 'r_MP'])
+
+        df_ab.loc[~valid_mask, ['r_MP','r_BS','r_phi','r_F']] = np.nan
+
+    else:
+
+        if surface == 'BS':
+            if model == 'jelinek':
+                print('Using Jelínek bs.')
+                r  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
             else:
+                raise ValueError(f'Model {model} not valid')
+
+        elif surface == 'MP':
+            if model == 'shue':
+                print('Using Shue mp.')
+                r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
+            elif model == 'jelinek':
                 print('Using Jelínek mp.')
-                r_mp  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
-
-            df_ab.loc[valid_mask, 'r_MP'] = r_mp
-
-            print('Using Jelínek bs.')
-            df_ab.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
-
-            df_ab.loc[valid_mask, 'r_F'] = (df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, 'r_MP']) / (df_ab.loc[valid_mask, 'r_BS'] - df_ab.loc[valid_mask, 'r_MP'])
-
-            df_ab.loc[~valid_mask, ['r_MP','r_BS','r_phi','r_F']] = np.nan
+                r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
+            else:
+                raise ValueError(f'Model {model} not valid')
 
         else:
+            raise ValueError(f'Surface {surface} not valid')
 
-            if surface == 'BS':
-                if model == 'jelinek':
-                    print('Using Jelínek bs.')
-                    r  = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
-                else:
-                    raise ValueError(f'Model {model} not valid')
+        # Set NaN for invalid rows
+        df_ab.loc[~valid_mask, f'r_{surface}'] = np.nan
+        df_ab.loc[~valid_mask, f'r_{surface}_diff'] = np.nan
 
-            elif surface == 'MP':
-                if model == 'shue':
-                    print('Using Shue mp.')
-                    r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
-                elif model == 'jelinek':
-                    print('Using Jelínek mp.')
-                    r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
-                else:
-                    raise ValueError(f'Model {model} not valid')
-
-            else:
-                raise ValueError(f'Surface {surface} not valid')
-
-            # Set NaN for invalid rows
-            df_ab.loc[~valid_mask, f'r_{surface}'] = np.nan
-            df_ab.loc[~valid_mask, f'r_{surface}_diff'] = np.nan
-
-            df_ab.loc[valid_mask, f'r_{surface}'] = r
-            df_ab.loc[valid_mask, f'r_{surface}_diff'] = df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, f'r_{surface}']
+        df_ab.loc[valid_mask, f'r_{surface}'] = r
+        df_ab.loc[valid_mask, f'r_{surface}_diff'] = df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, f'r_{surface}']
 
 
     df_ab.loc[~valid_mask, r_ax_name] = np.nan
@@ -142,26 +136,7 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
     return df_ab
 
 def msh_boundaries(model, surface='BS', aberration='model', **kwargs):
-    """
-    Computes the bow shock boundary (BSB) using a specified model.
 
-    Parameters
-    ----------
-    model : str
-        The model to be used for computing the bow shock boundary.
-        Currently supports the following model:
-        - 'jelinek' for the Jelinek et al. (2012) model.
-    **kwargs :
-        Additional parameters passed to the model function (`bs_jelinek2012`).
-        These parameters depend on the specific model being used and are passed directly to the model function.
-
-    Returns
-    -------
-    x : numpy.ndarray
-        The x-coordinates of the bow shock boundary in GSE coordinates.
-    yz : numpy.ndarray
-        The yz-coordinates of the bow shock boundary in GSE coordinates.
-    """
     if aberration=='simple':
         simple_ab=True
     elif aberration=='model':
@@ -215,29 +190,112 @@ def msh_boundaries(model, surface='BS', aberration='model', **kwargs):
     return {'x': x, 'y': y, 'z': z, 'r': r, 'rho': rho, 'R0': R0, 'nose': nose, 'alpha_z': alphas['alpha_z'], 'alpha_y': alphas['alpha_y'], 'alpha_tot': alpha_tot}
 
 
+def calc_normal_for_sc(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, **kwargs):
+
+    if model is None:
+        model = 'jelinek' if surface =='BS' else 'shue'
+
+    if aberration=='simple':
+        simple_ab=True
+    elif aberration=='model':
+        simple_ab = True if model in ('jelinek','shue') else False
+    elif aberration=='complete':
+        simple_ab = False
+
+    if column_names is None:
+        column_names = DEFAULT_COLUMN_NAMES
+
+    else:
+        column_names = column_names.copy()
+
+    if position_key is not None:
+        for key in ['r_x_name', 'r_y_name', 'r_z_name', 'r_name', 'r_ax_name', 'r_ay_name', 'r_az_name']:
+            column_names[key] += f'_{position_key}'
+
+    if data_key is not None:
+        for key in ['v_x_name', 'v_y_name', 'v_z_name', 'p_name', 'bz_name']:
+            column_names[key] += f'_{data_key}'
+
+
+    for key, val in column_names.items():
+        if key in ('r_ax_name','r_ay_name','r_az_name'):
+            continue
+        if val not in df:
+            if key=='r_name':
+                r_x_name = column_names['r_x_name']
+                r_y_name = column_names['r_y_name']
+                r_z_name = column_names['r_z_name']
+                df[val] = np.linalg.norm(df[[r_x_name,r_y_name,r_z_name]],axis=1)
+                print(key,'not in df; has been inserted')
+            else:
+                print(key,'not in df')
+
+    # New df
+    df_ab, rotation_matrix = car_to_aGSE(df, column_names=column_names, simple=simple_ab, return_rotation=True)
+
+    r_ax_name = column_names['r_ax_name']
+    r_ay_name = column_names['r_ay_name']
+    r_az_name = column_names['r_az_name']
+    v_x_name  = column_names['v_x_name']
+    p_name    = column_names['p_name']
+    bz_name   = column_names['bz_name']
+
+    valid_mask = ~df_ab[v_x_name].isna()
+    if not valid_mask.any():
+        raise ValueError('No valid velocity data.')
+
+    try:
+        p = df.loc[valid_mask,p_name].to_numpy()
+    except:
+        print('Using default pressure.')
+        p = 2.056
+
+    try:
+        B = df.loc[valid_mask,bz_name].to_numpy()
+    except:
+        print('Using default velocity.')
+        B = -0.001
+
+    _, theta_ps, phis_ps = cartesian_to_spherical(df_ab.loc[valid_mask, r_ax_name],
+                                                  df_ab.loc[valid_mask, r_ay_name],
+                                                  df_ab.loc[valid_mask, r_az_name])
+
+    # Compute the normal based on the selected model and sc location
+    if surface == 'MP':
+        if model == 'shue':
+            print('Using Shue mp.')
+            n = mp_shue1998_normal(theta_ps.to_numpy(), phis_ps.to_numpy(), Pd=p, Bz=B)
+
+        elif model == 'jelinek':
+            print('Using Jelínek mp.')
+            raise ValueError('Jelínek mp normal not implemented.')
+
+        else:
+            raise ValueError(f'Model {model} not valid')
+
+    elif surface == 'BS':
+        if model == 'jelinek':
+            print('Using Jelínek bs.')
+            raise ValueError('Jelínek bs normal not implemented.')
+
+        else:
+            raise ValueError(f'Model {model} not valid')
+
+    else:
+        raise ValueError(f'Surface {surface} not valid')
+
+    # Convert back to GSE from aberrated
+    rotate_inv = rotation_matrix.inv()
+    n_GSE      =  rotate_inv.apply(n)
+
+    return pd.DataFrame(n_GSE, index=df_ab.loc[valid_mask].index, columns=[f'N{comp}_GSE_{surface}' for comp in ('x','y','z')])
+
+
+
+# %% Models
 
 def bs_jelinek2012(theta, **kwargs):
-    """
-    Computes the boundary distance for the magnetosphere based on the Jelinek et al. (2012) model.
 
-    This model calculates the boundary distance for a given angle and dynamic pressure (in nPa).
-
-    Parameters
-    ----------
-    theta : numpy.ndarray
-        The angle from the x-axis (model assumes cylindrical symmetry).
-        Example: theta = np.arange(-np.pi + 0.01, np.pi - 0.01, 0.001).
-    **kwargs :
-        Additional parameters for the model.
-        - "Pd" : float, optional, default=2.056
-            The dynamic pressure in nPa.
-
-    Returns
-    -------
-    r : numpy.ndarray
-        The boundary distance for each value of `theta` in the input array.
-        The values are in terms of the radial distance from the Earth's center.
-    """
     # Retrieve dynamic pressure from kwargs, with default value
     Pd = kwargs.get('Pd', 2.056)
 
@@ -263,30 +321,8 @@ def bs_jelinek2012(theta, **kwargs):
     return r
 
 
-
-
 def mp_jelinek2012(theta, **kwargs):
-    """
-    Computes the boundary distance for the magnetosphere based on the Jelinek et al. (2012) model.
 
-    This model calculates the boundary distance for a given angle and dynamic pressure (in nPa).
-
-    Parameters
-    ----------
-    theta : numpy.ndarray
-        The angle from the x-axis (model assumes cylindrical symmetry).
-        Example: theta = np.arange(-np.pi + 0.01, np.pi - 0.01, 0.001).
-    **kwargs :
-        Additional parameters for the model.
-        - "Pd" : float, optional, default=2.056
-            The dynamic pressure in nPa.
-
-    Returns
-    -------
-    r : numpy.ndarray
-        The boundary distance for each value of `theta` in the input array.
-        The values are in terms of the radial distance from the Earth's center.
-    """
     # Retrieve dynamic pressure from kwargs, with default value
     Pd = kwargs.get('Pd', 2.056)
 
@@ -313,30 +349,7 @@ def mp_jelinek2012(theta, **kwargs):
 
 
 def mp_shue1998(theta, **kwargs):
-    """
-    Computes the magnetopause (MP) distance based on the Shue et al. (1998) model.
 
-    This model calculates the magnetopause distance for a given angle, dynamic pressure (in nPa),
-    and Bz component of the interplanetary magnetic field (IMF) (in nT).
-
-    Parameters
-    ----------
-    theta : numpy.ndarray
-        The angle from the x-axis (model assumes cylindrical symmetry).
-        Example: theta = np.arange(-np.pi + 0.01, np.pi - 0.01, 0.001).
-    **kwargs :
-        Additional parameters for the model.
-        - "Pd" : float, optional, default=2.056
-            The dynamic pressure in nPa.
-        - "Bz" : float, optional, default=-0.001
-            The z-component of the IMF in nT.
-
-    Returns
-    -------
-    r : numpy.ndarray
-        The magnetopause distance for each value of `theta` in the input array.
-        The values are in terms of the radial distance from the Earth's center.
-    """
     # Retrieve dynamic pressure and IMF Bz from kwargs, with default values
     Pd = kwargs.get('Pd', 2.056)
     Bz = kwargs.get('Bz', -0.001)
@@ -355,24 +368,30 @@ def mp_shue1998(theta, **kwargs):
     return r
 
 
+def mp_shue1998_normal(theta, phi, **kwargs):
+
+    # Retrieve dynamic pressure and IMF Bz from kwargs, with default values
+    Pd = kwargs.get('Pd', 2.056)
+    Bz = kwargs.get('Bz', -0.001)
+
+    # Compute a based on Pd and Bz
+    alpha = (0.58 - 0.007 * Bz) * (1 + 0.024 * np.log(Pd))
+
+    # Unit vectors
+    sin_th, cos_th = np.sin(theta), np.cos(theta)
+    sin_ph, cos_ph = np.sin(phi),   np.cos(phi)
+
+    e_r = np.stack([cos_th,  sin_th*sin_ph, sin_th*cos_ph], axis=-1)
+    e_t = np.stack([-sin_th, cos_th*sin_ph, cos_th*cos_ph], axis=-1)
+
+    n = e_r - (alpha * sin_th / (1 + cos_th))[:, None] * e_t
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+
+    return n
+
+
 def plot_magnetosheath_boundaries():
-    """
-    Plots the magnetosheath boundaries using the Jelinek and Shue models.
 
-    This function generates a plot of the magnetopause (MP) and bow shock (BS) boundaries based on typical solar wind conditions.
-    The plot includes boundaries calculated from the Jelinek et al. (2012) model for both the MP and BS, as well as the Shue 1998 model for the MP.
-
-    The Earth is plotted at the origin, and the boundary lines are displayed for each model.
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    None
-        Displays the plot with the magnetosheath boundaries.
-    """
     fig, ax = plt.subplots(figsize=(8, 6))
 
     # Grid settings

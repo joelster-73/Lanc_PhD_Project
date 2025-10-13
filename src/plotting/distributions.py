@@ -5,6 +5,7 @@ Created on Fri May 16 10:38:41 2025
 @author: richarj2
 """
 import numpy as np
+import pandas as pd
 
 from uncertainties import UFloat
 
@@ -249,6 +250,72 @@ def plot_freq_hist(series, **kwargs):
     add_legend(fig, ax, loc=loc, edge_col=white, frame_on=False, legend_on=want_legend)
     add_figure_title(fig, black, brief_title, ax=ax)
     dark_mode_fig(fig, black, white)
+
+    if return_objs:
+        return fig, ax
+
+    plt.tight_layout();
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+
+def plot_counts(counts, **kwargs):
+    """
+    Plotting column chart of counts for discrete data
+    """
+    data_name   = kwargs.get('data_name',None)
+    brief_title = kwargs.get('brief_title','')
+    add_count   = kwargs.get('add_count',False)
+    add_percs   = kwargs.get('add_percs',False)
+
+    labels      = kwargs.get('labels',None)
+    colour      = kwargs.get('colour',black)
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+    return_objs = kwargs.get('return_objs',False)
+
+    data_label  = counts.name if data_name is None else data_name
+    unit        = counts.attrs.get('units', {}).get(counts.name, 'Counts')
+
+    ###-------------------PLOT HISTOGRAM-------------------###
+    xs = counts.index
+    if not pd.api.types.is_numeric_dtype(xs):
+        xs = range(len(xs))
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(figsize=(12,6),dpi=400)
+        kwargs['fig'] = fig
+        kwargs['ax'] = ax
+
+    bar_container = ax.bar(xs, counts.values, color=colour)
+    if add_percs:
+        total = sum(counts.values)
+        ax.bar_label(bar_container, labels=[f'{v/total*100:.1f}%' for v in counts.values])
+        total_unit = unit
+        if unit=='Mins':
+            total /= 525600
+            total_unit = 'Years'
+        ax.plot([], [], ' ', label=f'Total: {total:.3g} {total_unit}')
+        add_legend(fig, ax, loc='upper right')
+
+    if labels is not None:
+        x_sorted = sorted(labels.keys())
+        labels_sorted = [labels[k] for k in x_sorted]
+
+    ###-------------------SET LABELS AND TITLE-------------------###
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:,.0f}'))
+    ax.set_xlabel(data_label)
+    ax.set_ylabel(unit)
+
+    ax.set_xticks(x_sorted)
+    ax.set_xticklabels(labels_sorted)
+
+    if brief_title=='amount':
+        brief_title = f'{len(counts):,}'
+    elif brief_title != '' and add_count:
+        brief_title += f', N={len(counts):,}'
 
     if return_objs:
         return fig, ax

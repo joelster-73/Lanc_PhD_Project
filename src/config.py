@@ -39,7 +39,8 @@ LUNA_CROS_DIR          = 'Z:/spacecraft/cluster/c1/C1_CT_AUX_GRMB/'
 LUNA_OMNI_DIR          = 'Z:/omni/omni_min_def/'
 LUNA_OMNI_DIR_5MIN     = 'Z:/omni/omni_5min_def/'
 LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
-LUNA_MMS_DIR           = 'Z:/spacecraft/mms/mms1/MMS1_FGM_SRVY_L2/'
+LUNA_MMS_DIR_FGM       = 'Z:/spacecraft/mms/mms1/MMS1_FGM_SRVY_L2/'
+LUNA_MMS_DIR_HPCA      = 'Z:/spacecraft/mms/mms1/MMS1_HPCA_SRVY_L2_MOMENTS/'
 LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
 
 # Processed Cluster Data

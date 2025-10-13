@@ -3,6 +3,7 @@ import glob
 
 import pandas as pd
 from spacepy import pycdf
+import spacepy.pycdf.istp
 
 from handling_files import create_log_file, log_missing_file, write_to_cdf, create_directory
 from data_processing import replace_inf, add_df_units
@@ -21,41 +22,7 @@ process_wind_files(luna_wind_dir, proc_wind_dir_3, wind_variables_3_sec, frequen
 """
 
 def process_wind_files(directory, data_directory, variables, frequency, year=None, time_col='epoch', overwrite=True):
-    """
-    Processes CDF files from a specified directory, extracts specified variables, resamples the data,
-    and appends it to a new or existing CDF file. Files that could not be processed are logged.
 
-    Parameters
-    ----------
-    directory : str
-        The path to the directory containing the CDF files to process.
-
-    data_directory : str
-        The directory where processed CDF files will be saved.
-
-    variables : dict
-        A dictionary where keys are the variable names for the resulting DataFrame, and values are the
-        variable codes used to extract data from the CDF files.
-
-    sample_interval : str, optional
-        The interval for resampling the data. The default is '1min' for one-minute intervals.
-
-    time_col : str, optional
-        The name of the column in the DataFrame containing time data (in CDF epoch format).
-        The default is 'epoch'.
-
-    year : str, optional
-        The year to filter CDF files by. If None, all years in the directory are processed.
-
-    overwrite : bool, optional
-        Whether to overwrite existing CDF files. The default is True.
-
-    Returns
-    -------
-    None
-        This function processes the data and appends it to a CDF file in the `data_directory`.
-        It logs any files that could not be processed.
-    """
     files_by_year = get_wind_files(directory, year=year)
 
     create_directory(data_directory)
@@ -97,23 +64,7 @@ def process_wind_files(directory, data_directory, variables, frequency, year=Non
 
 
 def get_wind_files(directory, year=None):
-    """
-    Retrieves CDF files from a specified directory, optionally filtered by a specific year.
 
-    Parameters
-    ----------
-    directory : str
-        The path to the directory containing the CDF files to search.
-
-    year : str, optional
-        The year to filter the CDF files by. If not specified, all CDF files in the directory are retrieved.
-
-    Returns
-    -------
-    dict
-        A dictionary where the keys are years (as strings) and the values are lists of file paths
-        for CDF files associated with that year.
-    """
     files_by_year = {}
 
     # If a specific year is passed, look within the year folder
@@ -139,36 +90,20 @@ def get_wind_files(directory, year=None):
 
 
 def extract_wind_data(cdf_file, variables):
-    """
-    Extracts specified variables from a CDF file and returns them in a dictionary.
 
-    Parameters
-    ----------
-    cdf_file : str
-        Path to the CDF file to read.
-
-    variables : dict
-        A dictionary where keys are the variable names (as strings) to be used in the output,
-        and values are the corresponding variable codes (as strings) used to extract data
-        from the CDF file.
-
-    Returns
-    -------
-    dict
-        A dictionary where the keys are the variable names, and the values are the corresponding
-        data arrays. For vector variables, the components are stored as separate keys with '_x_GSE',
-        '_y_GSE', and '_z_GSE' suffixes.
-    """
-
-    # Initialise a dictionary to store the data
     data_dict = {}
 
-    # Load the CDF file (auto closes)
     with pycdf.CDF(cdf_file) as cdf:
 
-        # Loop through the dictionary of variables and extract data
         for var_name, var_code in variables.items():
-            data = cdf[var_code][...]  # Extract the data using the CDF variable code
+
+            if var_code not in cdf:
+                continue
+
+            data = cdf[var_code].copy()
+            if var_name not in ('epoch','epoch_pos'):
+                spacepy.pycdf.istp.nanfill(data)
+            data = data[...]
 
             if data.ndim == 2 and data.shape[1] == 3:  # Assuming a 2D array for vector components
 

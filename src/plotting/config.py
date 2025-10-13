@@ -8,7 +8,7 @@ Created on Fri May 16 10:21:52 2025
 import matplotlib.pyplot as plt
 
 
-dark_mode = False
+dark_mode = True
 large_text = False
 save_fig = True
 
@@ -23,6 +23,9 @@ if dark_mode:
     white = 'k'
     black = 'w'
     green = 'lime'
+    plt.style.use('dark_background')
+
+    #### DARK BACKGROUND MAKES CHANGING FONT COLOUR TO BLACK/WHITE OBSOLETE ####
 
 
 plt.rcParams['figure.figsize'] = [12, 8]
@@ -31,8 +34,8 @@ plt.rcParams['font.size'] = 12
 plt.rcParams['figure.titlesize'] = 18
 plt.rcParams['legend.frameon'] = True
 plt.rcParams['legend.fontsize'] = 12
-plt.rcParams['legend.facecolor'] = 'w'
-plt.rcParams['legend.edgecolor'] = 'k'
+# plt.rcParams['legend.facecolor'] = 'w'
+# plt.rcParams['legend.edgecolor'] = 'k'
 plt.rcParams['axes.titlesize'] = 16
 plt.rcParams['axes.labelsize'] = 15
 

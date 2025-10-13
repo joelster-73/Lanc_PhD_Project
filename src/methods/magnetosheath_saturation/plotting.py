@@ -232,6 +232,9 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     else:
         ind_param_err   = '_'.join((ind_var,'unc',ind_src))
 
+    if ind_param_err not in df_msh:
+        ind_param_err = None
+
     if ind_src in ('sw','pc'):
         if ind_var in plasma_cols:
             ind_var_count   = 'plasma_counts'
@@ -247,6 +250,9 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         ind_param_count = '_'.join((field,coords,'count',ind_src))
     else:
         ind_param_count = '_'.join((ind_var,'count',ind_src))
+
+    if ind_param_count not in df_msh:
+        ind_param_count = None
 
     dep_param       = '_'.join((dep_var,dep_src))
     if dep_src in ('sw','pc'):
@@ -284,6 +290,16 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         if restrict:
             bin_step, limits[1] = 1, 15
 
+    elif ind_var=='B_parallel':
+        bin_step, limits[0] = 2, 0
+        if restrict:
+            bin_step, limits[1] = 1, 80
+
+    elif 'B_y' in ind_var:
+        bin_step, limits[0] = 2, 0
+        if restrict:
+            bin_step, limits[1] = 1, 25
+
     elif 'B_' in ind_var:
         invert = True
         bin_step, limits[1] = 2, 0
@@ -305,16 +321,20 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
     if limits[0] is not None:
         mask      &= df_msh[ind_param] >= limits[0]
-        omni_mask &= df_sw[ind_var] >= limits[0]
 
     if limits[-1] is not None:
         mask      &= df_msh[ind_param] <= limits[1]
-        omni_mask &= df_sw[ind_var] <= limits[1]
 
-    mask      &= ~df_msh[[ind_param, dep_param, group_param]].isna().any(axis=1)
-    omni_mask &= ~df_sw[[ind_var, dep_var]].isna().any(axis=1)
+    mask &= ~df_msh[[ind_param, dep_param, group_param]].isna().any(axis=1)
 
-    df_masked      = df_msh.loc[mask]
+    if ind_src != 'msh':
+        omni_mask &= ~df_sw[[ind_var, dep_var]].isna().any(axis=1)
+        if limits[0] is not None:
+            omni_mask &= df_sw[ind_var] >= limits[0]
+        if limits[-1] is not None:
+            omni_mask &= df_sw[ind_var] <= limits[1]
+
+    df_masked  = df_msh.loc[mask]
     df_omni_masked = df_sw.loc[omni_mask]
 
     ###----------GROUPING PARAMETER LABEL----------###
@@ -359,13 +379,20 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         bin_width = 1
 
     elif 'E_' in grp_var:
-        edges = [median]
+        used_median = False
+        edges = [0]
         bin_width = 0.5
 
     elif 'V_' in grp_var:
         used_median = False
         edges = [400]
         bin_width = 50
+
+    elif 'B_' in grp_var:
+        used_median = False
+        edges = [0]
+        bin_width = 1
+
     else:
         raise Exception(f'Grouping parameter "{group_param}" not implemented.')
 
@@ -412,13 +439,14 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
     omni_colour = 'k'
     full_colour = 'b'
-    colour_100  = 'w'
+    colour_100  = 'k'
 
     if ind_var == dep_var:
-        colour_100 = 'k'
         ax_tl.axline((0,0),slope=1,c='k',ls=':')
 
     elif not (dep_src=='msh' or ind_src=='msh'):
+        colour_100 = 'w'
+
         # All OMNI Driver vs Response
         _ = compare_columns(df_omni_masked, ind_var, dep_var, col1_counts=ind_var_count, col2_counts=dep_var_count, display='rolling', window_width=bin_step, data_colour=omni_colour, region='sem', fig=fig, ax=ax_tl, return_objs=True)
 

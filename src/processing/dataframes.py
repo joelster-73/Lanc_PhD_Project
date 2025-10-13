@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from uncertainties import unumpy as unp
+from uncertainties import unumpy as unp, UFloat
 
 from .utils import add_unit, cdf_epoch_to_datetime
 from ..analysing.calculations import calc_mean_error, calc_average_vector
@@ -78,6 +78,15 @@ def replace_inf(df, replace_large=False, threshold=1e28):
 
     return df
 
+def extract_nominals_and_stds(vec):
+    if isinstance(vec, (list, tuple)) and len(vec) > 0:
+        nom = [v.nominal_value if isinstance(v, UFloat) else np.nan for v in vec]
+        std = [v.std_dev if isinstance(v, UFloat) else np.nan for v in vec]
+        return nom, std
+    else:
+        # Empty or invalid — fill with NaNs
+        return [np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]
+
 def resample_data(df, time_col='epoch', sample_interval='1min'):
 
     df = df.copy()
@@ -112,12 +121,18 @@ def resample_data(df, time_col='epoch', sample_interval='1min'):
             skip_x = False
             if vector_columns[0] not in df.columns:
                 skip_x = True
-                vector_columns[0] = f'{field}_x_GSE'
+                vector_columns[0] = vector_columns[0].replace('GSM','GSE')
 
             ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x.dropna(), param=f'{field}_{coords}'))
 
-            nom_vals = unp.nominal_values(ufloat_series.to_list())
-            std_vals = unp.std_devs(ufloat_series.to_list())
+            try:
+                nom_vals = unp.nominal_values(ufloat_series.to_list())
+                std_vals = unp.std_devs(ufloat_series.to_list())
+
+            except:
+                nom_vals, std_vals = zip(*[extract_nominals_and_stds(v) for v in ufloat_series])
+                nom_vals = np.array(nom_vals)
+                std_vals = np.array(std_vals)
 
             for i, comp in enumerate(('x','y','z')):
                 if comp=='x' and skip_x:

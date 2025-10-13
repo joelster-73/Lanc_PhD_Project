@@ -140,7 +140,7 @@ def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
 
     print(f'Resampling to {sample_interval} resolution.')
 
-    for year in range(2000,2024):
+    for year in range(2000,2026):
 
         print(f'Processing {year} data.')
 
