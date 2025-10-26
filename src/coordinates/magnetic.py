@@ -195,7 +195,7 @@ def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', inter
 
         df_rot = pd.DataFrame(
             vectors_rot,
-            columns=[col.replace('GSE','GSM') for col in vec_cols],
+            columns=[col.replace('_GSE','_GSM') for col in vec_cols],
             index=dfs_rotated.index
         )
         dfs_to_concat.append(df_rot)

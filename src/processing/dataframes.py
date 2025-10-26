@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from uncertainties import unumpy as unp, UFloat
+from uncertainties import unumpy as unp
 
 from .utils import add_unit, cdf_epoch_to_datetime
 from ..analysing.calculations import calc_mean_error, calc_average_vector
@@ -16,9 +16,10 @@ def merge_dataframes(df1, df2, suffix_1=None, suffix_2=None, clean=True, print_i
     if print_info:
         print(f'Length of df1: {len(df1):,}')
         print(f'Length of df2: {len(df2):,}')
-    if suffix_1 is None and suffix_2 is None:
-        raise ValueError('Both new suffices cannot be "None".')
+
     # Relabel columns with specified suffixes
+    if suffix_1 is None and suffix_2 is None:
+        print ('Both new suffices are "None"; duplicate columns will introduce errors.')
     new_df1 = relabel_columns(df1, suffix_1)
     new_df2 = relabel_columns(df2, suffix_2)
 
@@ -78,16 +79,19 @@ def replace_inf(df, replace_large=False, threshold=1e28):
 
     return df
 
-def extract_nominals_and_stds(vec):
-    if isinstance(vec, (list, tuple)) and len(vec) > 0:
-        nom = [v.nominal_value if isinstance(v, UFloat) else np.nan for v in vec]
-        std = [v.std_dev if isinstance(v, UFloat) else np.nan for v in vec]
-        return nom, std
+def safe_nominals(arr):
+    if len(arr) == 0:  # empty list
+        return [np.nan, np.nan, np.nan]
     else:
-        # Empty or invalid — fill with NaNs
-        return [np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]
+        return unp.nominal_values(arr)
 
-def resample_data(df, time_col='epoch', sample_interval='1min'):
+def safe_stddevs(arr):
+    if len(arr) == 0:  # empty list
+        return [np.nan, np.nan, np.nan]
+    else:
+        return unp.std_devs(arr)
+
+def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=('quality','mode','flag')):
 
     df = df.copy()
     if time_col == 'index':
@@ -107,7 +111,8 @@ def resample_data(df, time_col='epoch', sample_interval='1min'):
 
     for column in df.columns:
 
-        if column in('utc',time_col):
+        if column in ('utc',time_col) or column in columns_to_skip:
+            # columns that are meaningless to average, e.g. quality, mode
             continue
 
         elif '_GS' in column:
@@ -121,35 +126,41 @@ def resample_data(df, time_col='epoch', sample_interval='1min'):
             skip_x = False
             if vector_columns[0] not in df.columns:
                 skip_x = True
-                vector_columns[0] = vector_columns[0].replace('GSM','GSE')
+                vector_columns[0] = vector_columns[0].replace('_GSM','_GSE')
 
             ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x.dropna(), param=f'{field}_{coords}'))
 
             try:
                 nom_vals = unp.nominal_values(ufloat_series.to_list())
                 std_vals = unp.std_devs(ufloat_series.to_list())
-
             except:
-                nom_vals, std_vals = zip(*[extract_nominals_and_stds(v) for v in ufloat_series])
-                nom_vals = np.array(nom_vals)
-                std_vals = np.array(std_vals)
+                nom_vals = np.array(ufloat_series.apply(safe_nominals).to_list())
+                std_vals = np.array(ufloat_series.apply(safe_stddevs).to_list())
+
+            if len(nom_vals)==0:
+                continue
 
             for i, comp in enumerate(('x','y','z')):
                 if comp=='x' and skip_x:
                     continue
-                aggregated_columns[f'{field}_{comp}_{coords}']     = nom_vals[:, i]
-                aggregated_columns[f'{field}_{comp}_{coords}_unc'] = std_vals[:, i]
 
-            aggregated_columns[f'{field}_{coords}_count'] = non_nan_counts[vector_columns].min(axis=1)
+                aggregated_columns[f'{field}_{comp}_{coords}'] = nom_vals[:, i]
+                if inc_info:
+                    aggregated_columns[f'{field}_{comp}_{coords}_unc'] = std_vals[:, i]
+
+            if inc_info:
+                aggregated_columns[f'{field}_{coords}_count'] = non_nan_counts[vector_columns].min(axis=1)
 
         else:
+
             # Use standard mean for other columns
             unit = df.attrs['units'].get(column)
             ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x.dropna(), unit=unit))
 
-            aggregated_columns[column]            = unp.nominal_values(ufloat_series.to_numpy())
-            aggregated_columns[f'{column}_unc']   = unp.std_devs(ufloat_series.to_numpy())
-            aggregated_columns[f'{column}_count'] = non_nan_counts[column].to_numpy()
+            aggregated_columns[column] = unp.nominal_values(ufloat_series.to_numpy())
+            if inc_info:
+                aggregated_columns[f'{column}_unc']   = unp.std_devs(ufloat_series.to_numpy())
+                aggregated_columns[f'{column}_count'] = non_nan_counts[column].to_numpy()
 
 
     resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())

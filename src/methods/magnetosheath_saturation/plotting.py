@@ -4,19 +4,35 @@ Created on Mon Oct  6 10:55:08 2025
 
 @author: richarj2
 """
+import warnings
+import os
+
+def short_warn_format(message, category, filename, lineno, line=None):
+    # Get just the parent folder and filename, e.g. "magnetosheath_saturation/plotting.py"
+    parent = os.path.basename(os.path.dirname(filename))
+    base = os.path.basename(filename)
+    short_path = f'{parent}/{base}'
+    return f'{short_path}:{lineno}: {category.__name__}: {message}\n'
+
+warnings.formatwarning = short_warn_format
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter, MultipleLocator
+from matplotlib.colors import to_rgba
 
 from ...processing.reading import import_processed_data
 
 from ...plotting.space_time import plot_orbit_msh
 from ...plotting.utils import save_figure, calculate_bins
 from ...plotting.config import colour_dict
-from ...plotting.formatting import data_string, create_label
+from ...plotting.formatting import data_string, create_label, add_legend
 from ...plotting.comparing.parameter import compare_columns
+from ...plotting.config import black, blue, grey, pink, bar_hatches
+#from ...plotting.distributions import plot_fit
 
 
 
@@ -118,10 +134,14 @@ def plot_sc_years(msh_dir, sc_keys=None, combined=True, data_type='mins'):
         label = f'{sc_key}: {len(years):,} {data_type}'
 
         offset = 0.5
+        hatch = None
         if combined:
-            offset = i*width
+            offset = (i+0.5)*width
+            hatch = bar_hatches[i]
 
-        ax.bar(bins[:-1]+offset, counts, width=width, color=colour_dict.get(sc_key.upper(),'k'), label=label)
+        colour = colour_dict.get(sc_key.upper(),'k')
+        edge_colour = to_rgba('k', alpha=0.2)
+        ax.bar(bins[:-1]+offset, counts, width=width, color=colour, hatch=hatch, edgecolor=edge_colour, label=label)
 
         ax.legend(loc='upper right', framealpha=1)
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
@@ -131,6 +151,12 @@ def plot_sc_years(msh_dir, sc_keys=None, combined=True, data_type='mins'):
 
     if not combined:
         plt.subplots_adjust(wspace=0, hspace=0)
+        fig.canvas.draw()
+        xticks = ax.get_xticks()
+        xticks = xticks[(xticks >= ax.get_xlim()[0]) & (xticks <= ax.get_xlim()[1])]
+        for ax in axs:
+            for x in xticks:
+                ax.axvline(x, color=to_rgba(black,0.9), linestyle=':', linewidth=0.5, zorder=20)
     else:
         plt.tight_layout()
 
@@ -222,68 +248,46 @@ imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_a
 
 plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSM', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSM', 'S_y_GSM', 'S_z_GSM', 'E_R']
 
-def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', grp_split=None, bounds=None, restrict=True, data_type='counts', plot_test=False):
+def def_param_names(df, variable, source):
 
     ###----------PARAMETER NAMINGS----------###
 
-    ind_param       = '_'.join((ind_var,ind_src))
-    if ind_src in ('sw','pc'):
-        ind_param_err = None # Need to include
+    param       = '_'.join((variable,source))
+    if source in ('sw','pc'):
+        param_err = None # Need to include
     else:
-        ind_param_err   = '_'.join((ind_var,'unc',ind_src))
+        param_err   = '_'.join((variable,'unc',source))
 
-    if ind_param_err not in df_msh:
-        ind_param_err = None
+    if param_err not in df:
+        param_err = None
 
-    if ind_src in ('sw','pc'):
-        if ind_var in plasma_cols:
-            ind_var_count   = 'plasma_counts'
-            ind_param_count = 'plasma_counts_sw'
-        elif ind_var in imf_cols:
-            ind_var_count   = 'imf_counts'
-            ind_param_count = 'imf_counts_sw'
-        else:
-            ind_var_count = None
-            ind_param_count = None
-    elif '_GS' in ind_var:
-        field, _, coords = ind_var.split('_')
-        ind_param_count = '_'.join((field,coords,'count',ind_src))
+    var_count = None
+    param_count = None
+
+    if source in ('sw','pc'):
+        if variable in plasma_cols:
+            var_count   = 'plasma_counts'
+            param_count = 'plasma_counts_sw'
+        elif variable in imf_cols:
+            var_count   = 'imf_counts'
+            param_count = 'imf_counts_sw'
+
+    elif '_GS' in variable:
+        field, _, coords = variable.split('_')
+        param_count = '_'.join((field,coords,'count',source))
+
     else:
-        ind_param_count = '_'.join((ind_var,'count',ind_src))
+        param_count = '_'.join((variable,'count',source))
 
-    if ind_param_count not in df_msh:
-        ind_param_count = None
+    if param_count not in df:
+        param_count = None
 
-    dep_param       = '_'.join((dep_var,dep_src))
-    if dep_src in ('sw','pc'):
-        dep_param_err = None # Not present in OMNI (well, needs to be implemented/propagated from B)
-    else:
-        dep_param_err   = '_'.join((dep_var,'unc',dep_src))
+    return param, param_err, var_count, param_count
 
-    if dep_src in ('sw','pc'):
-        if dep_var in plasma_cols:
-            dep_var_count   = 'plasma_counts'
-            dep_param_count = 'plasma_counts_sw'
-        elif dep_var in imf_cols:
-            dep_var_count   = 'imf_counts'
-            dep_param_count = 'imf_counts_sw'
-        else:
-            dep_var_count = None
-            dep_param_count = None
-    elif '_GS' in dep_var:
-        field, _, coords = ind_var.split('_')
-        dep_param_count = '_'.join((field,coords,'count',dep_src))
-    else:
-        dep_param_count = '_'.join((dep_var,'count',dep_src))
+def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=None):
 
-    group_param = f'{grp_var}_{grp_src}'
-
-    ###----------MASKS----------###
-
-    mask      = np.ones(len(df_msh),dtype=bool)
-    omni_mask = np.ones(len(df_sw),dtype=bool)
-    limits    = [None, None]
-    invert    = False
+    limits = [None, None]
+    invert = False
 
     if ind_var=='B_avg':
         bin_step, limits[0] = 2, 0
@@ -304,126 +308,263 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         invert = True
         bin_step, limits[1] = 2, 0
         if restrict:
-            bin_step, limits[0] = 1, -25
+            bin_step = 1
+            if ind_src=='msh':
+                limits[0] = -80
+            elif ind_var==dep_var:
+                limits[0] = -20
+            else:
+                limits[0] = -40
 
-    elif 'V_' in ind_var and ind_var!='V_flow':
+    elif ind_var=='V_flow':
+        bin_step, limits[0] = 50, 250
+        if restrict:
+            bin_step, limits[1] = 50, 800
+            if ind_src=='msh':
+                limits[1] = 750
+
+    elif 'V_' in ind_var:
         invert = True
         bin_step, limits[1] = 50, 0
+
+    elif ind_var=='E_parallel':
+        bin_step, limits[0] = 2, 0
+        if restrict:
+            bin_step = 1
+            limits[1] = 14
 
     elif 'E_' in ind_var:
         bin_step, limits[0] = 2, 0
         if restrict:
-            bin_step, limits[1] = 1, 12
+            bin_step = 1
+            if ind_src=='msh':
+                limits[1] = 20
+            elif dep_var is not None and (ind_var==dep_var or dep_var.startswith('E_parallel')):
+                bin_step, limits[1] = 0.5, 10
+            else:
+                limits[1] = 20
 
-     # Overwrites with those passed in
+    elif 'N_' in ind_var:
+        bin_step, limits[0] = 5, 0
+        if restrict:
+            bin_step = 2
+            if ind_src=='msh':
+                limits[1] = 100
+            elif ind_var==dep_var:
+                limits[1] = 40
+            else:
+                limits[1] = 75
+
+    elif ind_var=='S_perp':
+        invert = True
+        bin_step, limits[1] = 5, 0
+        if restrict:
+            limits[0] = -150
+
+    elif 'S_' in ind_var:
+        bin_step, limits[0] = 10, 0
+        if restrict:
+            bin_step, limits[1] = 5, 100
+            if ind_src=='msh':
+                bin_step, limits[1] = 20, 600
+
+    elif 'M_A' in ind_var:
+        bin_step, limits[0] = 5, 0
+        if restrict:
+            bin_step, limits[1] = 5, 50
+
+    elif 'beta' in ind_var:
+        bin_step, limits[0] = 1, 0
+        if restrict:
+            limits[1] = 30
+
+    else:
+        raise ValueError(f'"{ind_var} not implemented.')
+
     if bounds is not None:
         limits = bounds
 
+    return bin_step, limits, invert
+
+def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
+
+    grp_split = kwargs.get('grp_split',None)
+    quantiles = kwargs.get('quantiles',2)
+
+    used_median = False
+
+    if grp_unit in ('rad','deg','°'):
+        z_unit_str = '°'
+    elif grp_unit is not None and grp_unit not in ('1','NUM',''):
+        z_unit_str = f' {grp_unit}'
+    else:
+        z_unit_str = ''
+
+    grp_string = data_string(grp_var)
+    grp_label = create_label(grp_var, '°' if grp_unit in ('rad','deg','°') else grp_unit)
+
+
+    if grp_split is not None:
+        edges = [grp_split]
+
+    else:
+        found_split = False
+
+        if grp_var not in ('Delta B_theta','M_A'): # Using defined boundaries
+            found_split = True
+            if grp_var=='theta_Bn':
+                edges = [np.pi/4]
+
+            elif grp_var=='B_clock':
+                edges = [0]
+
+            elif grp_var=='Delta B_z':
+                edges = [0]
+
+            elif 'E_' in grp_var:
+                edges = [0]
+
+            elif 'V_' in grp_var:
+                edges = [400]
+
+            elif 'B_' in grp_var:
+                edges = [0]
+
+            elif 'beta' in grp_var:
+                edges = [1]
+
+            else:
+                found_split = False
+
+        if not found_split:
+            used_median = True
+            if grp_var not in ('Delta B_theta','M_A'):
+                warnings.warn(f'Grouping parameter "{grp_param}" not implemented.')
+
+            median = np.percentile(df[grp_param].dropna().to_numpy(),50)
+
+            if quantiles==4:
+                quar_1 = np.percentile(df[grp_param].dropna().to_numpy(),25)
+                quar_3 = np.percentile(df[grp_param].dropna().to_numpy(),75)
+                edges = [quar_1,median,quar_3]
+            elif quantiles==3:
+                tert_1 = np.percentile(df[grp_param].dropna().to_numpy(),100/3)
+                tert_2 = np.percentile(df[grp_param].dropna().to_numpy(),200/3)
+                edges = [tert_1,tert_2]
+            else:
+                edges = [median]
+
+    if grp_var in ('Delta B_theta','theta_Bn','B_clock'):
+        bin_width = np.pi/36
+
+    elif grp_var=='Delta B_z':
+        bin_width = 10
+
+    elif grp_var=='M_A':
+        bin_width = 1
+
+    elif 'E_' in grp_var:
+        bin_width = 0.5
+
+    elif 'V_' in grp_var:
+        bin_width = 50
+
+    elif 'B_' in grp_var:
+        bin_width = 1
+
+    elif 'beta' in grp_var:
+        bin_width = 0.1
+
+    else:
+        edges = [median]
+        minimum = df[grp_param].dropna().min()
+        maximum = df[grp_param].dropna().max()
+        bin_width = int(np.log10(maximum-minimum))/20
+
+    if grp_unit in ('rad','deg','°'):
+
+        if len(edges)==1:
+            z_labels = [f'${grp_string}$<{np.degrees(edges[0]):.1f}{z_unit_str}',
+                        f'${grp_string}$$\\geq${np.degrees(edges[0]):.1f}{z_unit_str}',
+                        f'${grp_string}$ = {np.degrees(edges[0]):.1f}{z_unit_str}']
+        else:
+            z_labels = []
+            for edge in edges:
+                z_labels.append(f'${grp_string}$={np.degrees(edge):.1f}{z_unit_str}')
+    else:
+
+        if len(edges)==1:
+            z_labels = [f'${grp_string}$<{edges[0]:.1f}{z_unit_str}',
+                        f'${grp_string}$$\\geq${edges[0]:.1f}{z_unit_str}',
+                        f'${grp_string}$ = {edges[0]:.1f}{z_unit_str}']
+        else:
+            z_labels = []
+            for edge in edges:
+                z_labels.append(f'${grp_string}$={edge:.1f}{z_unit_str}')
+
+    return edges, bin_width, grp_label, z_labels, used_median
+
+def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', data_type='counts', plot_test=False, same_var=False, invert_x=False, invert_y=False, **kwargs):
+
+    if data_type=='mins':
+        kwargs['min_count'] = 100
+    elif not kwargs.get('min_count',None):
+        kwargs['min_count'] = 50
+
+    ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df_msh, ind_var, ind_src)
+    dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
+    group_param = f'{grp_var}_{grp_src}'
+
+    ###----------MASKS----------###
+
+    mask      = np.ones(len(df_msh),dtype=bool)
+    omni_mask = np.ones(len(df_sw),dtype=bool)
+
+    bin_step, limits, invert = ind_variable_range(ind_var, ind_src, dep_var=dep_var)
+    kwargs['window_width'] = bin_step
+
+    # MSH Dataset
     if limits[0] is not None:
-        mask      &= df_msh[ind_param] >= limits[0]
-
+        mask  &= df_msh[ind_param] >= limits[0]
     if limits[-1] is not None:
-        mask      &= df_msh[ind_param] <= limits[1]
-
+        mask  &= df_msh[ind_param] <= limits[1]
     mask &= ~df_msh[[ind_param, dep_param, group_param]].isna().any(axis=1)
 
+    df_masked  = df_msh.loc[mask]
+
+    # OMNI dataset
     if ind_src != 'msh':
-        omni_mask &= ~df_sw[[ind_var, dep_var]].isna().any(axis=1)
+        if dep_var in df_sw:
+            omni_mask &= ~df_sw[[ind_var, dep_var]].isna().any(axis=1)
+        else:
+            omni_mask &= ~df_sw[ind_var].isna()
         if limits[0] is not None:
             omni_mask &= df_sw[ind_var] >= limits[0]
         if limits[-1] is not None:
             omni_mask &= df_sw[ind_var] <= limits[1]
 
-    df_masked  = df_msh.loc[mask]
     df_omni_masked = df_sw.loc[omni_mask]
 
     ###----------GROUPING PARAMETER LABEL----------###
 
-    median = np.percentile(df_masked[group_param].dropna().to_numpy(),50)
-    used_median = True
-
     z_unit = df_msh.attrs['units'].get(group_param,'')
-
-    if z_unit in ('rad','deg','°'):
-        z_unit_str = '°'
-    elif z_unit is not None and z_unit not in ('1','NUM',''):
-        z_unit_str = f' {z_unit}'
-    else:
-        z_unit_str = ''
-
-    grp_string = data_string(grp_var)
-    grp_label = create_label(grp_var, '°' if z_unit in ('rad','deg','°') else z_unit)
-
-
-    if grp_var=='Delta B_theta':
-        edges = [median]
-        bin_width = np.pi/36
-
-    elif grp_var=='theta_Bn':
-        used_median = False
-        edges = [np.pi/4]
-        bin_width = np.pi/36
-
-    elif grp_var=='B_clock':
-        used_median = False
-        edges = [0]
-        bin_width = np.pi/36
-
-    elif grp_var=='Delta B_z':
-        used_median = False
-        edges = [0]
-        bin_width = 10
-
-    elif grp_var=='M_A':
-        edges = [median]
-        bin_width = 1
-
-    elif 'E_' in grp_var:
-        used_median = False
-        edges = [0]
-        bin_width = 0.5
-
-    elif 'V_' in grp_var:
-        used_median = False
-        edges = [400]
-        bin_width = 50
-
-    elif 'B_' in grp_var:
-        used_median = False
-        edges = [0]
-        bin_width = 1
-
-    else:
-        raise Exception(f'Grouping parameter "{group_param}" not implemented.')
-
-    if grp_split is not None:
-        used_median = False
-        edges = [grp_split]
-
-    if z_unit in ('rad','deg','°'):
-
-        z_labels = [f'${grp_string}$<{np.degrees(edges[0]):.1f}{z_unit_str}',
-                    f'${grp_string}$$\\geq${np.degrees(edges[0]):.1f}{z_unit_str}',
-                    f'${grp_string}$ = {np.degrees(edges[0]):.1f}{z_unit_str}']
-
-    else:
-
-        z_labels = [f'${grp_string}$<{edges[0]:.1f}{z_unit_str}',
-                    f'${grp_string}$$\\geq${edges[0]:.1f}{z_unit_str}',
-                    f'${grp_string}$ = {edges[0]:.1f}{z_unit_str}']
+    edges, bin_width, grp_label, z_labels, used_median = grp_param_splitting(df_masked, grp_var, group_param, z_unit, **kwargs)
+    kwargs['zs_edges'] = edges
 
     if plot_test:
 
         fig, ax = plt.subplots()
 
         # Splits contemp MSH OMNI by grouping
-        compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, display='rolling_multiple', zs_edges=edges, window_width=bin_step, region='sem', want_legend=True, fig=fig, ax=ax, return_objs=False)
+        kwargs.update({'display': 'rolling_multiple', 'region': 'sem'})
+        compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, want_legend=True, ax=ax, return_objs=False, **kwargs)
         return
 
     ###----------PLOT GRIDS----------###
 
     fig = plt.figure(figsize=(12, 10), dpi=200)
     gs = gridspec.GridSpec(5, 6, figure=fig, width_ratios=[1, 1, 1, 1.15, 1.1, 0.2]) # nrows, ncols
+    kwargs.update({'fig': fig, 'return_objs': True, 'display': 'rolling', 'region': 'sem'})
 
     # gs[rows occupied, columns occupied]
 
@@ -437,28 +578,35 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     ax_br  = fig.add_subplot(gs[3, 3:6])
     ax_br2 = fig.add_subplot(gs[4, 3:6])
 
-    omni_colour = 'k'
+    omni_colour = black
     full_colour = 'b'
-    colour_100  = 'k'
 
-    if ind_var == dep_var:
-        ax_tl.axline((0,0),slope=1,c='k',ls=':')
+    if ind_var == dep_var or same_var:
+        slope = 1
+        if invert_y and not invert_x:
+            slope = -1
+        ax_tl.axline((limits[0],limits[0]), slope=slope, c='k', ls=':')
+        ax_tl.grid(ls=':', c='grey', lw=0.5)
 
-    elif not (dep_src=='msh' or ind_src=='msh'):
-        colour_100 = 'w'
-
-        # All OMNI Driver vs Response
-        _ = compare_columns(df_omni_masked, ind_var, dep_var, col1_counts=ind_var_count, col2_counts=dep_var_count, display='rolling', window_width=bin_step, data_colour=omni_colour, region='sem', fig=fig, ax=ax_tl, return_objs=True)
-
+    if ind_src=='sw':
         # OMNI counts
         ax_bl2.hist(df_omni_masked[ind_var], bins=calculate_bins(df_omni_masked[ind_var],bin_step), color=omni_colour)
 
-    for ax, ls, reg in zip((ax_tl,ax_bl),('-',':'),('sem','none')):
+    if not (ind_src=='msh' or dep_src=='msh'):
+
+        # All OMNI Driver vs Response
+        _ = compare_columns(df_omni_masked, ind_var, dep_var, col1_counts=ind_var_count, col2_counts=dep_var_count, data_colour=omni_colour,  ax=ax_tl, **kwargs)
+
+    kwargs.update({'col1_counts': ind_param_count, 'col1_err': ind_param_err, 'col2_counts': dep_param_count, 'col2_err': dep_param_err, 'col3': group_param})
+    for i, (ax, ls, reg) in enumerate(zip((ax_tl,ax_bl),('-',':'),('sem','none'))):
+
         # OMNI with contemp. MSH times
-        _ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, display='rolling', window_width=bin_step, data_colour=full_colour, error_colour=full_colour, line_style=ls, region=reg, fig=fig, ax=ax, return_objs=True)
+        kwargs.update({'region': reg, 'ax': ax, 'line_style': ls})
+        _ = compare_columns(df_masked, ind_param, dep_param, data_colour=full_colour, error_colour=full_colour,  **kwargs)
 
     # Splits contemp MSH OMNI by grouping
-    _ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, display='rolling_multiple', zs_edges=edges, window_width=bin_step, region='sem', want_legend=True, fig=fig, ax=ax_bl, return_objs=True)
+    kwargs.update({'display': 'rolling_multiple', 'region': 'sem', 'ax': ax_bl})
+    _ = compare_columns(df_masked, ind_param, dep_param, want_legend=True, **kwargs)
 
     # colour meshses
     cms = []
@@ -485,6 +633,8 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         ax_br.hist(df_grouping, bins=bins, color=colour)
         if grp_var=='Delta B_z':
             ax_br.set_xscale('symlog', linthresh=10)
+        elif grp_var=='beta':
+            ax_br.set_xscale('symlog', linthresh=1, linscale=1)
         ax_br.set_xlabel(grp_label)
 
         # Counts each ind_var bin
@@ -498,7 +648,8 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
         ax_br2.bar(bins[:-1] + (i-0.5)*0.5, counts, width=0.5, color=colour, label=f'{len(df_msh_years):,}{data_type}' if not used_median else None)
 
-    ax_bl2.axhline(y=100, ls=':', lw=1, c=colour_100)
+    ax_bl2.axhline(kwargs['min_count'], c='k', ls='-')
+    ax_bl2.axhline(kwargs['min_count'], c='w', ls=':')
 
     if used_median:
         ax_br2.plot([], [], ' ', label=f'$n/2$ = {np.sum(filter_mask):,} {data_type}')
@@ -541,11 +692,227 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     ax_br.legend(loc='upper right', fontsize=10)
     ax_br2.legend(loc='upper right', fontsize=8)
 
-    if invert:
+    if invert or invert_x:
         ax_bl.invert_xaxis()
+    if (invert and ind_var == dep_var) or invert_y:
+        ax_tl.invert_yaxis()
+        ax_bl.invert_yaxis()
 
 
     plt.tight_layout()
     save_figure(fig)
     plt.show()
     plt.close()
+
+def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, data_type='counts', min_count=50, show_contemp=True, compare_sw_msh=False, compare_colour='yellow', **kwargs):
+
+    if data_type=='mins':
+        min_count = 100
+
+    kwargs['min_count'] = min_count
+    kwargs['display']   = 'rolling'
+    kwargs['region']    = 'sem'
+
+    dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
+
+    ###----------PLOT GRIDS----------###
+
+    n_cols = 2 + int(compare_sw_msh)
+    fig, axs = plt.subplots(2, n_cols, figsize=(8*n_cols, 10), dpi=200, height_ratios=[3,2])
+
+    # [row] [col]
+    axs[0][0].sharex(axs[1][0])
+    axs[0][1].sharex(axs[1][1])
+    axs[0][0].sharey(axs[0][1])
+
+    if compare_sw_msh:
+        axs[0][2].sharex(axs[1][2])
+
+    enumerator = zip((df_sw, df_msh), ('sw', 'msh'), (dep_var, dep_param), (sw_colour, msh_colour))
+    if compare_sw_msh:
+        enumerator = zip((df_sw, df_msh, df_msh), ('sw', 'msh', 'sw'), (dep_var, dep_param, ind_var), (sw_colour, msh_colour, compare_colour))
+
+    for i, (df, source, dep, colour), in enumerate(enumerator):
+
+        ax0 = axs[0][i]
+        ax1 = axs[1][i]
+
+        ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, source)
+        bin_step, limits, invert = ind_variable_range(ind_var, source, dep_var=dep, restrict=restrict)
+        if i==2:
+            dep_param, dep_param_err, _, dep_param_count = def_param_names(df_msh, ind_var, 'msh')
+            dep = dep_param
+
+        if source=='sw' and i!=2:
+            ind = ind_var
+            ind_err = None
+            ind_count = ind_var_count
+        else:
+            ind = ind_param
+            ind_err = ind_param_err
+            ind_count = ind_param_count
+
+         # Overwrites with those passed in
+        if bounds is not None:
+            limits = bounds
+
+        mask = ~df[[ind, dep]].isna().any(axis=1)
+
+        if limits[0] is not None:
+            mask &= df[ind] >= limits[0]
+        if limits[-1] is not None:
+            mask &= df[ind] <= limits[1]
+
+        df_masked = df.loc[mask]
+
+        kwargs['window_width'] = bin_step
+        kwargs['data_colour']  = colour
+        kwargs['error_colour'] = colour
+
+        kwargs_source = kwargs.copy()
+        if i==2:
+            ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
+            ax0.grid(ls=':', c=grey, lw=0.5)
+            kwargs_source['data2_name'] = create_label(f'{kwargs["data1_name"]}_msh')
+
+        kwargs_source['data1_name'] = create_label(f'{kwargs["data1_name"]}_{source}')
+
+        _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
+
+        # Counts
+        ax1.axhline(min_count, c='k', ls='-')
+        ax1.axhline(min_count, c='w', ls=':')
+        ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_step), color=colour)
+        ax1.set_yscale('log')
+
+        if invert:
+            ax0.invert_xaxis()
+
+        if source=='sw' and show_contemp and i!=2:
+
+            mask &= df.index.isin(df_msh.index)
+
+            df_masked = df.loc[mask]
+
+            kwargs_source['data_colour']  = blue
+            kwargs_source['error_colour'] = blue
+
+            _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
+            ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_step), color=blue)
+
+    axs[0][1].set_ylabel(None)
+    axs[1][0].set_ylabel(data_type.capitalize())
+
+
+    plt.tight_layout()
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+
+def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', df_type='omni', bounds=None, restrict=True, data_type='counts', min_count=50, **kwargs):
+
+    if data_type=='mins':
+        min_count = 100
+
+    kwargs['min_count']    = min_count
+    kwargs['display']      = 'rolling'
+    kwargs['region']       = 'sem'
+
+    ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, ind_src)
+    if df_type=='omni':
+        ind, ind_err, ind_count = ind_var, None, ind_var_count
+    else:
+        ind, ind_err, ind_count = ind_param, ind_param_err, ind_param_count
+
+    bin_step, limits, invert = ind_variable_range(ind_var, ind_src, restrict)
+    kwargs['window_width'] = bin_step
+
+     # Overwrites with those passed in
+    if bounds is not None:
+        limits = bounds
+
+    mask = ~df[ind].isna()
+    if limits[0] is not None:
+        mask &= df[ind] >= limits[0]
+    if limits[-1] is not None:
+        mask &= df[ind] <= limits[1]
+
+    dep_cols = [col for col in df.columns if col.startswith(dep_var)]
+
+    cmap = plt.get_cmap('cool')
+    norm = plt.Normalize(vmin=0, vmax=len(dep_cols)-1)
+
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=200)
+
+    for i, col in enumerate(dep_cols):
+
+        dep = col
+
+        if df_type=='omni':
+            try:
+                _, lag = col.split('_')
+            except:
+                lag = '0m'
+        else:
+            try:
+                _, lag, _ = col.split('_')
+            except:
+                lag = '0m'
+
+        mask_dep = mask.copy()
+        mask_dep &= ~df[dep].isna()
+
+        df_masked = df.loc[mask_dep]
+
+        colour = cmap(norm(i))
+        kwargs['data_colour'] = colour
+        kwargs['error_colour'] = colour
+
+        _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        ax.plot([], [], ls='-', color=colour, label=lag)
+
+
+    ax.set_ylabel(create_label(dep_var,units=df.attrs['units']))
+
+    add_legend(fig, ax)
+    plt.tight_layout()
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+
+
+def plot_grouping_cause(df_merged, ind_var, dep_var, ind_src='sw', dep_src='msh', bounds=None, restrict=True, data_type='counts', min_count=50, **kwargs):
+
+    if data_type=='mins':
+        min_count = 100
+
+    kwargs['min_count']    = min_count
+    kwargs['display']      = 'rolling'
+    kwargs['data_colour']  = black
+    kwargs['error_colour'] = black
+
+
+    ind_param, ind_param_err, _, ind_param_count = def_param_names(df_merged, ind_var, ind_src)
+    dep_param, dep_param_err, _, dep_param_count = def_param_names(df_merged, dep_var, dep_src)
+
+    bin_step, limits, invert = ind_variable_range(ind_var, ind_src, restrict)
+
+     # Overwrites with those passed in
+    if bounds is not None:
+        limits = bounds
+
+    mask = ~df_merged[[ind_param, dep_param]].isna().any(axis=1)
+
+    if limits[0] is not None:
+        mask &= df_merged[ind_param] >= limits[0]
+    if limits[-1] is not None:
+        mask &= df_merged[ind_param] <= limits[1]
+
+    df_masked = df_merged.loc[mask]
+
+    kwargs['window_width'] = bin_step
+
+
+    compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, return_objs=False, **kwargs)

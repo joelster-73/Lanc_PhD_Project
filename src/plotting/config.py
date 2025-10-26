@@ -8,9 +8,9 @@ Created on Fri May 16 10:21:52 2025
 import matplotlib.pyplot as plt
 
 
-dark_mode = True
+dark_mode  = False
 large_text = False
-save_fig = True
+save_fig   = True
 
 
 white = 'w'
@@ -18,15 +18,19 @@ black = 'k'
 blue = 'b'
 green = 'g'
 pink = 'deeppink'
+grey = 'grey'
+plt.rcParams['legend.labelcolor'] = 'k'
+plt.rcParams['legend.facecolor']  = 'w'
+plt.style.use('default')
 if dark_mode:
     blue = 'c'
     white = 'k'
     black = 'w'
     green = 'lime'
+    grey = 'lightgrey'
     plt.style.use('dark_background')
-
-    #### DARK BACKGROUND MAKES CHANGING FONT COLOUR TO BLACK/WHITE OBSOLETE ####
-
+    plt.rcParams['legend.labelcolor'] = 'w'
+    plt.rcParams['legend.facecolor']  = 'k'
 
 plt.rcParams['figure.figsize'] = [12, 8]
 plt.rcParams['figure.dpi'] = 400
@@ -34,8 +38,6 @@ plt.rcParams['font.size'] = 12
 plt.rcParams['figure.titlesize'] = 18
 plt.rcParams['legend.frameon'] = True
 plt.rcParams['legend.fontsize'] = 12
-# plt.rcParams['legend.facecolor'] = 'w'
-# plt.rcParams['legend.edgecolor'] = 'k'
 plt.rcParams['axes.titlesize'] = 16
 plt.rcParams['axes.labelsize'] = 15
 
@@ -47,6 +49,8 @@ if large_text:
     plt.rcParams['axes.labelsize'] = 18
 
 scatter_markers = [ 's', 'o', 'v', '1', '2', '3', '4', '^', '<', '>', '.', ',', 'p', '*', 'h', 'H', '+', 'x', 'D', 'd', '|', '_']
+
+bar_hatches = [None, '/', '\\', '-', '+', 'x', 'o', 'O', '.', '*', '|']
 
 colour_dict = {
     'OMNI': 'orange',

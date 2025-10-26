@@ -7,6 +7,7 @@ Created on Fri May 16 11:24:05 2025
 
 import re
 import matplotlib.dates as mdates
+from .config import black, white
 
 
 def check_labels(df, *labels):
@@ -15,7 +16,9 @@ def check_labels(df, *labels):
             raise ValueError(f'Field data "{label}" not found in data.')
 
 
-def dark_mode_fig(fig,black,white,heat=False):
+def dark_mode_fig(fig,heat=False):
+    print('Deprecated')
+    return
     fig.patch.set_facecolor(white)
     for ax in fig.get_axes():
         if heat:
@@ -25,7 +28,7 @@ def dark_mode_fig(fig,black,white,heat=False):
         for spine in ax.spines.values():
             spine.set_edgecolor(black)
 
-def add_figure_title(fig,black='k',title=None,x_label=None,y_label=None,ax=None,name_latex=False):
+def add_figure_title(fig,title=None,x_label=None,y_label=None,ax=None,name_latex=False):
 
     if title is None:
         if x_label is not None and y_label is not None:
@@ -36,9 +39,9 @@ def add_figure_title(fig,black='k',title=None,x_label=None,y_label=None,ax=None,
         else:
             title = 'Figure'
     if ax is not None:
-        ax.set_title(title, color=black, wrap=True)
+        ax.set_title(title, wrap=True)
     else:
-        fig.suptitle(title, color=black, wrap=True)
+        fig.suptitle(title, wrap=True)
 
 def add_legend(fig, ax, legend_on=True, loc='upper left', anchor=None, cols=1, heat=False, edge_col='k', frame_on=True, title=None, rows=None):
     num_labels = len(ax.get_legend_handles_labels()[0])
@@ -47,8 +50,8 @@ def add_legend(fig, ax, legend_on=True, loc='upper left', anchor=None, cols=1, h
             cols = num_labels
         if rows is not None:
             cols = max(num_labels // rows,1)
-        label_colour = 'k'
-        face_colour = 'w'
+        label_colour = black
+        face_colour = white
         if heat:
             label_colour = 'w'
             face_colour = 'k'

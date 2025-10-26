@@ -68,8 +68,8 @@ def process_cluster_files(directory, data_directory, variables, sample_interval=
                     continue
 
                 # Should move to a separate update function !
-                if 'FGM' in directory and '5VPS' in directory:
-                    gsm = calc_B_GSM_angles(new_df, time_col=time_col)
+                if 'FGM' in directory:
+                    gsm = calc_B_GSM_angles(new_df, time_col=time_col).drop(columns=['B_mag'])
                     new_df = pd.concat([new_df, gsm], axis=1)
 
                 yearly_list.append(new_df)
@@ -98,6 +98,8 @@ def process_cluster_files(directory, data_directory, variables, sample_interval=
 
             if len(quality_list)>0:
                 quality_df = pd.concat(quality_list, ignore_index=True)
+                quality_df['epoch'] = pd.to_datetime(quality_df['epoch'], errors='coerce')
+                quality_df = quality_df.dropna(subset=['epoch'])
 
                 merged = pd.merge_asof(yearly_df, quality_df, left_on='epoch', right_on='epoch', direction='backward')
 
@@ -190,8 +192,7 @@ def extract_cluster_data(cdf_file, variables):
                 continue
 
             data = cdf[var_code].copy()
-            if var_name != 'epoch':
-                spacepy.pycdf.istp.nanfill(data)
+            spacepy.pycdf.istp.nanfill(data)
             data = data[...]
 
             if isinstance(data,float) or isinstance(data,int):
@@ -230,19 +231,18 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
     plasma_dir = os.path.join(spin_directory, 'plasma', 'raw')
     combined_dir = os.path.join(spin_directory, 'combined', 'raw')
 
-    year_range = range(2000,2023)
+    year_range = range(2001,2023)
     if year is not None:
-        year_range = [year]
+        year_range = (year,)
 
     for year in year_range:
         try:
             field_df = import_processed_data(field_dir, year=year)
             plasma_df = import_processed_data(plasma_dir, year=year)
-            print(plasma_df.columns)
         except:
             print(f'No data for {year}.')
             continue
-        continue
+
         print(f'Processing {year} data.')
 
         ###----------GSE to GSM----------###
@@ -254,26 +254,29 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
         vec_coords = 'GSE'
 
         if fvps_directory is not None:
-            print('Converting...')
-            fvps_df = import_processed_data(fvps_directory, year=year)
-            gsm_vectors = GSE_to_GSM_with_angles(merged_df, [[f'{vec}_{comp}_GSE' for comp in ('x','y','z')] for vec in ('V','B')], df_coords=fvps_df, ref='B', interp=True)
 
-            for vec in ('V','B'):
+            convert_cols = ('V',)
+
+            fvps_df = import_processed_data(fvps_directory, year=year)
+            gsm_vectors = GSE_to_GSM_with_angles(merged_df, [[f'{vec}_{comp}_GSE' for comp in ('x','y','z')] for vec in convert_cols], df_coords=fvps_df, ref='B', interp=True)
+
+            for vec in convert_cols:
                 merged_df.drop(columns=[f'{vec}_x_GSE', f'{vec}_y_GSE', f'{vec}_z_GSE'],inplace=True)
 
-            merged_df = pd.concat(gsm_vectors, axis=1)
+            merged_df = pd.concat([merged_df,gsm_vectors], axis=1)
             vec_coords = 'GSM'
 
             # Freeing up memory
-            del fvps_df, uy, uz, vy, vz, dot, cross, theta, cos_theta, sin_theta, zeros, ones, R
+            del fvps_df
 
             print('GSE to GSM.')
 
+        print('Calculations...')
         ###----------CONTAMINATION----------###
 
         merged_df.loc[merged_df['B_avg']>200,'B_avg'] = np.nan
         for comp in ('x','y','z'):
-            merged_df.loc[np.abs(merged_df[f'B_{comp}_GSM'])>150,f'B_{comp}_GSM'] = np.nan
+            merged_df.loc[merged_df[f'B_{comp}_GSM'].abs()>150,f'B_{comp}_GSM'] = np.nan
 
         merged_df.loc[merged_df['V_mag']>2e3,'V_mag'] = np.nan
         for comp, limit in zip(('x','y','z'),(2000,400,400)):
@@ -335,11 +338,10 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
             os.makedirs(combined_dir)
 
         output_file = os.path.join(combined_dir, f'C1_SPIN_{year}.cdf')
-        write_to_cdf(merged_df, output_file, {'R_E': R_E}, overwrite=True, reset_index=True)
 
         print(f'{year} processed.')
+        write_to_cdf(merged_df, output_file, {'R_E': R_E}, overwrite=True, reset_index=True)
 
-    # then process to filter for msh and quality
 
 def filter_spin_data(spin_directory, region='msh', year=None):
 
@@ -349,7 +351,7 @@ def filter_spin_data(spin_directory, region='msh', year=None):
     # Modes for CIS instrument
     region_modes = {'msh': [8,9,10,11,12,13,14],
                     'sw':  [0,1,2,3,4,5]}
-    quality_high = [3,4] # -2 custom flag for when no quality data available
+    quality_high = [3,4]   # -2 custom flag for when no quality data available
 
     year_range = range(2000,2023)
     if year is not None:

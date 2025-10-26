@@ -18,8 +18,8 @@ from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 from collections import Counter
 
-from ..config import black, white, blue, scatter_markers, colour_dict, database_colour_dict
-from ..formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
+from ..config import black, blue, scatter_markers, colour_dict, database_colour_dict
+from ..formatting import add_legend, add_figure_title, create_label, data_string
 from ..utils import save_figure, calculate_bins, change_series_name
 from ..distributions import plot_fit, plot_rolling_window
 
@@ -123,15 +123,19 @@ def compare_series(series1, series2, **kwargs):
 
     data1_name    = kwargs.get('data1_name',None)
     data2_name    = kwargs.get('data2_name',None)
+    name1_latex   = kwargs.get('name1_latex',False)
+    name2_latex   = kwargs.get('name1_latex',False)
     brief_title   = kwargs.get('brief_title','')
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
     return_objs = kwargs.get('return_objs',False)
 
+    line_colour = 'k'
     is_heat = False
     if display == 'heat':
         is_heat = True
+        line_colour = 'w'
 
     ###---------------CONSTRUCT COLUMN LABELS---------------###
 
@@ -177,20 +181,16 @@ def compare_series(series1, series2, **kwargs):
         h = ax.hist2d(series1, series2, bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
 
         cbar = fig.colorbar(h[3], ax=ax)
-        cbar.ax.tick_params(colors=black)
-        cbar.set_label('Number of Points', color=black)
-        cbar.outline.set_edgecolor(black)
-
-        line_color = 'w'
+        cbar.set_label('Number of Points')
 
     elif display != 'scatter_dict':
         raise ValueError(f'"{display}" not valid display mode.')
 
     if reference_line is not None:
         if reference_line=='x':
-            ax.axline((0, 0), slope=1, color=line_color, label='y=x', lw=2, ls=':')
+            ax.axline((0, 0), slope=1, color=line_colour, label='y=x', lw=2, ls=':')
         elif isinstance(reference_line, int) or isinstance(reference_line, int):
-            ax.axhline(y=reference_line, color=line_color, label=f'y={reference_line}', lw=2, ls=':')
+            ax.axhline(y=reference_line, color=line_colour, label=f'y={reference_line}', lw=2, ls=':')
 
     fit_kwargs = kwargs.copy()
     fit_kwargs['fit_colour'] = black
@@ -219,15 +219,19 @@ def compare_series(series1, series2, **kwargs):
     if unit2 == 'rad':
 
         ax.yaxis.set_major_formatter(FuncFormatter(rad2deg))
-        ax.set_yticks(np.linspace(-np.pi, np.pi, 9))
+
+        step = np.pi/4
+        min_tick = np.floor(series2.min()/step)*step
+        max_tick = np.ceil(series2.max()/step)*step
+        ax.set_yticks(np.arange(min_tick, max_tick, step))
 
         unit2 = '°'
 
-    data1_label = create_label(series1.name, unit=unit1, data_name=data1_name)
-    data2_label = create_label(series2.name, unit=unit2, data_name=data2_name)
+    data1_label = create_label(series1.name, unit=unit1, data_name=data1_name, name_latex=name1_latex)
+    data2_label = create_label(series2.name, unit=unit2, data_name=data2_name, name_latex=name2_latex)
 
-    ax.set_xlabel(data1_label, c=black)
-    ax.set_ylabel(data2_label, c=black)
+    ax.set_xlabel(data1_label)
+    ax.set_ylabel(data2_label)
 
     if brief_title=='amount':
         brief_title = f'{len(series1):,}'
@@ -236,8 +240,7 @@ def compare_series(series1, series2, **kwargs):
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###
     add_legend(fig, ax, legend_on=want_legend, heat=is_heat, loc=legend_loc)
-    add_figure_title(fig, black, brief_title, ax=ax)
-    dark_mode_fig(fig,black,white,is_heat)
+    add_figure_title(fig, brief_title, ax=ax)
     plt.tight_layout();
 
     if return_objs:
@@ -447,8 +450,8 @@ def plot_rolling_multiple(xs, ys, **kwargs):
 
         kwargs_bin = kwargs.copy()
         colour = cmap(norm(z_val))
-        kwargs_bin['data_colour'] = colour
-        kwargs_bin['error_colour'] = colour
+        kwargs_bin.update({'data_colour': colour, 'error_colour': colour})
+
         if ys_unc is not None:
             kwargs_bin['ys_unc'] = ys_unc.loc[mask]
         if ys_counts is not None:

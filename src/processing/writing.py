@@ -5,6 +5,7 @@ Created on Thu May  8 18:08:31 2025
 @author: richarj2
 """
 import os
+import re
 import numpy as np
 from spacepy import pycdf
 
@@ -140,7 +141,9 @@ def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
 
     print(f'Resampling to {sample_interval} resolution.')
 
-    for year in range(2000,2026):
+    year_range = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(directory) if re.search(r'\d{4}', f)]
+
+    for year in year_range:
 
         print(f'Processing {year} data.')
 
@@ -161,6 +164,7 @@ def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
 
             yearly_df = raw_df.loc[year_mask]
 
+
         file_name = next((os.path.basename(f) for f in cdf_files if f'_{year}' in os.path.basename(f)),None)
         if file_name is None:
             continue
@@ -169,9 +173,8 @@ def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
         sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
         add_df_units(sampled_df)
 
-
         output_file = os.path.join(samp_dir, file_name)
         attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
+        print(f'{year} processed.\n')
         write_to_cdf(sampled_df, output_file, attributes, overwrite=True, reset_index=True)
 
-        print(f'{year} processed.\n')

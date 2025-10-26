@@ -6,9 +6,20 @@ Created on Thu May  8 16:17:14 2025
 """
 # src/config.py
 
+import warnings
+import os
+
+def short_warn_format(message, category, filename, lineno, line=None):
+    # Get just the parent folder and filename, e.g. "magnetosheath_saturation/plotting.py"
+    parent = os.path.basename(os.path.dirname(filename))
+    base = os.path.basename(filename)
+    short_path = f'{parent}/{base}'
+    return f'{short_path}:{lineno}: {category.__name__}: {message}\n'
+
+warnings.formatwarning = short_warn_format
+
 from datetime import datetime
 
-import os
 
 # Define DATA_DIR relative to the module's location
 MODULE_DIR             = os.path.dirname(os.path.abspath(__file__))  # Path of the current module
@@ -27,6 +38,8 @@ MMS_DIR                = f'{PROCESSED_DATA_DIR}/MMS1'
 HELSINKI_DIR           = f'{PROCESSED_DATA_DIR}/HELSINKI'
 SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
 MSH_DIR                = f'{PROCESSED_DATA_DIR}/MSH'
+SW_DIR                 = f'{PROCESSED_DATA_DIR}/SW'
+PCN_DIR                = f'{PROCESSED_DATA_DIR}/PCN'
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 
 # LUNA Directories
@@ -47,24 +60,15 @@ LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
 PROC_CLUS_DIR_SPIN     = f'{CLUSTER_DIR}/SPIN'
 PROC_CLUS_DIR_5VPS     = f'{CLUSTER_DIR}/5VPS'
 PROC_CLUS_DIR_FGM      = f'{PROC_CLUS_DIR_5VPS}/raw'
-PROC_CLUS_DIR_FGM1     = f'{PROC_CLUS_DIR_5VPS}/1min'
 PROC_CLUS_DIR_CIS      = f'{PROC_CLUS_DIR_SPIN}/plasma/raw'
 PROC_CLUS_DIR_COM      = f'{PROC_CLUS_DIR_SPIN}/combined/raw'
 
 PROC_CLUS_DIR_MSH      = f'{PROC_CLUS_DIR_SPIN}/msh'
+PROC_CLUS_DIR_SW       = f'{PROC_CLUS_DIR_SPIN}/sw'
 
-PROC_CLUS_DIR_MSHS     = f'{PROC_CLUS_DIR_MSH}/raw'
-PROC_CLUS_DIR_MSH1     = f'{PROC_CLUS_DIR_MSH}/1min'
-PROC_CLUS_DIR_MSH5     = f'{PROC_CLUS_DIR_MSH}/5min'
-
-# Combined Cluster OMNI Data in MSH
+# Combined Spacecraft and OMNI Data in MSH
 PROC_MSH_FIELD_DIR     = f'{MSH_DIR}/field_only'
 PROC_MSH_PLASMA_DIR    = f'{MSH_DIR}/with_plasma'
-
-PROC_MSH_FIELD_1MIN   = f'{PROC_MSH_FIELD_DIR}/1min'
-PROC_MSH_FIELD_5MIN   = f'{PROC_MSH_FIELD_DIR}/5min'
-PROC_MSH_PLASMA_1MIN  = f'{PROC_MSH_PLASMA_DIR}/1min'
-PROC_MSH_PLASMA_5MIN  = f'{PROC_MSH_PLASMA_DIR}/5min'
 
 # Crossings Data
 GOOD_CROSSINGS         = f'{CROSSINGS_DIR}/good_time_windows.txt'
@@ -86,8 +90,9 @@ PROC_THEMIS_DIR        = THEMIS_DIR
 # Processed Shocks Data
 PROC_SHOCKS_DIR        = SHOCKS_DIR
 
-# Processed THEMIS Data
-PROC_MMS_DIR           = f'{MMS_DIR}/field'
+# Processed MMS Data
+PROC_MMS_DIR_FGM       = f'{MMS_DIR}/field'
+PROC_MMS_DIR_HPCA      = f'{MMS_DIR}/plasma'
 
 # Processed Bowshock Data
 PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'

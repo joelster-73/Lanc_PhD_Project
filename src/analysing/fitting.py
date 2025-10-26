@@ -167,6 +167,10 @@ def histogram_params(mids, counts):
 
 # %% Straight
 def straight_line(x, *params):
+    if len(params)==1:
+        m = params
+        return m*x
+
     m, c = params
     return m*x + c
 

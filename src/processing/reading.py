@@ -24,17 +24,21 @@ def import_processed_data(directory, file_name=None, year=None, axis=0):
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]
 
-        try:
+        if len(cdf_files)==1:
             df = read_spacepy_object(cdf_files)
-        except Exception: # CDF files for different parameters
-            print('Different file structures')
-            df = pd.DataFrame()
-            for f in cdf_files:
-                df_param = read_spacepy_object(f)
-                df = pd.concat([df, df_param], axis=axis)
-                for k, v in df_param.attrs.items():
-                    if k not in df.attrs:
-                        df.attrs[k] = v
+
+        else:
+            try:
+                df = read_spacepy_object(cdf_files)
+            except Exception: # CDF files for different parameters
+                print('Different file structures')
+                df = pd.DataFrame()
+                for f in cdf_files:
+                    df_param = read_spacepy_object(f)
+                    df = pd.concat([df, df_param], axis=axis)
+                    for k, v in df_param.attrs.items():
+                        if k not in df.attrs:
+                            df.attrs[k] = v
 
     for column in df.columns:
         if df.attrs.get('units',{}).get(column, '') == 'STRING':

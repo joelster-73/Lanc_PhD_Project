@@ -4,13 +4,11 @@ Created on Thu May  8 15:58:08 2025
 
 @author: richarj2
 """
-
-from src.config import LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, LUNA_CLUS_DIR_HIAM, LUNA_CLUS_DIR_HIAQ, PROC_CLUS_DIR_5VPS, LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_FGM, PROC_CLUS_DIR_MSHS
+import os
+from src.config import LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, LUNA_CLUS_DIR_HIAM, LUNA_CLUS_DIR_HIAQ, PROC_CLUS_DIR_5VPS, LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_FGM, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_SW
 
 from src.processing.writing import resample_cdf_files
-
 from src.processing.cluster.config import CLUSTER_VARIABLES_SPIN, CLUSTER_VARIABLES_HIA, CLUSTER_VARIABLES_HIA_QUALITY, CLUSTER_VARIABLES_5VPS
-
 from src.processing.cluster.handling import process_cluster_files, combine_spin_data, filter_spin_data
 
 
@@ -20,33 +18,37 @@ process_cluster_files(LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_5VPS, CLUSTER_VARIABLES_
 
 #process_cluster_files(LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_5VPS, CLUSTER_VARIABLES_5VPS, sub_folders=True, year=2001)
 
-# %% Process_spin_fgm
+# %% Average_FGM
 
-process_cluster_files(LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, CLUSTER_VARIABLES_SPIN, sample_interval='None')
+resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval='1min', yearly_files=True)
+resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval='5min', yearly_files=True)
 
-# %% Process_spin_plasma
+# %% Process_spin
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning, message='.*DatetimeProperties.to_pydatetime.*')
 
-process_cluster_files(LUNA_CLUS_DIR_HIAM, PROC_CLUS_DIR_SPIN, CLUSTER_VARIABLES_HIA, sub_folders=True, sample_interval='None', quality_directory=LUNA_CLUS_DIR_HIAQ, quality_variables=CLUSTER_VARIABLES_HIA_QUALITY)
+process_cluster_files(LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, CLUSTER_VARIABLES_SPIN, sample_interval='none')
 
-# %% Combine_spin
+process_cluster_files(LUNA_CLUS_DIR_HIAM, PROC_CLUS_DIR_SPIN, CLUSTER_VARIABLES_HIA, sub_folders=True, sample_interval='none', quality_directory=LUNA_CLUS_DIR_HIAQ, quality_variables=CLUSTER_VARIABLES_HIA_QUALITY)
+
+
 combine_spin_data(PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_FGM)
 
-# %% MSH_filter
+# %% MSH_data
 
 filter_spin_data(PROC_CLUS_DIR_SPIN, region='msh')
 
-# %% Average_1min
+raw_dir = os.path.join(PROC_CLUS_DIR_MSH,'raw')
+resample_cdf_files(raw_dir, sample_interval='1min', yearly_files=True)
+resample_cdf_files(raw_dir, sample_interval='5min', yearly_files=True)
 
-resample_cdf_files(PROC_CLUS_DIR_MSHS, sample_interval='1min')
+# %% SW_data
 
-# %% Average_5min
+filter_spin_data(PROC_CLUS_DIR_SPIN, region='sw')
 
-resample_cdf_files(PROC_CLUS_DIR_MSHS, sample_interval='5min')
-
-# %% Average_5min_field
-
-resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval='5min', yearly_files=True)
-
+raw_dir = os.path.join(PROC_CLUS_DIR_SW,'raw')
+resample_cdf_files(raw_dir, sample_interval='1min', yearly_files=True)
+resample_cdf_files(raw_dir, sample_interval='5min', yearly_files=True)
 
 # %%
 import os

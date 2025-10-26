@@ -20,7 +20,7 @@ from .formatting import add_legend, add_figure_title, create_label, dark_mode_fi
 from .utils import save_figure, calculate_bins
 
 from ..analysing.fitting import fit_function
-from ..analysing.calculations import calc_mean_error, average_of_averages, std_of_averages
+from ..analysing.calculations import calc_mean_error, average_of_averages, std_of_averages, median_with_counts
 
 
 def plot_fit(xs, ys, x_range=None, **kwargs):
@@ -48,7 +48,7 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
         return {}
 
     try:
-        unit = ys.attrs.get('units',{}).get(ys.name,'')
+        unit = ys.attrs.get('units',{})[ys.name]
     except:
         unit = kwargs.get('unit','')
     if unit=='1':
@@ -60,16 +60,25 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
         return {}
 
     func = fit_dict['func']
-    popt = (v.n for v in fit_dict['params'].values())
+    popt = [v.n for v in fit_dict['params'].values()]
     param_dict = fit_dict['params']
     R2 = fit_dict['R2']
 
+    if R2 < 0:
+        print(f'Fitting failed; popt: {popt}.')
+        return fit_dict
+
     if x_range is None and func.__name__ == 'straight_line':
-        m, c = popt
-        if orientation == 'horizontal':
-            ax.axline((c, 0), slope=1/m, color=colour, linestyle=ls, linewidth=lw)
+        if len(popt)==1:
+            m = popt[0]
+            c = 0
         else:
+            m, c = popt
+
+        if orientation == 'vertical':
             ax.axline((0, c), slope=m, color=colour, linestyle=ls, linewidth=lw)
+        else:
+            ax.axline((c, 0), slope=1/m, color=colour, linestyle=ls, linewidth=lw)
     else:
 
         if x_range is None:
@@ -468,44 +477,76 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
     ys_unc       = kwargs.get('ys_unc',None)
     ys_counts    = kwargs.get('ys_counts',None)
+    min_count    = kwargs.get('min_count',10) # data points in bin
 
     line_style  = kwargs.get('line_style','-')
+    want_legend = kwargs.get('want_legend',False)
+    show_fit    = kwargs.get('show_fit',False)
+    show_count  = kwargs.get('show_count',False)
+
     mean_colour = kwargs.get('data_colour',blue)
     std_colour  = kwargs.get('error_colour','r')
     region      = kwargs.get('region','std') # std or sem
+    data_type   = kwargs.get('data_type','counts')
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
     return_objs = kwargs.get('return_objs',False)
 
     y_unit = ys.attrs.get('units',{}).get(ys.name,'')
+    if y_unit in ('rad','deg'):
+        y_unit = '°'
 
     while window_step>(window_width/10):
         window_step /= 2
 
     if fig is None or ax is None:
         fig, ax = plt.subplots()
+    if show_count:
+        ax2 = ax.twinx()
+        ax2.set_yscale('log')
+        ax2.set_ylabel(data_type.capitalize())
 
-    x_centres = np.arange(np.floor(np.min(xs)/window_step)*window_step,np.ceil(np.max(xs)/window_step)*window_step+window_step,window_step)
-    y_means   = np.full(len(x_centres),np.nan)
-    y_errs    = np.zeros(len(x_centres))
-    y_stds    = np.zeros(len(x_centres))
+    x_centres  = np.arange(np.floor(np.min(xs)/window_step)*window_step,
+                           np.ceil(np.max(xs)/window_step)*window_step+window_step,
+                           window_step)
+
+    y_vals     = np.full(len(x_centres),np.nan)
+    if region == 'med':
+        y_errs = np.zeros((2,len(x_centres)))
+    else:
+        y_errs = np.zeros(len(x_centres))
+    counts     = np.zeros(len(x_centres))
 
     for i, x_c in enumerate(x_centres):
 
         mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
-        if np.sum(mask)>0:
-            val = average_of_averages(ys, ys_unc, ys_counts, mask)
-            y_means[i], y_errs[i] = val.n, val.s
-            y_stds[i] = std_of_averages(ys, ys_unc, ys_counts, mask)
+        if np.sum(mask)>=min_count:
+            if region=='med':
+                med, q1, q3 = median_with_counts(ys, ys_counts, mask)
+                y_vals[i] = med
+                y_errs[0,i], y_errs[1,i] = med - q1, q3 - med
+            else:
+                val = average_of_averages(ys, ys_unc, ys_counts, mask)
+                y_vals[i] = val.n
+                if region=='sem':
+                    y_errs[i] = val.s
+                elif region=='std':
+                    y_errs[i] = std_of_averages(ys, ys_unc, ys_counts, mask)
+                else:
+                    y_errs[i] = 0
+            counts[i] = np.sum(mask)
 
-    not_nan = ~np.isnan(y_means)
+    not_nan = ~np.isnan(y_vals)
 
     segments = []
     current_segment = []
-    for i, val in enumerate(y_means):
+    for i, y_val in enumerate(y_vals):
         if not_nan[i]:
-            current_segment.append((x_centres[i], val, y_stds[i], y_errs[i]))
+            if region=='med':
+                current_segment.append((x_centres[i], y_val, (y_errs[0,i], y_errs[1,i]), counts[i]))
+            else:
+                current_segment.append((x_centres[i], y_val, y_errs[i], counts[i]))
         else:
             if current_segment:
                 segments.append(current_segment)
@@ -514,72 +555,118 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
         segments.append(current_segment)
 
     for segment in segments:
-        x_vals, y_vals, y_stds, y_errs = zip(*segment)
-        x_vals = np.array(x_vals)
-        y_vals = np.array(y_vals)
-        y_stds = np.array(y_stds)
-        y_errs = np.array(y_errs)
-        if len(x_vals)==1:
-            ax.plot(x_vals, y_vals, c=mean_colour, marker='.')
+        x_s, y_s, err_s, c_s = zip(*segment)
+
+        x_s   = np.array(x_s)
+        y_s   = np.array(y_s)
+        err_s = np.array(err_s)
+        c_s   = np.array(c_s)
+
+        if len(xs)==1:
+            ax.plot(x_s, y_s, c=mean_colour, marker='.')
         else:
-            ax.plot(x_vals, y_vals, c=mean_colour, ls=line_style)
-        if region in ('std','both'):
-            ax.fill_between(x_vals, y_vals-y_stds, y_vals+y_stds, color=std_colour, alpha=0.2)
-        if region in ('sem','both'):
-            ax.fill_between(x_vals, y_vals-y_errs, y_vals+y_errs, color=mean_colour, alpha=0.3)
+            ax.plot(x_s, y_s, c=mean_colour, ls=line_style)
+
+        if region!='none':
+            if region =='med':
+                ax.fill_between(x_s, y_s-err_s[:,0], y_s+err_s[:,1], color=std_colour, alpha=0.2)
+            else:
+                ax.fill_between(x_s, y_s-err_s, y_s+err_s, color=mean_colour, alpha=0.3)
+
+        if show_count:
+            ax2.plot(x_s, c_s, c='m', ls=':')
+
+    if show_fit:
+        _ = plot_fit(x_centres, y_vals, ys_unc=(None if region=='med' else y_errs), unit=y_unit, fit_type='straight', fit_colour='red', fit_style='--', as_text=True, fig=fig, ax=ax, return_objs=True)
 
     if return_objs:
         return fig, ax
 
     ax.plot([], [], c=mean_colour, ls=line_style, label='mean')
-    if region in ('std','both'):
-        ax.fill_between([], [], [], color=std_colour, alpha=0.3, label=r'$\pm$s')
-    if region in ('sem','both'):
-        ax.fill_between([], [], [], color=std_colour, alpha=0.4, label=r'$\pm s_{\bar{x}}$')
-
-    ax.set_ylabel(r'$\mu \pm \hat{\sigma}$'+f' [{y_unit}]')
-    ax.legend(fontsize=8, loc='upper left')
-
+    if region!='none':
+        labels = {'med': 'iqr', 'std': r'$\pm$s', 'sem': r'$\pm s_{\bar{x}}$'}
+        ax.fill_between([], [], [], color=std_colour, alpha=0.4, label=labels.get(region,r'$\pm\sigma$'))
+        ax.set_ylabel(r'$\mu \pm \hat{\sigma}$'+f' [{y_unit}]')
+    add_legend(fig, ax, legend_on=want_legend)
 
 # %% Labels
 def straight_label_params(param_dict, detailed=True, unity='', unitx='', R2=''):
 
-    m = param_dict['m']
-    c = param_dict['c']
+    labels = param_dict.copy()
+    labels['R2'] = R2
 
-    if detailed:
-        try:
-            return f'$m$: ${m:L}$ {unity} {unitx}${-1}$\n$c$: ${c:L}$ {unity}\n$R^2$: {R2:.3g}'
-        except:
-            return f'$m$: {m:.3g} {unity} {unitx}${-1}$\n$c$: {c:.3g} {unity}\n$R^2$: {R2:.3g}'
+    strings = []
 
-    m = m.n if isinstance(m, UFloat) else m
-    c = c.n if isinstance(c, UFloat) else c
+    for key, value in labels.items():
+        if value=='' or value is None:
+            continue
 
-    return f'$m$ = {m:.3g} {unity} {unitx}${-1}$\n$c$ = {c:.3g} {unity}\n$R^2$: {R2:.3g}'
+        if unity in ('rad','deg','°'):
+            value = np.degrees(value)
+
+        if detailed:
+            try:
+                val = f'${value:L}$'
+            except:
+                val = f'{value:.3g}'
+        elif isinstance(value, UFloat):
+            val = f'{value.n:.3g}'
+        else:
+            val = f'{value:.3g}'
+
+        if key=='m':
+            if unity==unitx:
+                strings.append(f'$m$: {val}')
+            else:
+                strings.append(f'$m$: {val} {unity} {unitx}${-1}$')
+        elif key=='c':
+            strings.append(f'$c$: {val} {unity}')
+        elif key=='R2':
+            strings.append(f'$R^2$: {val}')
+
+    return '\n'.join(strings)
 
 
 def straight_label(param_dict, detailed=True, unit='', R2=''):
 
-    m = param_dict['m']
-    c = param_dict['c']
+    labels = param_dict.copy()
+    labels['R2'] = R2
 
-    if c<0:
-        sign = '-'
-    else:
-        sign = '+'
-    c = np.abs(c)
+    strings = []
 
-    if detailed:
-        try:
-            return f'$y=({m:L})\\cdot x {sign} ({c:L})$ {unit}\n$R^2$: {R2:.3g}'
-        except:
-            return f'$y=${m:.3g}$\\cdot x {sign} ${c:.3g} {unit}\n$R^2$: {R2:.3g}'
+    for key, value in labels.items():
+        if value=='' or value is None:
+            continue
 
-    m = m.n if isinstance(m, UFloat) else m
-    c = c.n if isinstance(c, UFloat) else c
+        if key=='c':
+            if value<0:
+                sign = '-'
+            else:
+                sign = '+'
+            value = np.abs(value)
 
-    return f'$y=${m:.3g}$\\cdot x {sign} ${c:.3g} {unit}\n$R^2$: {R2:.3g}'
+        if unit in ('rad','deg','°'):
+            value *= 180 / np.pi
+
+        if detailed:
+            try:
+                val = f'${value:L}$'
+            except:
+                val = f'{value:.3g}'
+        elif isinstance(value, UFloat):
+            val = f'{value.n:.3g}'
+        else:
+            val = f'{value:.3g}'
+
+        if key=='m':
+            strings.append(f'$y=({val})\\cdot x')
+        elif key=='c':
+            strings.append(f'{sign} ({val})$ {unit}')
+        elif key=='R2':
+            strings.append(f'\n$R^2$: {val}')
+
+    return ' '.join(strings)
+
 
 
 def gaussian_label(param_dict, detailed=True, unit=''):

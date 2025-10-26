@@ -74,7 +74,7 @@ def process_mms_field(variables, files_by_year, directory_name, log_file_path, s
         field_list = []
 
         # Loop through each daily file in the year
-        for cdf_file in files[:3]:
+        for cdf_file in files:
             file_date = os.path.basename(cdf_file).split('_')[4]
             try:  # Bad data check
                 state_dict, field_dict = extract_mms_data(cdf_file, variables)
@@ -414,5 +414,4 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
 
     return combined_df
-
 

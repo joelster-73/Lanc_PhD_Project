@@ -28,13 +28,16 @@ def average_of_averages(series, series_uncs=None, series_counts=None, mask=None)
     for data in (series,series_uncs,series_counts):
         if data is not None:
             mask &= ~np.isnan(data)
+    if series_counts is not None:
+        mask &= series_counts>0
 
     # Case 1: No counts provided (or all zero) → fall back to simple mean/error
     if series_counts is None or np.nansum(series_counts.loc[mask]) == 0:
+        unit = series.attrs.get('units',{}).get(series.name,'')
         if series_uncs is not None:
             ufloats = series.loc[mask].combine(series_uncs.loc[mask], lambda v, u: ufloat(v, u))
-            return calc_mean_error(ufloats)
-        return calc_mean_error(series.loc[mask])
+            return calc_mean_error(ufloats, unit=unit)
+        return calc_mean_error(series.loc[mask], unit=unit)
 
     # Extract arrays
     means  = np.array(series.loc[mask], dtype=float)
@@ -228,7 +231,8 @@ def calc_weighted_std(data):
 
     # Weighted
     data    = unp.nominal_values(data)
-    weights = 1 / errors**2
+    safe_errors = np.where(errors == 0, np.nan, errors)
+    weights = 1 / safe_errors**2
     weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
 
     mean  = np.average(data, weights=weights)
@@ -262,7 +266,8 @@ def calc_circular_mean_error(data):
 
     # Weighted
     data    = unp.nominal_values(data)
-    weights = 1 / errors**2
+    safe_errors = np.where(errors == 0, np.nan, errors)
+    weights = 1 / safe_errors**2
     weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
 
     mean = circular_avg(data, weights)
@@ -299,7 +304,7 @@ def circular_avg(angles, weights=None):
     if weights is None:
         weights = np.ones_like(angles)
 
-    return np.arctan2(np.sum(weights*np.sin(angles)), np.sum(weights=np.cos(angles)))
+    return np.arctan2(np.sum(weights*np.sin(angles)), np.sum(weights*np.cos(angles)))
 
 def circular_sem(angles, weights=None):
     """
@@ -363,7 +368,8 @@ def vec_mag(vec):
 def calc_average_vector(df_vec, param=None):
 
     if len(df_vec)==0:
-        return unp.uarray([],[])
+        #return unp.uarray([np.nan, np.nan, np.nan], [0, 0, 0])
+        return unp.uarray([], [])
 
     x_label = 'x'
     y_label = 'y'
@@ -434,3 +440,38 @@ def kps(series, nu=1):
     median = np.median(series)
     std = np.std(series, ddof=nu)  # Using sample standard deviation (ddof=1)
     return 3 * (mean - median) / std
+
+def median_with_counts(series, counts=None, mask=None):
+
+    if mask is not None:
+        try:
+            series = series.loc[mask].to_numpy()
+            if counts is not None:
+                counts = counts.loc[mask].to_numpy()
+        except:
+            series = series[mask]
+            if counts is not None:
+                counts = counts[mask]
+
+    if counts is None:
+        q1 = np.percentile(series,25)
+        median = np.percentile(series,50)
+        q3 = np.percentile(series,75)
+
+    else:
+        idx = np.argsort(series)
+        series = series[idx]
+        counts = counts[idx]
+
+        cum_counts = np.cumsum(counts)
+        total = cum_counts[-1]
+
+        def percentile(p):
+            target = p * total
+            return series[np.searchsorted(cum_counts, target)]
+
+        median = percentile(0.5)
+        q1 = percentile(0.25)
+        q3 = percentile(0.75)
+
+    return median, q1, q3
