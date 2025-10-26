@@ -187,30 +187,32 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
         surface = surfaces[region]
         couple_vecs = norm_vecs[data_pop]
 
-        normals = calc_normal_for_sc(df_merged, surface, position_key=sc, data_key='sw', column_names=column_names)
-        normals_gsm = GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
-        df_merged = pd.concat([df_merged,normals_gsm],axis=1)
+        if surface=='MP': # BS not currently implemented
+            normals = calc_normal_for_sc(df_merged, surface, position_key=sc, data_key='sw', column_names=column_names)
 
-        norm_cols = [f'N{comp}_GSM_{surface}' for comp in ('x','y','z')]
-        N = df_merged[norm_cols].to_numpy()
-        for vec in couple_vecs:
+            normals_gsm = GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
+            df_merged = pd.concat([df_merged,normals_gsm],axis=1)
 
-            A_cols = [f'{vec}_{comp}_GSM_{sc}' for comp in ('x','y','z')]
-            if A_cols[0] not in df_merged:
-                A_cols[0] = A_cols[0].replace('GSM','GSE')
+            norm_cols = [f'N{comp}_GSM_{surface}' for comp in ('x','y','z')]
+            N = df_merged[norm_cols].to_numpy()
+            for vec in couple_vecs:
 
-            A = df_merged[A_cols].to_numpy()
-            A_dot_N   = np.einsum('ij,ij->i', A, N)
-            A_norm_sq = np.einsum('ij,ij->i', A, A)
+                A_cols = [f'{vec}_{comp}_GSM_{sc}' for comp in ('x','y','z')]
+                if A_cols[0] not in df_merged:
+                    A_cols[0] = A_cols[0].replace('GSM','GSE')
 
-            with np.errstate(divide='ignore', invalid='ignore'):
-                tangential_mag = np.sqrt(A_norm_sq - (A_dot_N ** 2))
-                tangential_mag = np.nan_to_num(tangential_mag)  # Replace NaNs with 0
+                A = df_merged[A_cols].to_numpy()
+                A_dot_N   = np.einsum('ij,ij->i', A, N)
+                A_norm_sq = np.einsum('ij,ij->i', A, A)
 
-            df_merged[f'{vec}_perp_{sc}'] = A_dot_N
-            df_merged[f'{vec}_parallel_{sc}'] = tangential_mag
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    tangential_mag = np.sqrt(A_norm_sq - (A_dot_N ** 2))
+                    tangential_mag = np.nan_to_num(tangential_mag)  # Replace NaNs with 0
 
-        df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
+                df_merged[f'{vec}_perp_{sc}'] = A_dot_N
+                df_merged[f'{vec}_parallel_{sc}'] = tangential_mag
+
+            df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
 
         ###----------EXTRA PARAMETERS----------###
         if region=='sw':

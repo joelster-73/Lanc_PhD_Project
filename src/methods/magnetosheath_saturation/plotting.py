@@ -34,6 +34,7 @@ from ...plotting.comparing.parameter import compare_columns
 from ...plotting.config import black, blue, grey, pink, bar_hatches
 #from ...plotting.distributions import plot_fit
 
+minimum_counts = {'mins': 100, 'counts': 50}
 
 
 def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins'):
@@ -77,7 +78,7 @@ def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins'):
     plt.close()
 
 
-def plot_sc_years(msh_dir, sc_keys=None, combined=True, data_type='mins'):
+def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type='mins'):
 
     """
     Combined flag: show all years on one axis, rather than split per spacecraft
@@ -106,7 +107,7 @@ def plot_sc_years(msh_dir, sc_keys=None, combined=True, data_type='mins'):
             years = []
             for sc in [f'th{x}' for x in ('a','b','c','d','e')]:
                 try:
-                    df_sc = import_processed_data(msh_dir, f'msh_times_{sc}.cdf')
+                    df_sc = import_processed_data(data_dir, f'{region}_times_{sc}.cdf')
                 except:
                     print(f'{sc} data not found in directory')
                     continue
@@ -114,7 +115,7 @@ def plot_sc_years(msh_dir, sc_keys=None, combined=True, data_type='mins'):
             years = np.concatenate(years)
         else:
             try:
-                df_sc = import_processed_data(msh_dir, f'msh_times_{sc_key}.cdf')
+                df_sc = import_processed_data(data_dir, f'{region}_times_{sc_key}.cdf')
             except:
                 print(f'{sc_key} data not found in directory')
                 continue
@@ -147,7 +148,11 @@ def plot_sc_years(msh_dir, sc_keys=None, combined=True, data_type='mins'):
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
         ax.set_ylabel('Count')
 
-    ax.set_xlabel('Year')
+
+    if n_rows==1:
+        axs.set_xlabel('Year')
+    else:
+        axs[-1].set_xlabel('Year')
 
     if not combined:
         plt.subplots_adjust(wspace=0, hspace=0)
@@ -916,3 +921,82 @@ def plot_grouping_cause(df_merged, ind_var, dep_var, ind_src='sw', dep_src='msh'
 
 
     compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, return_objs=False, **kwargs)
+
+# %% Compare_OMNI
+
+def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, data_type='counts', min_count=None, **kwargs):
+
+
+    if min_count is None:
+        min_count = minimum_counts[data_type]
+
+    kwargs['min_count'] = min_count
+    kwargs['display']   = 'rolling'
+    kwargs['region']    = 'sem'
+    if 'data1_name' in kwargs:
+        kwargs['data1_name'] = create_label(f'{kwargs["data1_name"]}_sw')
+
+
+    ###----------PLOT GRIDS----------###
+
+    n_cols = len(dep_vars)
+    fig, axs = plt.subplots(2, n_cols, figsize=(8*n_cols, 10), dpi=200, height_ratios=[3,2], sharex=True)
+
+    for i, dep_var in enumerate(dep_vars):
+
+        ax0 = axs[0][i]
+        ax1 = axs[1][i]
+
+        for df, source, colour in zip((df_omni,df_sc,df_sc), ('omni','sw','sc'), (omni_colour, contemp_colour, sc_colour)):
+
+            ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, source)
+            dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df, dep_var, dep_src)
+
+            if source=='omni':
+                ind, ind_err, ind_count = ind_var, None, ind_var_count
+                dep, dep_err, dep_count = dep_var, None, None
+
+            else:
+                ind, ind_err, ind_count = ind_param, ind_param_err, ind_param_count
+                dep, dep_err, dep_count = dep_param, dep_param_err, dep_param_count
+
+            bin_step, limits, invert = ind_variable_range(ind_var, source, dep_var=dep, restrict=restrict)
+
+             # Overwrites with those passed in
+            if bounds is not None:
+                limits = bounds
+
+            mask = ~df[[ind, dep]].isna().any(axis=1)
+
+            if limits[0] is not None:
+                mask &= df[ind] >= limits[0]
+            if limits[-1] is not None:
+                mask &= df[ind] <= limits[1]
+
+            df_masked = df.loc[mask]
+
+            kwargs['window_width'] = bin_step
+            kwargs['data_colour']  = colour
+            kwargs['error_colour'] = colour
+            if 'data_name_map' in kwargs:
+                name = kwargs['data_name_map'].get(dep_var,dep)
+                kwargs['data2_name'] = create_label(name)
+
+
+            _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax0, return_objs=True, **kwargs)
+
+            # Counts
+            ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_step), color=colour)
+
+        ax1.axhline(min_count, c='k', ls='-')
+        ax1.axhline(min_count, c='w', ls=':')
+        ax1.set_yscale('log')
+
+        if invert:
+            ax0.invert_xaxis()
+
+
+    plt.tight_layout()
+    save_figure(fig)
+    plt.show()
+    plt.close()
