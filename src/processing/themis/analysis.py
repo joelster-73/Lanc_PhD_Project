@@ -11,7 +11,7 @@ import pandas as pd
 from uncertainties import ufloat
 
 from .config import PROC_THEMIS_DIRECTORIES
-from ..handling import import_processed_data
+from ..reading import import_processed_data
 
 def obtain_mp_boundaries(themis_dir, mp_file='Grimmich_2023_MP_Crossings.txt', resolution='5min'):
 

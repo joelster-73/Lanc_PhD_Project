@@ -4,39 +4,23 @@ Created on Tue Sep 16 12:21:25 2025
 
 @author: richarj2
 """
-
-
-
-
-
-### MOVE FUNCTIONS FROM OTHER MERGE FILE INTO THE HANDLING OF THOSE SPACECRAFT
-### TO THEN USE CROSSING DATABASE(S) TO FILTER FOR WHEN THE SPACECRAFT IS IN A PARTICULAR REGION
-### ALSO INCLUDE USING R_F WITH THE OMNI DATA
-### AND ACCOUNT FOR TIME RESOLUTION
-### THEN CLEAN UP OTHER FILE AND THEN IN THIS ONE CREATE A DATASET OF SOLAR WIND OBSERVATIONS FROM CLUSTER AND MMS
-### IF DATA IS LACKING, THEN TRY INCLUDE ONE THEMIS SPACECRAFT, PROBABLY D
-### MAY NEED TO FIND THEMIS BS CROSSINGS
-### CONSIDER ADDING BS NORMAL VECTORS
-
-
-
 import os
-import glob
+
 import re
 import numpy as np
 import pandas as pd
-from uncertainties import ufloat
+from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_5VPS, SW_DIR, MSH_DIR, OMNI_DIR, MMS_DIR, THEMIS_DIR
 
-from spacepy import pycdf
-
-from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_SW, PROC_CLUS_DIR_5VPS, MSH_DIR, OMNI_DIR, MMS_DIR, THEMIS_DIR, PCN_DIR
+from src.processing.mms.analysis import mms_region_intervals
+from src.processing.cluster.analysis import cluster_region_intervals
+from src.processing.themis.analysis import themis_region_intervals
 from src.processing.themis.config import PROC_THEMIS_DIRECTORIES
 from src.processing.reading import import_processed_data
 from src.processing.dataframes import merge_dataframes
 from src.processing.writing import write_to_cdf
+
 from src.coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
-from src.coordinates.magnetic import calc_GSE_to_GSM_angles, GSE_to_GSM_with_angles
-from src.analysing.calculations import average_of_averages, calc_angle_between_vecs
+from src.coordinates.magnetic import GSE_to_GSM_with_angles
 from src.analysing.comparing import difference_series
 
 column_names = {
@@ -54,94 +38,97 @@ column_names = {
     'bz_name'   : 'B_z_GSM'
 }
 
-if False:
-    # Field only
-    data_pop = 'field_only'
-    couple_vecs = ('B',)
-    cluster_directory = PROC_CLUS_DIR_5VPS
-    themis_directory  = PROC_THEMIS_DIRECTORIES
-    mms_directory     = os.path.join(MMS_DIR,'field')
-    sw_keys          = ('c1','m1','tha','thb','thc','thd','the')
-else:
-    # With Plasma
-    data_pop = 'with_plasma'
-    couple_vecs = ('B','E','V','S')
-    cluster_directory  = PROC_CLUS_DIR_SW
-    themis_directory   = PROC_THEMIS_DIRECTORIES
-    mms_directory      = os.path.join(MMS_DIR,'field')
-    mms_directory_hpca = os.path.join(MMS_DIR,'plasma')
-    sw_keys           = ('c1','m1')
-
-
 # Map to make consistent with other dataframes
 cluster_column_map = {'V_mag': 'V_flow', 'T_thm': 'T_tot', 'N_ion': 'N_tot'}
+cluster_directories = {'field_only': PROC_CLUS_DIR_5VPS, 'with_plasma': PROC_CLUS_DIR_SPIN}
 
-
-sample_intervals = ('1min','5min')
+# MP & BS
 pos_cols  = ['r_MP','r_BS','r_phi','r_F']
+norm_vecs = {'field_only': ('B',), 'with_plasma': ('B','E','V','S')}
+surfaces  = {'sw': 'BS', 'msh': 'MP'}
+directories = {'sw': SW_DIR, 'msh': MSH_DIR}
+
+all_spacecraft = ('c1','m1','tha','thb','thc','thd','the')
+cluster        = ('c1','c2','c3','c4')
+themis         = ('tha','thb','thc','thd','the')
+mms            = ('m1','m2','m3','m4')
+
+spacecraft     = {'sw': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1')},
+                  'msh': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1','the')}}
+
+
+# consider adding/removing some themis spacecraft, e.g. thd for sw with plasma
+# would need THEMIS BS crossings
+# also look for MMS MP crossings
+
 
 param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'AE_17m_sw','PCN_sw','PCN_17m_sw','SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
 
+# %%%
+def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', sc_keys=None, nose=False):
 
-
-# %% Combined
-sc_sw_intervals = {'c1': c1_intervals, 'm1': m1_intervals}
-
-for sample_interval in sample_intervals:
-
-    # Solar wind data
-    df_sw    = import_processed_data(os.path.join(OMNI_DIR, 'with_lag'), f'omni_{sample_interval}.cdf')
+    DIR = directories[region]
 
     dfs_combined = []
+    field_col = 'B_avg'
+    if sc_keys is None:
+        sc_keys = spacecraft[region][data_pop]
 
-    for sc in sw_keys:
+    df_sw = import_processed_data(os.path.join(OMNI_DIR, 'with_lag'), f'omni_{sample_interval}.cdf')
 
-        field_col = 'B_avg'
-        if sc in ('m1',):
-            field_dir  = os.path.join(mms_directory, sample_interval)
+    for sc in sc_keys:
+
+        if sc in mms:
+            intervals = mms_region_intervals(MMS_DIR, 'msh')
+
+            field_dir  = os.path.join(MMS_DIR, 'field', sample_interval)
             df_field  = import_processed_data(field_dir)
 
             if data_pop=='field_only':
                 df_sc = df_field
             else:
-                plasma_dir = os.path.join(mms_directory_hpca, sample_interval)
+                plasma_dir = os.path.join(MMS_DIR, 'plasma', sample_interval)
                 df_plasma = import_processed_data(plasma_dir)
                 df_sc = merge_dataframes(df_field, df_plasma)
 
-        else:
-            if sc in ('c1',):
-                sc_dir = cluster_directory
-            elif sc in ('tha','thb','thc','thd','the'):
-                sc_dir = themis_directory[sc]
-                if data_pop=='field_only':
-                    sc_dir = os.path.join(sc_dir, 'FGM')
-                else:
-                    sc_dir = os.path.join(sc_dir, 'sw')
+        elif sc in themis:
+            intervals = themis_region_intervals(sc, THEMIS_DIR, region, data_pop)
+            sc_dir = PROC_THEMIS_DIRECTORIES[sc]
+            if data_pop=='field_only':
+                sc_dir = os.path.join(sc_dir, 'FGM')
             else:
-                raise Exception(f'"{sc}" not implemented.')
-            sc_dir = os.path.join(sc_dir, sample_interval)
+                sc_dir = os.path.join(sc_dir, 'msh')
 
+            sc_dir = os.path.join(sc_dir, sample_interval)
             df_sc = import_processed_data(sc_dir)
 
-        # Renaming
-        rename_map = {
-            col: cluster_column_map[key] + col[len(key):]
-            for col in df_sc.columns
-            for key in cluster_column_map
-            if col.startswith(key)
-        }
-        df_sc.rename(columns=rename_map, inplace=True)
+        elif sc in cluster:
+            intervals = cluster_region_intervals(CROSSINGS_DIR, region)
 
-        # Update attrs['units'] if it exists
-        if 'units' in df_sc.attrs and isinstance(df_sc.attrs['units'], dict):
-            df_sc.attrs['units'] = {
-                rename_map.get(col, col): unit
-                for col, unit in df_sc.attrs['units'].items()
-            }
+            sc_dir = cluster_directories[data_pop]
 
-        location_mask   = (df_sc['r_x_GSE']>0)
-        #location_mask &= (np.abs(df_sc['r_z_GSE'])<5)
-        location_mask  &= ~np.isnan(df_sc[field_col])
+            if data_pop=='with_plasma':
+                sc_dir = os.path.join(sc_dir, region)
+
+            sc_dir = os.path.join(sc_dir, sample_interval)
+            df_sc = import_processed_data(sc_dir)
+
+            rename_map = {col: cluster_column_map[key] + col[len(key):] for col in df_sc.columns for key in cluster_column_map if col.startswith(key)}
+
+            df_sc.rename(columns=rename_map, inplace=True)
+            if 'units' in df_sc.attrs and isinstance(df_sc.attrs['units'], dict):
+                df_sc.attrs['units'] = {rename_map.get(col, col): unit for col, unit in df_sc.attrs['units'].items()}
+
+        else:
+            raise Exception(f'"{sc}" not implemented.')
+
+
+        ###---------------FILTERING------------###
+
+        location_mask = (df_sc['r_x_GSE']>0)
+        if nose:
+            location_mask &= (df_sc['r_z_GSE'].abs()<5)
+        location_mask &= ~np.isnan(df_sc[field_col])
 
         df_sc = df_sc.loc[location_mask]
 
@@ -157,8 +144,8 @@ for sample_interval in sample_intervals:
             df_sc.insert(0, 'r_mag', r)
             df_sc.insert(1, 'r_mag_unc', sigma_r)
 
-        if 'r_mag_count_sc' in df_sc:
-            df_sc.drop(columns=['r_mag_count_sc'],inplace=True)
+        if 'r_mag_count' in df_sc:
+            df_sc.drop(columns=['r_mag_count'],inplace=True)
 
         # Combine
         df_merged = merge_dataframes(df_sw, df_sc, suffix_1='sw', suffix_2=sc)
@@ -166,30 +153,89 @@ for sample_interval in sample_intervals:
         df_merged.attrs['units'] = {param_map_pc.get(col,col): df_merged.attrs['units'].get(col,col) for col in df_merged.attrs['units']}
         df_merged_attrs = df_merged.attrs # stores
 
-        ###----------FILTER FOR SOLAR WIND----------###
+        ###----------FILTER FOR REGION----------###
 
-        # Filter for MSH
         df_positions = calc_msh_r_diff(df_merged, 'BOTH', position_key=sc, data_key='sw', column_names=column_names)
         df_merged = pd.concat([df_merged,df_positions[pos_cols]],axis=1)
 
         mask = np.zeros(len(df_merged),dtype=bool)
+        interval_index = pd.IntervalIndex.from_tuples(intervals, closed='both')
 
+        if region=='msh':
 
-        sc_intervals = sc_sw_intervals.get(sc,None)
-        if sc_intervals is not None:
-            interval_index = pd.IntervalIndex.from_tuples(sc_intervals, closed='both')
+            if sc in cluster: # MSH interval
+                mask |= (interval_index.get_indexer(df_merged.index) != -1)
+
+            elif sc in mms: # Within BS
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>0))
+
+            elif sc in themis: # Outside MP
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1))
+
+            mask |= (df_merged['r_F']>0) & (df_merged['r_F']<1)
+
+        elif region=='sw':
+
             mask |= (interval_index.get_indexer(df_merged.index) != -1)
-        mask |= (df_merged['r_F']>1)
-
+            mask |= (df_merged['r_F']>1)
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix
 
+        ###----------NORMAL TO SURFACE----------###
+
+        surface = surfaces[region]
+        couple_vecs = norm_vecs[data_pop]
+
+        normals = calc_normal_for_sc(df_merged, surface, position_key=sc, data_key='sw', column_names=column_names)
+        normals_gsm = GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
+        df_merged = pd.concat([df_merged,normals_gsm],axis=1)
+
+        norm_cols = [f'N{comp}_GSM_{surface}' for comp in ('x','y','z')]
+        N = df_merged[norm_cols].to_numpy()
+        for vec in couple_vecs:
+
+            A_cols = [f'{vec}_{comp}_GSM_{sc}' for comp in ('x','y','z')]
+            if A_cols[0] not in df_merged:
+                A_cols[0] = A_cols[0].replace('GSM','GSE')
+
+            A = df_merged[A_cols].to_numpy()
+            A_dot_N   = np.einsum('ij,ij->i', A, N)
+            A_norm_sq = np.einsum('ij,ij->i', A, A)
+
+            with np.errstate(divide='ignore', invalid='ignore'):
+                tangential_mag = np.sqrt(A_norm_sq - (A_dot_N ** 2))
+                tangential_mag = np.nan_to_num(tangential_mag)  # Replace NaNs with 0
+
+            df_merged[f'{vec}_perp_{sc}'] = A_dot_N
+            df_merged[f'{vec}_parallel_{sc}'] = tangential_mag
+
+        df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
 
         ###----------EXTRA PARAMETERS----------###
-        df_merged.loc[df_merged[f'B_avg_{sc}']>100,f'B_avg_{sc}'] = np.nan
-        df_merged.loc[df_merged[f'B_z_GSM_{sc}'].abs()>250,f'B_z_GSM_{sc}'] = np.nan
-        df_merged.loc[df_merged[f'beta_{sc}'].abs()>100,f'beta_{sc}'] = np.nan
+        if region=='sw':
+            print('Change erroneous boundaries')
+            # df_merged.loc[df_merged[f'B_avg_{sc}']>80,f'B_avg_{sc}'] = np.nan
+            # df_merged.loc[df_merged[f'B_z_GSM_{sc}'].abs()>100,f'B_z_GSM_{sc}'] = np.nan
+            # df_merged.loc[df_merged[f'beta_{sc}'].abs()>100,f'beta_{sc}'] = np.nan
+
+        elif region=='msh':
+            df_merged.loc[df_merged[f'B_avg_{sc}']>100,f'B_avg_{sc}'] = np.nan
+            df_merged.loc[df_merged[f'B_z_GSM_{sc}'].abs()>250,f'B_z_GSM_{sc}'] = np.nan
+            df_merged.loc[df_merged[f'beta_{sc}'].abs()>100,f'beta_{sc}'] = np.nan
+
+            # Rotation of clock angle
+            # Ignoring sw uncertainty for time being
+            df_merged[f'Delta B_theta_{sc}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock_{sc}'],unit='rad'))
+            not_nan = ~np.isnan(df_merged[f'Delta B_theta_{sc}'])
+            if f'B_clock_unc_{sc}' in df_merged: # Not implemented for Cluster currently
+                df_merged.loc[not_nan,f'Delta B_theta_unc_{sc}'] = df_merged.loc[not_nan,f'B_clock_unc_{sc}']
+
+            # Reversal of Bz
+            # Not interested in error
+            df_merged[f'Delta B_z_{sc}'] = df_merged[f'B_z_GSM_{sc}']/df_merged['B_z_GSM_sw'] - 1
+            df_merged[f'Delta B_z_{sc}'] = df_merged[f'Delta B_z_{sc}'].replace([np.inf, -np.inf], np.nan)
+            df_merged.loc[np.abs(df_merged[f'Delta B_z_{sc}'])>1000,f'Delta B_z_{sc}'] = np.nan
 
         # Add to combined
         df_merged.dropna(how='all',inplace=True)
@@ -197,13 +243,15 @@ for sample_interval in sample_intervals:
 
         # Writes individual to file with omni
         df_merged.attrs = df_merged_attrs
+        df_merged.attrs['units'][f'Delta B_theta_{sc}'] = 'rad'
+        df_merged.attrs['units'][f'Delta B_z_{sc}'] = '1'
 
-        output_file = os.path.join(MSH_DIR, data_pop, sample_interval, f'sw_times_{sc}.cdf')
+        output_file = os.path.join(DIR, data_pop, sample_interval, f'{region}_times_{sc}.cdf')
         print(f'Writing {sc} to file...')
         write_to_cdf(df_merged, output_file, reset_index=True)
 
 
-    # Combining
+    ###----------COMBINING----------###
     print('Combining spacecraft')
     df_wide = pd.concat(dfs_combined, axis=1)
     rows = []
@@ -213,13 +261,13 @@ for sample_interval in sample_intervals:
         chosen_sc = None
         sc_data = {}
 
-        for sc in sw_keys:
+        for sc in sc_keys:
             key_col = f'B_avg_{sc}'
             if pd.notna(row.get(key_col, None)):
                 chosen_sc = sc
                 sc_data = {re.sub(f'_{sc}$', '_sc', col): row[col]
                            for col in df_wide.columns if col.endswith(f'_{sc}')}
-                sc_data['sc_sw'] = sc
+                sc_data[f'sc_{region}'] = sc
                 break
 
         if chosen_sc is not None:
@@ -229,14 +277,18 @@ for sample_interval in sample_intervals:
     df_combined.index.name = 'epoch'
     df_combined.attrs = df_merged_attrs
 
+    if region=='msh':
+        df_combined.attrs['units']['Delta B_theta_msh'] = 'rad'
+        df_combined.attrs['units']['Delta B_z_msh'] = '1'
+
     print('Merging')
     df_final = merge_dataframes(df_sw, df_combined, suffix_1='sw', suffix_2=None)
     df_final.columns = [param_map_pc.get(col,col) for col in df_final.columns]
     df_final.attrs['units'] = {param_map_pc.get(col,col): df_final.attrs['units'].get(col,col) for col in df_final.attrs['units']}
-    df_final.attrs['units']['sc_sw'] = 'STRING'
+    df_final.attrs['units'][f'sc_{region}'] = 'STRING'
 
     # Write
-    output_file = os.path.join(MSH_DIR, data_pop, sample_interval, 'sw_times_combined.cdf')
+    output_file = os.path.join(DIR, data_pop, sample_interval, f'{region}_times_combined.cdf')
     print('Writing combined to file...')
     write_to_cdf(df_final, output_file, reset_index=True)
 
