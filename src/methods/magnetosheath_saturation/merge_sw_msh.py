@@ -5,26 +5,22 @@ Created on Tue Sep 16 12:21:25 2025
 @author: richarj2
 """
 import os
-import glob
+
 import re
 import numpy as np
 import pandas as pd
-from uncertainties import ufloat
-
-from spacepy import pycdf
-
-from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_5VPS, SW_DIR, OMNI_DIR, MMS_DIR, THEMIS_DIR, PCN_DIR
+from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_5VPS, SW_DIR, OMNI_DIR, MMS_DIR, THEMIS_DIR
 
 from src.processing.mms.handling import mms_region_intervals
 from src.processing.cluster.handling import cluster_region_intervals
 from src.processing.themis.config import PROC_THEMIS_DIRECTORIES
+from src.processing.themis.analysis import themis_region_intervals
 from src.processing.reading import import_processed_data
 from src.processing.dataframes import merge_dataframes
 from src.processing.writing import write_to_cdf
 
 from src.coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
-from src.coordinates.magnetic import calc_GSE_to_GSM_angles, GSE_to_GSM_with_angles
-from src.analysing.calculations import average_of_averages, calc_angle_between_vecs
+from src.coordinates.magnetic import GSE_to_GSM_with_angles
 from src.analysing.comparing import difference_series
 
 column_names = {
@@ -42,48 +38,27 @@ column_names = {
     'bz_name'   : 'B_z_GSM'
 }
 
-if False:
-    # Field only
-    data_pop = 'field_only'
-    couple_vecs = ('B',)
-    cluster_directory = PROC_CLUS_DIR_5VPS
-    themis_directory  = PROC_THEMIS_DIRECTORIES
-    mms_directory     = os.path.join(MMS_DIR,'field')
-    msh_keys          = ('c1','m1','tha','thb','thc','thd','the')
-else:
-    # With Plasma
-    data_pop = 'with_plasma'
-    couple_vecs = ('B','E','V','S')
-    cluster_directory  = PROC_CLUS_DIR_MSH
-    themis_directory   = PROC_THEMIS_DIRECTORIES
-
-    msh_keys           = ('c1','m1','the')
-
-
 # Map to make consistent with other dataframes
 cluster_column_map = {'V_mag': 'V_flow', 'T_thm': 'T_tot', 'N_ion': 'N_tot'}
 cluster_directories = {'field_only': PROC_CLUS_DIR_5VPS, 'with_plasma': PROC_CLUS_DIR_SPIN}
 
-sample_intervals = ('1min','5min')
+# MP & BS
 pos_cols  = ['r_MP','r_BS','r_phi','r_F']
 norm_vecs = {'field_only': ('B',), 'with_plasma': ('B','E','V','S')}
-surfaces = {'sw': 'BS', 'msh': 'MP'}
+surfaces  = {'sw': 'BS', 'msh': 'MP'}
 
 all_spacecraft = ('c1','m1','tha','thb','thc','thd','the')
-cluster = ('c1','c2','c3','c4')
-themis = ('tha','thb','thc','thd','the')
-mms = ('m1','m2','m3','m4')
+cluster        = ('c1','c2','c3','c4')
+themis         = ('tha','thb','thc','thd','the')
+mms            = ('m1','m2','m3','m4')
 
-spacecraft = {'sw': {'field_only': all_spacecraft, 'msh': ('c1','m1')},
-           'msh': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1','the')}}
-
+spacecraft     = {'sw': {'field_only': all_spacecraft, 'msh': ('c1','m1')},
+                  'msh': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1','the')}}
 # consider adding/removing some themis spacecraft, e.g. thd for sw with plasma
 
 param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'AE_17m_sw','PCN_sw','PCN_17m_sw','SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
 
-# %% Combined
-
-
+# %%%
 def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', sc_keys=None):
 
     # Solar wind data
@@ -204,6 +179,8 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
         ###----------NORMAL TO SURFACE----------###
 
         surface = surfaces[region]
+        couple_vecs = norm_vecs[data_pop]
+
         normals = calc_normal_for_sc(df_merged, surface, position_key=sc, data_key='sw', column_names=column_names)
         normals_gsm = GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
         df_merged = pd.concat([df_merged,normals_gsm],axis=1)
@@ -278,7 +255,7 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
         chosen_sc = None
         sc_data = {}
 
-        for sc in msh_keys:
+        for sc in sc_keys:
             key_col = f'B_avg_{sc}'
             if pd.notna(row.get(key_col, None)):
                 chosen_sc = sc
@@ -293,8 +270,10 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
     df_combined = pd.DataFrame(rows)
     df_combined.index.name = 'epoch'
     df_combined.attrs = df_merged_attrs
-    df_combined.attrs['units']['Delta B_theta_msh'] = 'rad'
-    df_combined.attrs['units']['Delta B_z_msh'] = '1'
+
+    if region=='msh':
+        df_combined.attrs['units']['Delta B_theta_msh'] = 'rad'
+        df_combined.attrs['units']['Delta B_z_msh'] = '1'
 
     print('Merging')
     df_final = merge_dataframes(df_sw, df_combined, suffix_1='sw', suffix_2=None)
