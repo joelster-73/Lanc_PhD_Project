@@ -546,6 +546,7 @@ def filter_spin_data(spacecraft, proc_directories, region='msh', year=None):
         wrong_flag = 0
 
     for year in year_range:
+
         try:
             df_year = import_processed_data(data_dir, year=year)
         except:

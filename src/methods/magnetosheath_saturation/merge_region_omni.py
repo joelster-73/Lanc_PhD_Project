@@ -53,13 +53,8 @@ cluster        = ('c1','c2','c3','c4')
 themis         = ('tha','thb','thc','thd','the')
 mms            = ('m1','m2','m3','m4')
 
-spacecraft     = {'sw': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1')},
+spacecraft     = {'sw': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1','thb')},
                   'msh': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1','the')}}
-
-
-# consider adding/removing some themis spacecraft, e.g. thd for sw with plasma
-# would need THEMIS BS crossings
-# also look for MMS MP crossings
 
 
 param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'AE_17m_sw','PCN_sw','PCN_17m_sw','SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
@@ -67,7 +62,7 @@ param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'A
 # %%%
 def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', sc_keys=None, nose=False):
 
-    DIR = directories[region]
+    DIR = directories[region] # output directory
 
     dfs_combined = []
     field_col = 'B_avg'
@@ -93,11 +88,13 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
 
         elif sc in themis:
             intervals = themis_region_intervals(sc, THEMIS_DIR, region, data_pop)
+
             sc_dir = PROC_THEMIS_DIRECTORIES[sc]
+
             if data_pop=='field_only':
                 sc_dir = os.path.join(sc_dir, 'FGM')
             else:
-                sc_dir = os.path.join(sc_dir, 'msh')
+                sc_dir = os.path.join(sc_dir, region)
 
             sc_dir = os.path.join(sc_dir, sample_interval)
             df_sc = import_processed_data(sc_dir)
@@ -177,7 +174,8 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
         elif region=='sw':
 
             mask |= (interval_index.get_indexer(df_merged.index) != -1)
-            mask |= (df_merged['r_F']>1)
+            mask |= (df_merged['r_F']>1) | (df_merged[f'r_mag_{sc}']<35)
+            # Second condition for spacecraft such as THEMIS-ARTMEIS
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix
@@ -216,10 +214,8 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
 
         ###----------EXTRA PARAMETERS----------###
         if region=='sw':
-            print('Change erroneous boundaries')
-            # df_merged.loc[df_merged[f'B_avg_{sc}']>80,f'B_avg_{sc}'] = np.nan
-            # df_merged.loc[df_merged[f'B_z_GSM_{sc}'].abs()>100,f'B_z_GSM_{sc}'] = np.nan
-            # df_merged.loc[df_merged[f'beta_{sc}'].abs()>100,f'beta_{sc}'] = np.nan
+            df_merged.loc[df_merged[f'beta_{sc}']>1000,f'beta_{sc}'] = np.nan
+            df_merged.loc[df_merged[f'P_flow_{sc}']>30,f'P_flow_{sc}'] = np.nan
 
         elif region=='msh':
             df_merged.loc[df_merged[f'B_avg_{sc}']>100,f'B_avg_{sc}'] = np.nan
@@ -256,26 +252,40 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
     ###----------COMBINING----------###
     print('Combining spacecraft')
     df_wide = pd.concat(dfs_combined, axis=1)
-    rows = []
+    # rows = []
 
-    print('Selecting spacecraft')
-    for idx, row in df_wide.iterrows():
-        chosen_sc = None
-        sc_data = {}
+    # print('Selecting spacecraft')
+    # for idx, row in df_wide.iterrows():
+    #     chosen_sc = None
+    #     sc_data = {}
 
-        for sc in sc_keys:
-            key_col = f'B_avg_{sc}'
-            if pd.notna(row.get(key_col, None)):
-                chosen_sc = sc
-                sc_data = {re.sub(f'_{sc}$', '_sc', col): row[col]
-                           for col in df_wide.columns if col.endswith(f'_{sc}')}
-                sc_data[f'sc_{region}'] = sc
-                break
+    #     for sc in sc_keys:
+    #         key_col = f'B_avg_{sc}'
+    #         if pd.notna(row.get(key_col, None)):
+    #             chosen_sc = sc
+    #             sc_data = {re.sub(f'_{sc}$', '_sc', col): row[col]
+    #                        for col in df_wide.columns if col.endswith(f'_{sc}')}
+    #             sc_data[f'sc_{region}'] = sc
+    #             break
 
-        if chosen_sc is not None:
-            rows.append(pd.Series(sc_data, name=idx))
+    #     if chosen_sc is not None:
+    #         rows.append(pd.Series(sc_data, name=idx))
 
-    df_combined = pd.DataFrame(rows)
+    # df_combined = pd.DataFrame(rows)
+
+
+    mask = pd.DataFrame({sc: df_wide[f'B_avg_{sc}'].notna() for sc in sc_keys})
+    first_valid = mask.idxmax(axis=1)
+
+    result = []
+    for sc in sc_keys:
+        sc_cols = [col for col in df_wide.columns if col.endswith(f'_{sc}')]
+        renamed = {col: re.sub(f'_{sc}$', '_sc', col) for col in sc_cols}
+        subset = df_wide.loc[first_valid == sc, sc_cols].rename(columns=renamed)
+        subset[f'sc_{region}'] = sc
+        result.append(subset)
+
+    df_combined = pd.concat(result).sort_index()
     df_combined.index.name = 'epoch'
     df_combined.attrs = df_merged_attrs
 

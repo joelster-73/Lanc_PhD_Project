@@ -154,6 +154,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     show_key      = kwargs.get('show_key',False)
 
     sc_key        = kwargs.get('sc_key', None)
+    orbit_colour  = kwargs.get('orbit_colour',blue)
     models        = kwargs.get('models', 'None')
     df_omni       = kwargs.get('df_omni',None)
 
@@ -249,7 +250,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         ax.set_facecolor('k')
 
     elif display == 'scatter':
-        ax.scatter(df[x_label], df[y_label], c='b', s=0.3)
+        ax.scatter(df[x_label], df[y_label], c=orbit_colour, s=0.3)
 
     elif display == 'scatter_regions':
         cmap = plt.get_cmap('tab20c')
@@ -265,6 +266,9 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
                 region_label = region_labels.get(region,region)
             plt.scatter(region_data[x_label],region_data[y_label],
                 c=[colour],label=f'{region_label}: {percent:.2g}%',s=0.3)
+
+    elif display == 'line':
+        ax.plot(df[x_label], df[y_label], c=orbit_colour)
 
     else:
         raise ValueError(f'Invalid display option: {display}')
@@ -346,7 +350,6 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
             if nose_text=='MP':
                 ax.text(mp_stand_off_x-0.5, mp_stand_off_y+0.5, f'$R_0$ = {mp_jel.get("R0"):.1f} $\\mathrm{{R_E}}$, {np.degrees(mp_jel.get("alpha_tot")):.1f}$^\\circ$', fontsize=10, color='m')
 
-
         # Magnetopause
         ax.plot(mp_x_coords, mp_y_coords, color='m', lw=3, label='Magnetopause')
         ax.scatter(mp_stand_off_x, mp_stand_off_y, c='m')
@@ -373,9 +376,10 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
         ax.invert_yaxis()
     elif plane in ('xz','yz'):
         ax.invert_xaxis()
-    elif plane in ('x-rho'):
+    elif plane in ('x-rho',):
         if centre_Earth != 'none':
             ax.set_xlim(0)
+        if centre_Earth != 'none' or signed_rho is not None:
             ax.set_ylim(0)
         ax.invert_xaxis()
     elif plane in ('yx',):
@@ -393,11 +397,12 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     ###-------------------ADJUST LAYOUT AND DISPLAY PLOT-------------------##
     if want_legend:
         add_legend(fig, ax, heat=is_heat)
-    dark_mode_fig(fig, black, white, is_heat)
-    add_figure_title(fig, black, brief_title, x_axis_label, y_axis_label, ax)
+    add_figure_title(fig, brief_title, x_axis_label, y_axis_label, ax)
 
     if return_objs:
-        return fig, ax, cbar
+        if display=='heat':
+            return fig, ax, cbar
+        return fig, ax
 
     plt.tight_layout();
     save_figure(fig)
@@ -405,7 +410,7 @@ def plot_orbit(df, plane='yz', coords='GSE', **kwargs):
     plt.close()
 
 
-def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, fig=None, ax=None, return_objs=False):
+def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, region='msh', fig=None, ax=None, return_objs=False):
 
 
     ### MAKE MORE LIKE PLOT ORBIT
@@ -416,8 +421,13 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, f
         fig, ax = plt.subplots()
 
     f_step = 0.1
-    f_min = 0
-    f_max = 1
+    if region=='msh':
+        f_min = 0
+        f_max = 1
+    elif region=='sw':
+        f_min = 1
+        f_max = 5
+
     f_num = int((f_max-f_min)/f_step)+1
 
     theta_step = 3
@@ -428,16 +438,21 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, f
     f_edges = np.linspace(f_min, f_max, f_num)
     theta_edges = np.linspace(np.radians(theta_min), np.radians(theta_max), theta_num)
 
-    if isinstance(sc_keys,str):
-        sc_keys = (sc_keys,)
-
     phi = []
     f   = []
 
-    for sc_key in sc_keys:
+    if sc_keys is None:
+        phi.append(df['r_phi']*np.sign(df['r_y_GSE']))
+        f.append(df['r_F'])
 
-        phi.append(df[f'r_phi_{sc_key}']*np.sign(df[f'r_y_GSE_{sc_key}']))
-        f.append(df[f'r_F_{sc_key}'])
+    else:
+        if isinstance(sc_keys,str):
+            sc_keys = (sc_keys,)
+
+        for sc_key in sc_keys:
+
+            phi.append(df[f'r_phi_{sc_key}']*np.sign(df[f'r_y_GSE_{sc_key}']))
+            f.append(df[f'r_F_{sc_key}'])
 
     phi = pd.concat(phi, ignore_index=True)
     f   = pd.concat(f, ignore_index=True)

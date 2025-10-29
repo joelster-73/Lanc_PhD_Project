@@ -1,4 +1,5 @@
 import os
+import re
 import glob
 
 import numpy as np
@@ -353,9 +354,11 @@ def filter_spin_data(spin_directory, region='msh', year=None):
                     'sw':  [0,1,2,3,4,5]}
     quality_high = [3,4]   # -2 custom flag for when no quality data available
 
-    year_range = range(2000,2023)
     if year is not None:
-        year_range = [year]
+        year_range = (year,)
+
+    else:
+        year_range = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(data_dir) if re.search(r'\d{4}', f)]
 
     for year in year_range:
         try:

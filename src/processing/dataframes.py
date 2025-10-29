@@ -110,9 +110,14 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     non_nan_counts = grouped.count()
 
     for column in df.columns:
+        print(column)
 
         if column in ('utc',time_col) or column in columns_to_skip:
             # columns that are meaningless to average, e.g. quality, mode
+            continue
+
+        elif len(df[column].dropna())==0:
+            # Handles problems with missing data
             continue
 
         elif '_GS' in column:

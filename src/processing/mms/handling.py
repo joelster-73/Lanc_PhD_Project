@@ -356,7 +356,7 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
         numerator_T   += plasma_df[f'N_{ion}'] * plasma_df[f'T_{ion}']
 
 
-    combined_df['P_flow'] *= 5e20 # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
+    combined_df['P_flow'] *= 5e20 # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21, x0.5 for factor infront
     combined_df['T_tot'] = numerator_T / combined_df['N_tot']
 
     # Bulk flow velocity is a mass-density-weighted average

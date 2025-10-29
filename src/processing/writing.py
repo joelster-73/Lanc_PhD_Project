@@ -127,7 +127,7 @@ def update_cdf_attributes(directory, new_values, add=True):
     print('Attribute update complete.')
 
 
-def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
+def resample_cdf_files(directory, sample_interval='1min', yearly_files=False, year=None):
 
     parent = os.path.dirname(directory)
     samp_dir = os.path.join(parent, sample_interval) # output
@@ -141,7 +141,10 @@ def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
 
     print(f'Resampling to {sample_interval} resolution.')
 
-    year_range = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(directory) if re.search(r'\d{4}', f)]
+    if year is not None:
+        year_range = (year,)
+    else:
+        year_range = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(directory) if re.search(r'\d{4}', f)]
 
     for year in year_range:
 
@@ -163,7 +166,6 @@ def resample_cdf_files(directory, sample_interval='1min', yearly_files=False):
                 continue
 
             yearly_df = raw_df.loc[year_mask]
-
 
         file_name = next((os.path.basename(f) for f in cdf_files if f'_{year}' in os.path.basename(f)),None)
         if file_name is None:

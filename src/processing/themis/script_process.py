@@ -17,41 +17,62 @@ for spacecraft in all_spacecraft:
 
     process_themis_files(spacecraft, LUNA_THEMIS_DIRECTORIES, PROC_THEMIS_DIRECTORIES, THEMIS_VARIABLES_FGM, THEMIS_VARIABLES_STATE, sub_folders=True)
 
+
+# %% Process_one_with_fgs_prio
+
+spacecraft='thb'
+
+process_themis_files(spacecraft, LUNA_THEMIS_DIRECTORIES, PROC_THEMIS_DIRECTORIES, THEMIS_VARIABLES_FGM, THEMIS_VARIABLES_STATE, sample_intervals='raw', sub_folders=True, priority_suffices=('fgs','fgh','fgl','fge'))
+
+
+
 # %% Plasma
 
 for spacecraft in all_spacecraft:
 
-    if spacecraft!='the':
-        continue
+    # thb for msh
+    # the for sw
 
     process_themis_plasma(spacecraft, LUNA_THEMIS_DIRECTORIES, PROC_THEMIS_DIRECTORIES, THEMIS_VARIABLES_PEIM, sub_folders=True)
 
 # %% Combine
 for spacecraft in all_spacecraft:
 
-    if spacecraft!='the':
-        continue
+    # thb for msh
+    # the for sw
 
     combine_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES)
 
 # %% Filter
 for spacecraft in all_spacecraft:
 
-    if spacecraft!='the':
-        continue
+    # thb for msh
+    # the for sw
 
-    filter_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES)
+    if spacecraft=='thb':
+        filter_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES, region='sw')
+
+    elif spacecraft=='the':
+        filter_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES, region='msh')
 
 
 # %% Sample
 
 for spacecraft in all_spacecraft:
 
-    if spacecraft!='the':
+    if spacecraft!='thb':
         continue
 
     sc_dir = PROC_THEMIS_DIRECTORIES[spacecraft]
-    region_dir = os.path.join(sc_dir, 'msh', 'raw')
+
+    if spacecraft=='thb':
+        region_dir = os.path.join(sc_dir, 'sw', 'raw')
+
+    elif spacecraft=='the':
+        region_dir = os.path.join(sc_dir, 'msh', 'raw')
+
+    else:
+        continue
 
     resample_cdf_files(region_dir, sample_interval='1min', yearly_files=True)
     resample_cdf_files(region_dir, sample_interval='5min', yearly_files=True)
