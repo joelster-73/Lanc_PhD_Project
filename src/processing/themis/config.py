@@ -8,13 +8,13 @@ Created on Thu May  8 17:48:07 2025
 
 from src.config import LUNA_THEMIS_DIR, PROC_THEMIS_DIR
 
-THEMIS_SPACECRAFT = ['tha', 'thb', 'thc', 'thd', 'the']
+THEMIS_SPACECRAFT = ('tha', 'thb', 'thc', 'thd', 'the')
 
 LUNA_THEMIS_DIRECTORIES = {sc: f'{LUNA_THEMIS_DIR}/{sc}/' for sc in THEMIS_SPACECRAFT}
 PROC_THEMIS_DIRECTORIES = {sc: f'{PROC_THEMIS_DIR}/{sc}/' for sc in THEMIS_SPACECRAFT}
 
 
-STATE_VARIABLES_TEMPLATE = {
+STATE_VARIABLES_TEMPLATE = { # 1 minute resolution
     'time': '{sc}_state_time',
     'r':    '{sc}_pos_gse'
 }
@@ -29,10 +29,11 @@ FGM_VARIABLES_TEMPLATE = {
     'time':  '{sc}_{suffix}_time',
     'B_avg': '{sc}_{suffix}_btotal',
     'B_GSE': '{sc}_{suffix}_gse',
-    'B_GSM': '{sc}_{suffix}_gsm'
+    'B_GSM': '{sc}_{suffix}_gsm',
+    'quality': '{sc}_fgm_{suffix}_quality'
 }
 
-FGM_SUFFIXES = ['fgh', 'fgl', 'fge', 'fgs']
+FGM_SUFFIXES = ('fgs','fgl','fgh','fge')
 
 THEMIS_VARIABLES_FGM = {
     sc: {

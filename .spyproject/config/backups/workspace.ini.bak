@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['scripts\\paper_figures\\2025_09_Magnetosheath\\section_0.py', 'src\\methods\\magnetosheath_saturation\\merge_region_omni.py', 'src\\config.py', 'scripts\\paper_figures\\2025_09_Magnetosheath\\section_1.py', 'scripts\\paper_figures\\2025_09_Magnetosheath\\section_1_sw.py', 'src\\methods\\magnetosheath_saturation\\plotting.py']
+recent_files = ['scripts\\paper_figures\\2025_09_Magnetosheath\\section_0.py', 'src\\methods\\magnetosheath_saturation\\merge_region_omni.py', 'scripts\\paper_figures\\2025_09_Magnetosheath\\section_1.py', 'scripts\\paper_figures\\2025_09_Magnetosheath\\section_1_sw.py', 'src\\processing\\themis\\script_process.py', 'src\\processing\\themis\\analysis.py', 'src\\processing\\dataframes.py']
 
 [main]
 version = 0.2.0

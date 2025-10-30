@@ -21,26 +21,20 @@ from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, PROC_OMNI_DIR_5MIN
 
 
-def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_labels, pos_labels, data_resolution='1/128s', sample_intervals='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, priority_suffices=('fgh','fgl','fge','fgs')):
+def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_labels, data_resolution='3s', sample_intervals='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, priority_suffices=('fgs','fgl','fgh','fge')):
     """
-    The raw data uses fgs as the priority.
-    For the 1min and 5min, the fgh is the priority.
+    FGS data is the priority (spin ~3s)
     """
     spacecraft_dir = themis_directories[spacecraft]
-    fgm_directory = f'{spacecraft_dir}/FGM'
-    pos_directory = f'{spacecraft_dir}/STATE'
+    directory = f'{spacecraft_dir}/FGM'
 
     out_directory = os.path.join(proc_directory[spacecraft],'FGM')
     create_directory(out_directory)
 
-    fgm_directory_name = os.path.basename(os.path.normpath(fgm_directory))
-    pos_directory_name = os.path.basename(os.path.normpath(pos_directory))
+    directory_name = os.path.basename(os.path.normpath(directory))
 
-    fgm_log_file_path = os.path.join(out_directory, f'{fgm_directory_name}_files_not_added.txt')  # Stores not loaded files
-    pos_log_file_path = os.path.join(out_directory, f'{pos_directory_name}_files_not_added.txt')  # Stores not loaded files
-
-    create_log_file(fgm_log_file_path)
-    create_log_file(pos_log_file_path)
+    log_file_path = os.path.join(out_directory, f'{directory_name}_files_not_added.txt')  # Stores not loaded files
+    create_log_file(log_file_path)
 
     if sample_intervals=='none':
         sample_intervals='raw'
@@ -51,57 +45,37 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
         samp_dir = os.path.join(out_directory, sample_interval)
         create_directory(samp_dir)
 
-    pos_variables = pos_labels[spacecraft]
-
     print(f'Processing THEMIS: {spacecraft}.')
-    fgm_files_by_year = get_themis_files(fgm_directory, year, sub_folders)
-    pos_files_by_year = get_themis_files(pos_directory, year, sub_folders)
+    files_by_year = get_themis_files(directory, year, sub_folders)
 
     # Process each year's files
-    for (fgm_year, fgm_files), (pos_year, pos_files) in zip(fgm_files_by_year.items(), pos_files_by_year.items()):
-        print(f'Processing {fgm_year} data.')
-
-        ###---------------STATE DATA------------###
-
-        pos_yearly_list = []
-
-        # Loop through each daily file in the year
-        for pos_file in pos_files:
-
-            try:
-                # position data at every minute
-                pos_dict, _ = extract_themis_data(pos_file, pos_variables)
-                pos_df = pd.DataFrame(pos_dict)
-                pos_yearly_list.append(pos_df)
-            except:
-                #print(f'{pos_file} empty.')
-                log_missing_file(pos_log_file_path, pos_file)
-                continue
+    for file_year, files in files_by_year.items():
+        print(f'Processing {file_year} data.')
 
         ###---------------FGM DATA------------###
 
-        fgm_yearly_list = []
+        yearly_list = []
 
-        for fgm_file in fgm_files:
+        for file in files:
 
             success = False
             for suffix in priority_suffices:
                 fgm_variables = fgm_labels[spacecraft][suffix]
 
                 try:
-                    fgm_dict, _ = extract_themis_data(fgm_file, fgm_variables)
+                    fgm_dict, _ = extract_themis_data(file, fgm_variables)
                     if not fgm_dict:  # Check if the dictionary is empty
-                        raise ValueError(f'{fgm_file} empty.')
+                        raise ValueError(f'{file} empty.')
 
                     fgm_df = pd.DataFrame(fgm_dict)
                     valid_b = ~fgm_df['B_avg'].isna()
                     if np.sum(valid_b)==0:  # Check if valid B data
-                        raise ValueError(f'{fgm_file} empty.')
+                        raise ValueError(f'{file} empty.')
 
                     # GSM angles
                     gsm = calc_B_GSM_angles(fgm_df, time_col=time_col)
                     fgm_df = pd.concat([fgm_df, gsm], axis=1)
-                    fgm_yearly_list.append(fgm_df)
+                    yearly_list.append(fgm_df)
 
                     success = True
                     break  # exit suffix loop if successful
@@ -111,61 +85,105 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
                     continue
 
                 except Exception as e:
-                    log_missing_file(fgm_log_file_path, fgm_file, e)
+                    log_missing_file(log_file_path, file, e)
                     success = True  # treat this as handled and exit suffix loop
                     break
 
             if not success:
                 # If none of the suffixes worked, log that the file was skipped
-                log_missing_file(fgm_log_file_path, fgm_file, 'No valid suffix data found')
+                log_missing_file(log_file_path, file, 'No valid suffix data found')
 
         ###---------------COMBINING------------###
-        if not (fgm_yearly_list and pos_yearly_list):
-            print(f'No data for {fgm_year}')
+        if not yearly_list:
+            print(f'No data for {file_year}')
             continue
 
-        # Position data
-        pos_yearly_df = pd.concat(pos_yearly_list, ignore_index=True)
-        add_df_units(pos_yearly_df)
-
         # Field data
-        fgm_yearly_df = pd.concat(fgm_yearly_list, ignore_index=True)
-        add_df_units(fgm_yearly_df)
+        yearly_df = pd.concat(yearly_list, ignore_index=True)
+        add_df_units(yearly_df)
 
-        del pos_yearly_list
-        del fgm_yearly_list
+        del yearly_list
         del gsm
         del fgm_df
         del fgm_dict
-        del pos_df
 
         # Resampling has to be done after as THEMIS files overlap on times
         for sample_interval in sample_intervals:
             samp_dir = os.path.join(out_directory, sample_interval)
 
             if sample_interval=='raw':
-                merged_df = pd.merge(pos_yearly_df, fgm_yearly_df, left_on=time_col, right_on=time_col, how='outer')
+                sampled_df = yearly_df
             else:
-                sampled_pos_df = resample_data(pos_yearly_df, time_col, sample_interval)
-                sampled_fgm_df = resample_data(fgm_yearly_df, time_col, sample_interval)
+                sampled_df = resample_data(yearly_df, time_col, sample_interval)
 
-                # Merge
-                merged_df = pd.merge(sampled_pos_df, sampled_fgm_df, left_on=time_col, right_on=time_col, how='outer')
-                # Clear up memory
-                del sampled_pos_df
-                del sampled_fgm_df
-
-            add_df_units(merged_df)
+            add_df_units(sampled_df)
 
             print(f'{sample_interval} reprocessed.')
 
-            output_file = os.path.join(samp_dir, f'{fgm_directory_name}_{fgm_year}.cdf')
+            output_file = os.path.join(samp_dir, f'{directory_name}_{file_year}.cdf')
             attributes  = {'sample_interval': data_resolution, 'time_col': time_col, 'R_E': R_E}
-            write_to_cdf(merged_df, output_file, attributes, overwrite)
+            write_to_cdf(sampled_df, output_file, attributes, overwrite)
 
-            del merged_df
+        print(f'{file_year} processed.')
 
-        print(f'{fgm_year} processed.')
+
+def process_themis_position(spacecraft, themis_directories, proc_directory, pos_labels, data_resolution='60s', time_col='epoch', year=None, sub_folders=False, overwrite=True):
+
+    spacecraft_dir = themis_directories[spacecraft]
+    directory = f'{spacecraft_dir}/STATE'
+
+    out_directory = os.path.join(proc_directory[spacecraft],'STATE')
+    create_directory(out_directory)
+
+    directory_name = os.path.basename(os.path.normpath(directory))
+    log_file_path = os.path.join(out_directory, f'{directory_name}_files_not_added.txt')  # Stores not loaded files
+    create_log_file(log_file_path)
+
+    samp_dir = os.path.join(out_directory, '1min')
+    create_directory(samp_dir)
+
+    pos_variables = pos_labels[spacecraft]
+
+    print(f'Processing THEMIS: {spacecraft}.')
+    files_by_year = get_themis_files(directory, year, sub_folders)
+
+    # Process each year's files
+    for file_year, files in files_by_year.items():
+        print(f'Processing {file_year} data.')
+
+        yearly_list = []
+
+        # Loop through each daily file in the year
+        for pos_file in files:
+
+            try:
+                # position data at every minute
+                pos_dict, _ = extract_themis_data(pos_file, pos_variables)
+                pos_df = pd.DataFrame(pos_dict)
+                yearly_list.append(pos_df)
+            except:
+                #print(f'{pos_file} empty.')
+                log_missing_file(log_file_path, pos_file)
+                continue
+
+        ###---------------COMBINING------------###
+        if not yearly_list:
+            print(f'No data for {file_year}')
+            continue
+
+        # Position data
+        yearly_df = pd.concat(yearly_list, ignore_index=True)
+        add_df_units(yearly_df)
+
+        del yearly_list
+        del pos_df
+
+        # Resampling has to be done after as THEMIS files overlap on times
+        output_file = os.path.join(samp_dir, f'{directory_name}_{file_year}.cdf')
+        attributes  = {'sample_interval': data_resolution, 'time_col': time_col, 'R_E': R_E}
+        write_to_cdf(yearly_df, output_file, attributes, overwrite)
+
+        print(f'{file_year} processed.')
 
 def process_themis_plasma(spacecraft, themis_directories, proc_directories, plasma_labels, sample_intervals='raw', time_col='epoch', year=None, sub_folders=False, overwrite=True):
 
@@ -198,7 +216,6 @@ def process_themis_plasma(spacecraft, themis_directories, proc_directories, plas
         print(f'Processing {year} data.')
         yearly_plas_list = []
         yearly_flag_list = []
-
 
         for file in files:
 
@@ -235,6 +252,7 @@ def process_themis_plasma(spacecraft, themis_directories, proc_directories, plas
                 df_sampled = df_year
 
             else:
+                df_year = df_year.loc[df_year['quality']==0] # 0 = good quality, 1... = issues
                 df_sampled = resample_data(df_year, time_col, sample_interval)
 
             print(f'{sample_interval} reprocessed.')
@@ -372,32 +390,40 @@ def select_latest_versions(files):
 
 # %%
 
+
+##### CREATE FUNCTION TO COMBINE POSITION DATA WITH FIELD DATA ONLY
+
+
+
 def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMNI_DIR_5MIN):
 
     spacecraft_dir = proc_directories[spacecraft]
 
-    field_dir = os.path.join(spacecraft_dir, 'FGM', 'raw')
-    plasma_dir = os.path.join(spacecraft_dir, 'MOM', 'raw')
+    pos_dir      = os.path.join(spacecraft_dir, 'STATE', 'raw')
+    field_dir    = os.path.join(spacecraft_dir, 'FGM', 'raw')
+    plasma_dir   = os.path.join(spacecraft_dir, 'MOM', 'raw')
     combined_dir = os.path.join(spacecraft_dir, 'combined', 'raw')
 
     if year is not None:
         year_range = (year,)
 
     else:
-
+        pos_years = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(pos_dir) if re.search(r'\d{4}', f)]
         field_years = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(field_dir) if re.search(r'\d{4}', f)]
         plasma_years = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(plasma_dir) if re.search(r'\d{4}', f)]
 
-        year_range = list(range(max(plasma_years[0],field_years[0]),min(plasma_years[-1],field_years[-1])+1))
+        year_range = list(range(max(plasma_years[0],field_years[0],pos_years[0]),min(plasma_years[-1],field_years[-1],pos_years[-1])+1))
 
-    next_year_field = pd.DataFrame()
+    next_year_field  = pd.DataFrame()
     next_year_plasma = pd.DataFrame()
+    next_year_pos    = pd.DataFrame()
 
     for y_i, year in enumerate(year_range):
         next_year = year + 1
 
         print(f'Processing {year} data.')
 
+        pos_df    = import_processed_data(pos_dir, year=year)
         field_df  = import_processed_data(field_dir, year=year)
         plasma_df = import_processed_data(plasma_dir, year=year)
 
@@ -413,6 +439,12 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
 
             next_year_plasma = pd.DataFrame()
 
+        if not next_year_pos.empty:
+            pos_df = pd.concat([pos_df,next_year_pos])
+            pos_df.sort_index(inplace=True)
+
+            next_year_pos = pd.DataFrame()
+
         if y_i != (len(year_range)-1):
             next_year_field = field_df.loc[field_df.index.year==next_year]
             field_df = field_df.loc[field_df.index.year!=next_year]
@@ -420,9 +452,12 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
             next_year_plasma = plasma_df.loc[plasma_df.index.year==next_year]
             plasma_df = plasma_df.loc[plasma_df.index.year!=next_year]
 
+            next_year_pos = pos_df.loc[pos_df.index.year==next_year]
+            pos_df = pos_df.loc[pos_df.index.year!=next_year]
+
         field_df = field_df[~field_df.index.duplicated(keep='first')]
-        pos_df = field_df[[f'r_{comp}_GSE' for comp in ('x','y','z')]]
-        field_df.drop(columns=[f'r_{comp}_GSE' for comp in ('x','y','z')],inplace=True)
+        field_df.rename(columns={'quality': 'quality_fgm'},inplace=True)
+        plasma_df.rename(columns={'quality': 'quality_esa'},inplace=True)
 
         merged_df = pd.merge_asof(
             plasma_df.reset_index(),
@@ -475,7 +510,6 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
         except:
             merged_df['na_np_ratio'] = 0.05
 
-
         # Dynamic pressure
         # P = 0.5 * rho * V^2
 
@@ -515,10 +549,8 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
 def filter_spin_data(spacecraft, proc_directories, region='msh', year=None):
 
     """
-    The position data is timestamped separately, so keeping only data with a good flag/correct mode removes all this data
     Need to instead remove all the undesired data
     """
-
     sc_dir = proc_directories[spacecraft]
     data_dir   = os.path.join(sc_dir, 'combined', 'raw') # input
     region_dir = os.path.join(sc_dir, region, 'raw')   # output
@@ -539,6 +571,8 @@ def filter_spin_data(spacecraft, proc_directories, region='msh', year=None):
             bad_qualities.append(sum(combo))
     bad_qualities = sorted(bad_qualities)
 
+    bad_fgm_qualities = (1, 2, 3, 4) # 0 = good quality
+
     # Solar wind flag =1 in solar wind, =0 if not
     # So want to remove those with the wrong flag
     wrong_flag = 1
@@ -554,8 +588,8 @@ def filter_spin_data(spacecraft, proc_directories, region='msh', year=None):
             continue
 
         mask = np.ones(len(df_year),dtype=bool)
-        if 'quality' in df_year:
-            mask &= ~df_year['quality'].isin(bad_qualities)
+        if 'quality_esa' in df_year:
+            mask &= ~df_year['quality_esa'].isin(bad_qualities)
             if np.sum(mask)==0:
                 print(f'No {region} data of good quality for {year}.')
                 continue
@@ -564,6 +598,12 @@ def filter_spin_data(spacecraft, proc_directories, region='msh', year=None):
             mask &= (df_year['flag'].fillna(-2) != wrong_flag)
             if np.sum(mask)==0:
                 print(f'No {region} data in correct mode for {year}.')
+                continue
+
+        if 'quality_fgm' in df_year:
+            mask &= ~df_year['quality_fgm'].isin(bad_fgm_qualities)
+            if np.sum(mask)==0:
+                print(f'No {region} data of good quality for {year}.')
                 continue
 
         spin_df = df_year.loc[mask]
