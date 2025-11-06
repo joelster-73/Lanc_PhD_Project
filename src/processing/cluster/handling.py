@@ -272,6 +272,10 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
 
             print('GSE to GSM.')
 
+        # For now treating all species together
+        merged_df.rename(columns={'P_ion': 'P_th', 'T_ion': 'T_tot', 'N_ion': 'N_tot'}, inplace=True)
+
+
         print('Calculations...')
         ###----------CONTAMINATION----------###
 
@@ -283,8 +287,8 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
         for comp, limit in zip(('x','y','z'),(2000,400,400)):
             merged_df.loc[np.abs(merged_df[f'V_{comp}_GSM'])>limit,f'V_{comp}_GSM'] = np.nan
 
-        merged_df.loc[merged_df['N_ion']>500,'N_ion'] = np.nan
-        merged_df.loc[merged_df['P_ion']>100,'P_ion'] = np.nan
+        merged_df.loc[merged_df['N_tot']>500,'N_tot'] = np.nan
+        merged_df.loc[merged_df['P_th']>100,'P_th'] = np.nan
 
         ###----------CALCULATIONS----------###
 
@@ -315,11 +319,11 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
         # P = 0.5 * rho * V^2
 
         m_avg = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1)
-        merged_df['P_flow'] = 0.5 * m_avg * merged_df['N_ion']  * merged_df['V_mag']**2 * 1e21
+        merged_df['P_flow'] = 0.5 * m_avg * merged_df['N_tot']  * merged_df['V_mag']**2 * 1e21
         # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
 
-        # Beta = p_dyn / p_mag, p_mag = B^2/2mu_0
-        merged_df['beta'] = merged_df['P_flow'] / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
+        # Beta = p_th / p_mag, p_mag = B^2/2mu_0
+        merged_df['beta'] = merged_df['P_th'] / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
         # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
 
         ###----------CROSS PRODUCTS----------###

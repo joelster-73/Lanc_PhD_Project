@@ -39,7 +39,7 @@ HELSINKI_DIR           = f'{PROCESSED_DATA_DIR}/HELSINKI'
 SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
 MSH_DIR                = f'{PROCESSED_DATA_DIR}/MSH'
 SW_DIR                 = f'{PROCESSED_DATA_DIR}/SW'
-PCN_DIR                = f'{PROCESSED_DATA_DIR}/PCN'
+INDEX_DIR              = f'{PROCESSED_DATA_DIR}/INDEX'
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
 
 # LUNA Directories
@@ -78,6 +78,11 @@ COMPRESSIONS_DIR       = f'{CROSSINGS_DIR}/compression_ratios.npz'
 # Processed OMNI Data
 PROC_OMNI_DIR_1MIN     = f'{OMNI_DIR}/1min'
 PROC_OMNI_DIR_5MIN     = f'{OMNI_DIR}/5min'
+
+# Polar Cap Indices
+PCN_DIR                = f'{INDEX_DIR}/PCN'
+AA_DIR                 = f'{INDEX_DIR}/AA'
+SME_DIR                = f'{INDEX_DIR}/SME'
 
 # Processed WIND Data
 PROC_WIND_DIR_1MIN     = f'{WIND_DIR}/1_min/'

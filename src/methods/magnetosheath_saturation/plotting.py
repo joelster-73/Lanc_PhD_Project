@@ -133,7 +133,8 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
             bin_step = 1
             if ind_src=='msh':
                 limits[1] = 20
-            elif dep_var is not None and (ind_var==dep_var or dep_var.startswith('E_parallel')):
+            elif (dep_var is not None) and (
+                    (ind_var==dep_var) or (dep_var.startswith('E_parallel'))):
                 bin_step, limits[1] = 0.5, 10
             else:
                 limits[1] = 20
@@ -498,7 +499,14 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     plt.show()
     plt.close()
 
-def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, data_type='counts', min_count=50, show_contemp=True, compare_sw_msh=False, compare_colour='yellow', **kwargs):
+# %% Compare_sw_msh_response
+
+def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, data_type='counts', min_count=50, show_contemp=True, compare_sw_msh=False, compare_colour='purple', **kwargs):
+    """
+    Plots sw vs pc and msh vs pc and, if flagged, sw vs msh
+    """
+
+    msh_map = kwargs.get('msh_map',{})
 
     if data_type=='mins':
         min_count = 100
@@ -531,10 +539,15 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
         ax0 = axs[0][i]
         ax1 = axs[1][i]
 
-        ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, source)
+        independent = ind_var
+        if source=='msh':
+            independent = msh_map.get(ind_var,ind_var)
+
+        ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, independent, source)
         bin_step, limits, invert = ind_variable_range(ind_var, source, dep_var=dep, restrict=restrict)
         if i==2:
-            dep_param, dep_param_err, _, dep_param_count = def_param_names(df_msh, ind_var, 'msh')
+            variable = msh_map.get(dep,dep)
+            dep_param, dep_param_err, _, dep_param_count = def_param_names(df_msh, variable, 'msh')
             dep = dep_param
 
         if source=='sw' and i!=2:
@@ -564,12 +577,20 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
         kwargs['error_colour'] = colour
 
         kwargs_source = kwargs.copy()
+        if source=='msh':
+            if ind_var in msh_map:
+                kwargs_source['data1_name'] = independent
+
         if i==2:
             ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
             ax0.grid(ls=':', c=grey, lw=0.5)
-            kwargs_source['data2_name'] = create_label(f'{kwargs["data1_name"]}_msh')
+            if ind_var in msh_map:
+                independent = msh_map.get(ind_var,ind_var)
+                kwargs_source['data1_name'] = independent
+            kwargs_source['data2_name'] = create_label(f'{kwargs_source["data1_name"]}_msh')
+            kwargs_source['data1_name'] = kwargs['data1_name']
 
-        kwargs_source['data1_name'] = create_label(f'{kwargs["data1_name"]}_{source}')
+        kwargs_source['data1_name'] = create_label(f'{kwargs_source["data1_name"]}_{source}')
 
         _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
 
@@ -581,6 +602,8 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
 
         if invert:
             ax0.invert_xaxis()
+            if i==2:
+                ax0.invert_yaxis()
 
         if source=='sw' and show_contemp and i!=2:
 
@@ -603,15 +626,15 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
     plt.show()
     plt.close()
 
-
+# %% Lags
 def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', df_type='omni', bounds=None, restrict=True, data_type='counts', min_count=50, **kwargs):
 
     if data_type=='mins':
         min_count = 100
 
-    kwargs['min_count']    = min_count
-    kwargs['display']      = 'rolling'
-    kwargs['region']       = 'sem'
+    kwargs['min_count'] = min_count
+    kwargs['display']   = 'rolling'
+    kwargs['region']    = 'sem'
 
     ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, ind_src)
     if df_type=='omni':
@@ -619,7 +642,7 @@ def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', d
     else:
         ind, ind_err, ind_count = ind_param, ind_param_err, ind_param_count
 
-    bin_step, limits, invert = ind_variable_range(ind_var, ind_src, restrict)
+    bin_step, limits, invert = ind_variable_range(ind_var, ind_src, restrict=restrict)
     kwargs['window_width'] = bin_step
 
      # Overwrites with those passed in
@@ -715,7 +738,6 @@ def plot_grouping_cause(df_merged, ind_var, dep_var, ind_src='sw', dep_src='msh'
 
 def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, data_type='counts', min_count=None, **kwargs):
 
-
     if min_count is None:
         min_count = minimum_counts[data_type]
 
@@ -723,13 +745,22 @@ def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_
     kwargs['display']   = 'rolling'
     kwargs['region']    = 'sem'
     if 'data1_name' in kwargs:
-        kwargs['data1_name'] = create_label(f'{kwargs["data1_name"]}_sw')
-
+        name = kwargs['data1_name']
+        if df_sc is not None:
+            name = f'{name}_sw'
+        kwargs['data1_name'] = create_label(name)
 
     ###----------PLOT GRIDS----------###
 
     n_cols = len(dep_vars)
     fig, axs = plt.subplots(2, n_cols, figsize=(8*n_cols, 10), dpi=200, height_ratios=[3,2], sharex=True)
+    groups = {}
+    for i, ax in enumerate(axs[0]):
+        prefix = dep_vars[i][:2]
+        if prefix not in groups:
+            groups[prefix] = ax
+        else:
+            axs[0][i].sharey(groups[prefix])
 
     for i, dep_var in enumerate(dep_vars):
 
@@ -737,6 +768,9 @@ def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_
         ax1 = axs[1][i]
 
         for df, source, colour in zip((df_omni,df_sc,df_sc), ('omni','sw','sc'), (omni_colour, contemp_colour, sc_colour)):
+
+            if df is None:
+                continue
 
             ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, source)
             dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df, dep_var, dep_src)

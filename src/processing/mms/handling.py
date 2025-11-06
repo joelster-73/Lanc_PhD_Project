@@ -384,8 +384,8 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
 
     combined_df['V_flow'] = np.linalg.norm(combined_df[[f'V_{comp}_GSE' for comp in ('x','y','z')]].to_numpy(),axis=1)
 
-    # Beta = p_dyn / p_mag, p_mag = B^2/2mu_0
-    combined_df['beta'] = combined_df['P_flow'] / (plasma_df['B_avg']**2) * (2*mu_0) * 1e9
+    # Beta = p_th / p_mag, p_mag = B^2/2mu_0
+    combined_df['beta'] = combined_df['P_th'] / (plasma_df['B_avg']**2) * (2*mu_0) * 1e9
     # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
 
     ###----------CROSS PRODUCTS----------###

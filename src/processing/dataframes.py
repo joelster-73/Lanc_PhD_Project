@@ -91,7 +91,7 @@ def safe_stddevs(arr):
     else:
         return unp.std_devs(arr)
 
-def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=('quality','mode','flag')):
+def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=('quality','mode','flag', 'quality_esa','quality_fgm')):
 
     df = df.copy()
     if time_col == 'index':

@@ -20,6 +20,8 @@ omni_columns = ['Year', 'Day', 'Hour', 'Minute', 'imf_sc', 'plasma_sc', 'imf_cou
 
 omni_columns_5min = omni_columns + ['PSI_P_10', 'PSI_P_30', 'PSI_P_60']
 
+lagged_indices = {'AE': (30,), 'AEc': (30,), 'PCN': (17,), 'AA': (17,), 'SME': (30,) }
+
 imf_bad_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'M_A', 'beta']
 
 plasma_bad_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta']

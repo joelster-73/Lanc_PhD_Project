@@ -13,6 +13,7 @@ from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_5VPS, SW
 
 from src.processing.mms.analysis import mms_region_intervals
 from src.processing.cluster.analysis import cluster_region_intervals
+from src.processing.omni.config import lagged_indices
 from src.processing.themis.analysis import themis_region_intervals
 from src.processing.themis.config import PROC_THEMIS_DIRECTORIES
 from src.processing.reading import import_processed_data
@@ -57,9 +58,16 @@ spacecraft     = {'sw': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1'
                   'msh': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1','the')}}
 
 
-param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'AE_17m_sw','PCN_sw','PCN_17m_sw','SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
+param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
 
-# %%%
+for param, lags in lagged_indices.items():
+    param_map_pc[param] = param.replace('_sw', '_pc')
+    for lag in lags:
+        label = f'{param}_{lag}m_sw'
+        param_map_pc[label] = label.replace('_sw', '_pc')
+
+# %%% Merge_OMNI_sc
+
 def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', sc_keys=None, nose=False):
 
     DIR = directories[region] # output directory
@@ -174,8 +182,9 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
         elif region=='sw':
 
             mask |= (interval_index.get_indexer(df_merged.index) != -1)
-            mask |= (df_merged['r_F']>1) | (df_merged[f'r_mag_{sc}']<35)
-            # Second condition for spacecraft such as THEMIS-ARTMEIS
+            mask |= (df_merged['r_F']>1)
+            mask |= (df_merged[f'r_mag_{sc}']<35)
+            # Last condition for spacecraft such as THEMIS-ARTMEIS
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix
@@ -252,35 +261,15 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
     ###----------COMBINING----------###
     print('Combining spacecraft')
     df_wide = pd.concat(dfs_combined, axis=1)
-    # rows = []
-
-    # print('Selecting spacecraft')
-    # for idx, row in df_wide.iterrows():
-    #     chosen_sc = None
-    #     sc_data = {}
-
-    #     for sc in sc_keys:
-    #         key_col = f'B_avg_{sc}'
-    #         if pd.notna(row.get(key_col, None)):
-    #             chosen_sc = sc
-    #             sc_data = {re.sub(f'_{sc}$', '_sc', col): row[col]
-    #                        for col in df_wide.columns if col.endswith(f'_{sc}')}
-    #             sc_data[f'sc_{region}'] = sc
-    #             break
-
-    #     if chosen_sc is not None:
-    #         rows.append(pd.Series(sc_data, name=idx))
-
-    # df_combined = pd.DataFrame(rows)
-
 
     mask = pd.DataFrame({sc: df_wide[f'B_avg_{sc}'].notna() for sc in sc_keys})
     first_valid = mask.idxmax(axis=1)
 
     result = []
+    suffix = '_msh' if region=='msh' else '_sc'
     for sc in sc_keys:
         sc_cols = [col for col in df_wide.columns if col.endswith(f'_{sc}')]
-        renamed = {col: re.sub(f'_{sc}$', '_sc', col) for col in sc_cols}
+        renamed = {col: re.sub(f'_{sc}$', suffix, col) for col in sc_cols}
         subset = df_wide.loc[first_valid == sc, sc_cols].rename(columns=renamed)
         subset[f'sc_{region}'] = sc
         result.append(subset)

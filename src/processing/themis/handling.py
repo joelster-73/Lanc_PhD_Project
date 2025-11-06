@@ -45,7 +45,7 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
         samp_dir = os.path.join(out_directory, sample_interval)
         create_directory(samp_dir)
 
-    print(f'Processing THEMIS: {spacecraft}.')
+    print(f'Processing THEMIS FGM: {spacecraft}.')
     files_by_year = get_themis_files(directory, year, sub_folders)
 
     # Process each year's files
@@ -122,9 +122,8 @@ def process_themis_files(spacecraft, themis_directories, proc_directory, fgm_lab
 
             output_file = os.path.join(samp_dir, f'{directory_name}_{file_year}.cdf')
             attributes  = {'sample_interval': data_resolution, 'time_col': time_col, 'R_E': R_E}
+            print(f'{file_year} processed.')
             write_to_cdf(sampled_df, output_file, attributes, overwrite)
-
-        print(f'{file_year} processed.')
 
 
 def process_themis_position(spacecraft, themis_directories, proc_directory, pos_labels, data_resolution='60s', time_col='epoch', year=None, sub_folders=False, overwrite=True):
@@ -144,7 +143,7 @@ def process_themis_position(spacecraft, themis_directories, proc_directory, pos_
 
     pos_variables = pos_labels[spacecraft]
 
-    print(f'Processing THEMIS: {spacecraft}.')
+    print(f'Processing THEMIS STATE: {spacecraft}.')
     files_by_year = get_themis_files(directory, year, sub_folders)
 
     # Process each year's files
@@ -181,9 +180,9 @@ def process_themis_position(spacecraft, themis_directories, proc_directory, pos_
         # Resampling has to be done after as THEMIS files overlap on times
         output_file = os.path.join(samp_dir, f'{directory_name}_{file_year}.cdf')
         attributes  = {'sample_interval': data_resolution, 'time_col': time_col, 'R_E': R_E}
+        print(f'{file_year} processed.')
         write_to_cdf(yearly_df, output_file, attributes, overwrite)
 
-        print(f'{file_year} processed.')
 
 def process_themis_plasma(spacecraft, themis_directories, proc_directories, plasma_labels, sample_intervals='raw', time_col='epoch', year=None, sub_folders=False, overwrite=True):
 
@@ -208,7 +207,7 @@ def process_themis_plasma(spacecraft, themis_directories, proc_directories, plas
 
     plasma_variables = plasma_labels[spacecraft]
 
-    print(f'Processing THEMIS: {spacecraft}.')
+    print(f'Processing THEMIS ESA: {spacecraft}.')
     files_by_year = get_themis_files(plasma_dir, year, sub_folders)
 
     # Process each year's files
@@ -259,9 +258,8 @@ def process_themis_plasma(spacecraft, themis_directories, proc_directories, plas
 
             output_file = os.path.join(samp_dir, f'{directory_name}_{year}.cdf')
             attributes = {'sample_interval': 'spin', 'time_col': time_col, 'R_E': R_E}
-            write_to_cdf(df_sampled, output_file, attributes, overwrite)
-
             print(f'{year} processed.')
+            write_to_cdf(df_sampled, output_file, attributes, overwrite)
 
 
 def get_themis_files(directory=None, year=None, sub_folders=False):
@@ -399,7 +397,7 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
 
     spacecraft_dir = proc_directories[spacecraft]
 
-    pos_dir      = os.path.join(spacecraft_dir, 'STATE', 'raw')
+    pos_dir      = os.path.join(spacecraft_dir, 'STATE', '1min')
     field_dir    = os.path.join(spacecraft_dir, 'FGM', 'raw')
     plasma_dir   = os.path.join(spacecraft_dir, 'MOM', 'raw')
     combined_dir = os.path.join(spacecraft_dir, 'combined', 'raw')
@@ -456,6 +454,7 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
             pos_df = pos_df.loc[pos_df.index.year!=next_year]
 
         field_df = field_df[~field_df.index.duplicated(keep='first')]
+        field_df.sort_index(inplace=True)
         field_df.rename(columns={'quality': 'quality_fgm'},inplace=True)
         plasma_df.rename(columns={'quality': 'quality_esa'},inplace=True)
 
@@ -517,8 +516,8 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
         merged_df['P_flow'] = 0.5 * m_avg * merged_df['N_tot']  * merged_df['V_flow']**2 * 1e21
         # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
 
-        # Beta = p_dyn / p_mag, p_mag = B^2/2mu_0
-        merged_df['beta'] = merged_df['P_flow'] / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
+        # Beta = p_th / p_mag, p_mag = B^2/2mu_0
+        merged_df['beta'] = merged_df['P_th'] / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
         # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
 
         ###----------CROSS PRODUCTS----------###

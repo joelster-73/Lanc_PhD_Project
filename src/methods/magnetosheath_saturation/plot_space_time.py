@@ -74,14 +74,47 @@ def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins', region='msh'):
     plt.show()
     plt.close()
 
+def plot_sc_sw_msh(sw_dir, msh_dir, sw_keys=None, msh_keys=None, data_type='mins'):
 
 
+    if sw_keys is None:
+        sw_keys = ('c1','m1','thb')
 
-def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type='mins'):
+    if msh_keys is None:
+        msh_keys = ('c1','m1','the')
+
+    fig, axs = plt.subplots(2, 1, figsize=(12,8), dpi=400, sharex=True)
+
+    for ax, direc, region, keys, label in zip(axs, (sw_dir,msh_dir), ('sw','msh'), (sw_keys,msh_keys), ('Solar Wind','Magnetosheath')):
+        plot_sc_years(direc, region=region, sc_keys=keys, combined=True, data_type=data_type, fig=fig, ax=ax, return_objs=True)
+        ax.legend(loc='upper left')
+        ax.set_ylabel(label)
+
+    axs[0].set_xlabel(None)
+
+    # Tight format
+    plt.subplots_adjust(wspace=0, hspace=0)
+    fig.canvas.draw()
+    xticks = ax.get_xticks()
+    xticks = xticks[(xticks >= ax.get_xlim()[0]) & (xticks <= ax.get_xlim()[1])]
+    for ax in axs:
+        for x in xticks:
+            ax.axvline(x, color=to_rgba(black,0.9), linestyle=':', linewidth=0.5, zorder=20)
+
+    save_figure(fig)
+    plt.show()
+    plt.close()
+
+
+def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type='mins', **kwargs):
 
     """
     Combined flag: show all years on one axis, rather than split per spacecraft
     """
+
+    fig          = kwargs.get('fig',None)
+    axs          = kwargs.get('ax',None)
+    return_objs  = kwargs.get('return_objs',False)
 
     if sc_keys is None:
         sc_keys = ('c1','m1','tha','thb','thc','thd','the')
@@ -95,10 +128,13 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
         n_rows = 1
         width  = 1/len(sc_keys)
 
-    dims = (4.5*(n_cols+1),2*(n_rows+1))
+    if fig is None or axs is None:
 
+        dims = (4.5*(n_cols+1),2*(n_rows+1))
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=dims, dpi=400, sharex=True)
+        fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=dims, dpi=400, sharex=True)
+
+    unique_indices = set()
 
     for i, sc_key in enumerate(sc_keys):
 
@@ -122,6 +158,8 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
 
         if len(years)==0:
             continue
+
+        unique_indices.update(df_sc.index)
 
         if n_rows==1:
             ax = axs
@@ -147,6 +185,7 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
         ax.set_ylabel('Count')
 
+    print(f'{len(unique_indices):,} unique {data_type} of {region} data')
 
     if n_rows==1:
         axs.set_xlabel('Year')
@@ -163,6 +202,9 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
                 ax.axvline(x, color=to_rgba(black,0.9), linestyle=':', linewidth=0.5, zorder=20)
     else:
         plt.tight_layout()
+
+    if return_objs:
+        return fig, ax
 
     save_figure(fig)
     plt.show()
