@@ -9,20 +9,25 @@ import os
 import re
 import numpy as np
 import pandas as pd
-from src.config import CROSSINGS_DIR, PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_5VPS, SW_DIR, MSH_DIR, OMNI_DIR, MMS_DIR, THEMIS_DIR
 
-from src.processing.mms.analysis import mms_region_intervals
-from src.processing.cluster.analysis import cluster_region_intervals
-from src.processing.omni.config import lagged_indices
-from src.processing.themis.analysis import themis_region_intervals
-from src.processing.themis.config import PROC_THEMIS_DIRECTORIES
-from src.processing.reading import import_processed_data
-from src.processing.dataframes import merge_dataframes
-from src.processing.writing import write_to_cdf
+from .sc_delay_time import add_dynamic_index_lag
 
-from src.coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
-from src.coordinates.magnetic import GSE_to_GSM_with_angles
-from src.analysing.comparing import difference_series
+from ...config import CROSSINGS_DIR, PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_5VPS, SW_DIR, MSH_DIR, OMNI_DIR, MMS_DIR, THEMIS_DIR
+
+from ...processing.mms.analysis import mms_region_intervals
+from ...processing.cluster.analysis import cluster_region_intervals
+from ...processing.omni.config import lagged_indices
+from ...processing.themis.analysis import themis_region_intervals
+from ...processing.themis.config import PROC_THEMIS_DIRECTORIES
+from ...processing.reading import import_processed_data
+from ...processing.dataframes import merge_dataframes
+from ...processing.writing import write_to_cdf
+
+from ...plotting.distributions import plot_freq_hist
+
+from ...coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
+from ...coordinates.magnetic import GSE_to_GSM_with_angles
+from ...analysing.comparing import difference_series
 
 column_names = {
     'r_x_name'  : 'r_x_GSE',
@@ -61,7 +66,7 @@ spacecraft     = {'sw': {'field_only': all_spacecraft, 'with_plasma': ('c1','m1'
 param_map_pc = {k: k.replace('_sw', '_pc') for k in ['AE_sw','AL_sw','AU_sw', 'SYM_D_sw','SYM_H_sw','ASY_D_sw','ASY_H_sw','PSI_P_10_sw','PSI_P_30_sw','PSI_P_60_sw']}
 
 for param, lags in lagged_indices.items():
-    param_map_pc[param] = param.replace('_sw', '_pc')
+    param_map_pc[f'{param}_sw'] = f'{param}_pc'
     for lag in lags:
         label = f'{param}_{lag}m_sw'
         param_map_pc[label] = label.replace('_sw', '_pc')
@@ -152,7 +157,7 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
         if 'r_mag_count' in df_sc:
             df_sc.drop(columns=['r_mag_count'],inplace=True)
 
-        # Combine
+        # Combine OMNI and spacecraft
         df_merged = merge_dataframes(df_sw, df_sc, suffix_1='sw', suffix_2=sc)
         df_merged.columns = [param_map_pc.get(col,col) for col in df_merged.columns] # changes sw to pc for some omni
         df_merged.attrs['units'] = {param_map_pc.get(col,col): df_merged.attrs['units'].get(col,col) for col in df_merged.attrs['units']}
@@ -222,6 +227,10 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
             df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
 
         ###----------EXTRA PARAMETERS----------###
+        # Correction to time lag based on spacecraft position in solar wind
+        add_dynamic_index_lag(df_merged, omni_key='sw', sc_key=sc, indices=lagged_indices)
+        plot_freq_hist(df_merged[f'prop_time_s_{sc}'], bin_width=60, data_name=f'Lag ({sc} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
+
         if region=='sw':
             df_merged.loc[df_merged[f'beta_{sc}']>1000,f'beta_{sc}'] = np.nan
             df_merged.loc[df_merged[f'P_flow_{sc}']>30,f'P_flow_{sc}'] = np.nan
@@ -250,8 +259,10 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
 
         # Writes individual to file with omni
         df_merged.attrs = df_merged_attrs
-        df_merged.attrs['units'][f'Delta B_theta_{sc}'] = 'rad'
-        df_merged.attrs['units'][f'Delta B_z_{sc}'] = '1'
+        df_merged.attrs['units'][f'prop_time_s_{sc}'] = 's'
+        if region=='msh':
+            df_merged.attrs['units'][f'Delta B_theta_{sc}'] = 'rad'
+            df_merged.attrs['units'][f'Delta B_z_{sc}'] = '1'
 
         output_file = os.path.join(DIR, data_pop, sample_interval, f'{region}_times_{sc}.cdf')
         print(f'Writing {sc} to file...')
@@ -278,6 +289,7 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
     df_combined.index.name = 'epoch'
     df_combined.attrs = df_merged_attrs
 
+    df_merged.attrs['units'][f'prop_time_s{suffix}'] = 's'
     if region=='msh':
         df_combined.attrs['units']['Delta B_theta_msh'] = 'rad'
         df_combined.attrs['units']['Delta B_z_msh'] = '1'

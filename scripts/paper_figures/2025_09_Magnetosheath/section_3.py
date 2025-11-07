@@ -14,7 +14,7 @@ from src.processing.reading import import_processed_data
 
 from src.methods.magnetosheath_saturation.plotting import plot_compare_responses
 
-sample_interval = '5min'
+sample_interval = '1min'
 data_pop = 'with_plasma'
 
 # Solar wind data
@@ -43,8 +43,10 @@ param_names  = {'E_y_GSM': 'E_y',
 
 # %% Response
 
-# Recreate paper figures is next step
-# Pulkkinen, etc.
+
+plot_compare_responses(df_omni, df_msh, 'E_y_GSM', 'AA_17m', restrict=True, data1_name=param_names.get('E_y_GSM','E_y_GSM'), data2_name=param_names.get('AA_17m','AA_17m'), data_type=data_type, compare_sw_msh=True)
+
+plot_compare_responses(df_omni, df_msh, 'E_y_GSM', 'AA_17m', restrict=True, data1_name=param_names.get('E_y_GSM','E_y_GSM'), data2_name=param_names.get('AA_17m','AA_17m'), data_type=data_type, compare_sw_msh=True)
 
 
 # Add in the Poynting Flux
@@ -56,4 +58,6 @@ for response in ('PCN_17m','AA_17m','AE_30m','SME_30m'):
             if msh_map and param not in msh_map:
                 continue
             plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map)
+            plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map, restrict=False)
+            plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map, display='scatter')
 

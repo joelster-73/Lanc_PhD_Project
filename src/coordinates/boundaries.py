@@ -6,7 +6,7 @@ from .config import DEFAULT_COLUMN_NAMES
 from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant, cartesian_to_spherical
 
 
-def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, **kwargs):
+def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, inc_nose=False, **kwargs):
 
     if model is None:
         model = 'jelinek' if surface =='BS' else 'shue'
@@ -85,15 +85,21 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
 
         if model=='shue':
             print('Using Shue mp.')
-            r_mp  = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
+            r_mp      = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
+            r_mp_nose = mp_shue1998(0, Pd=p, Bz=Bz, **kwargs)
         else:
             print('Using Jelínek mp.')
-            r_mp  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
+            r_mp       = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
+            r_mp_nose  = mp_jelinek2012(0, Pd=p, **kwargs)
 
         df_ab.loc[valid_mask, 'r_MP'] = r_mp
 
         print('Using Jelínek bs.')
         df_ab.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
+        r_bs_nose                     = bs_jelinek2012(0, Pd=p, **kwargs)
+
+        if inc_nose:
+            print('include')
 
         df_ab.loc[valid_mask, 'r_F'] = (df_ab.loc[valid_mask, r_name] - df_ab.loc[valid_mask, 'r_MP']) / (df_ab.loc[valid_mask, 'r_BS'] - df_ab.loc[valid_mask, 'r_MP'])
 
@@ -111,7 +117,7 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         elif surface == 'MP':
             if model == 'shue':
                 print('Using Shue mp.')
-                r  = mp_shue1998(theta_ps, Pd=p, **kwargs)
+                r  = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
             elif model == 'jelinek':
                 print('Using Jelínek mp.')
                 r  = mp_jelinek2012(theta_ps, Pd=p, **kwargs)

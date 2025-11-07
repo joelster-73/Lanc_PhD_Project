@@ -512,7 +512,7 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
         min_count = 100
 
     kwargs['min_count'] = min_count
-    kwargs['display']   = 'rolling'
+    kwargs['display']   = kwargs.get('display','rolling')
     kwargs['region']    = 'sem'
 
     dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
@@ -592,6 +592,10 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
 
         kwargs_source['data1_name'] = create_label(f'{kwargs_source["data1_name"]}_{source}')
 
+        if kwargs['display']=='scatter':
+            ind_err       = None
+            dep_param_err = None
+
         _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
 
         # Counts
@@ -622,7 +626,7 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
 
 
     plt.tight_layout()
-    save_figure(fig)
+    save_figure(fig, file_name=f'{dep_var}_vs_{ind_var}_sw_msh')
     plt.show()
     plt.close()
 

@@ -257,14 +257,15 @@ def plot_freq_hist(series, **kwargs):
 
     loc = 'split' if fit_type in ('bimodal','bimodal_offset') else 'upper right'
     add_legend(fig, ax, loc=loc, edge_col=white, frame_on=False, legend_on=want_legend)
-    add_figure_title(fig, black, brief_title, ax=ax)
-    dark_mode_fig(fig, black, white)
+    add_figure_title(fig, brief_title, ax=ax)
 
     if return_objs:
         return fig, ax
 
+    sub_dir   = kwargs.get('sub_directory',None)
+    save_name = kwargs.get('file_name',None)
     plt.tight_layout();
-    save_figure(fig)
+    save_figure(fig, sub_directory=sub_dir, file_name=save_name)
     plt.show()
     plt.close()
 

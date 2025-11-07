@@ -144,7 +144,7 @@ def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
     # signed rotation angle from v -> u
     return np.arctan2(cross, dot)
 
-def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix=''):
+def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix='', inverse=False):
     """
     df_transform : data to rotate from GSE to GSM
     vectors : column(s) to transform in df_transform
@@ -173,6 +173,11 @@ def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', inter
     else:
         theta = df_coords.loc[df_transform.index,f'gse_to_gsm_angle{coords_suffix}'].to_numpy()
 
+    start, end = '_GSE','_GSM'
+    if inverse:
+        theta *= -1
+        start, end = '_GSM','_GSE'
+
     # Builds rotation matrix
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
@@ -195,7 +200,7 @@ def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', inter
 
         df_rot = pd.DataFrame(
             vectors_rot,
-            columns=[col.replace('_GSE','_GSM') for col in vec_cols],
+            columns=[col.replace(start,end) for col in vec_cols],
             index=dfs_rotated.index
         )
         dfs_to_concat.append(df_rot)

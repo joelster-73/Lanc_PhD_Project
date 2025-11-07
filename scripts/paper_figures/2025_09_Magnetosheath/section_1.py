@@ -46,6 +46,5 @@ plot_compare_sc_omni(df_omni, None, param, *responses, restrict=True,  data_type
 responses = ('AE_30m','AEc_30m')
 plot_compare_sc_omni(df_omni, df_sw, param, *responses, restrict=True,  data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
 
-
 responses = ('PCN_17m','AA_17m','AE_30m','AEc_30m','SME_30m')
 plot_compare_sc_omni(df_omni, df_sw, param, *responses, restrict=True,  data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)

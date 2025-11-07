@@ -262,7 +262,7 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=P
             gsm_vectors = GSE_to_GSM_with_angles(merged_df, [[f'{vec}_{comp}_GSE' for comp in ('x','y','z')] for vec in convert_cols], df_coords=fvps_df, ref='B', interp=True)
 
             for vec in convert_cols:
-                merged_df.drop(columns=[f'{vec}_x_GSE', f'{vec}_y_GSE', f'{vec}_z_GSE'],inplace=True)
+                merged_df.drop(columns=[f'{vec}_x_GSM'],inplace=True)
 
             merged_df = pd.concat([merged_df,gsm_vectors], axis=1)
             vec_coords = 'GSM'
