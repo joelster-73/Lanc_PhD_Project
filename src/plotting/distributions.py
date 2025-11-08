@@ -527,6 +527,12 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
                 med, q1, q3 = median_with_counts(ys, ys_counts, mask)
                 y_vals[i] = med
                 y_errs[0,i], y_errs[1,i] = med - q1, q3 - med
+            elif region=='max':
+                top_10 = np.percentile(ys,90)
+                mask &= ys > top_10
+                val = average_of_averages(ys, ys_unc, ys_counts, mask)
+                y_vals[i] = val.n
+                y_errs[i] = val.s
             else:
                 val = average_of_averages(ys, ys_unc, ys_counts, mask)
                 y_vals[i] = val.n

@@ -8,13 +8,14 @@ Created on Thu Aug 28 12:29:26 2025
 
 # %% Import
 import os
+import itertools as it
 
 from src.config import MSH_DIR, OMNI_DIR
 from src.processing.reading import import_processed_data
 
 from src.methods.magnetosheath_saturation.plotting import plot_compare_responses
 
-sample_interval = '1min'
+sample_interval = '5min'
 data_pop = 'with_plasma'
 
 # Solar wind data
@@ -41,23 +42,29 @@ param_names  = {'E_y_GSM': 'E_y',
                 'SME_30m': 'SME'}
 
 
-# %% Response
+# %% Test
 
 
 plot_compare_responses(df_omni, df_msh, 'E_y_GSM', 'AA_17m', restrict=True, data1_name=param_names.get('E_y_GSM','E_y_GSM'), data2_name=param_names.get('AA_17m','AA_17m'), data_type=data_type, compare_sw_msh=True)
 
 plot_compare_responses(df_omni, df_msh, 'E_y_GSM', 'AA_17m', restrict=True, data1_name=param_names.get('E_y_GSM','E_y_GSM'), data2_name=param_names.get('AA_17m','AA_17m'), data_type=data_type, compare_sw_msh=True)
 
+# %% Pulkkinen
 
-# Add in the Poynting Flux
-# Extend to full range (so \pm Bz and Ey)
+params = ('E_mag', 'E_y_GSM', 'E_R', 'V_flow', 'N_tot', 'B_avg', 'B_z_GSM', 'S_x_GSM')
+params = ('E_y_GSM', 'E_R', 'B_z_GSM', 'V_flow')
+responses = ('PCN_17m', 'AA_17m', 'AE_30m', 'AEc_30m', 'SME_30m')
+regions = ('sem', 'med', 'max')
+msh_maps = ({}, {'E_y_GSM': 'E_parallel', 'S_x_GSM': 'S_perp'})
 
-for response in ('PCN_17m','AA_17m','AE_30m','SME_30m'):
-    for param in ('N_tot','E_mag','E_y_GSM','V_flow','B_avg','B_z_GSM'):
-        for msh_map in ({},{'E_y_GSM': 'E_parallel'}):
-            if msh_map and param not in msh_map:
-                continue
-            plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map)
-            plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map, restrict=False)
-            plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map, display='scatter')
+for param, response, region, msh_map in it.product(params, responses, regions, msh_maps):
+    if msh_map and param not in msh_map:
+        continue
+    min_count = 50 if region=='max' else 40
+    plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=min_count, compare_sw_msh=True, msh_map=msh_map, region=region)
+
+
+
+            # plot_compare_responses(df_omni, df_msh, param, response, restrict=False, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map)
+            # plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), min_count=40, compare_sw_msh=True, msh_map=msh_map, display='scatter')
 

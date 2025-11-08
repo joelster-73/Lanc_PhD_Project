@@ -157,11 +157,11 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
             limits[0] = -150
 
     elif 'S_' in ind_var:
-        bin_step, limits[0] = 10, 0
+        bin_step, limits[1] = 10, 0
         if restrict:
-            bin_step, limits[1] = 5, 100
+            bin_step, limits[0] = 5, -100
             if ind_src=='msh':
-                bin_step, limits[1] = 20, 600
+                bin_step, limits[0] = 20, -600
 
     elif 'M_A' in ind_var:
         bin_step, limits[0] = 5, 0
@@ -513,7 +513,8 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
 
     kwargs['min_count'] = min_count
     kwargs['display']   = kwargs.get('display','rolling')
-    kwargs['region']    = 'sem'
+    if kwargs['display']=='rolling':
+        kwargs['region'] = kwargs.get('region','sem')
 
     dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
 
@@ -621,12 +622,13 @@ def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_col
             _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
             ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_step), color=blue)
 
+    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
     axs[0][1].set_ylabel(None)
     axs[1][0].set_ylabel(data_type.capitalize())
 
 
     plt.tight_layout()
-    save_figure(fig, file_name=f'{dep_var}_vs_{ind_var}_sw_msh')
+    save_figure(fig, file_name=f'{dep_var}_vs_{ind_var}_sw_msh_{kwargs.get("region","scatter")}')
     plt.show()
     plt.close()
 

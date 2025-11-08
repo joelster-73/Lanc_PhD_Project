@@ -227,9 +227,11 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
             df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
 
         ###----------EXTRA PARAMETERS----------###
+
         # Correction to time lag based on spacecraft position in solar wind
-        add_dynamic_index_lag(df_merged, omni_key='sw', sc_key=sc, indices=lagged_indices)
-        plot_freq_hist(df_merged[f'prop_time_s_{sc}'], bin_width=60, data_name=f'Lag ({sc} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
+        add_dynamic_index_lag(df_merged, omni_key='sw', sc_key=sc, pc_key='pc', region=region, indices=lagged_indices)
+
+        plot_freq_hist(df_merged[f'prop_time_s_{sc}'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
 
         if region=='sw':
             df_merged.loc[df_merged[f'beta_{sc}']>1000,f'beta_{sc}'] = np.nan
@@ -252,6 +254,8 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
             df_merged[f'Delta B_z_{sc}'] = df_merged[f'B_z_GSM_{sc}']/df_merged['B_z_GSM_sw'] - 1
             df_merged[f'Delta B_z_{sc}'] = df_merged[f'Delta B_z_{sc}'].replace([np.inf, -np.inf], np.nan)
             df_merged.loc[np.abs(df_merged[f'Delta B_z_{sc}'])>1000,f'Delta B_z_{sc}'] = np.nan
+
+        ###----------WRITING----------###
 
         # Add to combined
         df_merged.dropna(how='all',inplace=True)
