@@ -51,6 +51,10 @@ plot_compare_responses(df_omni, df_msh, 'E_y_GSM', 'AA_17m', restrict=True, data
 
 # %% Pulkkinen
 
+# Need to try and reduce the error in each bin - look at scatters (with sw and msh), too much variance
+# Likely down to fixed 17-minute lag time of BS to PC
+
+
 params = ('E_mag', 'E_y_GSM', 'E_R', 'V_flow', 'N_tot', 'B_avg', 'B_z_GSM', 'S_x_GSM')
 params = ('E_y_GSM', 'E_R', 'B_z_GSM', 'V_flow')
 responses = ('PCN_17m', 'AA_17m', 'AE_30m', 'AEc_30m', 'SME_30m')

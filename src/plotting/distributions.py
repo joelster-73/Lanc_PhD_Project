@@ -528,11 +528,12 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
                 y_vals[i] = med
                 y_errs[0,i], y_errs[1,i] = med - q1, q3 - med
             elif region=='max':
-                top_10 = np.percentile(ys,90)
-                mask &= ys > top_10
-                val = average_of_averages(ys, ys_unc, ys_counts, mask)
-                y_vals[i] = val.n
-                y_errs[i] = val.s
+                mask &= ys >= np.percentile(ys,90)
+                if np.sum(mask)>=min_count//10:
+                    val = average_of_averages(ys, ys_unc, ys_counts, mask)
+                    if not isinstance(val,float):
+                        y_vals[i] = val.n
+                        y_errs[i] = val.s
             else:
                 val = average_of_averages(ys, ys_unc, ys_counts, mask)
                 y_vals[i] = val.n
