@@ -498,8 +498,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     if y_unit in ('rad','deg'):
         y_unit = '°'
 
-    while window_step>(window_width/10):
-        window_step /= 2
+    window_step = min(window_step, window_width / 10)
 
     if fig is None or ax is None:
         fig, ax = plt.subplots()
@@ -519,21 +518,38 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
         y_errs = np.zeros(len(x_centres))
     counts     = np.zeros(len(x_centres))
 
+    max_expansions = 10
+
     for i, x_c in enumerate(x_centres):
 
-        mask = (xs >= x_c-window_width/2) & (xs <= x_c+window_width/2)
+        w = window_width
+        expansions = 0
+
+        mask = (xs >= x_c-w/2) & (xs <= x_c+w/2)
+
+        while np.sum(mask) < min_count and expansions < max_expansions:
+            w += window_step
+            expansions += 1
+            mask = (xs >= x_c-w/2) & (xs <= x_c+w/2)
+
         if np.sum(mask)>=min_count:
             if region=='med':
                 med, q1, q3 = median_with_counts(ys, ys_counts, mask)
                 y_vals[i] = med
                 y_errs[0,i], y_errs[1,i] = med - q1, q3 - med
-            elif region=='max':
-                mask &= ys >= np.percentile(ys,90)
+
+            elif region in ('max','min'):
+                if region=='max':
+                    mask &= ys >= np.percentile(ys,90)
+                elif region=='min':
+                    mask &= ys <= np.percentile(ys,10)
+
                 if np.sum(mask)>=min_count//10:
                     val = average_of_averages(ys, ys_unc, ys_counts, mask)
                     if not isinstance(val,float):
                         y_vals[i] = val.n
                         y_errs[i] = val.s
+
             else:
                 val = average_of_averages(ys, ys_unc, ys_counts, mask)
                 y_vals[i] = val.n
@@ -543,6 +559,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
                     y_errs[i] = std_of_averages(ys, ys_unc, ys_counts, mask)
                 else:
                     y_errs[i] = 0
+
             counts[i] = np.sum(mask)
 
     not_nan = ~np.isnan(y_vals)

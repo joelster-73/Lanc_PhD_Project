@@ -113,6 +113,7 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
             df_sc = import_processed_data(sc_dir)
 
         elif sc in cluster:
+
             intervals = cluster_region_intervals(CROSSINGS_DIR, region)
 
             sc_dir = cluster_directories[data_pop]
@@ -186,10 +187,11 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
 
         elif region=='sw':
 
-            mask |= (interval_index.get_indexer(df_merged.index) != -1)
-            mask |= (df_merged['r_F']>1)
-            mask |= (df_merged[f'r_mag_{sc}']<35)
-            # Last condition for spacecraft such as THEMIS-ARTMEIS
+            # Second condition is to prevent incorrect boundaries
+            mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>1))
+
+            mask |= (df_merged['r_F']>2)
+            mask &= (df_merged[f'r_mag_{sc}']<35) # ARTEMIS
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix

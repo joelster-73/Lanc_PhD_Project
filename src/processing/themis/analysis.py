@@ -198,7 +198,7 @@ def determine_bs_direction(bs_boundaries, df_sc, df_resolution, bs_params):
 
 # %% Determine_direction
 
-def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with_plasma', resolution='5min'):
+def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with_plasma', resolution='5min', max_gap=None):
 
     """
     Resolution is the data point before and after the boundary used to determine the conditinos
@@ -229,8 +229,10 @@ def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with
         else:
             bound_params = {'B_avg': 'inc', 'N_tot': 'dec'}
 
-
         directions = determine_mp_direction(sc_boundaries, df_sc, resolution, bound_params)
+
+        if max_gap is None:
+            max_gap = pd.Timedelta('20h')
 
     elif region=='sw':
         boundaries = obtain_bs_boundaries(themis_dir)
@@ -245,13 +247,25 @@ def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with
 
         directions = determine_bs_direction(sc_boundaries, df_sc, resolution, bound_params)
 
+        if max_gap is None:
+            max_gap = pd.Timedelta('40h')
+
+    # Want to be outbound from BS for sw or MP for MSH
+    outbound = -1
 
     sc_df = pd.DataFrame(list(directions.items()), columns=['time','direction'])
     sc_df.set_index('time',inplace=True)
+    sc_df.sort_index(inplace=True)
 
     # Want outbound times (i.e. crossing MP into MSH or BS into SW)
-    starts = sc_df.index[(sc_df['direction'] == -1) & (sc_df['direction'].shift(1) != -1)]  # previous direction != -1
-    ends   = sc_df.index[(sc_df['direction'] == -1) & (sc_df['direction'].shift(-1) != -1)] # next direction != -1
-    intervals = list(zip(starts, ends))
+    starts = sc_df.index[(sc_df['direction'] == outbound) & (sc_df['direction'].shift(-1) == -outbound)]  # next direction is opposite
+    valid = sc_df.index.get_indexer(starts) + 1
+    valid = valid[valid < len(sc_df)]  # avoid IndexError
+    ends = sc_df.index[valid]
 
-    return intervals
+    # align start and end
+    intervals = pd.DataFrame({'start': starts.values, 'end': ends.values})
+    intervals = intervals.dropna()
+    intervals = intervals[(intervals['end'] - intervals['start']) <= max_gap]
+
+    return list(intervals.itertuples(index=False, name=None))

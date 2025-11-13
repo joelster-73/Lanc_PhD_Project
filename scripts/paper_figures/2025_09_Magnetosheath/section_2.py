@@ -12,7 +12,6 @@ import os
 from src.config import SW_DIR, MSH_DIR
 from src.methods.magnetosheath_saturation.plot_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
 
-# %% SW_and_MSH
 sample_interval = '1min'
 data_pop = 'with_plasma'
 
@@ -26,6 +25,8 @@ msh_dir = os.path.join(MSH_DIR, data_pop, sample_interval)
 
 sw_keys = ('c1','m1','thb')
 msh_keys = ('c1','m1','the')
+
+# %% Plots
 
 # Solar Wind
 plot_sc_years(sw_dir, sc_keys=sw_keys, combined=False, data_type=data_type, region='sw')

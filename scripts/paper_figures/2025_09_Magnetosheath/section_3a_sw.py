@@ -4,7 +4,7 @@ Created on Thu Aug 28 12:29:26 2025
 
 @author: richarj2
 """
-
+# Plotting simple sw vs pc response
 
 # %% Import
 import os
@@ -13,7 +13,7 @@ from src.config import SW_DIR, OMNI_DIR
 from src.processing.reading import import_processed_data
 from src.methods.magnetosheath_saturation.plotting import plot_compare_sc_omni
 
-sample_interval = '1min'
+sample_interval = '5min'
 data_pop = 'with_plasma'
 
 omni_dir = os.path.join(OMNI_DIR, 'with_lag')
@@ -33,13 +33,16 @@ param_names  = {'E_y_GSM': 'E_y',
                 'AA_17m' : 'AA',
                 'SME_53m': 'SME'}
 
-param     = 'E_y_GSM'
-
 if sample_interval=='1min':
     data_type = 'mins'
 else:
     data_type = 'counts'
 
-# %% Plots
-responses = ('PCN_17m','AA_17m','AE_53m','SME_53m')
-plot_compare_sc_omni(df_omni, None, param, *responses, restrict=True,  data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
+
+ # %% Grid
+responses = ('PCN_17m','AA_17m','SME_53m','AE_53m')
+
+for param in ('E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','B_clock'):
+    if param!='B_clock':
+        continue
+    plot_compare_sc_omni(df_omni, df_sw, param, *responses, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)

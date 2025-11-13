@@ -10,7 +10,7 @@ import pandas as pd
 
 # %% Region_intervals
 
-def mms_region_intervals(mms_dir, region='sw'):
+def mms_region_intervals(mms_dir, region='sw', max_gap=pd.Timedelta('30h')):
 
     if region=='msh':
         direction = 1 # inbound from BS
@@ -22,12 +22,18 @@ def mms_region_intervals(mms_dir, region='sw'):
     crossings = pd.read_csv(file_path, skiprows=53)
     crossings = crossings[['#time','direction']]
     crossings['time'] = pd.to_datetime(crossings['#time'],unit='s')
+
     crossings.set_index('time',inplace=True)
+    crossings.sort_index(inplace=True)
     crossings.drop(columns='#time',inplace=True)
 
-    starts = crossings.index[(crossings['direction'] == direction) & (crossings['direction'].shift(1) != direction)]  # previous direction != 1
-    ends   = crossings.index[(crossings['direction'] == direction) & (crossings['direction'].shift(-1) != direction)] # next direction != 1
-    m1_intervals = list(zip(starts, ends))
+    starts = crossings.index[(crossings['direction'] == direction) & (crossings['direction'].shift(-1) == -direction)]  # next direction is opposite
+    valid = crossings.index.get_indexer(starts) + 1
+    valid = valid[valid < len(crossings)]  # avoid IndexError
+    ends = crossings.index[valid]
 
+    intervals = pd.DataFrame({'start': starts.values, 'end': ends.values})
+    intervals = intervals.dropna()
+    intervals = intervals[(intervals['end'] - intervals['start']) <= max_gap]
 
-    return m1_intervals
+    return list(intervals.itertuples(index=False, name=None))

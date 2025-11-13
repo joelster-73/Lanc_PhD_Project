@@ -20,8 +20,8 @@ process_cluster_files(LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_5VPS, CLUSTER_VARIABLES_
 
 # %% Average_FGM
 
-resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval='1min', yearly_files=True)
-resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval='5min', yearly_files=True)
+for sample in ('1min','5min','10min','30min'):
+    resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval=sample, yearly_files=True)
 
 # %% Process_spin
 import warnings
@@ -39,16 +39,19 @@ combine_spin_data(PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_FGM)
 filter_spin_data(PROC_CLUS_DIR_SPIN, region='msh')
 
 raw_dir = os.path.join(PROC_CLUS_DIR_MSH,'raw')
-resample_cdf_files(raw_dir, sample_interval='1min', yearly_files=True)
-resample_cdf_files(raw_dir, sample_interval='5min', yearly_files=True)
+
+for sample in ('1min','5min','10min','30min'):
+    resample_cdf_files(raw_dir, sample_interval=sample, yearly_files=True)
+
 
 # %% SW_data
 
 filter_spin_data(PROC_CLUS_DIR_SPIN, region='sw')
 
 raw_dir = os.path.join(PROC_CLUS_DIR_SW,'raw')
-resample_cdf_files(raw_dir, sample_interval='1min', yearly_files=True)
-resample_cdf_files(raw_dir, sample_interval='5min', yearly_files=True)
+
+for sample in ('1min','5min','10min','30min'):
+    resample_cdf_files(raw_dir, sample_interval=sample, yearly_files=True)
 
 # %%
 import os

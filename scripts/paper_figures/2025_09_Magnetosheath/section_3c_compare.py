@@ -4,7 +4,7 @@ Created on Thu Aug 28 12:29:26 2025
 
 @author: richarj2
 """
-
+# Plotting why this occurs (so saturation overview with grouping)
 
 # %% Import
 import os
@@ -35,11 +35,12 @@ param_names  = {'E_y_GSM': 'E_y',
                 'V_flow' : 'V',
                 'B_z_GSM': 'B_z',
                 'N_tot'  : 'N',
-                'AE_30m' : 'AE',
-                'AEc_30m': 'AEc',
+                'AE_53m' : 'AE',
+                'AEc_53m': 'AEc',
                 'PCN_17m': 'PCN',
                 'AA_17m' : 'AA',
-                'SME_30m': 'SME'}
+                'SME_53m': 'SME'}
+
 
 
 # %% Test
@@ -55,11 +56,16 @@ plot_compare_responses(df_omni, df_msh, 'E_y_GSM', 'AA_17m', restrict=True, data
 # Likely down to fixed 17-minute lag time of BS to PC
 
 
+responses = ('PCN_17m', 'AA_17m', 'AE_53m', 'AEc_53m', 'SME_53m')
+
 params = ('E_mag', 'E_y_GSM', 'E_R', 'V_flow', 'N_tot', 'B_avg', 'B_z_GSM', 'S_x_GSM')
-params = ('E_y_GSM', 'E_R', 'B_z_GSM', 'V_flow')
-responses = ('PCN_17m', 'AA_17m', 'AE_30m', 'AEc_30m', 'SME_30m')
 regions = ('sem', 'med', 'max')
 msh_maps = ({}, {'E_y_GSM': 'E_parallel', 'S_x_GSM': 'S_perp'})
+
+
+params = ('E_y_GSM', 'E_R', 'B_z_GSM', 'V_flow')
+regions = ('sem',)
+msh_maps = ({},)
 
 for param, response, region, msh_map in it.product(params, responses, regions, msh_maps):
     if msh_map and param not in msh_map:

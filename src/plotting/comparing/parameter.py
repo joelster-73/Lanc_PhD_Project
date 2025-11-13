@@ -212,7 +212,11 @@ def compare_series(series1, series2, **kwargs):
     if unit1 == 'rad':
 
         ax.xaxis.set_major_formatter(FuncFormatter(rad2deg))
-        ax.set_xticks(np.linspace(-np.pi, np.pi, 9))  # every 45°
+
+        step = np.pi/4  # every 45°
+        min_tick = np.floor(series1.min()/step)*step
+        max_tick = np.ceil(series1.max()/step)*step + step
+        ax.set_xticks(np.arange(min_tick, max_tick, step))
 
         unit1 = '°'
 
@@ -222,7 +226,7 @@ def compare_series(series1, series2, **kwargs):
 
         step = np.pi/4
         min_tick = np.floor(series2.min()/step)*step
-        max_tick = np.ceil(series2.max()/step)*step
+        max_tick = np.ceil(series2.max()/step)*step + step
         ax.set_yticks(np.arange(min_tick, max_tick, step))
 
         unit2 = '°'
