@@ -19,7 +19,7 @@ from matplotlib.markers import MarkerStyle
 from collections import Counter
 
 from ..config import black, blue, scatter_markers, colour_dict, database_colour_dict
-from ..formatting import add_legend, add_figure_title, create_label, data_string
+from ..formatting import add_legend, add_figure_title, create_label, data_string, standard_angle_ticks
 from ..utils import save_figure, calculate_bins, change_series_name
 from ..distributions import plot_fit, plot_rolling_window
 
@@ -211,24 +211,12 @@ def compare_series(series1, series2, **kwargs):
 
     if unit1 == 'rad':
 
-        ax.xaxis.set_major_formatter(FuncFormatter(rad2deg))
-
-        step = np.pi/4  # every 45°
-        min_tick = np.floor(series1.min()/step)*step
-        max_tick = np.ceil(series1.max()/step)*step + step
-        ax.set_xticks(np.arange(min_tick, max_tick, step))
-
+        standard_angle_ticks(ax, series1, 'x', np.pi/4)
         unit1 = '°'
 
     if unit2 == 'rad':
 
-        ax.yaxis.set_major_formatter(FuncFormatter(rad2deg))
-
-        step = np.pi/4
-        min_tick = np.floor(series2.min()/step)*step
-        max_tick = np.ceil(series2.max()/step)*step + step
-        ax.set_yticks(np.arange(min_tick, max_tick, step))
-
+        standard_angle_ticks(ax, series2, 'y', np.pi/4)
         unit2 = '°'
 
     data1_label = create_label(series1.name, unit=unit1, data_name=data1_name, name_latex=name1_latex)

@@ -42,7 +42,11 @@ else:
 
  # %% Grid
 responses = ('PCN_17m','AA_17m','SME_53m','AE_53m')
-params    = ('E_R','E_y_GSM','B_z_GSM','V_x_GSM','N_tot','B_clock')
+params    = ('E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','B_clock')
+
 
 for param, response in it.product(params, responses):
-    plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data_name_map=param_names)
+    if param!='B_clock':
+        continue
+    plot_compare_responses(df_omni, df_msh, param, response, restrict=True, shift_centre=False, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), data_name_map=param_names)
+    break

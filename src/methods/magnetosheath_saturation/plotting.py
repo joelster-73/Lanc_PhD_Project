@@ -15,7 +15,7 @@ from .plotting_utils import minimum_counts, def_param_names, ind_variable_range,
 
 from ...plotting.space_time import plot_orbit_msh
 from ...plotting.utils import save_figure, calculate_bins
-from ...plotting.formatting import create_label, add_legend
+from ...plotting.formatting import create_label, add_legend, shifted_angle_ticks
 from ...plotting.comparing.parameter import compare_columns
 from ...plotting.config import black, blue, grey, pink
 #from ...plotting.distributions import plot_fit
@@ -227,138 +227,6 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
 # %% Compare_sw_msh_response
 
-def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, data_type='counts', min_count=50, show_contemp=True, compare_sw_msh=False, compare_colour='purple', **kwargs):
-    """
-    Pulkkinen comparisons
-
-    Plots sw vs pc and msh vs pc and, if flagged, sw vs msh
-    """
-
-    msh_map = kwargs.get('msh_map',{})
-
-    if data_type=='mins':
-        min_count = 100
-
-    kwargs['min_count'] = min_count
-    kwargs['display']   = kwargs.get('display','rolling')
-    if kwargs['display']=='rolling':
-        kwargs['region'] = kwargs.get('region','sem')
-
-    dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
-
-    ###----------PLOT GRIDS----------###
-
-    n_cols = 2 + int(compare_sw_msh)
-    fig, axs = plt.subplots(2, n_cols, figsize=(8*n_cols, 10), dpi=200, height_ratios=[3,2])
-
-    # [row] [col]
-    axs[0][0].sharex(axs[1][0])
-    axs[0][1].sharex(axs[1][1])
-    axs[0][0].sharey(axs[0][1])
-
-    if compare_sw_msh:
-        axs[0][2].sharex(axs[1][2])
-
-    enumerator = zip((df_sw, df_msh), ('sw', 'msh'), (dep_var, dep_param), (sw_colour, msh_colour))
-    if compare_sw_msh:
-        enumerator = zip((df_sw, df_msh, df_msh), ('sw', 'msh', 'sw'), (dep_var, dep_param, ind_var), (sw_colour, msh_colour, compare_colour))
-
-    for i, (df, source, dep, colour), in enumerate(enumerator):
-
-        ax0 = axs[0][i]
-        ax1 = axs[1][i]
-
-        independent = ind_var
-        if source=='msh':
-            independent = msh_map.get(ind_var,ind_var)
-
-        ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, independent, source)
-        bin_width, limits, invert = ind_variable_range(ind_var, source, dep_var=dep, restrict=restrict)
-        if i==2:
-            variable = msh_map.get(dep,dep)
-            dep_param, dep_param_err, _, dep_param_count = def_param_names(df_msh, variable, 'msh')
-            dep = dep_param
-
-        if source=='sw' and i!=2:
-            ind = ind_var
-            ind_err = None
-            ind_count = ind_var_count
-        else:
-            ind = ind_param
-            ind_err = ind_param_err
-            ind_count = ind_param_count
-
-         # Overwrites with those passed in
-        if bounds is not None:
-            limits = bounds
-
-        mask = ~df[[ind, dep]].isna().any(axis=1)
-
-        if limits[0] is not None:
-            mask &= df[ind] >= limits[0]
-        if limits[-1] is not None:
-            mask &= df[ind] <= limits[1]
-
-        df_masked = df.loc[mask]
-
-        kwargs['window_width'] = bin_width
-        kwargs['data_colour']  = colour
-        kwargs['error_colour'] = colour
-
-        kwargs_source = kwargs.copy()
-        if source=='msh':
-            if ind_var in msh_map:
-                kwargs_source['data1_name'] = independent
-
-        if i==2:
-            ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
-            ax0.grid(ls=':', c=grey, lw=0.5)
-            if ind_var in msh_map:
-                independent = msh_map.get(ind_var,ind_var)
-                kwargs_source['data1_name'] = independent
-            kwargs_source['data2_name'] = create_label(f'{kwargs_source["data1_name"]}_msh')
-            kwargs_source['data1_name'] = kwargs['data1_name']
-
-        kwargs_source['data1_name'] = create_label(f'{kwargs_source["data1_name"]}_{source}')
-
-        if kwargs['display']=='scatter':
-            ind_err       = None
-            dep_param_err = None
-
-        _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
-
-        # Counts
-        ax1.axhline(min_count, c='k', ls='-')
-        ax1.axhline(min_count, c='w', ls=':')
-        ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_width), color=colour)
-        ax1.set_yscale('log')
-
-        if invert:
-            ax0.invert_xaxis()
-            if i==2:
-                ax0.invert_yaxis()
-
-        if source=='sw' and show_contemp and i!=2:
-
-            mask &= df.index.isin(df_msh.index)
-
-            df_masked = df.loc[mask]
-
-            kwargs_source['data_colour']  = blue
-            kwargs_source['error_colour'] = blue
-
-            _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
-            ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_width), color=blue)
-
-    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
-    axs[0][1].set_ylabel(None)
-    axs[1][0].set_ylabel(data_type.capitalize())
-
-
-    plt.tight_layout()
-    save_figure(fig, file_name=f'{dep_var}_vs_{ind_var}_sw_msh_{kwargs.get("region","scatter")}', sub_directory='Pulkkinen')
-    plt.show()
-    plt.close()
 
 # %% Lags
 def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', df_type='omni', bounds=None, restrict=True, data_type='counts', min_count=50, **kwargs):
@@ -472,6 +340,11 @@ def plot_grouping_cause(df_merged, ind_var, dep_var, ind_src='sw', dep_src='msh'
 
 def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', min_count=None, **kwargs):
 
+    """
+    Look at OMNI and in-situ data in driver-response
+    So dependent variable is a PC index
+    """
+
     if min_count is None:
         min_count = minimum_counts[data_type]
 
@@ -486,6 +359,8 @@ def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_
 
     if ind_var=='B_clock':
         shift_centre = True and shift_centre
+    else:
+        shift_centre = False
 
     ###----------PLOT GRIDS----------###
 
@@ -564,19 +439,8 @@ def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_
             ax1.set_ylabel(data_type.capitalize())
 
         if shift_centre:
-            xticks = ax1.get_xticks()
-
-            new_labels = []
-            for tick in xticks:
-                tick = int(np.rad2deg(tick))
-                if tick == 180:
-                    new_labels.append('±180')
-                elif tick > 180:
-                    new_labels.append(tick - 360)
-                else:
-                    new_labels.append(tick)
-
-            ax1.set_xticks(xticks, new_labels)
+            ax0.axvline(x=np.pi, c=grey, ls=':')
+            shifted_angle_ticks(ax1, 'x')
 
     if invert:
         ax0.invert_xaxis()
@@ -584,5 +448,166 @@ def plot_compare_sc_omni(df_omni, df_sc, ind_var, *dep_vars, dep_src='pc', omni_
 
     plt.tight_layout()
     save_figure(fig, sub_directory='Indices')
+    plt.show()
+    plt.close()
+
+
+def plot_compare_responses(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', min_count=50, show_contemp=True, compare_sw_msh=True, compare_colour='purple', **kwargs):
+    """
+    Pulkkinen comparisons
+
+    Plots sw vs pc and msh vs pc and, if flagged, sw vs msh
+    """
+
+    msh_map = kwargs.get('msh_map',{})
+
+    if data_type=='mins':
+        min_count = 100
+
+    kwargs['min_count'] = min_count
+    kwargs['display']   = kwargs.get('display','rolling')
+    if kwargs['display']=='rolling':
+        kwargs['region'] = kwargs.get('region','sem')
+
+    if ind_var=='B_clock':
+        shift_centre = True and shift_centre
+    else:
+        shift_centre = False
+
+    dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
+
+    ###----------PLOT GRIDS----------###
+
+    n_cols = 2 + int(compare_sw_msh)
+    fig, axs = plt.subplots(2, n_cols, figsize=(8*n_cols, 10), dpi=200, height_ratios=[3,2])
+
+    # [row] [col]
+    axs[0][0].sharex(axs[1][0])
+    axs[0][1].sharex(axs[1][1])
+    axs[0][0].sharey(axs[0][1])
+
+    if compare_sw_msh:
+        axs[0][2].sharex(axs[1][2])
+
+    enumerator = zip((df_sw, df_msh), ('sw', 'msh'), (dep_var, dep_param), (sw_colour, msh_colour))
+    if compare_sw_msh:
+        enumerator = zip((df_sw, df_msh, df_msh), ('sw', 'msh', 'sw'), (dep_var, dep_param, ind_var), (sw_colour, msh_colour, compare_colour))
+
+    for i, (df, source, dep, colour), in enumerate(enumerator):
+
+        ax0 = axs[0][i]
+        ax1 = axs[1][i]
+
+        independent = ind_var
+        if source=='msh':
+            independent = msh_map.get(ind_var,ind_var)
+
+        ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, independent, source)
+        bin_width, limits, invert = ind_variable_range(ind_var, source, dep_var=dep, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+
+        if i==2:
+            variable = msh_map.get(dep,dep)
+            dep_param, dep_param_err, _, dep_param_count = def_param_names(df_msh, variable, 'msh')
+            dep = dep_param
+
+        if source=='sw' and i!=2:
+            ind = ind_var
+            ind_err = None
+            ind_count = ind_var_count
+        else:
+            ind = ind_param
+            ind_err = ind_param_err
+            ind_count = ind_param_count
+
+        # Shift angular data to centre lies at +-180 rather than 0
+        if shift_centre:
+
+            df = df.copy()
+            shifting = (ind,)
+            if i==2:
+                shifting = (ind,dep)
+
+            for to_shift in shifting:
+                shift_unit = df.attrs.get('units',{}).get(to_shift,'')
+                if shift_unit == 'rad':
+                    df[to_shift] = (df[to_shift] + 2*np.pi) % (2*np.pi)
+                elif shift_unit in ('deg','°'):
+                    df[to_shift] = (df[to_shift] + 360) % 360
+
+        mask = ~df[[ind, dep]].isna().any(axis=1)
+
+        if limits[0] is not None:
+            mask &= df[ind] >= limits[0]
+        if limits[-1] is not None:
+            mask &= df[ind] <= limits[1]
+
+        df_masked = df.loc[mask]
+
+        kwargs['window_width'] = bin_width
+        kwargs['data_colour']  = colour
+        kwargs['error_colour'] = colour
+
+        kwargs_source = kwargs.copy()
+        if source=='msh':
+            if ind_var in msh_map:
+                kwargs_source['data1_name'] = independent
+
+        if i==2:
+            ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
+
+            ax0.grid(ls=':', c=grey, lw=0.5)
+            if ind_var in msh_map:
+                independent = msh_map.get(ind_var,ind_var)
+                kwargs_source['data1_name'] = independent
+
+            kwargs_source['data2_name'] = create_label(f'{kwargs_source["data1_name"]}_msh')
+            kwargs_source['data1_name'] = kwargs['data1_name']
+
+        kwargs_source['data1_name'] = create_label(f'{kwargs_source["data1_name"]}_{source}')
+
+        if kwargs['display']=='scatter':
+            ind_err       = None
+            dep_param_err = None
+
+        _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
+
+        # Counts
+        ax1.axhline(min_count, c='k', ls='-')
+        ax1.axhline(min_count, c='w', ls=':')
+        ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_width), color=colour)
+        ax1.set_yscale('log')
+
+        if source=='sw' and show_contemp and i!=2:
+
+            mask &= df.index.isin(df_msh.index)
+
+            df_masked = df.loc[mask]
+
+            kwargs_source['data_colour']  = blue
+            kwargs_source['error_colour'] = blue
+
+            _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax0, return_objs=True, **kwargs_source)
+
+            ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_width), color=blue)
+
+        if shift_centre:
+            ax0.axvline(x=np.pi, c=grey, ls=':')
+            shifted_angle_ticks(ax1, 'x')
+
+            if i==2:
+                shifted_angle_ticks(ax0, 'y')
+
+        if invert:
+            ax0.invert_xaxis()
+            if i==2:
+                ax0.invert_yaxis()
+
+    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
+    axs[0][1].set_ylabel(None)
+    axs[1][0].set_ylabel(data_type.capitalize())
+
+
+    plt.tight_layout()
+    save_figure(fig, file_name=f'{dep_var}_vs_{ind_var}_sw_msh_{kwargs.get("region","scatter")}', sub_directory='Pulkkinen')
     plt.show()
     plt.close()

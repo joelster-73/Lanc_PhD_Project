@@ -6,7 +6,11 @@ Created on Fri May 16 11:24:05 2025
 """
 
 import re
+import numpy as np
+
 import matplotlib.dates as mdates
+from matplotlib.ticker import FuncFormatter
+
 from .config import black, white
 
 
@@ -138,6 +142,14 @@ def create_label(column, unit=None, data_name=None, name_latex=False, units=None
     if unit is not None:
         if unit == 'Re':
             label += r' [$\mathrm{R_E}$]'
+        elif unit == 'deg':
+            label += r' [°]'
+        elif unit == 'n/cc':
+            label += r' [$\mathrm{cm^{-3}}$]'
+        elif unit == 'mV/m':
+            label += r' [$\mathrm{mV\,m^{-1}}$]'
+        elif unit == 'uW/m2':
+            label += r' [$\mathrm{\mu W\,m^{-2}}$]'
         elif unit not in ('','1','STRING','LIST','NUM'):
             label += f' [{unit}]'
 
@@ -173,3 +185,43 @@ def custom_date_formatter(x, pos):
         #return timestamp.strftime('%H:%M\n%Y-%m-%d')
     return timestamp.strftime('%H:%M')
 
+
+def standard_angle_ticks(ax, series, axis='x', step=np.pi/4):
+
+    #default step is every 45°
+
+    def rad2deg(x, pos):
+            return f'{np.degrees(x):.0f}'
+
+    min_tick = np.floor(series.min()/step)*step
+    max_tick = np.ceil(series.max()/step)*step + step
+
+    if axis=='x':
+        ax.xaxis.set_major_formatter(FuncFormatter(rad2deg))
+        ax.set_xticks(np.arange(min_tick, max_tick, step))
+    elif axis=='y':
+        ax.yaxis.set_major_formatter(FuncFormatter(rad2deg))
+        ax.set_yticks(np.arange(min_tick, max_tick, step))
+
+
+def shifted_angle_ticks(ax, axis='x'):
+
+    if axis=='x':
+        ax_ticks = ax.get_xticks()
+    elif axis=='y':
+        ax_ticks = ax.get_yticks()
+
+    new_labels = []
+    for tick in ax_ticks:
+        tick = int(np.rad2deg(tick))
+        if tick == 180:
+            new_labels.append('±180')
+        elif tick > 180:
+            new_labels.append(tick - 360)
+        else:
+            new_labels.append(tick)
+
+    if axis=='x':
+        ax.set_xticks(ax_ticks, new_labels)
+    elif axis=='y':
+        ax.set_yticks(ax_ticks, new_labels)

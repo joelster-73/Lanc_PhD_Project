@@ -68,6 +68,7 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
             bin_width, limits[1] = 1, 80
 
     elif ind_var=='B_clock':
+        invert = True
         # Ensures 180 degrees is in the centre
         bin_width = np.pi/18
         if shift_centre:
@@ -82,13 +83,13 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
 
     elif 'B_' in ind_var:
         invert = True
-        bin_width, limits[1] = 2, 0
+        bin_width, limits[1] = 5, 0
         if restrict:
-            bin_width = 1
+            bin_width = 4
             if ind_src=='msh':
                 limits[0] = -80
             elif ind_var==dep_var:
-                limits[0] = -20
+                bin_width, limits[0] = 2, -20
             else:
                 limits[0] = -40
 
@@ -124,15 +125,15 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
                 limits[1] = 20
 
     elif 'N_' in ind_var:
-        bin_width, limits[0] = 5, 0
+        bin_width, limits[0] = 10, 0
         if restrict:
-            bin_width = 4
+            bin_width = 5
             if ind_src=='msh':
                 limits[1] = 100
             elif ind_var==dep_var:
                 limits[1] = 40
             else:
-                limits[1] = 60
+                limits[1] = 50
 
     elif ind_var=='S_perp':
         invert = True

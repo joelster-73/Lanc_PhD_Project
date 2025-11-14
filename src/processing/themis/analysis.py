@@ -38,6 +38,9 @@ def obtain_mp_boundaries(themis_dir, mp_file='Grimmich_2023_MP_Crossings.txt', r
         crossings.index = crossings.index.tz_localize(None)
         crossings.drop(columns='Timestamp',inplace=True)
 
+        # Paper suggests only using crossings with >0.75 probability
+        crossings = crossings.loc[crossings['Probability']>0.75]
+
         # Group crossings within a minute of another into one cluster
         # Keep first and last time of a crossing
 
@@ -232,7 +235,7 @@ def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with
         directions = determine_mp_direction(sc_boundaries, df_sc, resolution, bound_params)
 
         if max_gap is None:
-            max_gap = pd.Timedelta('20h')
+            max_gap = pd.Timedelta('15h')
 
     elif region=='sw':
         boundaries = obtain_bs_boundaries(themis_dir)

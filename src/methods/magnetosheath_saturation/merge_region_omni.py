@@ -177,11 +177,11 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
             if sc in cluster: # MSH interval
                 mask |= (interval_index.get_indexer(df_merged.index) != -1)
 
-            elif sc in mms: # Within BS
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>0))
+            elif sc in mms: # Within BS (BS crossings)
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1.5) & (df_merged['r_F']>0))
 
-            elif sc in themis: # Outside MP
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1))
+            elif sc in themis: # Outside MP (MP crossings)
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1) & (df_merged['r_F']>-0.5))
 
             mask |= (df_merged['r_F']>0) & (df_merged['r_F']<1)
 
