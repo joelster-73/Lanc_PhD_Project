@@ -26,6 +26,7 @@ df_msh = import_processed_data(msh_dir, 'msh_times_combined.cdf')
 # %% Params
 param_names  = {'E_y_GSM': 'E_y',
                 'V_flow' : 'V',
+                'P_flow' : 'P',
                 'B_z_GSM': 'B_z',
                 'N_tot'  : 'N',
                 'AE_53m' : 'AE',
@@ -41,12 +42,11 @@ else:
 
 
  # %% Grid
-responses = ('PCN_17m','AA_17m','SME_53m','AE_53m')
-params    = ('E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','B_clock')
+responses = ('PCN','AA_17m','SME_53m','AE_53m')
+params    = ('E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','P_flow','B_clock')
 
 
 for param, response in it.product(params, responses):
-    if param!='B_clock':
-        continue
-    plot_compare_responses(df_omni, df_msh, param, response, restrict=True, shift_centre=False, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), data_name_map=param_names)
-    break
+
+    plot_compare_responses(df_omni, df_msh, param, response, restrict=True, data1_name=param_names.get(param,param), data2_name=param_names.get(response,response), data_name_map=param_names)
+

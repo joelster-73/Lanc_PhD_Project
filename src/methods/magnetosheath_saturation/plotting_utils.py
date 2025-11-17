@@ -135,6 +135,17 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
             else:
                 limits[1] = 50
 
+    elif 'P_' in ind_var:
+        bin_width, limits[0] = 5, 0
+        if restrict:
+            bin_width = 1
+            if ind_src=='msh':
+                limits[1] = 10
+            elif ind_var==dep_var:
+                limits[1] = 15
+            else:
+                limits[1] = 20
+
     elif ind_var=='S_perp':
         invert = True
         bin_width, limits[1] = 5, 0

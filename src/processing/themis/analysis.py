@@ -16,7 +16,7 @@ from ..reading import import_processed_data
 def obtain_mp_boundaries(themis_dir, mp_file='Grimmich_2023_MP_Crossings.txt', resolution='5min'):
 
 
-    thresholds = {'1min': 60, '5min': 300}
+    thresholds = {'1min': 120, '5min': 360}
     threshold_seconds = thresholds.get(resolution)
 
     if mp_file=='Staples_2024_MP_Crossings.txt':
@@ -230,7 +230,7 @@ def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with
         if data_pop=='field_only':
             bound_params = {'B_avg': 'inc'}
         else:
-            bound_params = {'B_avg': 'inc', 'N_tot': 'dec'}
+            bound_params = {'B_avg': 'inc', 'N_tot': 'dec', 'T_tot': 'inc'}
 
         directions = determine_mp_direction(sc_boundaries, df_sc, resolution, bound_params)
 

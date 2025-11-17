@@ -174,16 +174,22 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
 
         if region=='msh':
 
-            if sc in cluster: # MSH interval
-                mask |= (interval_index.get_indexer(df_merged.index) != -1)
+            if sc in themis:
 
-            elif sc in mms: # Within BS (BS crossings)
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1.5) & (df_merged['r_F']>0))
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1) & (df_merged['r_F']>-0.25))
 
-            elif sc in themis: # Outside MP (MP crossings)
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1) & (df_merged['r_F']>-0.5))
+                # Stricter for THEMIS data
+                mask |= (df_merged['r_F']>0.35) & (df_merged['r_F']<1)
 
-            mask |= (df_merged['r_F']>0) & (df_merged['r_F']<1)
+            else:
+
+                if sc in cluster: # MSH interval
+                    mask |= (interval_index.get_indexer(df_merged.index) != -1)
+
+                elif sc in mms: # Within BS (BS crossings)
+                    mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1.5) & (df_merged['r_F']>0.15))
+
+                mask |= (df_merged['r_F']>0.15) & (df_merged['r_F']<1)
 
         elif region=='sw':
 

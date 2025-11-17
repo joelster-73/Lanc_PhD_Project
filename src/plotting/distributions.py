@@ -129,7 +129,6 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
 
     return fit_dict
 
-
 def plot_freq_hist(series, **kwargs):
 
 
@@ -268,7 +267,6 @@ def plot_freq_hist(series, **kwargs):
     save_figure(fig, sub_directory=sub_dir, file_name=save_name)
     plt.show()
     plt.close()
-
 
 def plot_counts(counts, **kwargs):
     """
@@ -498,7 +496,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     if y_unit in ('rad','deg'):
         y_unit = '°'
 
-    window_step = min(window_step, window_width / 10)
+    window_step = min(window_step, window_width/5)
 
     if fig is None or ax is None:
         fig, ax = plt.subplots()
@@ -518,16 +516,15 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
         y_errs = np.zeros(len(x_centres))
     counts     = np.zeros(len(x_centres))
 
-    max_expansions = 10
+    max_expansions = 5
+    w = window_width
+    expansions = 0
 
     for i, x_c in enumerate(x_centres):
 
-        w = window_width
-        expansions = 0
-
         mask = (xs >= x_c-w/2) & (xs <= x_c+w/2)
 
-        while np.sum(mask) < min_count and expansions < max_expansions:
+        if (np.sum(mask) < min_count) and (expansions < max_expansions):
             w += window_step
             expansions += 1
             mask = (xs >= x_c-w/2) & (xs <= x_c+w/2)

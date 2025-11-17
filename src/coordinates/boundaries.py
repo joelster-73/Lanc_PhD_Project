@@ -68,11 +68,13 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
     try:
         p = df.loc[valid_mask,p_name].to_numpy()
     except:
+        print('Using default pressure.')
         p = 2.056
 
     try:
         Bz = df.loc[valid_mask,bz_name].to_numpy()
     except:
+        print('Using default field.')
         Bz = -0.001
 
     theta_ps = np.arccos(
@@ -86,17 +88,17 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         if model=='shue':
             print('Using Shue mp.')
             r_mp      = mp_shue1998(theta_ps, Pd=p, Bz=Bz, **kwargs)
-            r_mp_nose = mp_shue1998(0, Pd=p, Bz=Bz, **kwargs)
+            #r_mp_nose = mp_shue1998(0, Pd=p, Bz=Bz, **kwargs)
         else:
             print('Using Jelínek mp.')
             r_mp       = mp_jelinek2012(theta_ps, Pd=p, **kwargs)
-            r_mp_nose  = mp_jelinek2012(0, Pd=p, **kwargs)
+            #r_mp_nose  = mp_jelinek2012(0, Pd=p, **kwargs)
 
         df_ab.loc[valid_mask, 'r_MP'] = r_mp
 
         print('Using Jelínek bs.')
         df_ab.loc[valid_mask, 'r_BS'] = bs_jelinek2012(theta_ps, Pd=p, **kwargs)
-        r_bs_nose                     = bs_jelinek2012(0, Pd=p, **kwargs)
+        #r_bs_nose                     = bs_jelinek2012(0, Pd=p, **kwargs)
 
         if inc_nose:
             print('include')
@@ -259,7 +261,7 @@ def calc_normal_for_sc(df, surface, model=None, aberration='model', position_key
     try:
         B = df.loc[valid_mask,bz_name].to_numpy()
     except:
-        print('Using default velocity.')
+        print('Using default field.')
         B = -0.001
 
     _, theta_ps, phis_ps = cartesian_to_spherical(df_ab.loc[valid_mask, r_ax_name],
