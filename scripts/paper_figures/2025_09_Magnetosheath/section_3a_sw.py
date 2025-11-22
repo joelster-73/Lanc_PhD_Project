@@ -3,6 +3,8 @@
 Created on Thu Aug 28 12:29:26 2025
 
 @author: richarj2
+
+Showing saturation present with in-situ, so not due to OMNI (solely)
 """
 
 
@@ -11,7 +13,7 @@ import os
 
 from src.config import SW_DIR, OMNI_DIR
 from src.processing.reading import import_processed_data
-from src.methods.magnetosheath_saturation.plotting import plot_compare_sc_omni
+from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses
 
 sample_interval = '5min'
 data_pop = 'with_plasma'
@@ -45,4 +47,4 @@ responses = ('PCC_17m','AA_17m','SME_53m','AE_53m')
 
 for param in ('E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','P_flow','B_clock'):
 
-    plot_compare_sc_omni(df_omni, df_sw, param, *responses, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
+    plot_driver_multi_responses(df_omni, df_sw, param, *responses, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
