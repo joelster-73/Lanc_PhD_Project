@@ -38,9 +38,3 @@ plot_sc_orbits(msh_dir, sc_keys=msh_keys, data_type=data_type, region='msh')
 
 # Both
 plot_sc_sw_msh(sw_dir, msh_dir, sw_keys, msh_keys, data_type=data_type)
-
-# %% Bias
-
-# plot_bias_over_years(df_sw, df_merged, 'AE')
-# plot_bias_in_parameters(df_sw, df_merged)
-

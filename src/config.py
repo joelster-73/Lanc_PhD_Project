@@ -55,6 +55,7 @@ LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
 LUNA_MMS_DIR_FGM       = 'Z:/spacecraft/mms/mms1/MMS1_FGM_SRVY_L2/'
 LUNA_MMS_DIR_HPCA      = 'Z:/spacecraft/mms/mms1/MMS1_HPCA_SRVY_L2_MOMENTS/'
 LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
+LUNA_PC_INDEX_DIR      = 'Z:/PC_index/'
 
 # Processed Cluster Data
 PROC_CLUS_DIR_SPIN     = f'{CLUSTER_DIR}/SPIN'
@@ -81,6 +82,7 @@ PROC_OMNI_DIR_5MIN     = f'{OMNI_DIR}/5min'
 
 # Polar Cap Indices
 PCN_DIR                = f'{INDEX_DIR}/PCN'
+PCN_PCS_EXTRA_DIR      = f'{INDEX_DIR}/PCN_PCS'
 AA_DIR                 = f'{INDEX_DIR}/AA'
 SME_DIR                = f'{INDEX_DIR}/SME'
 

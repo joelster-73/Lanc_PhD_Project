@@ -27,7 +27,7 @@ process_omni_files(LUNA_OMNI_DIR_5MIN, OMNI_DIR, omni_columns_5min, ext='lst')
 
 omni = import_processed_data(PROC_OMNI_DIR_5MIN)
 
-# %% Lag
+# %% Lagged_indices
 
 for sample_interval in ('1min','5min'):
     add_index_lag(OMNI_DIR, sample_interval)

@@ -57,7 +57,27 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
     limits = [None, None]
     invert = False
 
-    if ind_var=='B_avg':
+    if ind_var.startswith('AA'):
+        bin_width, limits[0] = 20, 0
+        if restrict:
+            limits[1] = 400
+
+    elif ind_var.startswith(('PCN','PCC')):
+        bin_width, limits[0] = 0.5, 0
+        if restrict:
+            limits[1] = 20
+
+    elif ind_var.startswith('SME'):
+        bin_width, limits[0] = 50, 0
+        if restrict:
+            limits[1] = 2200
+
+    elif ind_var.startswith('AE'):
+        bin_width, limits[0] = 50, 0
+        if restrict:
+            limits[1] = 1800
+
+    elif ind_var=='B_avg':
         bin_width, limits[0] = 2, 0
         if restrict:
             bin_width, limits[1] = 1, 15
@@ -94,11 +114,16 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
                 limits[0] = -40
 
     elif ind_var=='V_flow':
-        bin_width, limits[0] = 50, 250
+        bin_width, limits[0] = 50, 200
         if restrict:
-            bin_width, limits[1] = 50, 1000
+            limits[1] = 1000
             if ind_src=='msh':
                 limits[1] = 750
+
+    elif ind_var=='V_A':
+        bin_width, limits[0] = 20, 0
+        if restrict:
+            bin_width, limits[1] = 10, 200
 
     elif 'V_' in ind_var:
         invert = True

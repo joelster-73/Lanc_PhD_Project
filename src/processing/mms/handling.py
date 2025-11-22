@@ -333,7 +333,7 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     combined_df = pd.DataFrame(index=plasma_df.index)
     combined_df[time_col] = plasma_df[time_col]
 
-    columns = ['P_flow','P_th','N_tot','T_tot','V_flow','V_x_GSE','V_y_GSE','V_z_GSE','V_y_GSM','V_z_GSM','beta']
+    columns = ['rho_tot','P_flow','P_th','N_tot','T_tot','V_flow','V_x_GSE','V_y_GSE','V_z_GSE','V_y_GSM','V_z_GSM','beta']
     for col in columns:
         combined_df[col] = np.zeros(len(plasma_df))
 
@@ -349,9 +349,10 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     numerator_T = np.zeros(len(plasma_df))
 
     for ion in ion_species:
-        combined_df['P_flow'] += ION_MASS_DICT.get(ion) * plasma_df[f'N_{ion}'] * plasma_df[f'V_mag_{ion}']**2
-        combined_df['N_tot']  += plasma_df.loc[~plasma_df[f'N_{ion}'].isna(),f'N_{ion}']
-        combined_df['P_th']   += plasma_df[f'P_{ion}']
+        combined_df['rho_tot'] += ION_MASS_DICT.get(ion) * plasma_df[f'N_{ion}'] # for Alfven speed
+        combined_df['P_flow']  += ION_MASS_DICT.get(ion) * plasma_df[f'N_{ion}'] * plasma_df[f'V_mag_{ion}']**2
+        combined_df['N_tot']   += plasma_df.loc[~plasma_df[f'N_{ion}'].isna(),f'N_{ion}']
+        combined_df['P_th']    += plasma_df[f'P_{ion}']
 
         numerator_T   += plasma_df[f'N_{ion}'] * plasma_df[f'T_{ion}']
 
@@ -384,9 +385,20 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
 
     combined_df['V_flow'] = np.linalg.norm(combined_df[[f'V_{comp}_GSE' for comp in ('x','y','z')]].to_numpy(),axis=1)
 
+    # Plasma beta
     # Beta = p_th / p_mag, p_mag = B^2/2mu_0
+
     combined_df['beta'] = combined_df['P_th'] / (plasma_df['B_avg']**2) * (2*mu_0) * 1e9
     # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
+
+
+    # Alfven Speed
+    # vA = B / sqrt(mu_0 * rho)
+
+    combined_df['V_A'] = combined_df['B_avg'] / np.sqrt(mu_0 * combined_df['rho_tot']) * 1e-15
+    # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
+
+    combined_df.drop(columns=['rho_tot'], inplace=True)
 
     ###----------CROSS PRODUCTS----------###
 

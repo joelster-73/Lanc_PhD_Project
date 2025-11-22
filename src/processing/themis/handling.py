@@ -516,9 +516,17 @@ def combine_spin_data(spacecraft, proc_directories, year=None, omni_dir=PROC_OMN
         merged_df['P_flow'] = 0.5 * m_avg * merged_df['N_tot']  * merged_df['V_flow']**2 * 1e21
         # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
 
+        # Plasma beta
         # Beta = p_th / p_mag, p_mag = B^2/2mu_0
+
         merged_df['beta'] = merged_df['P_th'] / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
         # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
+
+        # Alfven Speed
+        # vA = B / sqrt(mu_0 * rho)
+
+        merged_df['V_A'] = merged_df['B_avg'] / np.sqrt(mu_0 * m_avg * merged_df['N_tot']) * 1e-15
+        # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
 
         ###----------CROSS PRODUCTS----------###
 

@@ -33,11 +33,12 @@ for spacecraft in all_spacecraft:
 # %% Plasma
 
 for spacecraft in plasma_spacecraft:
-    # thb for msh
-    # the for sw
+    # thb for msh; the for sw
+
     process_themis_plasma(spacecraft, LUNA_THEMIS_DIRECTORIES, PROC_THEMIS_DIRECTORIES, THEMIS_VARIABLES_PEIM, sub_folders=True, sample_intervals='raw')
 
 # %% Filter
+
 for spacecraft in plasma_spacecraft:
 
     combine_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES)
@@ -47,7 +48,6 @@ for spacecraft in plasma_spacecraft:
 
     elif spacecraft=='the':
         filter_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES, region='msh')
-
 
 # %% Sample
 
