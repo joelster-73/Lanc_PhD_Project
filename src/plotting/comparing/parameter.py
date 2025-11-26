@@ -12,7 +12,6 @@ from uncertainties import UFloat, ufloat
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
 from matplotlib.colors import is_color_like
 from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
@@ -411,9 +410,12 @@ def plot_rolling_multiple(xs, ys, **kwargs):
 
     zs           = kwargs.get('zs',None)
     zs_edges     = kwargs.get('zs_edges',None)
+    data3_name   = kwargs.get('data3_name',None)
 
     z_min        = kwargs.get('z_min',None)
     z_max        = kwargs.get('z_max',None)
+
+    cmap_name    = kwargs.get('cmap_name','cool')
 
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
@@ -425,12 +427,12 @@ def plot_rolling_multiple(xs, ys, **kwargs):
         print('Need zs and zs edges for splitting scatter.')
         return plot_scatter_binned(xs, ys, **kwargs)
 
-    z_bins, z_labels, z_vals = create_multiple_labels(zs, zs_edges, z_min, z_max)
+    z_bins, z_labels, z_vals = create_multiple_labels(zs, zs_edges, z_min, z_max, z_name=data3_name)
 
     z_min = np.min(zs) if z_min is None else z_min
     z_max = np.max(zs) if z_max is None else z_max
 
-    cmap = plt.get_cmap('cool')
+    cmap = plt.get_cmap(cmap_name)
     norm = plt.Normalize(vmin=z_min, vmax=z_max)
 
     for z_i, (z_bin, z_val, z_label) in  enumerate(zip(z_bins, z_vals, z_labels)):
@@ -523,7 +525,7 @@ def plot_scatter_binned_multiple(xs, ys, **kwargs):
 
     return fig, ax
 
-def create_multiple_labels(zs, zs_edges, z_min, z_max):
+def create_multiple_labels(zs, zs_edges, z_min, z_max, z_name=None):
 
     z_unit = zs.attrs.get('units',{}).get(zs.name, None)
     z_edges_label = zs_edges
@@ -536,13 +538,20 @@ def create_multiple_labels(zs, zs_edges, z_min, z_max):
     else:
         z_unit = ''
 
+    if z_name is None:
+        z_name = zs.name
+
     if len(zs_edges)==1:
         z_min = np.min(zs) if z_min is None else z_min
         z_max = np.max(zs) if z_max is None else z_max
 
+        z_string = f'{z_edges_label[0]:.1f}'
+        if z_edges_label[0]<0.1:
+            z_string = f'{z_edges_label[0]:.1g}'
+
         zs_bins  = [[np.min(zs),zs_edges[0]],[zs_edges[0],np.max(zs)]]
-        z_labels = [f'${data_string(zs.name)}$<{z_edges_label[0]:.1f}{z_unit}',
-                    f'${data_string(zs.name)}$$\\geq${z_edges_label[0]:.1f}{z_unit}']
+        z_labels = [f'${data_string(z_name)}$<{z_string}{z_unit}',
+                    f'${data_string(z_name)}$$\\geq${z_string}{z_unit}']
         z_vals   = [z_min, z_max]
 
     else:
@@ -566,7 +575,7 @@ def create_multiple_labels(zs, zs_edges, z_min, z_max):
                 upper = (zs_edges[z_i]+zs_edges[z_i+1])/2
 
             zs_bins.append([lower,upper])
-            z_labels.append(f'${data_string(zs.name)}$={z_edges_label[z_i]:.1f}{z_unit}')
+            z_labels.append(f'${data_string(z_name)}$={z_edges_label[z_i]:.1f}{z_unit}')
             z_vals.append(zs_edges[z_i])
 
     return zs_bins, z_labels, z_vals

@@ -49,7 +49,7 @@ for spacecraft in plasma_spacecraft:
     elif spacecraft=='the':
         filter_spin_data(spacecraft, PROC_THEMIS_DIRECTORIES, region='msh')
 
-# %% Sample
+# % Sample
 
 for spacecraft in plasma_spacecraft:
 

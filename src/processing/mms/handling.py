@@ -330,7 +330,7 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     As well as re-sample to 1-min and 5-min
     """
 
-    combined_df = pd.DataFrame(index=plasma_df.index)
+    combined_df           = pd.DataFrame(index=plasma_df.index)
     combined_df[time_col] = plasma_df[time_col]
 
     columns = ['rho_tot','P_flow','P_th','N_tot','T_tot','V_flow','V_x_GSE','V_y_GSE','V_z_GSE','V_y_GSM','V_z_GSM','beta']
@@ -395,7 +395,7 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     # Alfven Speed
     # vA = B / sqrt(mu_0 * rho)
 
-    combined_df['V_A'] = combined_df['B_avg'] / np.sqrt(mu_0 * combined_df['rho_tot']) * 1e-15
+    combined_df['V_A'] = plasma_df['B_avg'] / np.sqrt(mu_0 * combined_df['rho_tot']) * 1e-15
     # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
 
     combined_df.drop(columns=['rho_tot'], inplace=True)

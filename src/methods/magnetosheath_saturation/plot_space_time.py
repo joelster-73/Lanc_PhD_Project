@@ -124,15 +124,18 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
     n_rows = len(sc_keys)
     n_cols = 1
     width  = 1
+    fig_h  = 2*(n_rows+1)
+    fig_w  = 4.5*(n_cols+1)
     if combined:
         n_rows = 1
         width  = 1/len(sc_keys)
 
+    if n_rows==1:
+        fig_h = 2*(n_rows+1.5)
+
     if fig is None or axs is None:
 
-        dims = (4.5*(n_cols+1),2*(n_rows+1))
-
-        fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=dims, dpi=400, sharex=True)
+        fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(fig_w,fig_h), dpi=400, sharex=True)
 
     unique_indices = set()
 
@@ -183,16 +186,19 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
 
         ax.legend(loc='upper right', framealpha=1)
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, pos: f'{val:,.0f}'))
-        ax.set_ylabel('Count')
+        ax.set_ylabel(data_type.capitalize())
 
     print(f'{len(unique_indices):,} unique {data_type} of {region} data')
+
+    if kwargs.get('year_range',None):
+        ax.set_xlim(kwargs['year_range'])
 
     if n_rows==1:
         axs.set_xlabel('Year')
     else:
         axs[-1].set_xlabel('Year')
 
-    if not combined:
+    if n_rows>1:
         plt.subplots_adjust(wspace=0, hspace=0)
         fig.canvas.draw()
         xticks = ax.get_xticks()
@@ -206,7 +212,10 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
     if return_objs:
         return fig, ax
 
-    save_figure(fig)
+    file_name = '_'.join(sc_keys)+f'_in_{region}'
+    if combined:
+        file_name += '_combined'
+    save_figure(fig, file_name=file_name)
     plt.show()
     plt.close()
 

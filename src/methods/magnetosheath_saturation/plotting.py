@@ -18,20 +18,57 @@ from ...plotting.space_time import plot_orbit_msh
 from ...plotting.utils import save_figure, calculate_bins
 from ...plotting.formatting import create_label, add_legend, shifted_angle_ticks
 from ...plotting.comparing.parameter import compare_columns
-from ...plotting.config import black, blue, grey, pink
-#from ...plotting.distributions import plot_fit
+from ...plotting.config import black, blue, grey, pink, green
 
 
+def shift_angular_data(df, *cols):
+    # Shift angular data to centre lies at +-180 rather than 0
 
+    df = df.copy()
+
+    for to_shift in cols:
+        shift_unit = df.attrs.get('units',{}).get(to_shift,'')
+        if shift_unit == 'rad':
+            df[to_shift] = (df[to_shift] + 2*np.pi) % (2*np.pi)
+        elif shift_unit in ('deg','°'):
+            df[to_shift] = (df[to_shift] + 360) % 360
+
+    return df
+
+def mask_df(df, ind_col, dep_col, ind_limits, grp_col=None):
+
+        cols_to_check = [ind_col]
+        if dep_col in df:
+            cols_to_check.append(dep_col)
+        if grp_col:
+            cols_to_check.append(grp_col)
+
+        mask = ~df[cols_to_check].isna().any(axis=1)
+
+        if ind_limits[0] is not None:
+            mask &= df[ind_col] >= ind_limits[0]
+        if ind_limits[-1] is not None:
+            mask &= df[ind_col] <= ind_limits[1]
+
+        return df.loc[mask]
 
 # %% Overview
 
-def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', data_type='counts', plot_test=False, same_var=False, invert_x=False, invert_y=False, **kwargs):
 
-    if data_type=='mins':
-        kwargs['min_count'] = 100
-    elif not kwargs.get('min_count',None):
-        kwargs['min_count'] = 50
+# ADD EARTH-SUN LINE CALCULATION AND GROUPING INTO OVERVIEW
+# df_omni['L1_rho'] = np.sqrt(df_omni['R_y_GSE']**2+df_omni['R_z_GSE']**2)
+# df_msh['L1_rho_sw'] = np.sqrt(df_msh['R_y_GSE_sw']**2+df_msh['R_z_GSE_sw']**2)
+
+
+def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', data_type='counts', min_count=None, plot_test=False, same_var=False, invert_x=False, invert_y=False, restrict=True, bounds=None, **kwargs):
+
+    kwargs['data1_name'] = create_label(kwargs['data1_name'])
+    kwargs['data2_name'] = create_label(kwargs['data2_name'])
+
+    file_name = f'Saturation_{dep_var}_with_{ind_var}_splitby_{grp_var}'
+
+    if min_count is None:
+        min_count = minimum_counts[data_type]
 
     ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df_msh, ind_var, ind_src)
     dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df_msh, dep_var, dep_src)
@@ -39,33 +76,14 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
     ###----------MASKS----------###
 
-    mask      = np.ones(len(df_msh),dtype=bool)
-    omni_mask = np.ones(len(df_sw),dtype=bool)
-
-    bin_width, limits, invert = ind_variable_range(ind_var, ind_src, dep_var=dep_var)
+    bin_width, limits, invert = ind_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds)
     kwargs['window_width'] = bin_width
 
-    # MSH Dataset
-    if limits[0] is not None:
-        mask  &= df_msh[ind_param] >= limits[0]
-    if limits[-1] is not None:
-        mask  &= df_msh[ind_param] <= limits[1]
-    mask &= ~df_msh[[ind_param, dep_param, group_param]].isna().any(axis=1)
-
-    df_masked  = df_msh.loc[mask]
+    df_masked  = mask_df(df_msh, ind_param, dep_param, limits, group_param)
 
     # OMNI dataset
     if ind_src != 'msh':
-        if dep_var in df_sw:
-            omni_mask &= ~df_sw[[ind_var, dep_var]].isna().any(axis=1)
-        else:
-            omni_mask &= ~df_sw[ind_var].isna()
-        if limits[0] is not None:
-            omni_mask &= df_sw[ind_var] >= limits[0]
-        if limits[-1] is not None:
-            omni_mask &= df_sw[ind_var] <= limits[1]
-
-    df_omni_masked = df_sw.loc[omni_mask]
+        df_omni_masked  = mask_df(df_sw, ind_var, dep_var, limits)
 
     ###----------GROUPING PARAMETER LABEL----------###
 
@@ -75,11 +93,17 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
     if plot_test:
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(8,5), dpi=200)
 
         # Splits contemp MSH OMNI by grouping
-        kwargs.update({'display': 'rolling_multiple', 'region': 'sem'})
-        compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, want_legend=True, ax=ax, return_objs=False, **kwargs)
+        kwargs.update({'display': 'rolling_multiple', 'region': 'sem', 'cmap_name': 'autumn_r'})
+        _ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, col3=group_param, want_legend=True, fig=fig, ax=ax, return_objs=True, **kwargs)
+
+        plt.tight_layout()
+        save_figure(fig, sub_directory='Overview', file_name=file_name)
+        plt.show()
+        plt.close()
+
         return
 
     ###----------PLOT GRIDS----------###
@@ -168,17 +192,17 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
         bins = calculate_bins(df_msh_years,1)
         counts, _ = np.histogram(df_msh_years, bins=bins)
 
-        ax_br2.bar(bins[:-1] + (i-0.5)*0.5, counts, width=0.5, color=colour, label=f'{len(df_msh_years):,}{data_type}' if not used_median else None)
+        ax_br2.bar(bins[:-1] + (i-0.5)*0.5, counts, width=0.5, color=colour, label=f'{len(df_msh_years):,} {data_type}' if not used_median else None)
 
-    ax_bl2.axhline(kwargs['min_count'], c='k', ls='-')
-    ax_bl2.axhline(kwargs['min_count'], c='w', ls=':')
+    ax_bl2.axhline(min_count, c='k', ls='-')
+    ax_bl2.axhline(min_count, c='w', ls=':')
 
     if used_median:
         ax_br2.plot([], [], ' ', label=f'$n/2$ = {np.sum(filter_mask):,} {data_type}')
 
     ###----------FORMATTING----------###
 
-    ax_br.axvline(x=edges[0],c='k',ls='--',label=z_labels[2])
+    ax_br.axvline(x=edges[0], c=black, ls='--', label=z_labels[2])
     if z_unit =='rad':
         formatter = FuncFormatter(lambda val, pos: f'{np.degrees(val):.0f}°')
         ax_br.xaxis.set_major_formatter(formatter)
@@ -197,7 +221,7 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
     cbar.set_label(data_type.capitalize())
     cax.yaxis.set_ticks_position('left')
 
-    # Axes
+    ###----------AXES----------###
 
     ax_tl.set_xlabel(None)
     ax_tr.set_xlabel(None)
@@ -222,39 +246,14 @@ def plot_saturation_overview(df_sw, df_msh, ind_var, dep_var, grp_var, ind_src='
 
 
     plt.tight_layout()
-    save_figure(fig, sub_directory='Overview')
+    save_figure(fig, sub_directory='Overview', file_name=file_name)
     plt.show()
     plt.close()
 
 
 # %% Compare_OMNI
 
-def shift_angular_data(df, *cols):
-    # Shift angular data to centre lies at +-180 rather than 0
-
-    df = df.copy()
-
-    for to_shift in cols:
-        shift_unit = df.attrs.get('units',{}).get(to_shift,'')
-        if shift_unit == 'rad':
-            df[to_shift] = (df[to_shift] + 2*np.pi) % (2*np.pi)
-        elif shift_unit in ('deg','°'):
-            df[to_shift] = (df[to_shift] + 360) % 360
-
-    return df
-
-def mask_df(df, ind_col, dep_col, ind_limits):
-
-        mask = ~df[[ind_col, dep_col]].isna().any(axis=1)
-
-        if ind_limits[0] is not None:
-            mask &= df[ind_col] >= ind_limits[0]
-        if ind_limits[-1] is not None:
-            mask &= df[ind_col] <= ind_limits[1]
-
-        return df.loc[mask]
-
-def plot_driver_response(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', min_count=None, compare_colour='purple', **kwargs):
+def plot_driver_response(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', min_count=None, compare_colour=green, **kwargs):
     """
     col1: PC vs SW
     col2: PC vs MSH
@@ -370,9 +369,9 @@ def plot_driver_response(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colou
             ax1.hist(df_masked[ind], bins=calculate_bins(df_masked[ind],bin_width), color=blue)
 
         # Formatting
+        ax0.grid(ls=':', c=grey, lw=0.5)
         if df.attrs.get('units',{}).get(ind,'')==df.attrs.get('units',{}).get(dep,''):
             ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
-            ax0.grid(ls=':', c=grey, lw=0.5)
 
         if shift_centre:
             ax0.axvline(x=np.pi, c=grey, ls=':')
@@ -386,7 +385,7 @@ def plot_driver_response(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colou
             if i==2:
                 ax0.invert_yaxis()
 
-        if i > 0:
+        if i==1:
             axs[0][i].set_ylabel(None)
 
         ax1.tick_params(labelbottom=False)
@@ -499,8 +498,12 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
 
     axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
 
+    file_name = f'Responses_to_{ind_var}_driver'
+    if df_sc is None:
+        file_name += '_OMNI'
+
     plt.tight_layout()
-    save_figure(fig, file_name=f'Responses_to_{ind_var}_driver', sub_directory='Pulkkinen')
+    save_figure(fig, file_name=file_name, sub_directory='Pulkkinen')
     plt.show()
     plt.close()
 
@@ -528,7 +531,7 @@ def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', d
 
     dep_cols = [col for col in df.columns if col.startswith(dep_var)]
 
-    cmap = plt.get_cmap('cool')
+    cmap = plt.get_cmap('autumn_r')
     norm = plt.Normalize(vmin=0, vmax=len(dep_cols)-1)
 
     fig, ax = plt.subplots(figsize=(10, 8), dpi=200)
@@ -570,7 +573,7 @@ def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', d
 
 
 
-def plot_pulkkinen_grid(df_msh, params, sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', compare_colour='purple', **kwargs):
+def plot_pulkkinen_grid(df_msh, params, sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', compare_colour=green, **kwargs):
     """
     Pulkkinen comparisons
 

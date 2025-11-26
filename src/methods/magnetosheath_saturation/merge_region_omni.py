@@ -90,7 +90,7 @@ def merge_sc_in_region(region, data_pop='with_plasma', sample_interval='5min', s
             intervals = mms_region_intervals(MMS_DIR, 'msh')
 
             field_dir  = os.path.join(MMS_DIR, 'field', sample_interval)
-            df_field  = import_processed_data(field_dir)
+            df_field   = import_processed_data(field_dir)
 
             if data_pop=='field_only':
                 df_sc = df_field

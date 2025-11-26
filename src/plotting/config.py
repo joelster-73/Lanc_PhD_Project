@@ -19,6 +19,7 @@ blue = 'b'
 green = 'g'
 pink = 'deeppink'
 grey = 'grey'
+purple = 'purple'
 plt.rcParams['legend.labelcolor'] = 'k'
 plt.rcParams['legend.facecolor']  = 'w'
 plt.style.use('default')
@@ -28,6 +29,7 @@ if dark_mode:
     black = 'w'
     green = 'lime'
     grey = 'lightgrey'
+    purple = 'fuchsia'
     plt.style.use('dark_background')
     plt.rcParams['legend.labelcolor'] = 'w'
     plt.rcParams['legend.facecolor']  = 'k'

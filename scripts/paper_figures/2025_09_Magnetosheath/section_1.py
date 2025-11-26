@@ -34,4 +34,4 @@ param_names  = {'E_y_GSM': 'E_y',
 responses = ('PCC','PCC_17m','PCN_17m','PCN','AA_17m','SME_53m','AE_53m','AEc_53m')
 param     = 'E_R'
 
-plot_driver_multi_responses(df_omni, None, param, *responses, restrict=True,  data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
+plot_driver_multi_responses(df_omni, None, param, *responses, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)

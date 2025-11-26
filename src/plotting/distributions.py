@@ -477,6 +477,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     ys_unc       = kwargs.get('ys_unc',None)
     ys_counts    = kwargs.get('ys_counts',None)
     min_count    = kwargs.get('min_count',10) # data points in bin
+    max_expansions = kwargs.get('max_expansions',5)
 
     line_style  = kwargs.get('line_style','-')
     want_legend = kwargs.get('want_legend',False)
@@ -516,7 +517,6 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
         y_errs = np.zeros(len(x_centres))
     counts     = np.zeros(len(x_centres))
 
-    max_expansions = 5
     w = window_width
     expansions = 0
 

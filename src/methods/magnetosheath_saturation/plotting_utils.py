@@ -219,6 +219,7 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
     grp_string = data_string(grp_var)
     grp_label = create_label(grp_var, '°' if grp_unit in ('rad','deg','°') else grp_unit)
 
+    median_params = ('Delta B_theta','M_A','P_flow','L1_rho','R_y_GSE_mag')
 
     if grp_split is not None:
         edges = [grp_split]
@@ -226,7 +227,9 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
     else:
         found_split = False
 
-        if grp_var not in ('Delta B_theta','M_A'): # Using defined boundaries
+        if grp_var not in median_params: # Use median for these
+
+            # Want to use defined boundaries
             found_split = True
             if grp_var=='theta_Bn':
                 edges = [np.pi/4]
@@ -254,7 +257,7 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
 
         if not found_split:
             used_median = True
-            if grp_var not in ('Delta B_theta','M_A'):
+            if grp_var not in median_params:
                 warnings.warn(f'Grouping parameter "{grp_param}" not implemented.')
 
             median = np.percentile(df[grp_param].dropna().to_numpy(),50)
@@ -276,6 +279,9 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
     elif grp_var=='Delta B_z':
         bin_width = 10
 
+    elif grp_var=='R_y_GSE_mag':
+        bin_width = 10
+
     elif grp_var=='M_A':
         bin_width = 1
 
@@ -290,6 +296,9 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
 
     elif 'beta' in grp_var:
         bin_width = 0.1
+
+    elif 'P_' in grp_var:
+        bin_width = 1
 
     else:
         edges = [median]

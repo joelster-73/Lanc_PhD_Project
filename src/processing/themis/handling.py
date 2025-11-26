@@ -622,6 +622,6 @@ def filter_spin_data(spacecraft, proc_directories, region='msh', year=None):
         if not os.path.exists(region_dir):
             os.makedirs(region_dir)
 
-        output_file = os.path.join(region_dir, f'C1_SPIN_{region}_{year}.cdf')
+        output_file = os.path.join(region_dir, f'{spacecraft}_SPIN_{region}_{year}.cdf')
         print(f'{year} processed.')
         write_to_cdf(spin_df, output_file, {'R_E': R_E}, True, reset_index=True)
