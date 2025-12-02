@@ -9,6 +9,9 @@ Created on Thu May  8 16:17:14 2025
 import warnings
 import os
 
+R_E = 6370 # Cluster takes 1 earth radius to be 6370 km
+
+
 def short_warn_format(message, category, filename, lineno, line=None):
     # Get just the parent folder and filename, e.g. "magnetosheath_saturation/plotting.py"
     parent = os.path.basename(os.path.dirname(filename))
@@ -18,8 +21,116 @@ def short_warn_format(message, category, filename, lineno, line=None):
 
 warnings.formatwarning = short_warn_format
 
-from datetime import datetime
 
+
+CLUSTER_SPACECRAFT = ('c1', 'c2', 'c3', 'c4')
+MMS_SPACECRAFT     = ('mm1', 'mm2', 'mm3', 'mm4')
+THEMIS_SPACECRAFT  = ('tha', 'thb', 'thc', 'thd', 'the')
+
+
+#####----------LUNA DIRECTORIES----------#####
+
+
+LUNA_CLUS_DIR   = 'Z:/spacecraft/cluster'
+LUNA_MMS_DIR    = 'Z:/spacecraft/mms'
+LUNA_THEMIS_DIR = 'Z:/spacecraft/themis/'
+LUNA_WIND_DIR   = 'Z:/spacecraft/wind/'
+LUNA_ACE_DIR    = 'Z:/superdarn/ace/'
+LUNA_OMNI_DIR   = 'Z:/omni/'
+
+LUNA_PC_INDEX_DIR  = 'Z:/PC_index/'
+
+
+
+def get_luna_directory(source, instrument=None, description=None, resolution=None):
+
+    # cluster
+    if source in CLUSTER_SPACECRAFT:
+        path = f'{LUNA_CLUS_DIR}/{source}/'
+
+        folder = f'{source.upper()}_CP'
+
+        if instrument.upper() == 'FGM':
+            folder += f'_{instrument.upper()}'
+
+            if description is None:
+                warnings.warn('No sample resolution provided; using SPIN.')
+                description = 'SPIN'
+            elif description not in ('SPIN','5VPS'):
+                warnings.warn('Sample resolution "{sample}" not valid; using SPIN.')
+                description = 'SPIN'
+
+            folder += f'_{description.upper()}/'
+
+        elif instrument.upper() in ('CIS', 'HIA', 'CIS-HIA'):
+            folder += '_CIS-HIA'
+
+            if description in ('mom', 'moments', 'hiam'):
+                folder += '_ONBOARD_MOMENTS/'
+
+            elif description in ('quality','hiaq'):
+                folder += '_QUALITY/'
+
+        elif instrument.upper() == 'GRMB':
+            folder = f'{source.upper()}_CT_AUX_GRMB/'
+
+        path += folder
+
+    # mms
+    elif source in MMS_SPACECRAFT:
+        path = f'{LUNA_MMS_DIR}/{source}/'
+
+        folder = f'{source.upper()}'
+
+        if instrument.upper() == 'FGM':
+            folder += f'_{instrument.upper()}_SRVY_L2'
+
+        elif instrument.upper() =='HPCA':
+            folder += f'_{instrument.upper()}_SRVY_L2_MOMENTS'
+
+        path += folder
+
+    # themis
+    elif source in THEMIS_SPACECRAFT:
+        path = f'{THEMIS_DIR}/{source}/'
+
+        if instrument.upper() in ('FGM', 'GMOM', 'MOM', 'STATE'):
+            folder = f'{instrument.upper()}/'
+
+        elif instrument.lower() in ('esa'):
+            folder = f'{instrument.lower()}/'
+
+        path += folder
+
+    # omni
+    elif source=='omni':
+        path = LUNA_OMNI_DIR
+
+        if resolution == '1min':
+            path += 'omni_min_def/'
+        elif resolution == '5min':
+            path += 'omni_5min_def/'
+
+    # wind
+    elif source=='wind':
+        path = LUNA_WIND_DIR
+
+        if instrument.lower()=='mfi':
+            path += 'mfi/mfi_h0/'
+
+
+    else:
+        raise ValueError(f'Spacecraft "{source} does not have processed directory.')
+
+    if not os.path.isdir(path):
+        raise ValueError(f'Directory does not exist on LUNA: {path}.')
+
+
+    return path
+
+
+
+#####----------PROCESSED DIRECTORIES----------#####
 
 # Define DATA_DIR relative to the module's location
 MODULE_DIR             = os.path.dirname(os.path.abspath(__file__))  # Path of the current module
@@ -28,83 +139,107 @@ TEMP_DATA_DIR          = os.path.join(MODULE_DIR, '..', 'tempData')
 FIGURES_DIR            = os.path.join(MODULE_DIR, '..', 'figures')
 
 # Base Directories
-PROCESSED_DATA_DIR     = f'{DATA_DIR}/Processed_Data'
-CLUSTER_DIR            = f'{PROCESSED_DATA_DIR}/Cluster1'
-WIND_DIR               = f'{PROCESSED_DATA_DIR}/WIND'
-OMNI_DIR               = f'{PROCESSED_DATA_DIR}/OMNI'
+PROCESSED_DATA_DIR     = 'Y:/Processed_Data'
+
+CLUSTER_DIR            = f'{PROCESSED_DATA_DIR}/CLUSTER'
 THEMIS_DIR             = f'{PROCESSED_DATA_DIR}/THEMIS'
-CFA_DIR                = f'{PROCESSED_DATA_DIR}/CFA'
-MMS_DIR                = f'{PROCESSED_DATA_DIR}/MMS1'
-HELSINKI_DIR           = f'{PROCESSED_DATA_DIR}/HELSINKI'
+MMS_DIR                = f'{PROCESSED_DATA_DIR}/MMS'
+
 SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
-MSH_DIR                = f'{PROCESSED_DATA_DIR}/MSH'
-SW_DIR                 = f'{PROCESSED_DATA_DIR}/SW'
-INDEX_DIR              = f'{PROCESSED_DATA_DIR}/INDEX'
-CROSSINGS_DIR          = f'{CLUSTER_DIR}/Crossings'
+REGION_DIR             = f'{PROCESSED_DATA_DIR}/REGION'
+INDEX_DIR              = f'{PROCESSED_DATA_DIR}/INDICES'
 
-# LUNA Directories
-LUNA_CLUS_DIR_SPIN     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_SPIN/'
-LUNA_CLUS_DIR_5VPS     = 'Z:/spacecraft/cluster/c1/C1_CP_FGM_5VPS/'
-LUNA_CLUS_DIR_HIAM     = 'Z:/spacecraft/cluster/c1/C1_CP_CIS-HIA_ONBOARD_MOMENTS/'
-LUNA_CLUS_DIR_HIAQ     = 'Z:/spacecraft/cluster/c1/C1_CP_CIS-HIA_QUALITY/'
-LUNA_CROS_DIR          = 'Z:/spacecraft/cluster/c1/C1_CT_AUX_GRMB/'
+MSH_DIR                = f'{REGION_DIR}/MSH'
+SW_DIR                 = f'{REGION_DIR}/SW'
+C1_BS_CROSSINGS        = f'{REGION_DIR}/Bowshock/'
 
-LUNA_OMNI_DIR          = 'Z:/omni/omni_min_def/'
-LUNA_OMNI_DIR_5MIN     = 'Z:/omni/omni_5min_def/'
-LUNA_WIND_DIR          = 'Z:/spacecraft/wind/mfi/mfi_h0/'
-LUNA_MMS_DIR_FGM       = 'Z:/spacecraft/mms/mms1/MMS1_FGM_SRVY_L2/'
-LUNA_MMS_DIR_HPCA      = 'Z:/spacecraft/mms/mms1/MMS1_HPCA_SRVY_L2_MOMENTS/'
-LUNA_THEMIS_DIR        = 'Z:/spacecraft/themis/'
-LUNA_PC_INDEX_DIR      = 'Z:/PC_index/'
+CROSSINGS_DIR          = f'{CLUSTER_DIR}/c1/Crossings'
 
-# Processed Cluster Data
-PROC_CLUS_DIR_SPIN     = f'{CLUSTER_DIR}/SPIN'
-PROC_CLUS_DIR_5VPS     = f'{CLUSTER_DIR}/5VPS'
-PROC_CLUS_DIR_FGM      = f'{PROC_CLUS_DIR_5VPS}/raw'
-PROC_CLUS_DIR_CIS      = f'{PROC_CLUS_DIR_SPIN}/plasma/raw'
-PROC_CLUS_DIR_COM      = f'{PROC_CLUS_DIR_SPIN}/combined/raw'
+def get_proc_directory(source, sample=None, dtype=None, resolution=None):
 
-PROC_CLUS_DIR_MSH      = f'{PROC_CLUS_DIR_SPIN}/msh'
-PROC_CLUS_DIR_SW       = f'{PROC_CLUS_DIR_SPIN}/sw'
+    # cluster
+    if source in CLUSTER_SPACECRAFT:
+        path = f'{CLUSTER_DIR}/{source}/'
 
-# Combined Spacecraft and OMNI Data in MSH
-PROC_MSH_FIELD_DIR     = f'{MSH_DIR}/field_only'
-PROC_MSH_PLASMA_DIR    = f'{MSH_DIR}/with_plasma'
+        if sample.upper() in ('SPIN','5VPS'):
+            path += f'{sample.upper()}/'
 
-# Crossings Data
-GOOD_CROSSINGS         = f'{CROSSINGS_DIR}/good_time_windows.txt'
-BAD_CROSSINGS          = f'{CROSSINGS_DIR}/bad_time_windows.txt'
-COMPRESSIONS_DIR       = f'{CROSSINGS_DIR}/compression_ratios.npz'
+        if dtype in ('field','plasma','combined'):
+            path += f'{dtype}/'
 
-# Processed OMNI Data
-PROC_OMNI_DIR_1MIN     = f'{OMNI_DIR}/1min'
-PROC_OMNI_DIR_5MIN     = f'{OMNI_DIR}/5min'
+        if resolution in ('raw','1min','5min'):
+            path += f'{resolution}/'
 
-# Polar Cap Indices
-PCN_DIR                = f'{INDEX_DIR}/PCN'
-PCN_PCS_EXTRA_DIR      = f'{INDEX_DIR}/PCN_PCS'
-AA_DIR                 = f'{INDEX_DIR}/AA'
-SME_DIR                = f'{INDEX_DIR}/SME'
+    # mms
+    elif source in MMS_SPACECRAFT:
+        path = f'{MMS_DIR}/{source}/'
 
-# Processed WIND Data
-PROC_WIND_DIR_1MIN     = f'{WIND_DIR}/1_min/'
-PROC_WIND_DIR_1HOUR    = f'{WIND_DIR}/1_hour/'
-PROC_WIND_DIR_3SEC     = f'{WIND_DIR}/3_sec/'
+        if dtype in ('field','plasma'):
+            path += f'{dtype}/'
 
-# Processed THEMIS Data
-PROC_THEMIS_DIR        = THEMIS_DIR
+        if resolution in ('spin','1min','5min'):
+            path += f'{resolution}/'
 
-# Processed Shocks Data
-PROC_SHOCKS_DIR        = SHOCKS_DIR
+    # themis
+    elif source in THEMIS_SPACECRAFT:
+        path = f'{THEMIS_DIR}/{source}/'
 
-# Processed MMS Data
-PROC_MMS_DIR_FGM       = f'{MMS_DIR}/field'
-PROC_MMS_DIR_HPCA      = f'{MMS_DIR}/plasma'
+        instruments = {'field': 'FGM', 'plasma': 'MOM', 'position': 'STATE'}
+        if dtype in instruments:
+            path += f'{instruments[dtype]}/'
+        elif dtype in ('sw', 'msh', 'combined'):
+            path += f'{dtype}/'
 
-# Processed Bowshock Data
-PROC_SCBS_DIR          = f'{PROCESSED_DATA_DIR}/Bowshock/'
+        if resolution in ('raw','1min','5min'):
+            path += f'{resolution}/'
 
-R_E = 6370 # Cluster takes 1 earth radius to be 6370 km
+    # omni
+    elif source=='omni':
+        path = f'{PROCESSED_DATA_DIR}/OMNI'
 
-# Define the date range to analyse data
-C1_RANGE = (datetime(2001, 1, 1), datetime(2024, 1, 1))
+        if resolution in ('1min','5min'):
+            path += f'{resolution}/'
+        elif 'lag' in sample:
+            path += 'with_lag/'
+
+    # wind
+    elif source=='wind':
+        path = f'{PROCESSED_DATA_DIR}/WIND'
+        if resolution in ('3sec','1min','1hour'):
+            path += f'{resolution}/'
+
+    # combined
+    elif source in ('msh', 'sw'):
+        if source=='msh':
+            path = MSH_DIR
+        elif source=='sw':
+            path = SW_DIR
+
+        if 'field' in dtype:
+            path += 'field_only/'
+        elif 'plasma' in dtype:
+            path += 'with_plasma/'
+
+        if resolution in ('1min','5min'):
+            path += f'{resolution}/'
+
+    # index
+    elif source in ('pcn','pcc','aa','sme'):
+
+        if source=='pcc':
+            path = f'{INDEX_DIR}/PCN_PCS'
+        else:
+            path = f'{INDEX_DIR}/{source.upper()}'
+
+    # index
+    elif source=='crossings':
+        path = CROSSINGS_DIR
+
+    else:
+        raise ValueError(f'Spacecraft "{source} does not have processed directory.')
+
+    if not os.path.isdir(path):
+        raise ValueError(f'Directory does not exist on processed drive: {path}.')
+
+
+    return path

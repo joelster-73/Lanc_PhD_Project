@@ -44,6 +44,7 @@ param_names  = {'E_y_GSM': 'E_y',
 
 # %% All
 responses = ('PCC_17m','AA_17m','SME_53m','AE_53m')
+#responses = ('PCC','PCC_17m','PCN_17m','PCN','AA_17m','SME_53m','AE_53m','AEc_53m')
 
 for param in ('E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','P_flow','B_clock'):
 

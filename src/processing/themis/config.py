@@ -6,13 +6,7 @@ Created on Thu May  8 17:48:07 2025
 """
 # config.py
 
-from src.config import LUNA_THEMIS_DIR, PROC_THEMIS_DIR
-
 THEMIS_SPACECRAFT = ('tha', 'thb', 'thc', 'thd', 'the')
-
-LUNA_THEMIS_DIRECTORIES = {sc: f'{LUNA_THEMIS_DIR}/{sc}/' for sc in THEMIS_SPACECRAFT}
-PROC_THEMIS_DIRECTORIES = {sc: f'{PROC_THEMIS_DIR}/{sc}/' for sc in THEMIS_SPACECRAFT}
-
 
 STATE_VARIABLES_TEMPLATE = { # 1 minute resolution
     'time': '{sc}_state_time',

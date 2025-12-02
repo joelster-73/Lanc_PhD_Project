@@ -11,8 +11,12 @@ from contextlib import ExitStack
 
 from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices
+from ..config import get_proc_directory
 
-def import_processed_data(directory, file_name=None, year=None, axis=0):
+
+def import_processed_data(source, sample=None, dtype=None, resolution=None, file_name=None, year=None, axis=0):
+
+    directory = get_proc_directory(source, sample, dtype, resolution)
 
     # axis = 0 combines files that have the same columns at different times
     # axis = 1 combines files that have different columns
