@@ -40,6 +40,9 @@ LUNA_OMNI_DIR   = 'Z:/omni/'
 
 LUNA_PC_INDEX_DIR  = 'Z:/PC_index/'
 
+# temporary
+LUNA_MAG_DIR    = 'Y:/Processed_Data/GROUND/SuperMAG/NetCDF/'
+
 
 
 def get_luna_directory(source, instrument=None, description=None, resolution=None):
@@ -118,6 +121,12 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
         if instrument.lower()=='mfi':
             path += 'mfi/mfi_h0/'
 
+    # supermag
+    elif source=='supermag':
+        path = LUNA_MAG_DIR
+
+        if instrument is not None:
+            path += instrument.upper()
 
     else:
         raise ValueError(f'Spacecraft "{source} does not have processed directory.')

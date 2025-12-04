@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['..\\..\\..\\..\\PGTA\\Phys232\\2025-26\\WS2.py']
+recent_files = ['src\\config.py', 'src\\processing\\mag\\handling.py', 'src\\processing\\mag\\script_process.py']
 
 [main]
 version = 0.2.0
