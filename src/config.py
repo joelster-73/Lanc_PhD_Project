@@ -6,8 +6,9 @@ Created on Thu May  8 16:17:14 2025
 """
 # src/config.py
 
-import warnings
 import os
+import warnings
+from .processing.utils import create_directory
 
 R_E = 6370 # Cluster takes 1 earth radius to be 6370 km
 
@@ -24,7 +25,7 @@ warnings.formatwarning = short_warn_format
 
 
 CLUSTER_SPACECRAFT = ('c1', 'c2', 'c3', 'c4')
-MMS_SPACECRAFT     = ('mm1', 'mm2', 'mm3', 'mm4')
+MMS_SPACECRAFT     = ('mms1', 'mms2', 'mms3', 'mms4')
 THEMIS_SPACECRAFT  = ('tha', 'thb', 'thc', 'thd', 'the')
 
 
@@ -109,7 +110,7 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
     elif source=='omni':
         path = LUNA_OMNI_DIR
 
-        if resolution == '1min':
+        if resolution == '1min' or resolution is None:
             path += 'omni_min_def/'
         elif resolution == '5min':
             path += 'omni_5min_def/'
@@ -127,6 +128,11 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
 
         if instrument is not None:
             path += instrument.upper()
+
+    # supermag
+    elif source=='pc_index':
+        path = LUNA_PC_INDEX_DIR
+
 
     else:
         raise ValueError(f'Spacecraft "{source} does not have processed directory.')
@@ -160,56 +166,76 @@ INDEX_DIR              = f'{PROCESSED_DATA_DIR}/INDICES'
 
 MSH_DIR                = f'{REGION_DIR}/MSH'
 SW_DIR                 = f'{REGION_DIR}/SW'
-C1_BS_CROSSINGS        = f'{REGION_DIR}/Bowshock/'
+C1_BS_CROSSINGS        = f'{REGION_DIR}/Bowshock'
 
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/c1/Crossings'
 
-def get_proc_directory(source, sample=None, dtype=None, resolution=None):
+def get_proc_directory(source, sample=' ', dtype=' ', resolution=' ', create=False):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
-        path = f'{CLUSTER_DIR}/{source}/'
 
-        if sample.upper() in ('SPIN','5VPS'):
-            path += f'{sample.upper()}/'
+        if dtype == 'base':
+            path = CLUSTER_DIR
 
-        if dtype in ('field','plasma','combined'):
-            path += f'{dtype}/'
+        else:
+            path = f'{CLUSTER_DIR}/{source}/'
 
-        if resolution in ('raw','1min','5min'):
-            path += f'{resolution}/'
+            if sample.capitalize()=='Crossings':
+                path += 'Crossings/'
+
+            else:
+                if sample.upper() in ('SPIN','5VPS'):
+                    path += f'{sample.upper()}/'
+
+                if dtype in ('field','plasma','combined','sw','msh'):
+                    path += f'{dtype}/'
+
+                if resolution in ('raw','1min','5min'):
+                    path += f'{resolution}/'
 
     # mms
     elif source in MMS_SPACECRAFT:
-        path = f'{MMS_DIR}/{source}/'
 
-        if dtype in ('field','plasma'):
-            path += f'{dtype}/'
+        if dtype == 'base':
+            path = MMS_DIR
 
-        if resolution in ('spin','1min','5min'):
-            path += f'{resolution}/'
+        else:
+            path = f'{MMS_DIR}/{source}/'
+
+            if dtype in ('field','plasma'):
+                path += f'{dtype}/'
+
+            if resolution in ('spin','1min','5min'):
+                path += f'{resolution}/'
 
     # themis
     elif source in THEMIS_SPACECRAFT:
-        path = f'{THEMIS_DIR}/{source}/'
 
-        instruments = {'field': 'FGM', 'plasma': 'MOM', 'position': 'STATE'}
-        if dtype in instruments:
-            path += f'{instruments[dtype]}/'
-        elif dtype in ('sw', 'msh', 'combined'):
-            path += f'{dtype}/'
+        if dtype == 'base':
+            path = THEMIS_DIR
 
-        if resolution in ('raw','1min','5min'):
-            path += f'{resolution}/'
+        else:
+            path = f'{THEMIS_DIR}/{source}/'
+
+            instruments = {'field': 'FGM', 'plasma': 'MOM', 'position': 'STATE'}
+            if dtype in instruments:
+                path += f'{instruments[dtype]}/'
+            elif dtype in ('sw', 'msh', 'combined'):
+                path += f'{dtype}/'
+
+            if resolution in ('raw','1min','5min'):
+                path += f'{resolution}/'
 
     # omni
     elif source=='omni':
-        path = f'{PROCESSED_DATA_DIR}/OMNI'
+        path = f'{PROCESSED_DATA_DIR}/OMNI/'
 
+        if resolution == '':
+            resolution = '1min'
         if resolution in ('1min','5min'):
             path += f'{resolution}/'
-        elif 'lag' in sample:
-            path += 'with_lag/'
+
 
     # wind
     elif source=='wind':
@@ -220,22 +246,24 @@ def get_proc_directory(source, sample=None, dtype=None, resolution=None):
     # combined
     elif source in ('msh', 'sw'):
         if source=='msh':
-            path = MSH_DIR
+            path = f'{MSH_DIR}/'
         elif source=='sw':
-            path = SW_DIR
+            path = f'{SW_DIR}/'
 
         if 'field' in dtype:
-            path += 'field_only/'
+            path += 'field/'
         elif 'plasma' in dtype:
-            path += 'with_plasma/'
+            path += 'plasma/'
 
         if resolution in ('1min','5min'):
             path += f'{resolution}/'
 
     # index
-    elif source in ('pcn','pcc','aa','sme'):
+    elif source in ('pcn','pcc','aa','sme','indices'):
 
-        if source=='pcc':
+        if source=='indices':
+            path = INDEX_DIR
+        elif source=='pcc':
             path = f'{INDEX_DIR}/PCN_PCS'
         else:
             path = f'{INDEX_DIR}/{source.upper()}'
@@ -248,7 +276,11 @@ def get_proc_directory(source, sample=None, dtype=None, resolution=None):
         raise ValueError(f'Spacecraft "{source} does not have processed directory.')
 
     if not os.path.isdir(path):
-        raise ValueError(f'Directory does not exist on processed drive: {path}.')
+        if create:
+            warnings.warn(f'Directory does not exist on processed drive: {path}. Creating directory...')
+            create_directory(path)
+        else:
+            raise ValueError(f'Directory does not exist on processed drive: {path}.')
 
 
     return path

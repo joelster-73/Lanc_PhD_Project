@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 from uncertainties import ufloat
 
-from .config import PROC_THEMIS_DIRECTORIES
 from ..reading import import_processed_data
+from ...config import get_proc_directory
 
 def obtain_mp_boundaries(themis_dir, mp_file='Grimmich_2023_MP_Crossings.txt', resolution='5min'):
 
@@ -61,13 +61,20 @@ def obtain_mp_boundaries(themis_dir, mp_file='Grimmich_2023_MP_Crossings.txt', r
     return boundaries
 
 
-def determine_mp_direction(mp_boundaries, df_sc, df_resolution, mp_params):
+def determine_mp_direction(mp_boundaries, df_sc, resolution, data_pop):
 
     directions = {}
 
+    # inc: parameter increases going into magnetosphere
+    # dec: parameter decreases going into magnetosphere
+    if data_pop=='field_only':
+        mp_params = {'B_avg': 'inc'}
+    else:
+        mp_params = {'B_avg': 'inc', 'N_tot': 'dec', 'T_tot': 'inc'}
+
     for time in mp_boundaries.index:
-        lower = time.floor(df_resolution) - pd.Timedelta(df_resolution)
-        upper = time.ceil(df_resolution)
+        lower = time.floor(resolution) - pd.Timedelta(resolution)
+        upper = time.ceil(resolution)
 
         if lower not in df_sc.index or upper not in df_sc.index:
             continue
@@ -133,7 +140,7 @@ def obtain_bs_boundaries(themis_dir, bs_file='Pallocchia_2024_BS_Crossings.txt')
     return boundaries
 
 
-def determine_bs_direction(bs_boundaries, df_sc, df_resolution, bs_params):
+def determine_bs_direction(bs_boundaries, df_sc, resolution, data_pop):
 
     directions = {}
 
@@ -149,9 +156,16 @@ def determine_bs_direction(bs_boundaries, df_sc, df_resolution, bs_params):
         df_sc.insert(0, 'r_mag', r)
         df_sc.insert(1, 'r_mag_unc', sigma_r)
 
+    # inc: parameter increases going into solar wind
+    # dec: parameter decreases going into solar wind
+    if data_pop=='field_only':
+        bs_params = {'B_avg': 'dec'}
+    else:
+        bs_params = {'B_avg': 'dec', 'N_tot': 'dec', 'r_mag': 'inc'}
+
     for time in bs_boundaries.index:
-        lower = time.floor(df_resolution) - pd.Timedelta(df_resolution)
-        upper = time.ceil(df_resolution)
+        lower = time.floor(resolution) - pd.Timedelta(resolution)
+        upper = time.ceil(resolution)
 
         if lower not in df_sc.index or upper not in df_sc.index:
             continue
@@ -201,38 +215,24 @@ def determine_bs_direction(bs_boundaries, df_sc, df_resolution, bs_params):
 
 # %% Determine_direction
 
-def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with_plasma', resolution='5min', max_gap=None):
+def themis_region_intervals(spacecraft, region='msh', data_pop='plasma', resolution='5min', max_gap=None):
 
     """
     Resolution is the data point before and after the boundary used to determine the conditinos
     Data population is the type of data used to establish the direction of themis
     """
+    themis_dir = get_proc_directory(spacecraft, dtype='base') # base directory
 
-    boundaries = obtain_mp_boundaries(themis_dir, resolution=resolution)
+    boundaries    = obtain_mp_boundaries(themis_dir, resolution=resolution)
     sc_boundaries = boundaries[boundaries['Probe']==spacecraft]
 
-    sc_dir = PROC_THEMIS_DIRECTORIES[spacecraft]
-
-    if data_pop=='field_only':
-        sc_dir = os.path.join(sc_dir, 'FGM')
-    else:
-        sc_dir = os.path.join(sc_dir, region)
-
-    sc_dir = os.path.join(sc_dir, resolution)
-    df_sc  = import_processed_data(sc_dir)
+    df_sc  = import_processed_data(spacecraft, dtype=region, resolution=resolution)
 
     if region=='msh':
         boundaries = obtain_mp_boundaries(themis_dir, resolution=resolution)
         sc_boundaries = boundaries[boundaries['Probe']==spacecraft]
 
-        # inc: parameter increases going into magnetosphere
-        # dec: parameter decreases going into magnetosphere
-        if data_pop=='field_only':
-            bound_params = {'B_avg': 'inc'}
-        else:
-            bound_params = {'B_avg': 'inc', 'N_tot': 'dec', 'T_tot': 'inc'}
-
-        directions = determine_mp_direction(sc_boundaries, df_sc, resolution, bound_params)
+        directions = determine_mp_direction(sc_boundaries, df_sc, resolution, data_pop)
 
         if max_gap is None:
             max_gap = pd.Timedelta('15h')
@@ -241,14 +241,7 @@ def themis_region_intervals(spacecraft, themis_dir, region='msh', data_pop='with
         boundaries = obtain_bs_boundaries(themis_dir)
         sc_boundaries = boundaries[boundaries['Probe']==spacecraft]
 
-        # inc: parameter increases going into solar wind
-        # dec: parameter decreases going into solar wind
-        if data_pop=='field_only':
-            bound_params = {'B_avg': 'dec'}
-        else:
-            bound_params = {'B_avg': 'dec', 'N_tot': 'dec', 'r_mag': 'inc'}
-
-        directions = determine_bs_direction(sc_boundaries, df_sc, resolution, bound_params)
+        directions = determine_bs_direction(sc_boundaries, df_sc, resolution, data_pop)
 
         if max_gap is None:
             max_gap = pd.Timedelta('40h')

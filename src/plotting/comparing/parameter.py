@@ -33,7 +33,7 @@ def is_marker_like(marker):
     except ValueError:
         return False
 
-def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, delay_time=None, **kwargs):
+def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
 
 
     series1 = df.loc[:,col1]
@@ -53,21 +53,6 @@ def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col
 
     if col2_counts is not None:
         kwargs['ys_counts'] = df.loc[:,col2_counts]
-
-    if delay_time is not None:
-        delay = pd.Timedelta(minutes=delay_time)
-
-        series2 = series2.shift(freq=delay)
-
-        for y_param in ('ys_unc','ys_counts'):
-            if y_param in kwargs:
-                kwargs[y_param] = kwargs[y_param].shift(freq=delay)
-
-        series1, series2 = series1.align(series2)
-
-        for x_param in ('zs','xs_unc','xs_counts'):
-            if x_param in kwargs:
-                _, kwargs[x_param] = series1.align(kwargs[x_param])
 
     compare_series(series1, series2, **kwargs)
 

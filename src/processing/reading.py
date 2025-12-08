@@ -14,7 +14,7 @@ from .dataframes import set_df_indices
 from ..config import get_proc_directory
 
 
-def import_processed_data(source, sample=None, dtype=None, resolution=None, file_name=None, year=None, axis=0):
+def import_processed_data(source, sample=' ', dtype=' ', resolution=' ', file_name=None, year=None, axis=0):
 
     directory = get_proc_directory(source, sample, dtype, resolution)
 
@@ -24,6 +24,7 @@ def import_processed_data(source, sample=None, dtype=None, resolution=None, file
     if file_name:
         cdf_file = get_cdf_file(directory, filename=file_name)
         df = read_spacepy_object(cdf_file)
+
     else: # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
         cdf_file = cdf_files[0]

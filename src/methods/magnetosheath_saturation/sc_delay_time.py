@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 
 from ...config import R_E
-from ...processing.omni.config import lagged_indices
 from ...coordinates.magnetic import GSE_to_GSM_with_angles
+from ...processing.mag.config import lagged_indices
 
 def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
 
@@ -51,7 +51,7 @@ def add_dynamic_index_lag(df, omni_key='sw', sc_key='sc', pc_key='pc', region='s
             print(ind_name,'not in dataframe.')
             continue
 
-        print(ind_name)
+        print('lagging',ind_name)
 
         for lag in lags:
             dt_fixed = pd.to_timedelta(lag, unit='m')

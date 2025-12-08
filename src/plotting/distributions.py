@@ -15,7 +15,7 @@ import matplotlib.colors as mcolors
 from matplotlib import ticker as mticker
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from .config import black, white, blue
+from .config import black, white, blue, grey
 from .formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
 from .utils import save_figure, calculate_bins
 
@@ -474,9 +474,9 @@ def plot_metric(series, metric='mean', **kwargs):
 
 def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
-    ys_unc       = kwargs.get('ys_unc',None)
-    ys_counts    = kwargs.get('ys_counts',None)
-    min_count    = kwargs.get('min_count',10) # data points in bin
+    ys_unc         = kwargs.get('ys_unc',None)
+    ys_counts      = kwargs.get('ys_counts',None)
+    min_count      = kwargs.get('min_count',10) # data points in bin
     max_expansions = kwargs.get('max_expansions',5)
 
     line_style  = kwargs.get('line_style','-')

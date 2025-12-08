@@ -434,10 +434,14 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
         ax0 = axs[0][i]
         ax1 = axs[1][i]
 
-        for df, source, colour in zip((df_omni,df_sc,df_sc), ('omni',ind_src,'sc'), (omni_colour,contemp_colour,sc_colour)):
+        for df, source, colour in zip((df_omni,df_sc,df_sc),
+                                      ('omni',ind_src,'sc'),
+                                      (omni_colour,contemp_colour,sc_colour)):
 
             if df is None:
                 continue
+            elif len(df)==0:
+                print('df is empty')
 
             ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, source)
             dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df, dep_var, dep_src)
@@ -480,7 +484,7 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
         # Formatting
         ax0.grid(ls=':', c=grey, lw=0.5)
         ax1.grid(ls=':', c=grey, lw=0.5)
-        if df_omni.attrs.get('units',{}).get(ind_var,'')==df_omni.attrs.get('units',{}).get(dep_var,''):
+        if df_omni.attrs.get('units',{}).get(ind_var,'')==df_omni.attrs.get('units',{}).get(dep_var,'')=='mV/m':
             ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
 
         if shift_centre:

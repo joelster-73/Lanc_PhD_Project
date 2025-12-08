@@ -28,7 +28,7 @@ UNIT_MAP = {
     r'^(r_|R_)': 'Re',
     r'^(B_|AE|AU|AL|AEc|SME|AA)': 'nT',
     r'^(V_|v_)': 'km/s',
-    r'^(E_|PCN|PCS|PCC)': 'mV/m',
+    r'^(E_|PC)': 'mV/m',
     r'^T_': 'K',
     r'^P_': 'nPa',
     r'^S_': 'uW/m2',

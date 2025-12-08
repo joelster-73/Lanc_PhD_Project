@@ -6,11 +6,13 @@ Created on Tue Sep 30 16:42:01 2025
 """
 import os
 import pandas as pd
-
+from ...config import get_proc_directory
 
 # %% Region_intervals
 
-def mms_region_intervals(mms_dir, region='sw', max_gap=pd.Timedelta('30h')):
+def mms_region_intervals(region='sw', max_gap=pd.Timedelta('30h')):
+
+    mms_dir = get_proc_directory('mms1') # crossings in mms1 folder for all sc
 
     if region=='msh':
         direction = 1 # inbound from BS

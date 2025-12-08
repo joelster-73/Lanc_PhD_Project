@@ -46,9 +46,16 @@ def get_processed_files(directory, year=None, keyword=None):
 
 def get_cdf_file(directory, filename=None):
     if filename:
-        file_path = os.path.join(directory, filename)
+        path = os.path.join(directory, filename)
+        root, ext = os.path.splitext(path)
+        if not ext:
+           ext = '.cdf'
+        file_path = root + ext
+
         if not file_path.lower().endswith('.cdf'):
             raise ValueError(f"Provided file '{filename}' is not a .cdf file.")
+
+
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"Specified file '{file_path}' not found.")
         return file_path

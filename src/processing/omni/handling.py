@@ -6,7 +6,7 @@ import pandas as pd
 
 from datetime import datetime, timedelta
 
-from .config import imf_bad_cols, plasma_bad_cols, column_units
+from .config import imf_bad_cols, plasma_bad_cols, column_units, omni_columns, omni_columns_5min
 
 from ..handling import create_log_file, log_missing_file
 from ..writing import write_to_cdf
@@ -16,9 +16,16 @@ from ..speasy.calculations import cross_product, gse_to_gsm_with_angle
 
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...analysing.coupling import kan_lee_field
+from ...config import get_luna_directory, get_proc_directory
 
+def process_omni_files(resolution='1min', year=None, overwrite=True, ext='asc'):
 
-def process_omni_files(directory, data_directory, variables, year=None, overwrite=True, ext='asc'):
+    directory = get_luna_directory('omni',resolution=resolution)
+    data_directory = get_proc_directory('omni',resolution=resolution)
+    if resolution=='1min':
+        variables = omni_columns
+    elif resolution=='5min':
+        variables = omni_columns_5min
 
     print('Processing OMNI.\n')
     # Gather all OMNI files for the specified year (or all files if no year is specified)

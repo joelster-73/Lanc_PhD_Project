@@ -16,8 +16,9 @@ from ..writing import write_to_cdf
 from ..dataframes import add_df_units, resample_data
 from ..reading import import_processed_data
 from ..utils import create_directory
+
 from ...coordinates.magnetic import calc_B_GSM_angles, GSE_to_GSM_with_angles
-from ...config import R_E, PROC_OMNI_DIR_5MIN
+from ...config import R_E, get_proc_directory
 
 def process_cluster_files(directory, data_directory, variables, sample_interval='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, quality_directory=None, quality_variables=None):
 
@@ -226,11 +227,13 @@ def extract_cluster_data(cdf_file, variables):
     return data_dict
 
 # %%
-def combine_spin_data(spin_directory, fvps_directory=None, year=None, omni_dir=PROC_OMNI_DIR_5MIN):
+def combine_spin_data(spin_directory, fvps_directory=None, year=None):
 
     field_dir = os.path.join(spin_directory, 'field', 'raw')
     plasma_dir = os.path.join(spin_directory, 'plasma', 'raw')
     combined_dir = os.path.join(spin_directory, 'combined', 'raw')
+
+    omni_dir = get_proc_directory('omni',resolution='5min')
 
     year_range = range(2001,2023)
     if year is not None:

@@ -16,7 +16,7 @@ from .dataframes import resample_data, add_df_units
 from ..config import R_E
 
 
-def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=False, time_col='epoch', update_column=False, reset_index=False):
+def write_to_cdf(df, output_file=None, directory=None, file_name=None, attributes=None, overwrite=True, append_rows=False, time_col='epoch', update_column=False, reset_index=False):
 
     df_attrs = df.attrs.copy()
     df = df.copy()
@@ -30,6 +30,17 @@ def write_to_cdf(df, output_file, attributes=None, overwrite=True, append_rows=F
     # If the time is the index, moves into column
     if reset_index:
         df.reset_index(inplace=True)
+
+    if not any((output_file,directory,file_name)):
+        raise ValueError('No suitable directory/file name passed in.')
+    elif output_file is None:
+        output_file = os.path.join(directory, file_name)
+
+    # Adds ".cdf" if not there
+    root, ext = os.path.splitext(output_file)
+    if not ext:
+       ext = '.cdf'
+    output_file = root + ext
 
     # Creates directory folder and checks if file already exists
     create_directory(os.path.dirname(output_file))
