@@ -71,9 +71,9 @@ def add_dynamic_index_lag(df_sc, df_pc, indices=lagged_indices):
             column_name = f'{ind}_{lag}m_adj'
             if column_name not in df_pc:
                 df_pc.insert(df_pc.columns.get_loc(f'{ind}_{lag}m') + 1, column_name, np.nan)
+                df_pc.attrs.get('units',{}).update({column_name: df_pc.attrs.get('units',{}).get(ind)})
 
             df_pc.loc[overlap, column_name] = aligned_values
-
 
 
 # %%% Delay Histograms

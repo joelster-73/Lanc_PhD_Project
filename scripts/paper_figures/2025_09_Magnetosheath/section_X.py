@@ -6,6 +6,32 @@ Created on Thu Aug 28 12:29:26 2025
 """
 
 
+
+
+
+
+# %% Import
+from src.processing.reading import import_processed_data
+
+sample_interval = '1min'
+data_pop = 'with_plasma'
+
+region = 'sw'
+
+df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_mms1')
+
+
+
+
+
+
+
+
+
+
+
+
+
 # %% Import
 import os
 

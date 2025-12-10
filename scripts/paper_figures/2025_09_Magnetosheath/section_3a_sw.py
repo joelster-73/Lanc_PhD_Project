@@ -20,11 +20,13 @@ data_type = 'mins' if sample_interval == '1min' else 'counts'
 
 region = 'sw'
 
-
 df_omni = import_processed_data('omni', resolution=sample_interval)
 update_omni(df_omni)
 
-df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_combined')
+# ideally use combined
+spacecraft = 'c1'
+
+df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{spacecraft}')
 df_pc   = import_processed_data('indices', file_name=f'combined_{sample_interval}')
 add_dynamic_index_lag(df_sc, df_pc)
 
@@ -49,6 +51,8 @@ sc_index_map = {name: f'{name}_adj' for name in ('AE_53m','AEc_53m','PCN_17m','P
 params = ('E_y_GSM','B_avg','B_z_GSM','beta','N_tot','V_flow','P_flow','B_clock')
 
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='scatter')
+plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)
+
 
 # %% Papers
 

@@ -171,7 +171,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
             # Second condition is to prevent incorrect boundaries
             mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>1))
-            mask |= (df_merged['r_F']>2)
+            mask |= (df_merged['r_F']>1.5)
 
             mask &= (df_merged[f'r_mag{suffix}']<35) # ARTEMIS
 

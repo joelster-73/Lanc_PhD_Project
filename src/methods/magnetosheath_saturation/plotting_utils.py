@@ -22,10 +22,10 @@ def def_param_names(df, variable, source=None):
         var_err = None # Need to include
     else:
         var_err   = '_'.join((variable,'unc'))
-    
+
     if source is not None:
         var_err = '_'.join((var_err,source))
-        
+
     if var_err not in df:
         var_err = None
 
@@ -41,7 +41,7 @@ def def_param_names(df, variable, source=None):
 
     else:
         var_count = '_'.join((variable,'count'))
-        
+
     if source is not None:
         var_count = '_'.join((var_count,source))
 
@@ -165,9 +165,9 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
             if ind_src=='msh':
                 limits[1] = 10
             elif ind_var==dep_var:
-                limits[1] = 15
+                limits[1] = 10
             else:
-                limits[1] = 20
+                limits[1] = 10
 
     elif ind_var=='S_perp':
         invert = True

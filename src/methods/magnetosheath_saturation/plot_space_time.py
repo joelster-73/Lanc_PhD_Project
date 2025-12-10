@@ -37,7 +37,7 @@ minimum_counts = {'mins': 100, 'counts': 50}
 def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins', region='msh'):
 
     if sc_keys is None:
-        sc_keys = ('c1','m1','tha','thc','thd','the')
+        sc_keys = ('c1','mms1','tha','thc','thd','the')
 
     n_cols = min(3,len(sc_keys))
     n_rows = round(len(sc_keys)/n_cols)
@@ -78,10 +78,10 @@ def plot_sc_sw_msh(sw_dir, msh_dir, sw_keys=None, msh_keys=None, data_type='mins
 
 
     if sw_keys is None:
-        sw_keys = ('c1','m1','thb')
+        sw_keys = ('c1','mms1','thb')
 
     if msh_keys is None:
-        msh_keys = ('c1','m1','the')
+        msh_keys = ('c1','mms1','the')
 
     fig, axs = plt.subplots(2, 1, figsize=(12,8), dpi=400, sharex=True)
 
@@ -106,20 +106,23 @@ def plot_sc_sw_msh(sw_dir, msh_dir, sw_keys=None, msh_keys=None, data_type='mins
     plt.close()
 
 
-def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type='mins', **kwargs):
+def plot_sc_years(sample_interval='1min', region='msh', data_pop='plasma', sc_keys=None, combined=True, **kwargs):
 
     """
     Combined flag: show all years on one axis, rather than split per spacecraft
     """
+
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
+
 
     fig          = kwargs.get('fig',None)
     axs          = kwargs.get('ax',None)
     return_objs  = kwargs.get('return_objs',False)
 
     if sc_keys is None:
-        sc_keys = ('c1','m1','tha','thb','thc','thd','the')
+        sc_keys = ('c1','mms1','tha','thb','thc','thd','the')
         if combined:
-            sc_keys = ('c1','m1','th')
+            sc_keys = ('c1','mms1','th')
 
     n_rows = len(sc_keys)
     n_cols = 1
@@ -145,19 +148,19 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
             years = []
             for sc in [f'th{x}' for x in ('a','b','c','d','e')]:
                 try:
-                    df_sc = import_processed_data(data_dir, f'{region}_times_{sc}.cdf')
+                    df_sc = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc}')
                 except:
                     print(f'{sc} data not found in directory')
                     continue
-                years.append(df_sc[f'B_avg_{sc}'].dropna().index.year.to_numpy())
+                years.append(df_sc['B_avg'].dropna().index.year.to_numpy())
             years = np.concatenate(years)
         else:
             try:
-                df_sc = import_processed_data(data_dir, f'{region}_times_{sc_key}.cdf')
+                df_sc = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc_key}')
             except:
                 print(f'{sc_key} data not found in directory')
                 continue
-            years = df_sc[f'B_avg_{sc_key}'].dropna().index.year.to_numpy()
+            years = df_sc['B_avg'].dropna().index.year.to_numpy()
 
         if len(years)==0:
             continue
@@ -190,13 +193,14 @@ def plot_sc_years(data_dir, region='msh', sc_keys=None, combined=True, data_type
 
     print(f'{len(unique_indices):,} unique {data_type} of {region} data')
 
-    if kwargs.get('year_range',None):
-        ax.set_xlim(kwargs['year_range'])
-
     if n_rows==1:
-        axs.set_xlabel('Year')
+        the_ax = axs
     else:
-        axs[-1].set_xlabel('Year')
+        the_ax = axs[-1]
+
+    the_ax.set_xlabel('Year')
+    if kwargs.get('year_range',None):
+        the_ax.set_xlim(kwargs['year_range'])
 
     if n_rows>1:
         plt.subplots_adjust(wspace=0, hspace=0)
