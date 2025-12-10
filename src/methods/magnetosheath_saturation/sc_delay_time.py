@@ -11,6 +11,10 @@ from ...config import R_E
 from ...coordinates.magnetic import GSE_to_GSM_with_angles
 from ...processing.mag.config import lagged_indices
 
+from ...processing.reading import import_processed_data
+from ...plotting.distributions import plot_freq_hist
+
+
 def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
 
     r_bs = df[[f'R_{comp}_BSN_{omni_key}' for comp in ('x','y','z')]].values * R_E
@@ -39,39 +43,45 @@ def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
 
 
 
-def add_dynamic_index_lag(df, omni_key='sw', sc_key='sc', pc_key='pc', region='sw', indices=lagged_indices, plot_lags=True):
+def add_dynamic_index_lag(df_sc, df_pc, indices=lagged_indices):
 
-    calc_bs_sc_delay(df, omni_key, sc_key, region)
-
-    dt_variable = pd.to_timedelta(df[f'prop_time_s_{sc_key}'], unit='s')
+    overlap = df_sc.index.intersection(df_pc.index)
+    dt_variable = pd.to_timedelta(df_sc.loc[overlap, 'prop_time_s'], unit='s')
 
     for ind, lags in indices.items():
-        ind_name = f'{ind}_{pc_key}'
-        if ind_name not in df:
-            print(ind_name,'not in dataframe.')
+        if ind not in df_pc:
+            print(ind, 'not in dataframe.')
             continue
 
-        print('lagging',ind_name)
+        print('lagging', ind)
 
         for lag in lags:
-            dt_fixed = pd.to_timedelta(lag, unit='m')
-            dt_lag = dt_fixed + dt_variable
+            print(lag)
 
-            target_index = df.index + dt_lag
+            dt_lag = pd.to_timedelta(lag, unit='m') + dt_variable
 
-            # Drop duplicate timestamps and sort
-            df = df[~df.index.duplicated(keep='first')]
-            target_index = target_index.drop_duplicates()
-            full_index = df.index.union(target_index).sort_values()
+            target_index = overlap + dt_lag.values
+            full_index = df_pc.index.union(target_index).sort_values()
 
-            temp = df[ind_name].reindex(full_index).interpolate(method='time')
+            temp = df_pc[ind].reindex(full_index).interpolate(method='time')
+            last_valid_time = df_pc[ind].last_valid_index()
+            temp.loc[temp.index > last_valid_time] = np.nan
+            aligned_values = temp.reindex(target_index).values
 
-            column_name = f'{ind}_{lag}m_{pc_key}'
+            column_name = f'{ind}_{lag}m_adj'
+            if column_name not in df_pc:
+                df_pc.insert(df_pc.columns.get_loc(f'{ind}_{lag}m') + 1, column_name, np.nan)
 
-            # Align target_index safely
-            aligned_values = temp.reindex(target_index).reindex(df.index).values
+            df_pc.loc[overlap, column_name] = aligned_values
 
-            if column_name in df:
-                df[column_name] = aligned_values
-            else:
-                df.insert(df.columns.get_loc(ind) + 1, column_name, aligned_values)
+
+
+# %%% Delay Histograms
+
+def plot_delay_hists(sc, region, data_pop='plasma', sample_interval='5min'):
+
+
+    df = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc}')
+
+    plot_freq_hist(df['prop_time_s'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
+

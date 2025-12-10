@@ -7,30 +7,28 @@ Created on Thu Aug 28 12:29:26 2025
 Showing saturation present with in-situ, so not due to OMNI (solely)
 """
 
-
 # %% Import
 from src.processing.reading import import_processed_data
-from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses
-from src.methods.magnetosheath_saturation.merge_region_sc import update_omni, update_pc_index
-from src.processing.dataframes import merge_dataframes
+from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses, plot_different_lags, plot_pulkkinen_grid
+from src.methods.magnetosheath_saturation.merge_region_sc import update_omni
+from src.methods.magnetosheath_saturation.sc_delay_time import add_dynamic_index_lag
 
-sample_interval = '5min'
+sample_interval = '1min'
 data_pop = 'with_plasma'
 
 data_type = 'mins' if sample_interval == '1min' else 'counts'
 
 region = 'sw'
 
-df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_combined')
+
 df_omni = import_processed_data('omni', resolution=sample_interval)
-df_pc   = import_processed_data('indices', file_name=f'combined_{sample_interval}')
-
 update_omni(df_omni)
-# Very small, nearly 0, PCC values
-for df in (df_sc,df_pc): # CAN REMOVE DF_SC
-    update_pc_index(df, minimum=0.15)
 
-df_sw   = merge_dataframes(df_omni, df_pc)
+df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_combined')
+df_pc   = import_processed_data('indices', file_name=f'combined_{sample_interval}')
+add_dynamic_index_lag(df_sc, df_pc)
+
+
 # %% Params
 
 param_names  = {'E_y_GSM': 'E_y',
@@ -41,29 +39,36 @@ param_names  = {'E_y_GSM': 'E_y',
                 'AEc_53m': 'AEc',
                 'PCN_17m': 'PCN',
                 'PCC_17m': 'PCC',
-                'PCM_17m': 'PCM',
                 'AA_60m' : 'AA',
                 'SME_53m': 'SME'}
 
+sc_index_map = {name: f'{name}_adj' for name in ('AE_53m','AEc_53m','PCN_17m','PCC_17m','AA_60m','SME_53m')}
+
+# %% Verify
+
+params = ('E_y_GSM','B_avg','B_z_GSM','beta','N_tot','V_flow','P_flow','B_clock')
+
+plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='scatter')
+
 # %% Papers
-
-
-### UPDATE FUNCTIONS TO TAKE IN DF_OMNI, DF_SC, AND DF_PC
-
-
 
 # Myllys results
 param = 'E_R'
-plot_driver_multi_responses(df_sw, df_sc, param, 'PCN_17m', 'PCC_17m', 'PCM_17m', restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
+plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'PCN_17m', 'PCC_17m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+
+plot_different_lags(df_sc, df_pc, param, 'PCC', restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+
 
 # Lakka results
 param = 'E_y_GSM'
-plot_driver_multi_responses(df_sw, df_sc, param, 'AE_53m', 'SME_53m','AA_60m', restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
+plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'AE_53m', 'SME_53m','AA_60m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+
+plot_different_lags(df_sc, df_pc, param, 'SME', restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+
 
 # %% All
-responses = ('PCM_17m','SME_53m','AA_60m')
+responses = ('PCC_17m','SME_53m','AA_60m')
 
-for param in ('P_flow','E_R','E_y_GSM','B_z_GSM','V_flow','N_tot','P_flow','B_clock'):
+for param in ('E_R','E_y_GSM','B_z_GSM','V_flow','beta','N_tot','P_flow','B_clock'):
 
-    plot_driver_multi_responses(df_sw, df_sc, param, *responses, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
-    break
+    plot_driver_multi_responses(df_omni, df_sc, df_pc, param, *responses, index_map=sc_index_map, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)

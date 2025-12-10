@@ -48,7 +48,7 @@ def process_PCN_data():
 
     return df_pcn
 
-def process_PCC_data(include_prelim=False):
+def process_PCC_data(include_prelim=True):
     '''
     Include prelim is the 'preliminary' sub directory
     Extra data is on my local drive and not on LUNA
@@ -88,14 +88,15 @@ def process_PCC_data(include_prelim=False):
             return df_def
 
         df_temp = process_files(files)
-
-        # rename to avoid overwriting
         df_temp.rename(columns={'PCN': 'PCN_prelim', 'PCS': 'PCS_prelim'}, inplace=True)
 
-        for col_main, col_prelim in [('PCN', 'PCN_prelim'), ('PCS', 'PCS_prelim')]:
-            df_main[col_main] = df_main[col_main].combine_first(df_temp[col_prelim])
+        # align indexes so new rows get added
+        df_merged = df_def.join(df_temp, how='outer')
 
-        return df_main
+        for col_main, col_prelim in [('PCN', 'PCN_prelim'), ('PCS', 'PCS_prelim')]:
+            df_merged[col_main] = df_merged[col_main].combine_first(df_merged[col_prelim])
+
+        return df_merged
 
     main_files = sorted(f for f in glob.glob(os.path.join(pcn_pcs_dir, '*.txt'))
                         if 'readme' not in os.path.basename(f).lower())
@@ -108,8 +109,7 @@ def process_PCC_data(include_prelim=False):
 
     df_main = df_main.loc[df_main.index.year > 2000]
     df_main['PCC'] = df_main[['PCN', 'PCS']].clip(lower=0).mean(axis=1, skipna=True)
-
-    df_main.drop(columns=['PCN','PCS'],inplace=True)
+    df_main.drop(columns=['PCN','PCS','PCN_prelim','PCS_prelim'],inplace=True,errors='ignore')
     df_main.sort_index(inplace=True)
 
     return df_main
@@ -178,7 +178,7 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
 
     print('Importing...')
     df_pcn = process_PCN_data()
-    df_pcc = process_PCC_data(True)
+    df_pcc = process_PCC_data()
     df_aa  = process_AA_data()
     df_sme = process_SME_data()
 
@@ -192,7 +192,6 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_sw['PCN'] = df_pcn['PCN'].reindex(df_sw.index)
     df_sw['PCC'] = df_pcc['PCC'].reindex(df_sw.index)
 
-
     for ind, lags in indices.items():
         if ind not in df_sw:
             continue
@@ -203,16 +202,16 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
 
             # Lagged index
             if (dt_lag % pd.Timedelta(sample_interval)) == pd.Timedelta(0):
-                df_sw.insert(df_sw.columns.get_loc(ind) + 1, f'{ind}_{lag}m', df_sw[ind].shift(freq=dt_lag))
+                new_data = df_sw[ind].shift(freq=dt_lag)
             else:
                 print('Interpolating lag.')
                 target_index = df_sw.index + dt_lag
                 full_index = df_sw.index.union(target_index)
                 temp = df_sw[ind].reindex(full_index).interpolate(method='time')
-                df_sw.insert(df_sw.columns.get_loc(ind) + 1, f'{ind}_{lag}m', temp.loc[target_index].values)
+                new_data = temp.loc[target_index].values
 
+            df_sw.insert(df_sw.columns.get_loc(ind) + 1, f'{ind}_{lag}m', new_data)
 
     # Writes OMNI with lag to file
     output_file = os.path.join(get_proc_directory('indices'), f'combined_{sample_interval}')
     write_to_cdf(df_sw, output_file, reset_index=True)
-

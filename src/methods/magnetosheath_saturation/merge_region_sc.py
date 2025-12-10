@@ -4,14 +4,14 @@ Created on Tue Sep 16 12:21:25 2025
 
 @author: richarj2
 """
-import re
+
 import numpy as np
 import pandas as pd
 
 from scipy.constants import m_p, physical_constants
 m_a = physical_constants['alpha particle mass'][0]
 
-from .sc_delay_time import add_dynamic_index_lag
+from .sc_delay_time import calc_bs_sc_delay
 
 from ...config import get_proc_directory
 
@@ -19,13 +19,10 @@ from ...processing.mms.analysis import mms_region_intervals
 from ...processing.cluster.analysis import cluster_region_intervals
 from ...processing.themis.analysis import themis_region_intervals
 from ...processing.omni.config import indices_columns
-from ...processing.mag.config import lagged_indices
 
 from ...processing.reading import import_processed_data
 from ...processing.dataframes import merge_dataframes
 from ...processing.writing import write_to_cdf
-
-from ...plotting.distributions import plot_freq_hist
 
 from ...coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
 from ...coordinates.magnetic import GSE_to_GSM_with_angles, calc_GSE_to_GSM_angles
@@ -66,7 +63,7 @@ spacecraft     = {'sw': {'field': all_spacecraft, 'plasma': ('c1','mms1','thb')}
 
 # %%% Merge_OMNI_sc
 
-def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_keys=None, nose=False):
+def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_keys=None, nose=False, plot_hist=True):
 
     """
     Data_pop = 'field' means field only
@@ -84,9 +81,6 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
     print('Importing OMNI')
     df_omni = import_processed_data('omni', resolution=sample_interval)
     update_omni(df_omni, indices_columns)
-
-    print('Importing indices')
-    df_pc = import_processed_data('indices', file_name=f'combined_{sample_interval}')
 
     for sc in sc_keys:
 
@@ -121,7 +115,6 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         else:
             raise Exception(f'"{sc}" not implemented.')
 
-
         ###---------------FILTERING------------###
 
         location_mask = (df_sc['r_x_GSE']>0)
@@ -150,7 +143,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         df_merged_attrs = df_sc.attrs # stores
         df_merged = merge_dataframes(df_omni, df_sc, suffix_1='sw', suffix_2=sc)
-        df_merged = merge_dataframes(df_merged, df_pc, suffix_1=None, suffix_2='pc')
+        suffix = f'_{sc}'
 
         ###----------FILTER FOR REGION----------###
 
@@ -180,10 +173,10 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
             mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>1))
             mask |= (df_merged['r_F']>2)
 
-            mask &= (df_merged[f'r_mag_{sc}']<35) # ARTEMIS
+            mask &= (df_merged[f'r_mag{suffix}']<35) # ARTEMIS
 
         df_merged = df_merged.loc[mask]
-        df_merged.rename(columns={col: f'{col}_{sc}' for col in pos_cols}, inplace=True) # adds _sc suffix
+        df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
 
         ###----------NORMAL TO SURFACE----------###
 
@@ -200,7 +193,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
             N = df_merged[norm_cols].to_numpy()
             for vec in couple_vecs:
 
-                A_cols = [f'{vec}_{comp}_GSM_{sc}' for comp in ('x','y','z')]
+                A_cols = [f'{vec}_{comp}_GSM{suffix}' for comp in ('x','y','z')]
                 if A_cols[0] not in df_merged:
                     A_cols[0] = A_cols[0].replace('GSM','GSE')
 
@@ -212,36 +205,33 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
                     tangential_mag = np.sqrt(A_norm_sq - (A_dot_N ** 2))
                     tangential_mag = np.nan_to_num(tangential_mag)  # Replace NaNs with 0
 
-                df_merged[f'{vec}_perp_{sc}']     = A_dot_N
-                df_merged[f'{vec}_parallel_{sc}'] = tangential_mag
+                df_merged[f'{vec}_perp{suffix}']     = A_dot_N
+                df_merged[f'{vec}_parallel{suffix}'] = tangential_mag
 
-            df_merged.rename(columns={col: f'{col}_{sc}' for col in norm_cols}, inplace=True) # adds _sc suffix
+            df_merged.rename(columns={col: f'{col}{suffix}' for col in norm_cols}, inplace=True) # adds _sc suffix
 
         ###----------EXTRA PARAMETERS----------###
 
         # Correction to time lag based on spacecraft position in solar wind
-        add_dynamic_index_lag(df_merged, omni_key='sw', sc_key=sc, pc_key='pc', region=region, indices=lagged_indices)
-        update_pc_index(df_merged) # Done here so interpolation doesn't lead to errors
-
-        plot_freq_hist(df_merged[f'prop_time_s_{sc}'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
+        calc_bs_sc_delay(df_merged, omni_key='sw', sc_key=sc, region=region)
 
         if region=='sw':
-            remove_extremes(df_merged, {f'beta_{sc}': 1000, f'P_flow_{sc}': 30})
+            remove_extremes(df_merged, {f'beta{suffix}': 1000, f'P_flow{suffix}': 30})
 
         elif region=='msh':
-            remove_extremes(df_merged, {f'B_avg_{sc}': 100}, {f'B_z_GSM_{sc}': 250, f'beta_{sc}': 100})
+            remove_extremes(df_merged, {f'B_avg{suffix}': 100}, {f'B_z_GSM{suffix}': 250, f'beta{suffix}': 100})
 
             # Rotation of clock angle, ignoring sw uncertainty for time being
-            df_merged[f'Delta B_theta_{sc}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock_{sc}'],unit='rad'))
-            not_nan = ~np.isnan(df_merged[f'Delta B_theta_{sc}'])
-            if f'B_clock_unc_{sc}' in df_merged: # Not implemented for Cluster currently
-                df_merged.loc[not_nan,f'Delta B_theta_unc_{sc}'] = df_merged.loc[not_nan,f'B_clock_unc_{sc}']
+            df_merged[f'Delta B_theta{suffix}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock{suffix}'],unit='rad'))
+            not_nan = ~np.isnan(df_merged[f'Delta B_theta{suffix}'])
+            if f'B_clock_unc{suffix}' in df_merged: # Not implemented for Cluster currently
+                df_merged.loc[not_nan,f'Delta B_theta_unc{suffix}'] = df_merged.loc[not_nan,f'B_clock_unc{suffix}']
 
             # Reversal of Bz; not interested in error
-            df_merged[f'Delta B_z_{sc}'] = df_merged[f'B_z_GSM_{sc}']/df_merged['B_z_GSM_sw'] - 1
-            df_merged[f'Delta B_z_{sc}'] = df_merged[f'Delta B_z_{sc}'].replace([np.inf, -np.inf], np.nan)
+            df_merged[f'Delta B_z{suffix}'] = df_merged[f'B_z_GSM{suffix}']/df_merged['B_z_GSM_sw'] - 1
+            df_merged[f'Delta B_z{suffix}'] = df_merged[f'Delta B_z{suffix}'].replace([np.inf, -np.inf], np.nan)
 
-            remove_extremes(df_merged, {f'Delta B_z_{sc}': 1000})
+            remove_extremes(df_merged, {f'Delta B_z{suffix}': 1000})
 
         ###----------WRITING----------###
 
@@ -250,8 +240,9 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         df_merged.drop(columns=[col for col in df_merged if (col.endswith('_sw') or col.endswith('_pc'))], inplace=True)
         dfs_combined.append(df_merged)
 
+
         # Need suffix when combining but removing for individual file
-        df_merged.rename(columns={col: col.replace(f'_{sc}','') for col in df_merged if col.endswith(f'_{sc}')}, inplace=True)
+        df_merged = df_merged.rename(columns={col: col[:-len(suffix)] for col in df_merged.columns if col.endswith(suffix)})
 
         # Writes individual to file with omni
         df_merged.attrs = df_merged_attrs
@@ -273,9 +264,10 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
     result = []
     for sc in sc_keys:
-        sc_cols = [col for col in df_wide.columns if col.endswith(f'_{sc}')]
-        renamed = {col: col.replace(f'_{sc}', '') for col in sc_cols}
-        subset = df_wide.loc[first_valid == sc, sc_cols].rename(columns=renamed)
+        suffix = f'_{sc}'
+        sc_cols = [col for col in df_wide.columns if col.endswith(suffix)]
+        renamed = {col: col[:-len(suffix)] for col in sc_cols}
+        subset = (df_wide.loc[first_valid == sc, sc_cols].rename(columns=renamed))
         subset[f'sc_{region}'] = sc
         result.append(subset)
 
@@ -304,7 +296,7 @@ def update_omni(df, drop_cols=indices_columns):
     df.rename(columns={'P_flow': 'P_p'}, inplace=True)
     df.attrs['units']['P_p'] = 'nPa'
 
-    # OMNI defiens pressure as rhoV^2, so halving for consistency
+    # OMNI defiens pressure as rhoV^2 for just the protons, so halving for consistency
     df['P_flow'] = 0.5 * (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
 
     df.loc[df['M_A']>100,'M_A'] = np.nan
@@ -321,20 +313,7 @@ def update_omni(df, drop_cols=indices_columns):
     df['gse_to_gsm_angle'] = calc_GSE_to_GSM_angles(df, ref='B')
 
     # Drop index columns
-    df.drop(columns=drop_cols,inplace=True)
-
-def update_pc_index(df, minimum=0.15):
-
-    for col in df.columns:
-        if col.startswith('PCC'):
-            new_col = col.replace('PCC','PCM')
-            new_data = df[col].where(df[col] >= minimum, np.nan)
-            if new_col in df:
-                print('Updated',new_col)
-                df[new_col] = new_data
-            else:
-                print('Adding',new_col)
-                df.insert(df.columns.get_loc(col) + 1, new_col, new_data)
+    df.drop(columns=drop_cols,inplace=True,errors='ignore')
 
 def remove_extremes(df, mapping={}, abs_mapping={}):
 

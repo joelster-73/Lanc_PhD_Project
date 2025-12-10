@@ -22,12 +22,14 @@ def average_of_averages(series, series_uncs=None, series_counts=None, mask=None)
     Level 1
     Average of data with counts and/or uncertainties
     """
+
     if mask is None:
         mask = np.ones(len(series), dtype=bool)
 
     for data in (series,series_uncs,series_counts):
         if data is not None:
             mask &= ~np.isnan(data)
+
     if series_counts is not None:
         mask &= series_counts>0
 

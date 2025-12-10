@@ -8,11 +8,11 @@ Created on Sun Oct 26 15:37:29 2025
 from src.methods.magnetosheath_saturation.merge_region_sc import merge_sc_in_region
 
 for sample_interval in ('1min','5min'):
-    merge_sc_in_region('msh', data_pop='plasma', sample_interval=sample_interval)
+    merge_sc_in_region('msh', data_pop='plasma', sample_interval=sample_interval, plot_hist=True)
 
 
 for sample_interval in ('1min','5min'):
-    merge_sc_in_region('sw', data_pop='plasma', sample_interval=sample_interval)
+    merge_sc_in_region('sw', data_pop='plasma', sample_interval=sample_interval, plot_hist=True)
 
 
 

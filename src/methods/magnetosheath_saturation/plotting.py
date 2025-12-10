@@ -17,7 +17,7 @@ from .plotting_utils import minimum_counts, def_param_names, ind_variable_range,
 from ...plotting.space_time import plot_orbit_msh
 from ...plotting.utils import save_figure, calculate_bins
 from ...plotting.formatting import create_label, add_legend, shifted_angle_ticks
-from ...plotting.comparing.parameter import compare_columns
+from ...plotting.comparing.parameter import compare_columns, compare_dataframes
 from ...plotting.config import black, blue, grey, pink, green
 
 
@@ -35,20 +35,21 @@ def shift_angular_data(df, *cols):
 
     return df
 
-def mask_df(df, ind_col, dep_col, ind_limits, grp_col=None):
+def mask_df(df, ind_col, ind_limits=None, dep_col=None, grp_col=None):
 
         cols_to_check = [ind_col]
-        if dep_col in df:
+        if dep_col:
             cols_to_check.append(dep_col)
         if grp_col:
             cols_to_check.append(grp_col)
 
         mask = ~df[cols_to_check].isna().any(axis=1)
 
-        if ind_limits[0] is not None:
-            mask &= df[ind_col] >= ind_limits[0]
-        if ind_limits[-1] is not None:
-            mask &= df[ind_col] <= ind_limits[1]
+        if ind_limits:
+            if ind_limits[0] is not None:
+                mask &= df[ind_col] >= ind_limits[0]
+            if ind_limits[-1] is not None:
+                mask &= df[ind_col] <= ind_limits[1]
 
         return df.loc[mask]
 
@@ -400,12 +401,15 @@ def plot_driver_response(df_sw, df_msh, ind_var, dep_var, dep_src='pc', sw_colou
     plt.close()
 
 
-def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', **kwargs):
+def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, index_map={}, bounds=None, restrict=True, shift_centre=True, data_type='counts', **kwargs):
 
     """
     Look at OMNI and in-situ data in driver-response
     So dependent variable is a PC index
     """
+
+    if df_pc is None:
+        raise ValueError('Polar cap dataframe is none.')
 
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
     kwargs['display']   = kwargs.get('display','rolling')
@@ -413,16 +417,12 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
         kwargs['region'] = kwargs.get('region','sem')
 
     if 'data1_name' in kwargs:
-        name = kwargs['data1_name']
-        if df_sc is not None:
-            name = f'{name}_sw'
-        kwargs['data1_name'] = create_label(name)
+        kwargs['data1_name'] = create_label(kwargs['data1_name'])
 
     if ind_var=='B_clock':
         shift_centre = True and shift_centre
     else:
         shift_centre = False
-
 
     ###----------PLOT GRIDS----------###
     n_rows, n_cols = 2, len(dep_vars)
@@ -434,31 +434,34 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
         ax0 = axs[0][i]
         ax1 = axs[1][i]
 
-        for df, source, colour in zip((df_omni,df_sc,df_sc),
-                                      ('omni',ind_src,'sc'),
-                                      (omni_colour,contemp_colour,sc_colour)):
+        ind = ind_var
+        dep_adj = index_map.get(dep_var,dep_var)
 
-            if df is None:
-                continue
-            elif len(df)==0:
+        if ind_src=='msh' or df_omni is None:
+            enumerator = ((df_sc,dep_adj,sc_colour),)
+        elif df_sc is None:
+            enumerator = ((df_omni,dep_var,omni_colour),)
+        else:
+            enumerator = zip((df_omni,df_omni.loc[df_sc.index],df_sc),(dep_var,dep_var,dep_adj),(omni_colour,contemp_colour,sc_colour))
+
+        for df, dep, colour in enumerator:
+            if len(df)==0:
                 print('df is empty')
 
-            ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, source)
-            dep_param, dep_param_err, dep_var_count, dep_param_count = def_param_names(df, dep_var, dep_src)
+            ind_err, ind_count = def_param_names(df, ind_var)
+            dep_err, dep_count = def_param_names(df, dep_var)
 
-            if source=='omni':
-                ind, ind_err, ind_count = ind_var, None, ind_var_count
-                dep, dep_err, dep_count = dep_var, None, None
-            else:
-                ind, ind_err, ind_count = ind_param, ind_param_err, ind_param_count
-                dep, dep_err, dep_count = dep_param, dep_param_err, dep_param_count
-
-            bin_width, limits, invert = ind_variable_range(ind_var, source, dep_var=dep, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+            bin_width, limits, invert = ind_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
             if shift_centre:
-                df = shift_angular_data(df, ind)
+                df = shift_angular_data(df, ind_var)
 
-            df_masked = mask_df(df, ind, dep, limits)
+            df_ind = mask_df(df, ind, limits)
+            df_dep = mask_df(df_pc, dep)
+
+            intersect = df_ind.index.intersection(df_dep.index)
+            df_ind = df_ind.loc[intersect]
+            df_dep = df_dep.loc[intersect]
 
             kwargs['window_width'] = bin_width
             kwargs['window_step']  = bin_width/10
@@ -466,25 +469,24 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
             kwargs['error_colour'] = colour
 
             if 'data_name_map' in kwargs:
-                name = kwargs['data_name_map'].get(dep_var,dep)
-                kwargs['data2_name'] = create_label(name)
+                kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
 
             # Rolling window
-            _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax0, return_objs=True, **kwargs)
+            _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax0, return_objs=True, **kwargs)
 
             # Scatter
             kwargs_copy = kwargs.copy()
             kwargs_copy['display'] = 'scatter'
-            ind_err       = None
-            dep_param_err = None
+            ind_err = None
+            dep_err = None
 
-            _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
+            _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
 
 
         # Formatting
         ax0.grid(ls=':', c=grey, lw=0.5)
         ax1.grid(ls=':', c=grey, lw=0.5)
-        if df_omni.attrs.get('units',{}).get(ind_var,'')==df_omni.attrs.get('units',{}).get(dep_var,'')=='mV/m':
+        if df_omni.attrs.get('units',{}).get(ind_var,'')==df_pc.attrs.get('units',{}).get(dep_var,'')=='mV/m':
             ax0.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
 
         if shift_centre:
@@ -511,63 +513,52 @@ def plot_driver_multi_responses(df_omni, df_sc, ind_var, *dep_vars, ind_src='sw'
     plt.show()
     plt.close()
 
-def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', df_type='omni', bounds=None, restrict=True, data_type='counts', **kwargs):
+def plot_different_lags(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, restrict=True, data_type='counts', **kwargs):
 
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
     kwargs['display']   = kwargs.get('display','rolling')
     if kwargs['display']=='rolling':
         kwargs['region'] = kwargs.get('region','sem')
 
-    ind_param, ind_param_err, ind_var_count, ind_param_count = def_param_names(df, ind_var, ind_src)
-    if df_type=='omni':
-        ind, ind_err, ind_count = ind_var, None, ind_var_count
-    else:
-        ind, ind_err, ind_count = ind_param, ind_param_err, ind_param_count
+    ind_err, ind_count = def_param_names(df, ind_var)
 
     bin_width, limits, invert = ind_variable_range(ind_var, ind_src, restrict=restrict, bounds=bounds)
     kwargs['window_width'] = bin_width
 
-    mask = ~df[ind].isna()
-    if limits[0] is not None:
-        mask &= df[ind] >= limits[0]
-    if limits[-1] is not None:
-        mask &= df[ind] <= limits[1]
+    df_ind = mask_df(df, ind_var, limits)
 
-    dep_cols = [col for col in df.columns if col.startswith(dep_var)]
+    dep_cols = [col for col in df_pc.columns if col.startswith(dep_var)]
 
     cmap = plt.get_cmap('autumn_r')
     norm = plt.Normalize(vmin=0, vmax=len(dep_cols)-1)
 
-    fig, ax = plt.subplots(figsize=(10, 8), dpi=200)
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
 
     for i, col in enumerate(dep_cols):
 
         dep = col
-
-        if df_type=='omni':
-            try:
-                _, lag = col.split('_')
-            except:
-                lag = '0m'
+        num_parts = len(col.split('_'))
+        if num_parts==3:
+            lag = col.split('_')[1] + r' + $\delta t$'
+        elif num_parts==2:
+            lag = col.split('_')[1]
         else:
-            try:
-                _, lag, _ = col.split('_')
-            except:
-                lag = '0m'
+            lag = '0m'
 
-        mask_dep = mask.copy()
-        mask_dep &= ~df[dep].isna()
-
-        df_masked = df.loc[mask_dep]
+        df_dep = mask_df(df_pc, dep_var)
+        intersect = df_ind.index.intersection(df_dep.index)
+        df_ind_masked = df_ind.loc[intersect]
+        df_dep_masked = df_dep.loc[intersect]
 
         colour = cmap(norm(i))
         kwargs['data_colour'] = colour
         kwargs['error_colour'] = colour
 
-        _ = compare_columns(df_masked, ind, dep, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+
         ax.plot([], [], ls='-', color=colour, label=lag)
 
-    ax.set_ylabel(create_label(dep_var,units=df.attrs['units']))
+    ax.set_ylabel(create_label(dep_var,units=df_pc.attrs['units']))
 
     add_legend(fig, ax)
     plt.tight_layout()
@@ -577,11 +568,11 @@ def plot_different_lags(df, ind_var, dep_var='AE', ind_src='sw', dep_src='pc', d
 
 
 
-def plot_pulkkinen_grid(df_msh, params, sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', compare_colour=green, **kwargs):
+def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restrict=True, shift_centre=True, data_type='counts', compare_colour=green, **kwargs):
     """
     Pulkkinen comparisons
 
-    So plots OMNI vs msh for range of parameters
+    So plots OMNI vs sc (sw or msh) for range of parameters
     """
 
     msh_map  = kwargs.get('msh_map',{})
@@ -595,17 +586,19 @@ def plot_pulkkinen_grid(df_msh, params, sw_colour=black, msh_colour=pink, bounds
     kwargs['data_colour']  = compare_colour
     kwargs['error_colour'] = compare_colour
 
-    enumerator = [(p, p) if i == 0 else (p, msh_map[p]) for p in params for i in (0, 1) if i == 0 or p in msh_map]
+    if source=='msh':
+        enumerator = [(p, p) if i == 0 else (p, msh_map[p]) for p in params for i in (0, 1) if i == 0 or p in msh_map]
+        width, height = 8, 5
+    else:
+        enumerator = [(p,p) for p in params]
+        width, height = 6, 5
 
     for n in range(4,0,-1):
         if len(enumerator) % n == 0:
             n_cols, n_rows = n, len(enumerator) // n
             break
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=200)
-
-    ind_src = 'sw'
-    dep_src = 'msh'
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(width*n_cols, height*n_rows), dpi=200)
 
     ###----------PLOT GRIDS----------###
     for i, (independent, dependent), in enumerate(enumerator):
@@ -616,31 +609,40 @@ def plot_pulkkinen_grid(df_msh, params, sw_colour=black, msh_colour=pink, bounds
 
         data_name = name_map.get(independent,independent)
 
-        ind_param, ind_param_err, _, ind_param_count = def_param_names(df_msh, independent, ind_src)
-        dep_param, dep_param_err, _, dep_param_count = def_param_names(df_msh, dependent, dep_src)
+        ind_err, ind_count = def_param_names(df_omni, independent)
+        dep_err, dep_count = def_param_names(df_sc, dependent)
 
-        bin_width, limits, invert = ind_variable_range(independent, ind_src, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=(independent=='B_clock' and shift_centre))
+        bin_width, limits, invert = ind_variable_range(independent, source, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=(independent=='B_clock' and shift_centre))
 
         # Shift angular data to centre lies at +-180 rather than 0
         if independent=='B_clock' and shift_centre:
-            df_msh = shift_angular_data(df_msh, ind_param, dep_param)
+            df_omni = shift_angular_data(df_omni, independent)
+            df_sc   = shift_angular_data(df_sc, dependent)
 
-        df_masked = mask_df(df_msh, ind_param, dep_param, limits)
+        df_ind = mask_df(df_omni, independent, limits, dep_col=dependent)
+        df_dep = mask_df(df_sc, dependent)
+
+        intersect = df_ind.index.intersection(df_dep.index)
+        df_ind = df_ind.loc[intersect]
+        df_dep = df_dep.loc[intersect]
 
         kwargs['window_width'] = bin_width
 
         kwargs_source = kwargs.copy()
-        kwargs_source['data1_name'] = create_label(f'{data_name}_{ind_src}')
+        kwargs_source['data1_name'] = create_label(f'{data_name}_omni')
 
         if independent!=dependent:
             data_name = dependent
-        kwargs_source['data2_name'] = create_label(f'{data_name}_{dep_src}')
+        kwargs_source['data2_name'] = create_label(f'{data_name}_{source}')
 
         if kwargs['display']=='scatter':
-            ind_param_err = None
-            dep_param_err = None
+            ind_err = None
+            dep_err = None
+            kwargs_source['df3'] = df_dep
+            kwargs_source['col3'] = f'sc_{source}'
+            kwargs_source['data_colour'] = 'spacecraft'
 
-        _ = compare_columns(df_masked, ind_param, dep_param, col1_err=ind_param_err, col1_counts=ind_param_count, col2_err=dep_param_err, col2_counts=dep_param_count, fig=fig, ax=ax, return_objs=True, **kwargs_source)
+        _ = compare_dataframes(df_ind, df_dep, independent, dependent, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs_source)
 
         ax.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
         ax.grid(ls=':', c=grey, lw=0.5)
@@ -654,10 +656,9 @@ def plot_pulkkinen_grid(df_msh, params, sw_colour=black, msh_colour=pink, bounds
             ax.invert_xaxis()
             ax.invert_yaxis()
 
-
     axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
 
     plt.tight_layout()
-    save_figure(fig, file_name=f'OMNI_vs_msh_sc_{kwargs.get("region","scatter")}', sub_directory='Pulkkinen')
+    save_figure(fig, file_name=f'OMNI_vs_{source}_sc_{kwargs.get("region","scatter")}', sub_directory='Pulkkinen')
     plt.show()
     plt.close()

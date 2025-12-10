@@ -39,6 +39,7 @@ def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col
     series1 = df.loc[:,col1]
     series2 = df.loc[:,col2]
 
+    # Include col 3 error etc
     if col3 is not None:
         kwargs['zs'] = df.loc[:,col3]
 
@@ -57,11 +58,15 @@ def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col
     compare_series(series1, series2, **kwargs)
 
 
-def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
+def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, df3=None, col3=None, **kwargs):
 
 
     series1 = df1.loc[:,col1]
     series2 = df2.loc[:,col2]
+
+    # Include col 3 erro etc
+    if col3 is not None:
+        kwargs['zs'] = df3.loc[:,col3]
 
     if col1_err is not None:
         kwargs['xs_unc'] = df1.loc[:,col1_err]
@@ -271,8 +276,7 @@ def plot_scatter(xs, ys, **kwargs):
                 sc_colours = colour_dict
 
             spacecraft_counts = Counter(zs)
-            colours = pd.Series(zs).map(sc_colours).fillna(black).to_numpy()
-
+            colours = pd.Series(zs).str.upper().map(sc_colours).fillna(black).to_numpy()
             scatter = ax.scatter(xs, ys, c=colours, marker=scat_marker, s=scat_size)
 
             legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1, linestyle='None') for label, colour in sc_colours.items() if spacecraft_counts.get(label, 0) > 0]
@@ -565,9 +569,6 @@ def create_multiple_labels(zs, zs_edges, z_min, z_max, z_name=None):
 
     return zs_bins, z_labels, z_vals
 
-
-# %%
-
 def plot_scatter_with_dict(xs, ys, **kwargs):
 
     xs_unc       = kwargs.get('xs_unc',None)
@@ -624,8 +625,6 @@ def plot_scatter_with_dict(xs, ys, **kwargs):
     return fig, ax
 
 # %% Nguyen
-
-
 
 def plot_nguyen(df, col_n, col_b, col_n_sw=None, col_b_sw=None, **kwargs):
 

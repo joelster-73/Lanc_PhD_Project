@@ -304,7 +304,7 @@ def extract_mms_data(cdf_file, variables):
                 data_dict[f'{field}_z_{coords}_{ion}'] = data[:, 2]
 
                 if f'{field}_mag_{ion}' not in data_dict:
-                    data_dict[f'{field}_mag_{ion}'] = np.sqrt(data[:,0]**2+data[:,1]**2+data[:,2]**2)
+                    data_dict[f'{field}_mag_{ion}'] = np.linalg.norm(data,axis=1)
 
             elif data.ndim == 3 and data.shape[1:] == (3, 3):  # Assuming a 3D array for tensor components
                 # Compute 1/3 * trace for each time step
@@ -349,7 +349,7 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     numerator_T = np.zeros(len(plasma_df))
 
     for ion in ion_species:
-        combined_df['rho_tot'] += ION_MASS_DICT.get(ion) * plasma_df[f'N_{ion}'] # for Alfven speed
+        combined_df['rho_tot'] += ION_MASS_DICT.get(ion) * plasma_df[f'N_{ion}'] # for Alfvén speed
         combined_df['P_flow']  += ION_MASS_DICT.get(ion) * plasma_df[f'N_{ion}'] * plasma_df[f'V_mag_{ion}']**2
         combined_df['N_tot']   += plasma_df.loc[~plasma_df[f'N_{ion}'].isna(),f'N_{ion}']
         combined_df['P_th']    += plasma_df[f'P_{ion}']
@@ -392,7 +392,7 @@ def process_plasma_data(plasma_df, time_col='epoch', ion_species=ION_SPECIES):
     # p_dyn *= 1e-9, B_avg *= 1e18, so beta *= 1e9
 
 
-    # Alfven Speed
+    # Alfvén Speed
     # vA = B / sqrt(mu_0 * rho)
 
     combined_df['V_A'] = plasma_df['B_avg'] / np.sqrt(mu_0 * combined_df['rho_tot']) * 1e-15

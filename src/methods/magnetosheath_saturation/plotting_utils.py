@@ -16,41 +16,39 @@ imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_a
 
 plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSM', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSM', 'S_y_GSM', 'S_z_GSM', 'E_R']
 
-def def_param_names(df, variable, source):
+def def_param_names(df, variable, source=None):
 
-    ###----------PARAMETER NAMINGS----------###
-
-    param       = '_'.join((variable,source))
     if source in ('sw','pc'):
-        param_err = None # Need to include
+        var_err = None # Need to include
     else:
-        param_err   = '_'.join((variable,'unc',source))
-
-    if param_err not in df:
-        param_err = None
-
-    var_count = None
-    param_count = None
+        var_err   = '_'.join((variable,'unc'))
+    
+    if source is not None:
+        var_err = '_'.join((var_err,source))
+        
+    if var_err not in df:
+        var_err = None
 
     if source in ('sw','pc'):
         if variable in plasma_cols:
             var_count   = 'plasma_counts'
-            param_count = 'plasma_counts_sw'
         elif variable in imf_cols:
             var_count   = 'imf_counts'
-            param_count = 'imf_counts_sw'
 
     elif '_GS' in variable:
         field, _, coords = variable.split('_')
-        param_count = '_'.join((field,coords,'count',source))
+        var_count = '_'.join((field,coords,'count'))
 
     else:
-        param_count = '_'.join((variable,'count',source))
+        var_count = '_'.join((variable,'count'))
+        
+    if source is not None:
+        var_count = '_'.join((var_count,source))
 
-    if param_count not in df:
-        param_count = None
+    if var_count not in df:
+        var_count = None
 
-    return param, param_err, var_count, param_count
+    return var_err, var_count
 
 def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
 
