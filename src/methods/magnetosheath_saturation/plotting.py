@@ -443,6 +443,7 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
             enumerator = zip((df_omni,df_omni.loc[df_sc.index],df_sc),(dep_var,dep_var,dep_adj),(omni_colour,contemp_colour,sc_colour))
 
         for df, dep, colour in enumerator:
+            print(dep)
             if len(df)==0:
                 print('df is empty')
 

@@ -48,17 +48,23 @@ params = ('E_y_GSM','B_avg','B_z_GSM','beta','N_tot','V_flow','P_flow','B_clock'
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='scatter')
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)
 
+# %% OMNI
+
 # Myllys results
 param = 'E_R'
-plot_driver_multi_responses(df_omni, None, df_pc, param, 'PCN_17m', 'PCC_17m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
-
-plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'PCN_17m', 'PCC_17m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
+plot_driver_multi_responses(df_omni, None, df_pc, param, 'PCN_17m', 'PCC_17m', 'AE_53m', 'SME_53m', restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
 
 # Lakka results
 param = 'E_y_GSM'
-plot_driver_multi_responses(df_omni, None, df_pc, param, 'AE_53m', 'SME_53m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
+plot_driver_multi_responses(df_omni, None, df_pc, param, 'PCN_17m', 'PCC_17m', 'AE_53m', 'SME_53m', restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
 
-plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'AE_53m', 'SME_53m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
+# %% Spacecraft
+
+param = 'E_R'
+plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'PCN_17m', 'PCC_17m', 'AE_53m', 'SME_53m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
+
+param = 'E_y_GSM'
+plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'PCN_17m', 'PCC_17m', 'AE_53m', 'SME_53m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names)
 
 # %% Data_Distribution
 
