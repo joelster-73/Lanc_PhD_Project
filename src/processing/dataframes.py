@@ -93,6 +93,11 @@ def safe_stddevs(arr):
 
 def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=('quality','mode','flag', 'quality_esa','quality_fgm')):
 
+
+    if sample_interval in ('none','NONE'):
+        print('No valid sampling interval provided.')
+        return df
+
     df = df.copy()
     if time_col == 'index':
         df['utc'] = df.index.floor(sample_interval)

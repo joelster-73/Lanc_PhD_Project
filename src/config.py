@@ -92,6 +92,9 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
         elif instrument.upper() =='HPCA':
             folder += f'_{instrument.upper()}_SRVY_L2_MOMENTS'
 
+        elif instrument.upper() == 'FPI':
+            folder += f'_{instrument.upper()}_FAST_L2_DIS-MOMS'
+
         path += folder
 
     # themis
@@ -203,10 +206,15 @@ def get_proc_directory(source, sample=' ', dtype=' ', resolution=' ', create=Fal
         else:
             path = f'{MMS_DIR}/{source}/'
 
-            if dtype in ('field','plasma'):
+            if dtype=='plasma':
+                raise ValueError('"plasma" has been replaced by "hpca" and "fpi"')
+            elif dtype=='field':
+                raise ValueError('"field" has been replaced by "fgm"')
+
+            if dtype in ('fgm','hpca','fpi'):
                 path += f'{dtype}/'
 
-            if resolution in ('spin','1min','5min'):
+            if resolution in ('fast','spin','raw','1min','5min'):
                 path += f'{resolution}/'
 
     # themis
