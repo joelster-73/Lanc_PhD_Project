@@ -134,7 +134,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
             vector_columns = [f'{field}_{comp}_{coords}' for comp in ('x','y','z')]
             skip_x = False
-            if vector_columns[0] not in df.columns:
+            if vector_columns[0] not in df.columns: # when the x_GSM component isn't in the df, only x_GSE
                 skip_x = True
                 vector_columns[0] = vector_columns[0].replace('_GSM','_GSE')
 

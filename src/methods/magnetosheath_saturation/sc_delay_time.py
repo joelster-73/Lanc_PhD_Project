@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ...config import R_E
-from ...coordinates.magnetic import GSE_to_GSM_with_angles
+from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles
 from ...processing.mag.config import lagged_indices
 
 from ...processing.reading import import_processed_data
@@ -22,7 +22,7 @@ def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
     try:
         v_sw = df[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].values
     except:
-        rotated = GSE_to_GSM_with_angles(df, [[f'V_{comp}_GSM_{sc_key}' for comp in ('x','y','z')]], coords_suffix='c1', inverse=True)
+        rotated = convert_GSE_to_GSM_with_angles(df, [[f'V_{comp}_GSM_{sc_key}' for comp in ('x','y','z')]], coords_suffix='c1', inverse=True)
         v_sw = rotated[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].values
 
     v_hat = v_sw / np.linalg.norm(v_sw, axis=1)[:, None]

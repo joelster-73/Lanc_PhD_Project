@@ -16,15 +16,13 @@ from src.methods.magnetosheath_saturation.sc_delay_time import add_dynamic_index
 sample_interval = '1min'
 data_pop = 'with_plasma'
 
-data_type = 'mins' if sample_interval == '1min' else 'counts'
-
 region = 'sw'
 
 df_omni = import_processed_data('omni', resolution=sample_interval)
 update_omni(df_omni)
 
 # ideally use combined
-spacecraft = 'c1'
+spacecraft = 'combined'
 
 df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{spacecraft}')
 df_pc   = import_processed_data('indices', file_name=f'combined_{sample_interval}')
@@ -54,20 +52,21 @@ plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_nam
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)
 
 
+
 # %% Papers
 
 # Myllys results
 param = 'E_R'
-plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'PCN_17m', 'PCC_17m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'PCN_17m', 'PCC_17m', index_map=sc_index_map, restrict=True, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
 
-plot_different_lags(df_sc, df_pc, param, 'PCC', restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+plot_different_lags(df_sc, df_pc, param, 'PCC', restrict=True, data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
 
 
 # Lakka results
 param = 'E_y_GSM'
-plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'AE_53m', 'SME_53m','AA_60m', index_map=sc_index_map, restrict=True, data_type=data_type, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+plot_driver_multi_responses(df_omni, df_sc, df_pc, param, 'AE_53m', 'SME_53m','AA_60m', index_map=sc_index_map, restrict=True, sharey='row', data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
 
-plot_different_lags(df_sc, df_pc, param, 'SME', restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
+plot_different_lags(df_sc, df_pc, param, 'SME', restrict=True, data1_name=param_names.get(param,param), data_name_map=param_names, min_count=50)
 
 
 # %% All
@@ -75,4 +74,4 @@ responses = ('PCC_17m','SME_53m','AA_60m')
 
 for param in ('E_R','E_y_GSM','B_z_GSM','V_flow','beta','N_tot','P_flow','B_clock'):
 
-    plot_driver_multi_responses(df_omni, df_sc, df_pc, param, *responses, index_map=sc_index_map, restrict=True, data_type=data_type, data1_name=param_names.get(param,param), data_name_map=param_names)
+    plot_driver_multi_responses(df_omni, df_sc, df_pc, param, *responses, index_map=sc_index_map, restrict=True, data1_name=param_names.get(param,param), data_name_map=param_names)

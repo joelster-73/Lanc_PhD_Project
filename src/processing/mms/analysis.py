@@ -10,7 +10,7 @@ from ...config import get_proc_directory
 
 # %% Region_intervals
 
-def mms_region_intervals(region='sw', max_gap=pd.Timedelta('30h')):
+def mms_region_intervals(region='sw', max_gap=pd.Timedelta('10h')):
 
     mms_dir = get_proc_directory('mms1') # crossings in mms1 folder for all sc
 

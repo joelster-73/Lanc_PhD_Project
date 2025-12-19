@@ -6,6 +6,8 @@ Created on Mon Oct  6 10:55:08 2025
 """
 
 import numpy as np
+import pandas as pd
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -61,12 +63,15 @@ def mask_df(df, ind_col, ind_limits=None, dep_col=None, grp_col=None):
 # df_msh['L1_rho_sw'] = np.sqrt(df_msh['R_y_GSE_sw']**2+df_msh['R_z_GSE_sw']**2)
 
 
-def plot_saturation_overview(df_sw, df_msh, df_pc, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', data_type='counts', min_count=None, plot_test=False, same_var=False, invert_x=False, invert_y=False, restrict=True, bounds=None, **kwargs):
+def plot_saturation_overview(df_sw, df_msh, df_pc, ind_var, dep_var, grp_var, ind_src='sw', dep_src='pc', grp_src='msh', min_count=None, plot_test=False, same_var=False, invert_x=False, invert_y=False, restrict=True, bounds=None, **kwargs):
 
     kwargs['data1_name'] = create_label(kwargs['data1_name'])
     kwargs['data2_name'] = create_label(kwargs['data2_name'])
 
     file_name = f'Saturation_{dep_var}_with_{ind_var}_splitby_{grp_var}'
+
+    sample_interval = df_msh.attrs.get('sample_interval','5min')
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
 
     if min_count is None:
         min_count = minimum_counts[data_type]
@@ -254,12 +259,15 @@ def plot_saturation_overview(df_sw, df_msh, df_pc, ind_var, dep_var, grp_var, in
 
 # %% Compare_OMNI
 
-def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, data_type='counts', min_count=None, compare_colour=green, **kwargs):
+def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', sw_colour=black, msh_colour=pink, bounds=None, restrict=True, shift_centre=True, min_count=None, compare_colour=green, **kwargs):
     """
     col1: PC vs SW
     col2: PC vs MSH
     col3: MSH vs SW
     """
+    sample_interval = df_msh.attrs.get('sample_interval','5min')
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
+
     msh_map = kwargs.get('msh_map',{})
 
     if min_count is None:
@@ -399,7 +407,7 @@ def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', s
     plt.close()
 
 
-def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, index_map={}, bounds=None, restrict=True, shift_centre=True, data_type='counts', **kwargs):
+def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, index_map={}, bounds=None, restrict=True, shift_centre=True, **kwargs):
 
     """
     Look at OMNI and in-situ data in driver-response
@@ -408,6 +416,10 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
 
     if df_pc is None:
         raise ValueError('Polar cap dataframe is none.')
+
+    sample_interval = df_sc.attrs.get('sample_interval','5min')
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
+
 
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
     kwargs['display']   = kwargs.get('display','rolling')
@@ -570,17 +582,24 @@ def plot_different_lags(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, 
 
 
 
-def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restrict=True, shift_centre=True, data_type='counts', compare_colour=green, **kwargs):
+def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', sample_interval='1min', bounds=None, restrict=True, shift_centre=True, compare_colour=green, **kwargs):
     """
     Pulkkinen comparisons
 
     So plots OMNI vs sc (sw or msh) for range of parameters
     """
 
+
+    # Ideally replace sample interval with df_sc.attrs
+
+
+
     msh_map  = kwargs.get('msh_map',{})
     name_map = kwargs.get('data_name_map',{})
 
-    kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
+    num_columns = kwargs.get('num_columns',2)
+
+    kwargs['min_count'] = kwargs.get('min_count',minimum_counts['counts'])
     kwargs['display']   = kwargs.get('display','rolling')
     if kwargs['display']=='rolling':
         kwargs['region'] = kwargs.get('region','sem')
@@ -595,10 +614,17 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restr
         enumerator = [(p,p) for p in params]
         width, height = 6, 5
 
-    for n in range(4,0,-1):
+    for n in range(num_columns,0,-1):
         if len(enumerator) % n == 0:
             n_cols, n_rows = n, len(enumerator) // n
             break
+
+
+    if 'prop_time_s' in df_sc:
+        df_sc = df_sc.copy(deep=False)
+        df_sc.index = df_sc.index - pd.to_timedelta(df_sc['prop_time_s'], unit='s')
+        df_sc = df_sc.infer_objects(copy=False)
+
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(width*n_cols, height*n_rows), dpi=200)
 
@@ -622,11 +648,12 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restr
             df_sc   = shift_angular_data(df_sc, dependent)
 
         df_ind = mask_df(df_omni, independent, limits, dep_col=dependent)
-        df_dep = mask_df(df_sc, dependent)
 
-        intersect = df_ind.index.intersection(df_dep.index)
-        df_ind = df_ind.loc[intersect]
-        df_dep = df_dep.loc[intersect]
+        df_dep = mask_df(df_sc, dependent)
+        df_dep = df_dep.sort_index()
+
+        df_dep = df_dep.reindex(df_ind.index, method='nearest', tolerance='30s').dropna(how='all')
+        df_ind = df_ind.loc[df_dep.index]
 
         kwargs['window_width'] = bin_width
 

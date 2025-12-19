@@ -14,9 +14,9 @@ from .dataframes import set_df_indices
 from ..config import get_proc_directory
 
 
-def import_processed_data(source, sample=' ', dtype=' ', resolution=' ', file_name=None, year=None, axis=0):
+def import_processed_data(source, dtype=' ', resolution=' ', sample=' ', file_name=None, year=None, axis=0):
 
-    directory = get_proc_directory(source, sample, dtype, resolution)
+    directory = get_proc_directory(source, dtype, resolution, sample)
 
     # axis = 0 combines files that have the same columns at different times
     # axis = 1 combines files that have different columns
@@ -53,21 +53,19 @@ def import_processed_data(source, sample=' ', dtype=' ', resolution=' ', file_na
             df[column] = [s.split(',') for s in str_series]
 
     with pycdf.CDF(cdf_file) as cdf:
-        global_attrs = {}
         crossings_attrs = {}
         for key, value in cdf.attrs.items():
             if 'crossings' in key:
                 number = int(key.replace('crossings_', ''))
                 crossings_attrs[number] = str(value).strip()
             else:
-                global_attrs[key] = str(value[0]) if isinstance(value, list) and len(value) == 1 else str(value)
+                df.attrs[key] = str(value[0]) if isinstance(value, list) and len(value) == 1 else str(value)
 
-        df.attrs['global'] = global_attrs
         if crossings_attrs:
             df.attrs['crossings'] = crossings_attrs
 
     # Removes any placeholder dates
-    time_col = df.attrs['global'].get('time_col','epoch')
+    time_col = df.attrs.get('time_col','epoch')
     placeholder_dates = [pd.Timestamp('9999-12-31 23:59:59.999'),pd.Timestamp('9999-12-31 23:59:59.998')]
     if time_col!='none':
         placeholder_date = pd.Timestamp('9999-12-31 23:59:59.999')

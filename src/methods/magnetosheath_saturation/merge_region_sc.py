@@ -25,7 +25,7 @@ from ...processing.dataframes import merge_dataframes
 from ...processing.writing import write_to_cdf
 
 from ...coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc
-from ...coordinates.magnetic import GSE_to_GSM_with_angles, calc_GSE_to_GSM_angles
+from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles, calc_GSE_to_GSM_angles
 from ...analysing.comparing import difference_series
 from ...analysing.calculations import calc_angle_between_vecs
 
@@ -63,7 +63,7 @@ spacecraft     = {'sw': {'field': all_spacecraft, 'plasma': ('c1','mms1','thb')}
 
 # %%% Merge_OMNI_sc
 
-def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_keys=None, nose=False, plot_hist=True):
+def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_keys=None, nose=False):
 
     """
     Data_pop = 'field' means field only
@@ -87,33 +87,40 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         print(f'Importing {sc}')
         if sc in mms:
 
-            intervals = mms_region_intervals('msh')
-            df_field  = import_processed_data(sc, dtype='field', resolution=sample_interval)
+            df_field  = import_processed_data(sc, dtype='fgm', resolution=sample_interval)
 
             if data_pop=='field':
                 df_sc = df_field
             else:
-                df_plasma = import_processed_data(sc, dtype='plasma', resolution=sample_interval)
+                df_plasma = import_processed_data(sc, dtype='fpi', resolution=sample_interval)
                 df_sc = merge_dataframes(df_field, df_plasma)
+
+            intervals = mms_region_intervals('msh')
 
         elif sc in themis:
 
-            intervals = themis_region_intervals(sc, region, data_pop, sample_interval)
             df_sc = import_processed_data(sc, dtype=region, resolution=sample_interval)
+            intervals = themis_region_intervals(sc, region, data_pop, sample_interval)
 
         elif sc in cluster:
 
-            intervals = cluster_region_intervals(sc, region)
             df_sc = import_processed_data(sc, sample='SPIN', dtype=region, resolution=sample_interval)
 
             rename_map = {col: cluster_column_map[key] + col[len(key):] for col in df_sc.columns for key in cluster_column_map if col.startswith(key)}
-
             df_sc.rename(columns=rename_map, inplace=True)
             if 'units' in df_sc.attrs and isinstance(df_sc.attrs['units'], dict):
                 df_sc.attrs['units'] = {rename_map.get(col, col): unit for col, unit in df_sc.attrs['units'].items()}
 
+            intervals = cluster_region_intervals(sc, region)
+
         else:
             raise Exception(f'"{sc}" not implemented.')
+
+
+        for column in ('quality_esa','flag','quality_fgm'):
+            # Erroneous columns left in thb before resampling
+            if column in df_sc:
+                df_sc.drop(columns=[column],inplace=True)
 
         ###---------------FILTERING------------###
 
@@ -186,7 +193,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         if surface=='MP': # BS not currently implemented
             normals = calc_normal_for_sc(df_merged, surface, position_key=sc, data_key='sw', column_names=column_names)
 
-            normals_gsm = GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
+            normals_gsm = convert_GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df_merged, coords_suffix='sw')
             df_merged = pd.concat([df_merged,normals_gsm],axis=1)
 
             norm_cols = [f'N{comp}_GSM_{surface}' for comp in ('x','y','z')]

@@ -26,7 +26,7 @@ from ...processing.reading import import_processed_data
 
 from ...plotting.space_time import plot_orbit_msh
 from ...plotting.utils import save_figure, calculate_bins
-from ...plotting.formatting import create_label
+from ...plotting.formatting import create_label, add_figure_title
 from ...plotting.config import colour_dict
 from ...plotting.config import black, bar_hatches
 #from ...plotting.distributions import plot_fit
@@ -34,7 +34,9 @@ from ...plotting.config import black, bar_hatches
 minimum_counts = {'mins': 100, 'counts': 50}
 
 
-def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins', region='msh'):
+def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None):
+
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
 
     if sc_keys is None:
         sc_keys = ('c1','mms1','tha','thc','thd','the')
@@ -46,7 +48,7 @@ def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins', region='msh'):
 
     for i, sc_key in enumerate(sc_keys):
 
-        df_sc = import_processed_data(sc_dir, f'{region}_times_{sc_key}.cdf')
+        df_sc = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc_key}.cdf')
 
         row = i % n_rows
         col = i // n_rows
@@ -58,9 +60,9 @@ def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins', region='msh'):
         else:
             ax = axs[row,col]
 
-        title = f'{sc_key}: {len(df_sc[f"B_avg_{sc_key}"].dropna()):,} {data_type}'
+        title = f'{sc_key}: {len(df_sc[f"B_avg"].dropna()):,} {data_type}'
 
-        _, _, cbar, _ = plot_orbit_msh(df_sc, sc_keys=sc_key, title=title, region=region, fig=fig, ax=ax, return_objs=True)
+        _, _, cbar, _ = plot_orbit_msh(df_sc, sc_keys=None, title=title, region=region, fig=fig, ax=ax, return_objs=True)
 
         if col!=0:
             ax.set_ylabel(None)
@@ -74,8 +76,7 @@ def plot_sc_orbits(sc_dir, sc_keys=None, data_type='mins', region='msh'):
     plt.show()
     plt.close()
 
-def plot_sc_sw_msh(sw_dir, msh_dir, sw_keys=None, msh_keys=None, data_type='mins'):
-
+def plot_sc_sw_msh(sample_interval='1min', data_pop='plasma', sw_keys=None, msh_keys=None):
 
     if sw_keys is None:
         sw_keys = ('c1','mms1','thb')
@@ -85,8 +86,8 @@ def plot_sc_sw_msh(sw_dir, msh_dir, sw_keys=None, msh_keys=None, data_type='mins
 
     fig, axs = plt.subplots(2, 1, figsize=(12,8), dpi=400, sharex=True)
 
-    for ax, direc, region, keys, label in zip(axs, (sw_dir,msh_dir), ('sw','msh'), (sw_keys,msh_keys), ('Solar Wind','Magnetosheath')):
-        plot_sc_years(direc, region=region, sc_keys=keys, combined=True, data_type=data_type, fig=fig, ax=ax, return_objs=True)
+    for ax, region, keys, label in zip(axs,  ('sw','msh'), (sw_keys,msh_keys), ('Solar Wind','Magnetosheath')):
+        plot_sc_years(sample_interval, data_pop, region, keys, combined=True, fig=fig, ax=ax, return_objs=True)
         ax.legend(loc='upper left')
         ax.set_ylabel(label)
 
@@ -101,19 +102,20 @@ def plot_sc_sw_msh(sw_dir, msh_dir, sw_keys=None, msh_keys=None, data_type='mins
         for x in xticks:
             ax.axvline(x, color=to_rgba(black,0.9), linestyle=':', linewidth=0.5, zorder=20)
 
+    file_name = 'Spacecraft_in_sw_msh_combined'
+    save_figure(fig, file_name=file_name)
+
     save_figure(fig)
     plt.show()
     plt.close()
 
-
-def plot_sc_years(sample_interval='1min', region='msh', data_pop='plasma', sc_keys=None, combined=True, **kwargs):
+def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None, combined=True, **kwargs):
 
     """
     Combined flag: show all years on one axis, rather than split per spacecraft
     """
 
     data_type = 'mins' if sample_interval == '1min' else 'counts'
-
 
     fig          = kwargs.get('fig',None)
     axs          = kwargs.get('ax',None)
@@ -165,6 +167,8 @@ def plot_sc_years(sample_interval='1min', region='msh', data_pop='plasma', sc_ke
         if len(years)==0:
             continue
 
+        print(df_sc)
+
         unique_indices.update(df_sc.index)
 
         if n_rows==1:
@@ -214,7 +218,15 @@ def plot_sc_years(sample_interval='1min', region='msh', data_pop='plasma', sc_ke
         plt.tight_layout()
 
     if return_objs:
-        return fig, ax
+        return fig, axs
+
+    if n_rows==1:
+        first_ax = axs
+    else:
+        first_ax = axs[0]
+
+    regions = {'sw': 'Solar Wind', 'msh': 'Magnetosheath'}
+    add_figure_title(fig, title=regions.get(region,''),ax=first_ax)
 
     file_name = '_'.join(sc_keys)+f'_in_{region}'
     if combined:

@@ -11,7 +11,10 @@ import pandas as pd
 
 from netCDF4 import Dataset
 
-from ...config import get_luna_directory
+from ..reading import import_processed_data
+from ..writing import write_to_cdf
+from ...config import get_luna_directory, get_proc_directory
+from ...coordinates.magnetic import convert_GEO_to_GSE, convert_GSE_to_aGSE
 
 
 # All nT
@@ -24,11 +27,11 @@ bfield_cols = {'dbn_geo': 'B_n_GEO', # Magnetic field north component, geographi
 }
 
 # all degrees
-position_cols = {'decl'  : 'D_m',      # Magnetic Declination
-                 'mcolat': 'theta_m',  # Magnetic Colatitude
-                 'glat'  : 'phi_g',    # Geographic Latitude
-                 'glon'  : 'lambda_g', # Geographic Longtiude
-                 'sza'   : 'chi_s',    # Solar Zenith Angle
+position_cols = {'decl'  : 'mdecl',    # Magnetic Declination, (D_m)
+                 'mcolat': 'mcolat',   # Magnetic Colatitude,  (theta_m)
+                 'glat'  : 'glat',     # Geographic Latitude,  (phi_g)
+                 'glon'  : 'glon',     # Geographic Longtiude, (lambda_g)
+                 'sza'   : 'chi_s',    # Solar Zenith Angle,
 }
 
 other_cols = {'extent': 'duration', # Extent of Record [seconds]
@@ -65,9 +68,9 @@ def process_supermag_data(*stations):
             print(os.path.basename(file),'done')
 
 
+        ###----------PROCESSING----------###
         df_station = pd.concat(df_years)
-
-        df_station['epoch'] = pd.to_datetime({
+        df_station['epoch'] = pd.to_datetime({ #Time in UTC, I believe
             'year':   df_station['time_yr'],
             'month':  df_station['time_mo'],
             'day':    df_station['time_dy'],
@@ -92,12 +95,78 @@ def process_supermag_data(*stations):
         df_station.attrs['units']['duration'] = 's'
         df_station.attrs['units']['MLT'] = 'h'
 
-        ### CONSIDER REMOVING COLUMNS WITH REDUNDANT DATA HERE AND STORING AS ATTRIBUTES E.G. LAT/LONG
-        ### TIME IS IN UTC I THINK
+        # All time independent
+        df_station.attrs['glat']     = np.degrees(df_station['glat'].iloc[0])
+        df_station.attrs['glon']     = np.degrees(df_station['glon'].iloc[0])
+        df_station.attrs['id']       = df_station['id'].iloc[0]
+        df_station.attrs['duration'] = df_station['duration'].iloc[0]
+        df_station.attrs['count']    = df_station['count'].iloc[0]
+
+        df_station = df_station[['MLT', 'B_n_GEO', 'B_e_GEO', 'B_z_GEO', 'B_n_NEZ', 'B_e_NEZ', 'B_z_NEZ', 'mdecl', 'mcolat', 'chi_s']]
+
+        df_station.insert(1, 'B_mag', (df_station[[f'B_{c}_NEZ' for c in ('n','e','z')]].pow(2).sum(axis=1)) ** 0.5)
+        df_station.insert(2, 'H_mag', (df_station[[f'B_{c}_NEZ' for c in ('n','e')]].pow(2).sum(axis=1)) ** 0.5) # Horizontal intensity, not H-field
+        df_station.attrs['units']['H_mag'] = 'nT'
+
+        print(f'Writing {station}....')
+        direc = get_proc_directory('supermag', dtype=station, resolution='raw', create=True)
+        attributes = {'sample_interval': '1min', 'time_col': 'epoch'}
+        write_to_cdf(df_station, directory=direc, file_name=f'{station}_raw', attributes=attributes, time_col='epoch', reset_index=True)
 
 
-        df_station = df_station[['MLT', 'B_n_GEO', 'B_e_GEO', 'B_z_GEO', 'B_n_NEZ', 'B_e_NEZ', 'B_z_NEZ', 'D_m', 'theta_m', 'phi_g', 'lambda_g', 'chi_s', 'id', 'duration', 'count']]
+def convert_supermag_gse(*stations):
 
-        return df_station
+    ###----------ROTATING FROM GEO TO GSE----------###
+
+    for station in stations:
+
+        try:
+            df_station = import_processed_data('supermag', dtype=station, resolution='raw')
+        except:
+            continue
+
+        years = sorted(list(set(df_station.index.year)))
+
+        print(f'Converting {station}.')
+
+        for year in years:
+            mag_year = df_station.loc[df_station.index.year==year]
+
+            convert_GEO_to_GSE(mag_year)
+
+            print(f'Writing {year}....')
+            direc = get_proc_directory('supermag', dtype=station, create=True)
+            write_to_cdf(mag_year, directory=direc, file_name=f'{station}_gse_{year}', attributes={'time_col': 'epoch'}, time_col='epoch', reset_index=True)
 
 
+def convert_supermag_agse(*stations, lag='17min', resolution='1min'):
+
+
+
+    ## change to be the optimum direction based on DP2 maps
+    ## need to find a way to do this ideally not using OMNI data
+
+    omni = import_processed_data('omni', resolution=resolution)
+    omni = omni.shift(freq=lag) # use 17-minute delay for BS to PC lag
+
+    ###----------ROTATING FROM GSE TO AGSE----------###
+
+    for station in stations:
+
+        try:
+            df_station = import_processed_data('supermag', dtype=station, file_name=f'{station}_gse')
+        except:
+            continue
+
+        ###
+
+            # if resolution == 5 min, need to resample the data:
+
+        ###
+
+        convert_GSE_to_aGSE(df_station, omni)
+
+        print(f'Writing {station}....')
+        direc = get_proc_directory('supermag', dtype=station, create=True)
+        attributes = {'sample_interval': resolution, 'time_col': 'epoch'}
+        write_to_cdf(df_station, directory=direc, file_name=f'{station}_agse_{resolution}', attributes=attributes, time_col='epoch', reset_index=True)

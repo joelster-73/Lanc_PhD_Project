@@ -1,11 +1,14 @@
 import pandas as pd
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 
 if not hasattr(np, "float_"):
     np.float_ = np.float64 #ensures backward compatibility with code expecting np.float_
 
+from scipy.spatial.transform import Rotation as R
 from uncertainties import UFloat, unumpy as unp
+from spacepy.coordinates import Coords
+from spacepy.time import Ticktock
+
 from .config import DEFAULT_COLUMN_NAMES
 from ..processing.utils import add_unit
 
@@ -258,3 +261,43 @@ def spherical_to_cartesian(r, theta, phi):
 
     return x, y, z
 
+
+# %% GEO
+
+def convert_GEO_position(glat, glon, times, coords='GSE', df_sw=None, V_earth=29.78):
+    """
+    glat and glon in degrees
+    """
+
+    radius = 1.0  # Earth radii (ground)
+    glat = np.radians(float(glat))
+    glon = np.radians(float(glon))
+
+    R_geo = radius * np.array([np.cos(glat)*np.cos(glon), np.cos(glat)*np.sin(glon), np.sin(glat)])
+    R_geo = np.tile(R_geo, (len(times),1))
+
+    ticks = Ticktock(times.to_pydatetime(), 'UTC')
+
+    R_pos = Coords(R_geo, 'GEO', 'car', ticks=ticks)
+    R_gse = R_pos.convert('GSE', 'car')
+    R_gse = R_gse.data
+
+    if coords=='GSE' or df_sw is None:
+        if df_sw is None:
+            print('Don\'t have solar wind data; returning GSE data')
+        return pd.DataFrame(R_gse, index=times, columns=[f'r_{c}_GSE' for c in ('x','y','z')])
+
+    overlap = times.intersection(df_sw.index)
+
+    # Aberration including Earth orbital speed
+    V_vals  = df_sw.loc[overlap, ['V_x_GSE', 'V_y_GSE']].values
+    alpha      = -np.arctan((V_earth + V_vals[:,1])/np.abs(V_vals[:,0]))
+    cosa, sina = np.cos(alpha), np.sin(alpha)
+
+    r_x_aGSE =  R_gse[:,0]*cosa + R_gse[:,1]*sina
+    r_y_aGSE = -R_gse[:,0]*sina + R_gse[:,1]*cosa
+    r_z_aGSE =  R_gse[:,2]  # Z unchanged
+
+    R_agse = np.stack([r_x_aGSE, r_y_aGSE, r_z_aGSE], axis=1)
+
+    return pd.DataFrame(R_agse, index=times, columns=[f'r_{c}_aGSE' for c in ('x','y','z')])

@@ -17,10 +17,19 @@ from ..config import R_E
 
 
 def write_to_cdf(df, output_file=None, directory=None, file_name=None, attributes=None, overwrite=True, append_rows=False, time_col='epoch', update_column=False, reset_index=False):
+    """
+    Writes a pandas dataframe to a CDF file.
+    If the dataframe is indexed by time, must set 'reset_index' to True.
+    """
 
     df_attrs = df.attrs.copy()
     df = df.copy()
     df.attrs = df_attrs
+
+    if attributes is not None:
+        for key, val in attributes.items():
+            df.attrs[key] = val
+    attributes = df.attrs
 
     # Check if all columns have the same length
     column_lengths = df.apply(len)
@@ -93,17 +102,16 @@ def write_to_cdf(df, output_file=None, directory=None, file_name=None, attribute
                 cdf[column] = np.concatenate((cdf[column][...], new_data))
 
         # Adds attributes
-        if attributes is not None:
-            for key, value in attributes.items():
-                if key=='units':
-                    continue
-                if isinstance(value, dict):
-                    cdf.attrs[key] = {}
-                    for sub_key, sub_value in value.items():
-                        cdf.attrs[key][f'{sub_key}'] = sub_value
-                else:
-                    # If it's not a dictionary, just assign the value
-                    cdf.attrs[key] = value
+        for key, value in attributes.items():
+            if key=='units':
+                continue
+            if isinstance(value, dict):
+                cdf.attrs[key] = {}
+                for sub_key, sub_value in value.items():
+                    cdf.attrs[key][f'{sub_key}'] = sub_value
+            else:
+                # If it's not a dictionary, just assign the value
+                cdf.attrs[key] = value
 
     print('Data written to file.\n')
 

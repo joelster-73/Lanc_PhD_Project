@@ -186,7 +186,7 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_sw  = import_processed_data('omni', resolution=sample_interval)
     df_sw = df_sw[indices_columns] # drops other columns
 
-    df_sw['AEc'] = correction_AE(df_sw) # using Weimer (1990) correction
+    #df_sw['AEc'] = correction_AE(df_sw) # using Weimer (1990) correction
     df_sw['SME'] = df_sme['SME'].reindex(df_sw.index)
     df_sw['AA']  = df_aa['aa'].reindex(df_sw.index, method='ffill') # 3 hourly
     df_sw['PCN'] = df_pcn['PCN'].reindex(df_sw.index)

@@ -5,6 +5,7 @@ Created on Thu May  8 17:48:43 2025
 @author: richarj2
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 
@@ -15,7 +16,7 @@ from spacepy.time import Ticktock
 from .spatial import cartesian_to_spherical
 from ..processing.utils import add_unit
 
-def GSE_to_GSM(df, field, **kwargs):
+def convert_GSE_to_GSM(df, field, **kwargs):
 
     # Retrieve the field and optional parameters from kwargs
     time_col = kwargs.get('time_col',None)
@@ -52,7 +53,7 @@ def calc_B_GSM_angles(df, **kwargs):
 
     # Check if GSM components are missing, convert from GSE if necessary
     if 'B_y_GSM' not in df or 'B_z_GSM' not in df:
-        gsm = GSE_to_GSM(df, field='B', time_col=time_col)
+        gsm = convert_GSE_to_GSM(df, field='B', time_col=time_col)
         Bx, By, Bz = gsm[['B_x_GSM', 'B_y_GSM', 'B_z_GSM']].to_numpy().T
         gsm['B_mag'], gsm['B_pitch'], gsm['B_clock'] = cartesian_to_spherical(Bx, By, Bz)
 
@@ -128,7 +129,7 @@ def insert_field_mag(df, field='r', coords='GSE'):
 
     df.attrs['units'][f'{field}_mag'] = df.attrs['units'][f'{field}_x_{coords}']
 
-# %%
+# %% Angles
 
 def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
 
@@ -144,7 +145,7 @@ def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
     # signed rotation angle from v -> u
     return np.arctan2(cross, dot)
 
-def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix='', inverse=False):
+def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix='', inverse=False, include_unc=False):
     """
     df_transform : data to rotate from GSE to GSM
     vectors : column(s) to transform in df_transform
@@ -194,15 +195,104 @@ def GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', inter
     dfs_to_concat = [dfs_rotated]
     for vec_cols in vectors: # vectors transforming
 
-        vectors = df_transform.loc[:,vec_cols].to_numpy()  # (N,3)
+        vectors_to_rot = df_transform.loc[:,vec_cols].to_numpy()  # (N,3)
+        vectors_rot = np.einsum('nij,ni->nj', R, vectors_to_rot)
 
-        vectors_rot = np.einsum('nij,ni->nj', R, vectors)
+        df_rot = pd.DataFrame(vectors_rot, columns=[col.replace(start,end) for col in vec_cols], index=dfs_rotated.index)
 
-        df_rot = pd.DataFrame(
-            vectors_rot,
-            columns=[col.replace(start,end) for col in vec_cols],
-            index=dfs_rotated.index
-        )
+        if include_unc:
+            # Covariance matrix
+            unc_cols = [f'{col}_unc' for col in vec_cols]
+            if any(col not in df_transform.columns for col in unc_cols):
+                warnings.warn('Uncertainty columns not in dataframe to transform.')
+            else:
+                vec_unc_GSE = df_transform[unc_cols].to_numpy()  # shape (N,3)
+
+                # Build Nx3x3 diagonal covariance matrices
+                C_GSE = np.zeros((len(df_transform),3,3))
+                C_GSE[:,0,0] = vec_unc_GSE[:,0]**2
+                C_GSE[:,1,1] = vec_unc_GSE[:,1]**2
+                C_GSE[:,2,2] = vec_unc_GSE[:,2]**2
+
+                # Rotate covariances to GSM
+                C_GSM = np.einsum('nij,njk,nlk->nil', R, C_GSE, R)
+  # shape (N,3,3)
+
+                # Extract GSM uncertainties from diagonal
+                df_rot[[f'{col.replace("GSE","GSM")}_unc' for col in vec_cols]] = np.sqrt(np.diagonal(C_GSM, axis1=1, axis2=2))
+
         dfs_to_concat.append(df_rot)
 
+
     return pd.concat(dfs_to_concat,axis=1)
+
+
+# %% GEO
+
+def convert_GEO_to_GSE(df_field, param='H', inplace=True):
+
+    # default is THL station
+    glat, glon = float(df_field.attrs.get('glat',77.46999)), float(df_field.attrs.get('glon',290.76996))
+    glat, glon = np.radians(glat), np.radians(glon)
+
+    # Local field in GEO
+    B_n = df_field['B_n_GEO'].values
+    B_e = df_field['B_e_GEO'].values
+    B_z = df_field['B_z_GEO'].values
+
+    # Local tangent plane basis vectors at station
+    n_vec = np.array([-np.sin(glat)*np.cos(glon), -np.sin(glat)*np.sin(glon), np.cos(glat)])
+    e_vec = np.array([-np.sin(glon),               np.cos(glon),              0.0])
+    z_vec = np.array([ np.cos(glat)*np.cos(glon),  np.cos(glat)*np.sin(glon), np.sin(glat)])
+
+    # Combine into B vectors in GEO Cartesian
+    if param=='H':
+        B_geo = np.column_stack((B_n, B_e)) @ np.vstack((n_vec, e_vec))
+    else:
+        B_geo = np.column_stack((B_n, B_e, B_z)) @ np.vstack((n_vec, e_vec, z_vec))
+
+    # Uses UTC times in conversion - transform accounts for GEO position implicitly
+    times = df_field.index.to_pydatetime()
+    ticks = Ticktock(times, 'UTC')
+
+    c = Coords(B_geo, 'GEO', 'car', ticks=ticks)
+    c_gse = c.convert('GSE', 'car')
+    B_gse = c_gse.data
+
+    columns = [f'{param}_x_GSE',f'{param}_y_GSE',f'{param}_z_GSE']
+
+    if inplace:
+        df_field.loc[:,columns] = pd.DataFrame(B_gse, index=df_field.index, columns=columns)
+        for col in columns:
+            df_field.attrs['units'][col] = 'nT'
+        return None
+
+    return pd.DataFrame(B_gse, index=df_field.index, columns=columns)
+
+def convert_GSE_to_aGSE(df_field, df_sw, param='H', V_earth=29.78, inplace=True):
+
+    overlap = df_field.index.intersection(df_sw.index)
+
+    field_vals = df_field.loc[overlap, [f'{param}_x_GSE', f'{param}_y_GSE', f'{param}_z_GSE']].values
+    V_vals     = df_sw.loc[overlap, ['V_x_GSE', 'V_y_GSE']].values
+
+    # Aberration including Earth orbital speed
+    alpha      = -np.arctan((V_earth + V_vals[:,1])/np.abs(V_vals[:,0]))
+    cosa, sina = np.cos(alpha), np.sin(alpha)
+
+    # Rotate in-plane components
+    B_x_agse =  field_vals[:,0]*cosa + field_vals[:,1]*sina
+    B_y_agse = -field_vals[:,0]*sina + field_vals[:,1]*cosa
+    B_z_agse =  field_vals[:,2]
+
+    B_agse   = np.column_stack([B_x_agse, B_y_agse, B_z_agse])
+
+    columns = [f'{param}_x_aGSE',f'{param}_y_aGSE',f'{param}_z_aGSE']
+
+    if inplace:
+        df_field.loc[overlap,columns] = pd.DataFrame(B_agse, index=overlap, columns=columns)
+        for col in columns:
+            df_field.attrs['units'][col] = 'nT'
+        return None
+
+    return pd.DataFrame(B_agse, index=overlap, columns=columns)

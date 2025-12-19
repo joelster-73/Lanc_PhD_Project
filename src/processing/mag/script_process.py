@@ -14,7 +14,20 @@ for sample_interval in ('1min','5min'): # for OMNI's indices
 
 
 # %% Add magnetometer data
-from src.processing.mag.handling import process_supermag_data
+from src.processing.mag.supermag import process_supermag_data, convert_supermag_gse
 
 
-THL = process_supermag_data('THL')
+station = 'THL'
+process_supermag_data(station)
+convert_supermag_gse(station)
+
+
+# instead of OMNI use a fixed average DP2 angle, around 30 degrees
+# then include this with the aberration - whichever is larger (so during quiet times, aberration larger, during active times, DP2 more angled)
+
+
+###
+    # convert_supermag_agse(station)
+    # add convert_GSE_to_aGSE() method to the build_lagged_indices
+
+###

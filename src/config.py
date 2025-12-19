@@ -86,6 +86,9 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
 
         folder = f'{source.upper()}'
 
+        if instrument.upper() == 'STATE':
+            instrument = 'fgm' # STATE data in fgm files
+
         if instrument.upper() == 'FGM':
             folder += f'_{instrument.upper()}_SRVY_L2'
 
@@ -173,7 +176,9 @@ C1_BS_CROSSINGS        = f'{REGION_DIR}/Bowshock'
 
 CROSSINGS_DIR          = f'{CLUSTER_DIR}/c1/Crossings'
 
-def get_proc_directory(source, sample=' ', dtype=' ', resolution=' ', create=False):
+GROUND_DIR             = f'{PROCESSED_DATA_DIR}/GROUND'
+
+def get_proc_directory(source, dtype=' ', resolution=' ', sample=' ', create=False):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -211,7 +216,7 @@ def get_proc_directory(source, sample=' ', dtype=' ', resolution=' ', create=Fal
             elif dtype=='field':
                 raise ValueError('"field" has been replaced by "fgm"')
 
-            if dtype in ('fgm','hpca','fpi'):
+            if dtype in ('fgm','hpca','fpi','state'):
                 path += f'{dtype}/'
 
             if resolution in ('fast','spin','raw','1min','5min'):
@@ -274,7 +279,18 @@ def get_proc_directory(source, sample=' ', dtype=' ', resolution=' ', create=Fal
         elif source=='pcc':
             path = f'{INDEX_DIR}/PCN_PCS'
         else:
-            path = f'{INDEX_DIR}/{source.upper()}'
+            path = f'{INDEX_DIR}/{source.upper()}/'
+
+    # supermag
+    elif source=='supermag':
+
+        path = f'{GROUND_DIR}/SuperMAG/CDF/'
+
+        if dtype is not None:
+            path += f'{dtype.upper()}/'
+
+        if resolution in ('raw','gse','agse'):
+            path += f'{resolution}/'
 
     # index
     elif source=='crossings':

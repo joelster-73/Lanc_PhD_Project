@@ -28,13 +28,25 @@ FGM_VARIABLES_TEMPLATE = { # 1 minute resolution
     'B_gse'     : '{sc}_fgm_b_gse_srvy_l2',
     'B_gsm'     : '{sc}_fgm_b_gsm_srvy_l2',
     'B_flag'    : '{sc}_fgm_flag_srvy_l2', # quality
+}
+
+MMS_VARIABLES = {
+    sc: {key: value.format(sc=sc) for key, value in FGM_VARIABLES_TEMPLATE.items()}
+    for sc in MMS_SPACECRAFT
+}
+
+###---------- STATE Data ----------###
+
+# STATE data is in the FGM files
+
+STATE_VARIABLES_TEMPLATE = {
     # State data is every 30s
     'epoch_pos' : 'Epoch_state',
     'r_gse'     : '{sc}_fgm_r_gse_srvy_l2', # km
 }
 
-MMS_VARIABLES = {
-    sc: {key: value.format(sc=sc) for key, value in FGM_VARIABLES_TEMPLATE.items()}
+MMS_VARIABLES_STATE = {
+    sc: {key: value.format(sc=sc) for key, value in STATE_VARIABLES_TEMPLATE.items()}
     for sc in MMS_SPACECRAFT
 }
 
@@ -59,7 +71,7 @@ for ion in ION_SPECIES:
     HPCA_VARIABLES_TEMPLATE[f'T_{ion}']     = '{sc}_hpca_' + f'{ion}_scalar_temperature'       # eV
 
 MMS_VARIABLES_HPCA = {
-    sc: {key: value.format(sc=sc) for key, value in FGM_VARIABLES_TEMPLATE.items()}
+    sc: {key: value.format(sc=sc) for key, value in HPCA_VARIABLES_TEMPLATE.items()}
     for sc in MMS_SPACECRAFT
 }
 
@@ -89,7 +101,7 @@ MMS_VARIABLES_FPI = {
 
 
 
-VARIABLES_DICT = {'fgm': MMS_VARIABLES, 'hpca': MMS_VARIABLES_HPCA, 'fpi': MMS_VARIABLES_FPI}
+VARIABLES_DICT = {'fgm': MMS_VARIABLES, 'state': MMS_VARIABLES_STATE, 'hpca': MMS_VARIABLES_HPCA, 'fpi': MMS_VARIABLES_FPI}
 
 
 

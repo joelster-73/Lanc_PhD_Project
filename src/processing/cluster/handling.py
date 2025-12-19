@@ -17,7 +17,7 @@ from ..dataframes import add_df_units, resample_data
 from ..reading import import_processed_data
 from ..utils import create_directory
 
-from ...coordinates.magnetic import calc_B_GSM_angles, GSE_to_GSM_with_angles
+from ...coordinates.magnetic import calc_B_GSM_angles, convert_GSE_to_GSM_with_angles
 from ...config import R_E, get_proc_directory
 
 def process_cluster_files(directory, data_directory, variables, sample_interval='1min', time_col='epoch', year=None, sub_folders=False, overwrite=True, quality_directory=None, quality_variables=None):
@@ -262,7 +262,7 @@ def combine_spin_data(spin_directory, fvps_directory=None, year=None):
             convert_cols = ('V',)
 
             fvps_df = import_processed_data(fvps_directory, year=year)
-            gsm_vectors = GSE_to_GSM_with_angles(merged_df, [[f'{vec}_{comp}_GSE' for comp in ('x','y','z')] for vec in convert_cols], df_coords=fvps_df, ref='B', interp=True)
+            gsm_vectors = convert_GSE_to_GSM_with_angles(merged_df, [[f'{vec}_{comp}_GSE' for comp in ('x','y','z')] for vec in convert_cols], df_coords=fvps_df, ref='B', interp=True)
 
             merged_df = pd.concat([merged_df,gsm_vectors], axis=1)
             vec_coords = 'GSM'
