@@ -27,11 +27,16 @@ def merge_dataframes(df1, df2, suffix_1=None, suffix_2=None, clean=True, print_i
     merged = new_df1.merge(new_df2, left_index=True, right_index=True)
 
     # Combine units attributes from both DataFrames
-    merged.attrs['units'] = new_df1.attrs['units']
-    merged.attrs['units'].update(new_df2.attrs['units'])
+    merged.attrs = {}
 
-    merged.attrs['global'] = new_df1.attrs['global']
-    merged.attrs['global'].update(new_df2.attrs['global'])
+    # merge non-unit attrs
+    merged.attrs.update({k: v for k, v in new_df1.attrs.items() if k != 'units'})
+    merged.attrs.update({k: v for k, v in new_df2.attrs.items() if k != 'units'})
+
+    # merge units explicitly
+    merged.attrs['units'] = {}
+    merged.attrs['units'].update(new_df1.attrs.get('units', {}))
+    merged.attrs['units'].update(new_df2.attrs.get('units', {}))
 
     if clean:
         cleaned = merged.dropna(how='all')

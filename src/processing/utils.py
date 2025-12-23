@@ -26,7 +26,7 @@ UNIT_MAP = {
     r'^(N_|ni|np|n_i|n_p)': 'n/cc',
     r'(unc_s|_delay|_s|_duration)$': 's',
     r'^(r_|R_)': 'Re',
-    r'^(B_|AE|AU|AL|AEc|SME|AA)': 'nT',
+    r'^(B_|AE|AU|AL|SM|AA)': 'nT',
     r'^(V_|v_)': 'km/s',
     r'^(E_|PC)': 'mV/m',
     r'^T_': 'K',

@@ -125,26 +125,22 @@ def convert_supermag_gse(*stations):
         except:
             continue
 
-        years = sorted(list(set(df_station.index.year)))
-
         print(f'Converting {station}.')
+        direc = get_proc_directory('supermag', dtype=station, resolution='gse', create=True)
 
-        for year in years:
-            mag_year = df_station.loc[df_station.index.year==year]
+        for (year, month), mag_month in (df_station.groupby([df_station.index.year, df_station.index.month], sort=True)):
+            print(f'{year} - {month:02d}')
 
-            convert_GEO_to_GSE(mag_year)
+            convert_GEO_to_GSE(mag_month)
 
-            print(f'Writing {year}....')
-            direc = get_proc_directory('supermag', dtype=station, create=True)
-            write_to_cdf(mag_year, directory=direc, file_name=f'{station}_gse_{year}', attributes={'time_col': 'epoch'}, time_col='epoch', reset_index=True)
+            write_to_cdf(mag_month, directory=direc, file_name=f'{station}_gse_{year}-{month:02d}', attributes={'time_col': 'epoch'}, time_col='epoch', reset_index=True)
 
 
 def convert_supermag_agse(*stations, lag='17min', resolution='1min'):
-
-
-
-    ## change to be the optimum direction based on DP2 maps
-    ## need to find a way to do this ideally not using OMNI data
+    """
+    This method rotates the coordinates based on the aberration of the solar wind (mainly due to Earth's orbital motion')
+    DP2 current system can be much more angled than this (up to 30 deg)
+    """
 
     omni = import_processed_data('omni', resolution=resolution)
     omni = omni.shift(freq=lag) # use 17-minute delay for BS to PC lag
@@ -165,6 +161,35 @@ def convert_supermag_agse(*stations, lag='17min', resolution='1min'):
         ###
 
         convert_GSE_to_aGSE(df_station, omni)
+
+        print(f'Writing {station}....')
+        direc = get_proc_directory('supermag', dtype=station, create=True)
+        attributes = {'sample_interval': resolution, 'time_col': 'epoch'}
+        write_to_cdf(df_station, directory=direc, file_name=f'{station}_agse_{resolution}', attributes=attributes, time_col='epoch', reset_index=True)
+
+
+def project_supermag_optimum(*stations):
+    """
+    DP2 current system can be angled up to 30 degrees, based on upstream conditions and time of year.
+    Optimum direction is perpendicular to this.
+    """
+
+
+    ## change to be the optimum direction based on DP2 maps
+    ## need to find a way to do this ideally not using OMNI data
+
+
+    ###----------ROTATING FROM GSE TO AGSE----------###
+
+    for station in stations:
+
+        try:
+            df_station = import_processed_data('supermag', dtype=station, file_name=f'{station}_gse')
+        except:
+            continue
+
+
+        # e.g. construct vector (cos30,sin30) and dot with each row
 
         print(f'Writing {station}....')
         direc = get_proc_directory('supermag', dtype=station, create=True)

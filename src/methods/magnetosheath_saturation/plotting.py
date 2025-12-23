@@ -326,7 +326,6 @@ def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', s
         kwargs_source = kwargs.copy()
 
         if i==2:
-
             if ind_var in msh_map:
                 independent = msh_map.get(ind_var,ind_var)
                 kwargs_source['data1_name'] = independent
@@ -367,7 +366,6 @@ def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', s
             ax1.set_yscale('log')
 
         if i==0:
-
             kwargs_source['data_colour']  = blue
             kwargs_source['error_colour'] = blue
 
@@ -407,7 +405,7 @@ def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', s
     plt.close()
 
 
-def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, index_map={}, bounds=None, restrict=True, shift_centre=True, **kwargs):
+def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, index_map={}, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
 
     """
     Look at OMNI and in-situ data in driver-response
@@ -417,9 +415,11 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
     if df_pc is None:
         raise ValueError('Polar cap dataframe is none.')
 
-    sample_interval = df_sc.attrs.get('sample_interval','5min')
+    if df_sc is not None:
+        sample_interval = df_sc.attrs.get('sample_interval','5min')
+    elif df_omni is not None:
+        sample_interval = df_omni.attrs.get('sample_interval','5min')
     data_type = 'mins' if sample_interval == '1min' else 'counts'
-
 
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
     kwargs['display']   = kwargs.get('display','rolling')
@@ -448,13 +448,16 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
         dep_adj = index_map.get(dep_var,dep_var)
 
         if ind_src=='msh' or df_omni is None:
+            omni_j = -1
             enumerator = ((df_sc,dep_adj,sc_colour),)
         elif df_sc is None:
+            omni_j = 0
             enumerator = ((df_omni,dep_var,omni_colour),)
         else:
+            omni_j = 0
             enumerator = zip((df_omni,df_omni.loc[df_sc.index],df_sc),(dep_var,dep_var,dep_adj),(omni_colour,contemp_colour,sc_colour))
 
-        for df, dep, colour in enumerator:
+        for j, (df, dep, colour) in enumerate(enumerator):
             print(dep)
             if len(df)==0:
                 print('df is empty')
@@ -485,13 +488,33 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
             # Rolling window
             _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax0, return_objs=True, **kwargs)
 
-            # Scatter
-            kwargs_copy = kwargs.copy()
-            kwargs_copy['display'] = 'scatter'
-            ind_err = None
-            dep_err = None
+            if bottom_axis=='heat' and j==0:
+                bins_x = calculate_bins(df_ind[ind], bin_width)
+                bins_y = calculate_bins(df_dep[dep], bin_width)
 
-            _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
+                ax1.hist2d(df_ind[ind], df_dep[dep], bins=[bins_x, bins_y], cmap='hot', norm=mpl.colors.LogNorm())
+                ax1.set_facecolor('k')
+
+                ax1.axline((limits[0],limits[0]), slope=1, c='w', ls=':')
+
+            elif bottom_axis=='hist':
+                hist_type = 'bar' if j==omni_j else 'step'
+                ax1.hist(df_ind[ind], bins=calculate_bins(df_ind[ind],bin_width), color=colour, histtype=hist_type)
+
+                ax1.axhline(kwargs['min_count'], c='k', ls='-')
+                ax1.axhline(kwargs['min_count'], c='w', ls=':')
+                ax1.set_yscale('log')
+
+            elif bottom_axis=='scatter':
+
+                # Scatter
+                kwargs_copy = kwargs.copy()
+                kwargs_copy['display'] = 'scatter'
+                ind_err = None
+                dep_err = None
+
+                _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
+
 
 
         # Formatting

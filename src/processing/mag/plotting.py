@@ -74,6 +74,14 @@ def plot_mag_data(station, sw, pc, param='H', coords='aGSE', quantity='phi', ind
         label = r'$H_\phi$' if coords=='aGSE' else r'$H_0$'
         ax.plot(station.index, station[column], c=colour, lw=0.7, label=label)
 
+    elif quantity=='tr':
+        colour = 'green'
+        station.loc[:,'H_T'] = (station.loc[:,f'{param}_x_{coords}']**2 + station.loc[:,f'{param}_y_{coords}']**2) ** 0.5
+        column = 'H_T'
+        corr_quantity = station[column].corr(sw[ind_col])
+        label = r'$H_T$'
+        ax.plot(station.index, station[column], c=colour, lw=0.7, label=label)
+
     ax.legend(loc='upper left')
 
     ax2.plot(pc.index,pc['PCN'],c='r',lw=0.7)
@@ -122,16 +130,8 @@ def plot_magnetometer_map(df_field, coords='aGSE', param='H', df_sw=None, invert
         ax.scatter(axis[f'r_x_{coords}'], axis[f'r_y_{coords}'], marker='.', c='g')
 
     if show_dp2:
-        if coords=='GSE' and df_sw is not None:
+        print('Not implemented - need to make more accurate')
 
-            v_Earth = 29.78
-            V_vals  = df_sw[['V_x_GSE', 'V_y_GSE']].dropna().values
-            alphas  = -np.arctan((v_Earth + V_vals[:,1])/np.abs(V_vals[:,0]))
-            alpha = circular_mean(alphas)
-
-            ax.axline(xy1=(0,0),slope=np.tan(alpha), color=black, ls='--')
-        elif coords=='aGSE':
-            ax.axhline(y=0, c=black, ls='--')
 
     if invert:
         ax.quiver(positions[f'r_x_{coords}'], positions[f'r_y_{coords}'], -df_field[f'{param}_x_{coords}'], -df_field[f'{param}_y_{coords}'], color=colours)
@@ -145,13 +145,6 @@ def plot_magnetometer_map(df_field, coords='aGSE', param='H', df_sw=None, invert
 
     ax.set_title(f'Magnetometer location in {coords}')
     plt.axis('equal')
-
-    if coords=='GSE' and False:
-        ax.text(0.55, 0.5,  '0',  transform=ax.transAxes,  ha='left',   va='center')
-        ax.text(0.5, 0.55,  '6',  transform=ax.transAxes,  ha='center', va='bottom')
-        ax.text(0.45, 0.5,  '12', transform=ax.transAxes,  ha='right',  va='center')
-        ax.text(0.5, 0.45,  '18', transform=ax.transAxes,  ha='center', va='top')
-
 
     plt.grid(True)
     plt.show()

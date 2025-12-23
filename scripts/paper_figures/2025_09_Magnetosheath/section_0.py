@@ -14,5 +14,3 @@ for sample_interval in ('1min','5min'):
 for sample_interval in ('1min','5min'):
     merge_sc_in_region('msh', data_pop='plasma', sample_interval=sample_interval)
 
-
-

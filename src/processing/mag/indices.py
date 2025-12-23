@@ -182,36 +182,42 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_aa  = process_AA_data()
     df_sme = process_SME_data()
 
-    # Solar wind data
-    df_sw  = import_processed_data('omni', resolution=sample_interval)
-    df_sw = df_sw[indices_columns] # drops other columns
+    # SuperMAG PolarCap
+    # Currently using magnitude of horizontal field as "index"
+    # Will change eventually to field proected onto optimum direction
+    df_smp = import_processed_data('supermag', dtype='THL', resolution='gse')
+
+    # Extracts indices contained in OMNI - doesn't use any of the SW data
+    df_pc  = import_processed_data('omni', resolution=sample_interval)
+    df_pc = df_pc[indices_columns] # drops other columns
 
     #df_sw['AEc'] = correction_AE(df_sw) # using Weimer (1990) correction
-    df_sw['SME'] = df_sme['SME'].reindex(df_sw.index)
-    df_sw['AA']  = df_aa['aa'].reindex(df_sw.index, method='ffill') # 3 hourly
-    df_sw['PCN'] = df_pcn['PCN'].reindex(df_sw.index)
-    df_sw['PCC'] = df_pcc['PCC'].reindex(df_sw.index)
+    df_pc['SME'] = df_sme['SME'].reindex(df_pc.index)
+    df_pc['PCN'] = df_pcn['PCN'].reindex(df_pc.index)
+    df_pc['PCC'] = df_pcc['PCC'].reindex(df_pc.index)
+    df_pc['SMP'] = df_smp['H_mag'].reindex(df_pc.index)
+    df_pc['AA']  = df_aa['aa'].reindex(df_pc.index, method='ffill') # 3 hourly
 
     for ind, lags in indices.items():
-        if ind not in df_sw:
+        if ind not in df_pc:
             continue
-        print(ind)
+        print(ind,lags)
 
         for lag in lags:
             dt_lag = pd.Timedelta(minutes=lag)
 
-            # Lagged index
+            # Lagged index (estimated response from BSN to PC/AE)
             if (dt_lag % pd.Timedelta(sample_interval)) == pd.Timedelta(0):
-                new_data = df_sw[ind].shift(freq=dt_lag)
+                new_data = df_pc[ind].shift(freq=dt_lag)
             else:
                 print('Interpolating lag.')
-                target_index = df_sw.index + dt_lag
-                full_index = df_sw.index.union(target_index)
-                temp = df_sw[ind].reindex(full_index).interpolate(method='time')
+                target_index = df_pc.index + dt_lag
+                full_index = df_pc.index.union(target_index)
+                temp = df_pc[ind].reindex(full_index).interpolate(method='time')
                 new_data = temp.loc[target_index].values
 
-            df_sw.insert(df_sw.columns.get_loc(ind) + 1, f'{ind}_{lag}m', new_data)
+            df_pc.insert(df_pc.columns.get_loc(ind) + 1, f'{ind}_{lag}m', new_data)
 
     # Writes OMNI with lag to file
     output_file = os.path.join(get_proc_directory('indices'), f'combined_{sample_interval}')
-    write_to_cdf(df_sw, output_file, reset_index=True)
+    write_to_cdf(df_pc, output_file, reset_index=True)
