@@ -30,7 +30,7 @@ FGM_VARIABLES_TEMPLATE = { # 1 minute resolution
     'B_flag'    : '{sc}_fgm_flag_srvy_l2', # quality
 }
 
-MMS_VARIABLES = {
+MMS_VARIABLES_FGM = {
     sc: {key: value.format(sc=sc) for key, value in FGM_VARIABLES_TEMPLATE.items()}
     for sc in MMS_SPACECRAFT
 }
@@ -78,7 +78,6 @@ MMS_VARIABLES_HPCA = {
 ###---------- FPI Data ----------###
 
 
-
 FPI_VARIABLES_TEMPLATE = {
     'epoch'     : 'Epoch',                              # Nanoseconds since J2000
     'flag'      : '{sc}_dis_errorflags_fast',           # Vector of data-quality indicators at epoch start time
@@ -101,7 +100,7 @@ MMS_VARIABLES_FPI = {
 
 
 
-VARIABLES_DICT = {'fgm': MMS_VARIABLES, 'state': MMS_VARIABLES_STATE, 'hpca': MMS_VARIABLES_HPCA, 'fpi': MMS_VARIABLES_FPI}
+VARIABLES_DICT = {'fgm': MMS_VARIABLES_FGM, 'state': MMS_VARIABLES_STATE, 'hpca': MMS_VARIABLES_HPCA, 'fpi': MMS_VARIABLES_FPI}
 
 
 

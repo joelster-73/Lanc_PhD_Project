@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 
 from uncertainties import unumpy as unp
-from spacepy.coordinates import Coords
 from spacepy.time import Ticktock
+from spacepy.ctrans import convert_multitime
+
 
 from .spatial import cartesian_to_spherical
 from ..processing.utils import add_unit
@@ -26,16 +27,15 @@ def convert_GSE_to_GSM(df, field, **kwargs):
         raise ValueError(f'GSE coordinates for {field} not available in {df}.')
 
     # Extract GSE vectors and timings
-    vectors = df[[field + '_x_GSE', field + '_y_GSE', field + '_z_GSE']].to_numpy(dtype=np.float64)
+    vectors = df[[f'{field}_{c}_GSE' for c in ('x','y','z')]].to_numpy(dtype=np.float64)
     if time_col == 'index' or time_col is None:
         timings = np.array(df.index.to_pydatetime())
     else:
         timings = np.array(df[time_col].dt.to_pydatetime())
 
     # Convert GSE coordinates to the desired system using the Coords class
-    gses = Coords(vectors, 'GSE', 'car')
-    gses.ticks = Ticktock(timings, 'UTC')
-    new_coords = gses.convert('GSM', 'car').data
+    ticks = Ticktock(timings, 'UTC')
+    new_coords = convert_multitime(vectors, ticks, 'GSE', 'GSM', itol=1.0)
 
     # Create the result DataFrame with the converted coordinates
     result = pd.DataFrame({
@@ -231,33 +231,14 @@ def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B
 
 def convert_GEO_to_GSE(df_field, param='H', inplace=True):
 
-    # default is THL station
-    glat, glon = float(df_field.attrs.get('glat',77.46999)), float(df_field.attrs.get('glon',290.76996))
-    glat, glon = np.radians(glat), np.radians(glon)
+    # Extract B in global coordinates (i.e. GEO)
+    B_geo = df_field[['B_n_GEO', 'B_e_GEO', 'B_z_GEO']].values
 
-    # Local field in GEO
-    B_n = df_field['B_n_GEO'].values
-    B_e = df_field['B_e_GEO'].values
-    B_z = df_field['B_z_GEO'].values
+    # Uses UTC times in conversion
+    ticks = Ticktock(df_field.index.to_pydatetime(), 'UTC')
 
-    # Local tangent plane basis vectors at station
-    n_vec = np.array([-np.sin(glat)*np.cos(glon), -np.sin(glat)*np.sin(glon), np.cos(glat)])
-    e_vec = np.array([-np.sin(glon),               np.cos(glon),              0.0])
-    z_vec = np.array([ np.cos(glat)*np.cos(glon),  np.cos(glat)*np.sin(glon), np.sin(glat)])
-
-    # Combine into B vectors in GEO Cartesian
-    if param=='H':
-        B_geo = np.column_stack((B_n, B_e)) @ np.vstack((n_vec, e_vec))
-    else:
-        B_geo = np.column_stack((B_n, B_e, B_z)) @ np.vstack((n_vec, e_vec, z_vec))
-
-    # Uses UTC times in conversion - transform accounts for GEO position implicitly
-    times = df_field.index.to_pydatetime()
-    ticks = Ticktock(times, 'UTC')
-
-    c = Coords(B_geo, 'GEO', 'car', ticks=ticks)
-    c_gse = c.convert('GSE', 'car')
-    B_gse = c_gse.data
+    # Convert GEO to GSE
+    B_gse = convert_multitime(B_geo, ticks, 'GEO', 'GSE', itol=1.0)
 
     columns = [f'{param}_x_GSE',f'{param}_y_GSE',f'{param}_z_GSE']
 
@@ -269,15 +250,16 @@ def convert_GEO_to_GSE(df_field, param='H', inplace=True):
 
     return pd.DataFrame(B_gse, index=df_field.index, columns=columns)
 
-def convert_GSE_to_aGSE(df_field, df_sw, param='H', V_earth=29.78, inplace=True):
+def convert_GSE_to_aGSE(df_field, df_sw, param='H', V_earth=29.78, alpha=None, inplace=True):
 
     overlap = df_field.index.intersection(df_sw.index)
 
     field_vals = df_field.loc[overlap, [f'{param}_x_GSE', f'{param}_y_GSE', f'{param}_z_GSE']].values
     V_vals     = df_sw.loc[overlap, ['V_x_GSE', 'V_y_GSE']].values
 
-    # Aberration including Earth orbital speed
-    alpha      = -np.arctan((V_earth + V_vals[:,1])/np.abs(V_vals[:,0]))
+    if alpha is None:
+        # Aberration including Earth orbital speed
+        alpha      = -np.arctan((V_earth + V_vals[:,1])/np.abs(V_vals[:,0]))
     cosa, sina = np.cos(alpha), np.sin(alpha)
 
     # Rotate in-plane components

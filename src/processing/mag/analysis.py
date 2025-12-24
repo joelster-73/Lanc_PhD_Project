@@ -20,7 +20,7 @@ indices  = import_processed_data('indices', file_name='combined_1min')
 # %%
 
 year, month, day_min, day_max = (2008, 5, 10, 11) # Quiet day
-#year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
+year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
 
 
 thl_sub  = THL.loc[(THL.index.year==year)&(THL.index.month==month)&(THL.index.day>=day_min)&(THL.index.day<day_max)]
@@ -36,7 +36,7 @@ convert_GSE_to_aGSE(thl_sub, omni_sub)
 
 ###
 
-# %%
+# %% plot
 
 import itertools as it
 

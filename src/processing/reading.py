@@ -14,9 +14,9 @@ from .dataframes import set_df_indices
 from ..config import get_proc_directory
 
 
-def import_processed_data(source, dtype=' ', resolution=' ', sample=' ', file_name=None, year=None, axis=0):
+def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, year=None, axis=0):
 
-    directory = get_proc_directory(source, dtype, resolution, sample)
+    directory = get_proc_directory(source, dtype, resolution)
 
     # axis = 0 combines files that have the same columns at different times
     # axis = 1 combines files that have different columns

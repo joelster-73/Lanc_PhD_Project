@@ -16,7 +16,7 @@ from .dataframes import resample_data, add_df_units
 from ..config import R_E
 
 
-def write_to_cdf(df, output_file=None, directory=None, file_name=None, attributes=None, overwrite=True, append_rows=False, time_col='epoch', update_column=False, reset_index=False):
+def write_to_cdf(df, output_file=None, directory=None, file_name=None, attributes=None, overwrite=True, append_rows=False, update_column=False, reset_index=False):
     """
     Writes a pandas dataframe to a CDF file.
     If the dataframe is indexed by time, must set 'reset_index' to True.
@@ -39,6 +39,7 @@ def write_to_cdf(df, output_file=None, directory=None, file_name=None, attribute
     # If the time is the index, moves into column
     if reset_index:
         df.reset_index(inplace=True)
+    time_col = attributes.get('time_col','epoch')
 
     if not any((output_file,directory,file_name)):
         raise ValueError('No suitable directory/file name passed in.')

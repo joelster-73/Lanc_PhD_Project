@@ -46,7 +46,7 @@ LUNA_MAG_DIR    = 'Y:/Processed_Data/GROUND/SuperMAG/NetCDF/'
 
 
 
-def get_luna_directory(source, instrument=None, description=None, resolution=None):
+def get_luna_directory(source, instrument=None, info=None):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -54,25 +54,26 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
 
         folder = f'{source.upper()}_CP'
 
-        if instrument.upper() == 'FGM':
-            folder += f'_{instrument.upper()}'
+        if instrument.upper() in ('FGM','STATE'):
+            # STATE data is in the FGM files
+            folder += '_FGM'
 
-            if description is None:
+            if info is None:
                 warnings.warn('No sample resolution provided; using SPIN.')
-                description = 'SPIN'
-            elif description not in ('SPIN','5VPS'):
+                info = 'SPIN'
+            elif info not in ('SPIN','5VPS'):
                 warnings.warn('Sample resolution "{sample}" not valid; using SPIN.')
-                description = 'SPIN'
+                info = 'SPIN'
 
-            folder += f'_{description.upper()}/'
+            folder += f'_{info.upper()}/'
 
-        elif instrument.upper() in ('CIS', 'HIA', 'CIS-HIA'):
+        elif instrument.upper() in ('CIS','HIA','CIS-HIA'):
             folder += '_CIS-HIA'
 
-            if description in ('mom', 'moments', 'hiam'):
+            if info in ('mom', 'moments', 'hiam'):
                 folder += '_ONBOARD_MOMENTS/'
 
-            elif description in ('quality','hiaq'):
+            elif info in ('quality','hiaq'):
                 folder += '_QUALITY/'
 
         elif instrument.upper() == 'GRMB':
@@ -107,7 +108,7 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
         if instrument.upper() in ('FGM', 'GMOM', 'MOM', 'STATE'):
             folder = f'{instrument.upper()}/'
 
-        elif instrument.lower() in ('esa'):
+        elif instrument.lower() in ('esa',):
             folder = f'{instrument.lower()}/'
 
         path += folder
@@ -116,9 +117,9 @@ def get_luna_directory(source, instrument=None, description=None, resolution=Non
     elif source=='omni':
         path = LUNA_OMNI_DIR
 
-        if resolution == '1min' or resolution is None:
+        if info == '1min' or info is None:
             path += 'omni_min_def/'
-        elif resolution == '5min':
+        elif info == '5min':
             path += 'omni_5min_def/'
 
     # wind
@@ -178,7 +179,7 @@ CROSSINGS_DIR          = f'{CLUSTER_DIR}/c1/Crossings'
 
 GROUND_DIR             = f'{PROCESSED_DATA_DIR}/GROUND'
 
-def get_proc_directory(source, dtype=' ', resolution=' ', sample=' ', create=False):
+def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -189,18 +190,16 @@ def get_proc_directory(source, dtype=' ', resolution=' ', sample=' ', create=Fal
         else:
             path = f'{CLUSTER_DIR}/{source}/'
 
-            if sample.capitalize()=='Crossings':
-                path += 'Crossings/'
+            if dtype=='plasma':
+                raise ValueError('"plasma" has been replaced by "hpca" and "fpi"')
+            elif dtype=='field':
+                raise ValueError('"field" has been replaced by "fgm"')
 
-            else:
-                if sample.upper() in ('SPIN','5VPS'):
-                    path += f'{sample.upper()}/'
+            if dtype in ('crossings','fgm','hia','hiqa','state','combined','sw','msh'):
+                path += f'{dtype}/'
 
-                if dtype in ('field','plasma','combined','sw','msh'):
-                    path += f'{dtype}/'
-
-                if resolution in ('raw','1min','5min'):
-                    path += f'{resolution}/'
+            if resolution in ('raw','5vps','spin','1min','5min'):
+                path += f'{resolution}/'
 
     # mms
     elif source in MMS_SPACECRAFT:
@@ -231,10 +230,12 @@ def get_proc_directory(source, dtype=' ', resolution=' ', sample=' ', create=Fal
         else:
             path = f'{THEMIS_DIR}/{source}/'
 
-            instruments = {'field': 'FGM', 'plasma': 'MOM', 'position': 'STATE'}
-            if dtype in instruments:
-                path += f'{instruments[dtype]}/'
-            elif dtype in ('sw', 'msh', 'combined'):
+            if dtype=='plasma':
+                raise ValueError('"plasma" has been replaced by "hpca" and "fpi"')
+            elif dtype=='field':
+                raise ValueError('"field" has been replaced by "fgm"')
+
+            if dtype in ('sw', 'msh', 'combined', 'fgm', 'mom', 'state'):
                 path += f'{dtype}/'
 
             if resolution in ('raw','1min','5min'):

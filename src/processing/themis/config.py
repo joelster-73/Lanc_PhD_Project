@@ -8,6 +8,7 @@ Created on Thu May  8 17:48:07 2025
 
 THEMIS_SPACECRAFT = ('tha', 'thb', 'thc', 'thd', 'the')
 
+# %% State
 STATE_VARIABLES_TEMPLATE = { # 1 minute resolution
     'time': '{sc}_state_time',
     'r':    '{sc}_pos_gse'
@@ -19,12 +20,13 @@ THEMIS_VARIABLES_STATE = {
 }
 
 
+# %% FGM
 FGM_VARIABLES_TEMPLATE = {
-    'time':  '{sc}_{suffix}_time',
-    'B_avg': '{sc}_{suffix}_btotal',
-    'B_GSE': '{sc}_{suffix}_gse',
-    'B_GSM': '{sc}_{suffix}_gsm',
-    'quality': '{sc}_fgm_{suffix}_quality'
+    'time':    '{sc}_{suffix}_time',
+    'B_avg':   '{sc}_{suffix}_btotal',
+    'B_GSE':   '{sc}_{suffix}_gse',
+    'B_GSM':   '{sc}_{suffix}_gsm',
+    'quality': '{sc}_fgm_{suffix}_quality'          # 0 = good, >1 = bad
 }
 
 FGM_SUFFIXES = ('fgs','fgl','fgh','fge')
@@ -38,6 +40,7 @@ THEMIS_VARIABLES_FGM = {
 }
 
 
+# %% MOM
 PLASMA_VARIABLES_TEMPLATE = {
     'time':         '{sc}_peim_time',
     'time_flag':    '{sc}_iesa_solarwind_flag_time',
@@ -55,3 +58,6 @@ THEMIS_VARIABLES_PEIM = {
     sc: {key: value.format(sc=sc) for key, value in PLASMA_VARIABLES_TEMPLATE.items()}
     for sc in THEMIS_SPACECRAFT
 }
+
+VARIABLES_DICT = {'fgm': THEMIS_VARIABLES_FGM, 'state': THEMIS_VARIABLES_STATE, 'mom': THEMIS_VARIABLES_PEIM}
+

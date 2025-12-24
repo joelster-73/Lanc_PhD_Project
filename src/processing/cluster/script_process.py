@@ -4,51 +4,35 @@ Created on Thu May  8 15:58:08 2025
 
 @author: richarj2
 """
-import os
-from src.config import LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, LUNA_CLUS_DIR_HIAM, LUNA_CLUS_DIR_HIAQ, PROC_CLUS_DIR_5VPS, LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_FGM, PROC_CLUS_DIR_MSH, PROC_CLUS_DIR_SW
 
-from src.processing.writing import resample_cdf_files
-from src.processing.cluster.config import CLUSTER_VARIABLES_SPIN, CLUSTER_VARIABLES_HIA, CLUSTER_VARIABLES_HIA_QUALITY, CLUSTER_VARIABLES_5VPS
-from src.processing.cluster.handling import process_cluster_files, combine_spin_data, filter_spin_data
+from src.processing.cluster.handling import process_cluster_files, update_fgm_data
+from src.processing.updating import resample_monthly_files, update_plasma_data
 
+# %% Field
 
-# %%  Process_5VPS
+process_cluster_files('c1', 'fgm', '5VPS')
+process_cluster_files('c1', 'fgm', 'SPIN')
 
-process_cluster_files(LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_5VPS, CLUSTER_VARIABLES_5VPS)
+# %% Position
 
-#process_cluster_files(LUNA_CLUS_DIR_5VPS, PROC_CLUS_DIR_5VPS, CLUSTER_VARIABLES_5VPS, sub_folders=True, year=2001)
+process_cluster_files('c1', 'state', '5VPS')
+process_cluster_files('c1', 'state', 'SPIN')
 
-# %% Average_FGM
+# %% Update_fgm
 
-for sample in ('1min','5min'):
-    resample_cdf_files(PROC_CLUS_DIR_FGM, sample_interval=sample, yearly_files=True)
+update_fgm_data('c1', 'spin')
 
-# %% Process_spin
-import warnings
-warnings.filterwarnings('ignore', category=FutureWarning, message='.*DatetimeProperties.to_pydatetime.*')
+resample_monthly_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min'))
 
-process_cluster_files(LUNA_CLUS_DIR_SPIN, PROC_CLUS_DIR_SPIN, CLUSTER_VARIABLES_SPIN, sample_interval='none')
+# %% Plasma
 
-process_cluster_files(LUNA_CLUS_DIR_HIAM, PROC_CLUS_DIR_SPIN, CLUSTER_VARIABLES_HIA, sub_folders=True, sample_interval='none', quality_directory=LUNA_CLUS_DIR_HIAQ, quality_variables=CLUSTER_VARIABLES_HIA_QUALITY)
+process_cluster_files('c1', 'hia', 'moments')
 
-# %% Combine_spin data
+# %% Update_hia
 
-combine_spin_data(PROC_CLUS_DIR_SPIN, PROC_CLUS_DIR_FGM)
+update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V',))
 
-# %% MSH_data
+resample_monthly_files('c1', 'sw', 'spin', sample_intervals=('1min','5min'))
 
-filter_spin_data(PROC_CLUS_DIR_SPIN, region='msh')
-
-raw_dir = os.path.join(PROC_CLUS_DIR_MSH,'raw')
-for sample in ('1min','5min'):
-    resample_cdf_files(raw_dir, sample_interval=sample, yearly_files=True)
-
-
-# %% SW_data
-
-filter_spin_data(PROC_CLUS_DIR_SPIN, region='sw')
-
-raw_dir = os.path.join(PROC_CLUS_DIR_SW,'raw')
-for sample in ('1min','5min'):
-    resample_cdf_files(raw_dir, sample_interval=sample, yearly_files=True)
+resample_monthly_files('c1', 'msh', 'spin', sample_intervals=('1min','5min'))
 
