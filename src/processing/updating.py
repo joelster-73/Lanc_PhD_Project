@@ -15,7 +15,6 @@ from scipy.constants import mu_0, m_p
 from scipy.constants import physical_constants
 m_a = physical_constants['alpha particle mass'][0]
 
-from .handling import create_log_file
 from .dataframes import add_df_units, resample_data
 from .writing import write_to_cdf
 from .reading import import_processed_data
@@ -39,85 +38,6 @@ for sc in THEMIS_SPACECRAFT:
 for sc in MMS_SPACECRAFT:
     INIT_FUNCTIONS = {sc: update_fpi_data}
 
-# %% Process
-
-def process_overlapping_files(spacecraft, data, process_func, variables_dict, files_dict, sample_intervals, filter_func=None, **kwargs):
-
-    overwrite   = kwargs.get('overwrite',True)
-    time_col    = kwargs.get('time_col','epoch')
-    resolutions = kwargs.get('resolutions',{})
-
-    if not variables_dict:
-        raise ValueError(f'No valid variables dict for {data}')
-
-    ###----------SET UP----------###
-
-    print(f'Processing {spacecraft.upper()}')
-
-    directory_name = data.upper()
-
-    save_directory = get_proc_directory(spacecraft, dtype=data, create=True)
-    log_file_path = os.path.join(save_directory, f'{directory_name}_files_not_added.txt')  # Stores not loaded files
-    create_log_file(log_file_path)
-
-    save_directories = {}
-
-    for sample_interval in sample_intervals:
-
-        save_directory = get_proc_directory(spacecraft, dtype=data, resolution=sample_interval, create=True)
-        create_directory(save_directory)
-        save_directories[sample_interval] = save_directory
-
-    variables = variables_dict.get(data,{}).get(spacecraft,{})
-    if not variables:
-        raise ValueError(f'No valid variables dict for {data}')
-
-    ###----------PROCESS----------###
-    attributes = {'time_col': time_col, 'R_E': R_E}
-    next_key_df = pd.DataFrame()
-    for k_i, (key, files) in enumerate(files_dict.items()):
-
-        print(f'Processing {key} data.')
-        key_df = process_func(variables, files, directory_name, log_file_path, time_col=time_col, **kwargs)
-        if key_df.empty:
-            continue
-
-        # Files overlap into next day
-        if not next_key_df.empty:
-            key_df = pd.concat([key_df,next_key_df])
-            key_df.sort_index(inplace=True)
-
-            next_key_df = pd.DataFrame()
-
-        if k_i != len(files_dict)-1:
-
-            if isinstance(key, int): # key is year
-                keep = (key_df[time_col].dt.year==key)
-            elif isinstance(key,str): # key is year-month
-                the_year, the_month = key.split('-')
-                keep = (key_df[time_col].dt.year==int(the_year)) & (key_df[time_col].dt.month==int(the_month))
-
-            next_key_df = key_df.loc[~keep] # store for next key
-            key_df      = key_df.loc[keep]
-
-        print(f'{key} processed.')
-        # resample and write to file
-        for sample_interval, samp_dir in save_directories.items():
-
-            if sample_interval in ('raw','spin','fast'):
-                sampled_df = key_df
-
-                attributes['sample_interval'] = resolutions.get(sample_interval,sample_interval)
-            else:
-                if filter_func:
-                    sampled_df = filter_func(sampled_df)
-                # resample and write to file
-                print('Resampling...')
-                sampled_df = resample_data(key_df, time_col, sample_interval)
-                print(f'{sample_interval} resampled.')
-                attributes['sample_interval'] = sample_interval
-
-            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)
 
 # %% Helpers
 
@@ -340,7 +260,6 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
             write_to_cdf(filtered_df, directory=save_directory, file_name=f'{spacecraft.upper()}_{region.upper()}_{key}.cdf', arguments={'R_E': R_E}, overwrite=True, reset_index=True)
 
 
-
 def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_fields=None, **kwargs):
     """
     Once the plasma data has been extracted from the raw moments files
@@ -425,8 +344,6 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     assign_values(merged_df, 'S_mag', S_mag_u, col_before=f'S_x_{vec_coords}')
 
     return merged_df
-
-
 
 def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
     """

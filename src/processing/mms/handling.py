@@ -20,7 +20,7 @@ from .config import ION_MASS_DICT, ION_SPECIES, VARIABLES_DICT
 
 from ..handling import log_missing_file
 from ..dataframes import add_df_units
-from ..updating import process_overlapping_files
+from ..process import process_overlapping_files
 
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_luna_directory

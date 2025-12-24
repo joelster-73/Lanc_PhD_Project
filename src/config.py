@@ -198,7 +198,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             if dtype in ('crossings','fgm','hia','hiqa','state','combined','sw','msh'):
                 path += f'{dtype}/'
 
-            if resolution in ('raw','5vps','spin','1min','5min'):
+            if resolution in ('raw','5vps','spin','1min','5min','spin_raw'):
                 path += f'{resolution}/'
 
     # mms

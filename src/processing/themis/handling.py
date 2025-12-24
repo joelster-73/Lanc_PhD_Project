@@ -14,7 +14,7 @@ from .config import VARIABLES_DICT
 
 from ..dataframes import add_df_units
 from ..handling import log_missing_file
-from ..updating import process_overlapping_files
+from ..process import process_overlapping_files
 
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_luna_directory

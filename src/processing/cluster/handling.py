@@ -15,7 +15,7 @@ from ..handling import log_missing_file, get_processed_files
 from ..writing import write_to_cdf
 from ..dataframes import add_df_units
 from ..reading import import_processed_data
-from ..updating import process_overlapping_files
+from ..process import process_overlapping_files
 
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_proc_directory, get_luna_directory
@@ -51,7 +51,9 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
     for sample_interval in sample_intervals:
 
         if sample_interval=='none':
-            if data in ('fgm','state'):
+            if data in ('fgm',):
+                sample_interval = 'raw' if data_info.lower()=='spin' else data_info.lower()
+            if data in ('state',):
                 sample_interval = data_info.lower()
             elif data in ('hia',):
                 sample_interval = 'spin'
@@ -280,14 +282,16 @@ def process_cluster_hia_quality(df, variables, files, time_col='epoch'):
 
 # %% Update
 
-def update_fgm_data(spacecraft, sample='spin'):
+def update_fgm_data(spacecraft, sample='raw'):
     """
     Updates fgm files with GSM data.
 
     """
     print('Processing CLUSTER.')
 
-    directory  = get_proc_directory(spacecraft, dtype='fgm', resolution=sample)
+    directory      = get_proc_directory(spacecraft, dtype='fgm', resolution=sample)
+    out_directory  = get_proc_directory(spacecraft, dtype='fgm', resolution='spin', create=True)
+
     files = get_processed_files(directory)
 
     for cdf_file in files:
@@ -297,13 +301,23 @@ def update_fgm_data(spacecraft, sample='spin'):
         key_df = import_processed_data(spacecraft, dtype='fgm', resolution=sample, file_name=file_name)
         attributes = key_df.attrs
 
-        gsm = calc_B_GSM_angles(key_df, time_col='index').drop(columns=['B_mag'])
+        month = []
 
-        key_df = pd.concat([key_df, gsm], axis=1)
+        for day, daily_df in key_df.groupby(pd.Grouper(freq='D')):
+            print(day)
+            if daily_df.empty:
+                continue
+
+            gsm = (calc_B_GSM_angles(daily_df, time_col='index').drop(columns=['B_mag']))
+
+            daily_df = pd.concat([daily_df, gsm], axis=1)
+            month.append(daily_df)
+
+        key_df = pd.concat(month)
         key_df.attrs = attributes
         add_df_units(key_df)
 
-        write_to_cdf(key_df, directory=directory, file_name=file_name, overwrite=True)
+        write_to_cdf(key_df, directory=out_directory, file_name=file_name, overwrite=True, reset_index=True)
 
 
 # %% Plasma

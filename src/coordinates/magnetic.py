@@ -13,7 +13,6 @@ from uncertainties import unumpy as unp
 from spacepy.time import Ticktock
 from spacepy.ctrans import convert_multitime
 
-
 from .spatial import cartesian_to_spherical
 from ..processing.utils import add_unit
 

@@ -20,7 +20,7 @@ process_cluster_files('c1', 'state', 'SPIN')
 
 # %% Update_fgm
 
-update_fgm_data('c1', 'spin')
+update_fgm_data('c1', 'raw')
 
 resample_monthly_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min'))
 

@@ -16,11 +16,8 @@ for sample_interval in ('1min','5min'): # for OMNI's indices
 # %% NetCDF_Files
 from src.processing.mag.supermag import process_supermag_data
 
-
 station = 'THL'
 process_supermag_data(station)
-
-
 
 # %% Convert_to_GSE
 from src.processing.mag.supermag import convert_supermag_gse
