@@ -10,6 +10,7 @@ import pandas as pd
 
 from scipy.constants import m_p, physical_constants
 m_a = physical_constants['alpha particle mass'][0]
+k_B = physical_constants['Boltzmann constant in eV/K'][0]
 
 from .sc_delay_time import calc_bs_sc_delay
 
@@ -78,7 +79,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         sc_keys = spacecraft[region][data_pop]
 
     ###----------IMPORTS----------###
-    print('Importing OMNI')
+    print('Importing OMNI.\n')
     df_omni = import_processed_data('omni', resolution=sample_interval)
     update_omni(df_omni, indices_columns)
 
@@ -99,12 +100,16 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         elif sc in themis:
 
+            continue ##################################
+
             df_sc = import_processed_data(sc, dtype=region, resolution=sample_interval)
             intervals = themis_region_intervals(sc, region, data_pop, sample_interval)
 
         elif sc in cluster:
 
-            df_sc = import_processed_data(sc, sample='SPIN', dtype=region, resolution=sample_interval)
+            continue ##################################
+
+            df_sc = import_processed_data(sc, dtype=region, resolution=sample_interval)
 
             rename_map = {col: cluster_column_map[key] + col[len(key):] for col in df_sc.columns for key in cluster_column_map if col.startswith(key)}
             df_sc.rename(columns=rename_map, inplace=True)
@@ -155,35 +160,49 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         ###----------FILTER FOR REGION----------###
 
         df_positions = calc_msh_r_diff(df_merged, 'BOTH', position_key=sc, data_key='sw', column_names=column_names)
-        df_merged = pd.concat([df_merged,df_positions[pos_cols]],axis=1)
+        df_merged = pd.concat([df_merged, df_positions[pos_cols]], axis=1)
 
         mask = np.zeros(len(df_merged),dtype=bool)
         interval_index = pd.IntervalIndex.from_tuples(intervals, closed='both')
 
         if region=='msh':
 
+            if data_pop=='plasma':
+                condition = df_merged[f'T_tot{suffix}'] >= (1e3 / k_B) # ion temp > 1 keV
+            else:
+                condition = (df_merged['r_F']>0.1) & (df_merged['r_F']<1) # position between empirial MP and BS
+
             if sc in themis:
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1) & (df_merged['r_F']>-0.25))
-                mask |= (df_merged['r_F']>0.35) & (df_merged['r_F']<1) # Stricter for THEMIS data
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & condition)
+                mask |= condition
 
             elif sc in cluster: # MSH interval
                 mask |= (interval_index.get_indexer(df_merged.index) != -1)
-                mask |= (df_merged['r_F']>0.15) & (df_merged['r_F']<1)
+                mask |= condition
 
             elif sc in mms: # Within BS (BS crossings)
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']<1.5) & (df_merged['r_F']>0.15))
-                mask |= (df_merged['r_F']>0.15) & (df_merged['r_F']<1)
+                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & condition)
+                mask |= condition
 
         elif region=='sw':
 
-            # Second condition is to prevent incorrect boundaries
-            mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (df_merged['r_F']>1))
-            mask |= (df_merged['r_F']>1.5)
+            if data_pop=='plasma':
+                condition = df_merged[f'T_tot{suffix}'] < (1e3 / k_B) # ion temp < 1 keV
+            else:
+                condition = df_merged['r_F'] < 1 # position further than empirial BS
 
-            mask &= (df_merged[f'r_mag{suffix}']<35) # ARTEMIS
+            # Second condition is to prevent incorrect boundaries
+            mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (condition))
+            mask |= condition
+
+            mask &= (df_merged[f'r_mag{suffix}']<35) # To exclude ARTEMIS
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
+
+        if df_merged.empty:
+            print(f'No {sc} data in {region}.')
+            continue
 
         ###----------NORMAL TO SURFACE----------###
 
@@ -300,10 +319,12 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
 def update_omni(df, drop_cols=indices_columns):
 
-    df.rename(columns={'P_flow': 'P_p'}, inplace=True)
+    # Rename temperature for consistency, assuming isothermal
+    df.rename(columns={'P_flow': 'P_p', 'T_p': 'T_tot'}, inplace=True)
     df.attrs['units']['P_p'] = 'nPa'
+    df.loc[df['T_tot']>=9999999, 'T_tot'] = np.nan # replace fills
 
-    # OMNI defiens pressure as rhoV^2 for just the protons, so halving for consistency
+    # OMNI defines pressure as rhoV^2 for just the protons, so halving for consistency
     df['P_flow'] = 0.5 * (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
 
     df.loc[df['M_A']>100,'M_A'] = np.nan

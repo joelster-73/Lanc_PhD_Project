@@ -515,8 +515,6 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
 
                 _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
 
-
-
         # Formatting
         ax0.grid(ls=':', c=grey, lw=0.5)
         ax1.grid(ls=':', c=grey, lw=0.5)

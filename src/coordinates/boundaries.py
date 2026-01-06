@@ -20,8 +20,8 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
 
     if column_names is None:
         column_names = DEFAULT_COLUMN_NAMES
-    else:
-        column_names = column_names.copy()
+
+    column_names = column_names.copy()
 
     if position_key is not None:
         for key in ['r_x_name', 'r_y_name', 'r_z_name', 'r_name', 'r_ax_name', 'r_ay_name', 'r_az_name']:
@@ -213,8 +213,7 @@ def calc_normal_for_sc(df, surface, model=None, aberration='model', position_key
     if column_names is None:
         column_names = DEFAULT_COLUMN_NAMES
 
-    else:
-        column_names = column_names.copy()
+    column_names = column_names.copy()
 
     if position_key is not None:
         for key in ['r_x_name', 'r_y_name', 'r_z_name', 'r_name', 'r_ax_name', 'r_ay_name', 'r_az_name']:

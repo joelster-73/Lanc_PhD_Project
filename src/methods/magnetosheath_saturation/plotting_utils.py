@@ -169,6 +169,16 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
             else:
                 limits[1] = 10
 
+    elif 'T_' in ind_var:
+        # Up to ~1keV in the sw (11.604525 MK)
+        bin_width, limits[0] = 1e6, 0
+        if restrict:
+            bin_width = 5e5
+            if ind_src=='sw':
+                limits[1] = 12e6
+            else:
+                limits[1] = 75e6
+
     elif ind_var=='S_perp':
         invert = True
         bin_width, limits[1] = 5, 0

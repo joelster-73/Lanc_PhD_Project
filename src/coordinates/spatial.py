@@ -63,6 +63,8 @@ def car_to_aGSE(df, column_names=None, simple=False, return_rotation=False):
     # Rotation only for valid rows
     if not valid_mask.any():
         print('No valid data for aberration.')
+        if return_rotation:
+            return pd.DataFrame(), np.array([])
         return pd.DataFrame()
 
     # Aberration

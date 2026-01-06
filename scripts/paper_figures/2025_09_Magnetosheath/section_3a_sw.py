@@ -34,6 +34,7 @@ param_names  = {'E_y_GSM': 'E_y',
                 'V_flow' : 'V',
                 'B_z_GSM': 'B_z',
                 'N_tot'  : 'N',
+                'T_tot'  : 'T',
                 'AE_53m' : 'AE',
                 'PCN_17m': 'PCN',
                 'PCC_17m': 'PCC',
@@ -45,7 +46,9 @@ sc_index_map = {name: f'{name}_adj' for name in ('AE_53m','PCN_17m','PCC_17m','S
 
 # %% Verify
 
-params = ('E_y_GSM','B_avg','B_z_GSM','beta','N_tot','V_flow','P_flow','B_clock')
+df_omni.rename(columns={'T_p': 'T_tot'}, inplace=True) # temp
+
+params = ('E_mag','E_y_GSM','B_avg','B_z_GSM','beta','N_tot','V_flow','P_flow','B_clock','T_tot')
 
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='scatter')
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)

@@ -191,11 +191,11 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             path = f'{CLUSTER_DIR}/{source}/'
 
             if dtype=='plasma':
-                raise ValueError('"plasma" has been replaced by "hpca" and "fpi"')
+                raise ValueError('"plasma" has been replaced by "hpca" and "fpi".')
             elif dtype=='field':
-                raise ValueError('"field" has been replaced by "fgm"')
+                raise ValueError('"field" has been replaced by "fgm".')
 
-            if dtype in ('crossings','fgm','hia','hiqa','state','combined','sw','msh'):
+            if dtype in ('crossings','fgm','hia','hiaq','state','combined','sw','msh'):
                 path += f'{dtype}/'
 
             if resolution in ('raw','5vps','spin','1min','5min','spin_raw'):

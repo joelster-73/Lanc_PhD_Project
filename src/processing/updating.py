@@ -159,6 +159,7 @@ def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('
 
     ###----------PROCESS----------###
     for year, files in files_by_year.items():
+        print(f'Updating {year}.')
         yearly_list = []
 
         for file in files:
@@ -174,7 +175,7 @@ def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('
             sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
 
             attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
-            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{year}', attributes=attributes, overwrite=overwrite, time_col=time_col, reset_index=True)
+            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{year}', attributes=attributes, overwrite=overwrite, reset_index=True)
 
             print(f'{sample_interval} reprocessed.')
 

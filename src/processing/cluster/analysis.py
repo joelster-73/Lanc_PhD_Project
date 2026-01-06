@@ -9,7 +9,7 @@ def cluster_region_intervals(spacecraft, region='sw'):
     elif region=='msh':
         label = 10
 
-    crossings = import_processed_data(spacecraft, sample='crossings', file_name=f'{spacecraft.upper()}_CT_AUX_GRMB.cdf')
+    crossings = import_processed_data(spacecraft, dtype='crossings', file_name=f'{spacecraft.upper()}_CT_AUX_GRMB.cdf')
 
     ### REMOVE BAD TIMES
 
