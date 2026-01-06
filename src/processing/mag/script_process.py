@@ -25,6 +25,14 @@ from src.processing.mag.supermag import convert_supermag_gse
 station = 'THL'
 convert_supermag_gse(station)
 
+
+# %% Convert_to_GSM
+from src.processing.mag.supermag import convert_supermag_gsm
+
+station = 'THL'
+convert_supermag_gsm(station)
+
+
 # %% aGSE
 
 

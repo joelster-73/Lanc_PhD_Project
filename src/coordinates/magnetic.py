@@ -162,16 +162,19 @@ def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B
 
     dfs_rotated = pd.DataFrame(index=df_transform.index)
 
-    if f'gse_to_gsm_angle{coords_suffix}' not in df_coords:
+    if f'gse_to_gsm_angle{coords_suffix}' not in df_coords.columns:
         theta = calc_GSE_to_GSM_angles(df_coords, ref=ref, suffix=coords_suffix)
-
-        if interp:
-            theta = theta.reindex(df_transform.index, method=None).interpolate(method='time')
-
-        dfs_rotated[f'gse_to_gsm_angle{coords_suffix}'] = theta
-
     else:
-        theta = df_coords.loc[df_transform.index,f'gse_to_gsm_angle{coords_suffix}'].to_numpy()
+        theta = df_coords[f'gse_to_gsm_angle{coords_suffix}']
+
+    theta = theta.reindex(df_transform.index)
+
+    if interp:
+        theta = theta.interpolate(method='time')
+    else:
+        theta = theta.ffill()
+
+    theta = theta.to_numpy()
 
     start, end = '_GSE','_GSM'
     if inverse:
@@ -183,7 +186,7 @@ def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B
     sin_theta = np.sin(theta)
 
     zeros = np.zeros_like(theta)
-    ones = np.ones_like(theta)
+    ones  = np.ones_like(theta)
 
     R = np.stack([
         np.stack([ones, zeros, zeros], axis=-1),
@@ -200,31 +203,39 @@ def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B
         df_rot = pd.DataFrame(vectors_rot, columns=[col.replace(start,end) for col in vec_cols], index=dfs_rotated.index)
 
         if include_unc:
-            # Covariance matrix
-            unc_cols = [f'{col}_unc' for col in vec_cols]
-            if any(col not in df_transform.columns for col in unc_cols):
-                warnings.warn('Uncertainty columns not in dataframe to transform.')
-            else:
-                vec_unc_GSE = df_transform[unc_cols].to_numpy()  # shape (N,3)
-
-                # Build Nx3x3 diagonal covariance matrices
-                C_GSE = np.zeros((len(df_transform),3,3))
-                C_GSE[:,0,0] = vec_unc_GSE[:,0]**2
-                C_GSE[:,1,1] = vec_unc_GSE[:,1]**2
-                C_GSE[:,2,2] = vec_unc_GSE[:,2]**2
-
-                # Rotate covariances to GSM
-                C_GSM = np.einsum('nij,njk,nlk->nil', R, C_GSE, R)
-  # shape (N,3,3)
-
-                # Extract GSM uncertainties from diagonal
-                df_rot[[f'{col.replace("GSE","GSM")}_unc' for col in vec_cols]] = np.sqrt(np.diagonal(C_GSM, axis1=1, axis2=2))
+            rotate_uncertainties(df_rot, df_transform, vec_cols, R)
 
         dfs_to_concat.append(df_rot)
 
-
     return pd.concat(dfs_to_concat,axis=1)
 
+def rotate_uncertainties(df, df_data, vec_cols, matrix):
+    """
+    df: dataframe to insert uncertainties into
+    df_data: contains uncertainties
+    vec_cols: the columns with uncertainties being rotated
+    R: rotation matrix
+    """
+
+    # Covariance matrix
+    unc_cols = [f'{col}_unc' for col in vec_cols]
+    if any(col not in df_data.columns for col in unc_cols):
+        warnings.warn('Uncertainty columns not in dataframe to transform.')
+    else:
+        vec_unc_GSE = df_data[unc_cols].to_numpy()  # shape (N,3)
+
+        # Build Nx3x3 diagonal covariance matrices
+        C_GSE = np.zeros((len(df_data),3,3))
+        C_GSE[:,0,0] = vec_unc_GSE[:,0]**2
+        C_GSE[:,1,1] = vec_unc_GSE[:,1]**2
+        C_GSE[:,2,2] = vec_unc_GSE[:,2]**2
+
+        # Rotate covariances to GSM
+        C_GSM = np.einsum('nij,njk,nlk->nil', matrix, C_GSE,matrix)
+        # shape (N,3,3)
+
+        # Extract GSM uncertainties from diagonal
+        df[[f'{col.replace("GSE","GSM")}_unc' for col in vec_cols]] = np.sqrt(np.diagonal(C_GSM, axis1=1, axis2=2))
 
 # %% GEO
 

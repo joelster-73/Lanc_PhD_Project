@@ -14,7 +14,7 @@ from netCDF4 import Dataset
 from ..reading import import_processed_data
 from ..writing import write_to_cdf
 from ...config import get_luna_directory, get_proc_directory
-from ...coordinates.magnetic import convert_GEO_to_GSE, convert_GSE_to_aGSE
+from ...coordinates.magnetic import convert_GEO_to_GSE, convert_GSE_to_aGSE, convert_GSE_to_GSM_with_angles
 
 
 # All nT
@@ -111,7 +111,7 @@ def process_supermag_data(*stations):
         print(f'Writing {station}....')
         direc = get_proc_directory('supermag', dtype=station, resolution='raw', create=True)
         attributes = {'sample_interval': '1min', 'time_col': 'epoch'}
-        write_to_cdf(df_station, directory=direc, file_name=f'{station}_raw', attributes=attributes, time_col='epoch', reset_index=True)
+        write_to_cdf(df_station, directory=direc, file_name=f'{station}_raw', attributes=attributes, reset_index=True)
 
 
 def convert_supermag_gse(*stations):
@@ -133,65 +133,34 @@ def convert_supermag_gse(*stations):
 
             convert_GEO_to_GSE(mag_month)
 
-            write_to_cdf(mag_month, directory=direc, file_name=f'{station}_gse_{year}-{month:02d}', attributes={'time_col': 'epoch'}, time_col='epoch', reset_index=True)
+            write_to_cdf(mag_month, directory=direc, file_name=f'{station}_gse_{year}-{month:02d}', attributes={'time_col': 'epoch'}, reset_index=True)
 
 
-def convert_supermag_agse(*stations, lag='17min', resolution='1min'):
-    """
-    This method rotates the coordinates based on the aberration of the solar wind (mainly due to Earth's orbital motion')
-    DP2 current system can be much more angled than this (up to 30 deg)
-    """
+def convert_supermag_gsm(*stations):
 
-    omni = import_processed_data('omni', resolution=resolution)
-    omni = omni.shift(freq=lag) # use 17-minute delay for BS to PC lag
-
-    ###----------ROTATING FROM GSE TO AGSE----------###
+    ###----------ROTATING FROM GSE TO GSM USING OMNI----------###
 
     for station in stations:
 
         try:
-            df_station = import_processed_data('supermag', dtype=station, file_name=f'{station}_gse')
+            df_station = import_processed_data('supermag', dtype=station, resolution='gse')
         except:
             continue
 
-        ###
+        print(f'Converting {station}.')
+        direc = get_proc_directory('supermag', dtype=station, resolution='gsm', create=True)
 
-            # if resolution == 5 min, need to resample the data:
+        for year, mag_year in (df_station.groupby(df_station.index.year, sort=True)):
+            print(f'{year}')
 
-        ###
+            df_omni = import_processed_data('omni', resolution='1min', year=year)
 
-        convert_GSE_to_aGSE(df_station, omni)
+            df_year = convert_GSE_to_GSM_with_angles(mag_year, vectors=[[f'H_{c}_GSE' for c in ('x','y','z')]], df_coords=df_omni)
 
-        print(f'Writing {station}....')
-        direc = get_proc_directory('supermag', dtype=station, create=True)
-        attributes = {'sample_interval': resolution, 'time_col': 'epoch'}
-        write_to_cdf(df_station, directory=direc, file_name=f'{station}_agse_{resolution}', attributes=attributes, time_col='epoch', reset_index=True)
+            new_cols = ['H_y_GSM','H_z_GSM']
+            mag_year[new_cols] = df_year[new_cols]
 
+            for col in new_cols:
+                mag_year.attrs['units'][col] = 'nT'
 
-def project_supermag_optimum(*stations):
-    """
-    DP2 current system can be angled up to 30 degrees, based on upstream conditions and time of year.
-    Optimum direction is perpendicular to this.
-    """
-
-
-    ## change to be the optimum direction based on DP2 maps
-    ## need to find a way to do this ideally not using OMNI data
-
-
-    ###----------ROTATING FROM GSE TO AGSE----------###
-
-    for station in stations:
-
-        try:
-            df_station = import_processed_data('supermag', dtype=station, file_name=f'{station}_gse')
-        except:
-            continue
-
-
-        # e.g. construct vector (cos30,sin30) and dot with each row
-
-        print(f'Writing {station}....')
-        direc = get_proc_directory('supermag', dtype=station, create=True)
-        attributes = {'sample_interval': resolution, 'time_col': 'epoch'}
-        write_to_cdf(df_station, directory=direc, file_name=f'{station}_agse_{resolution}', attributes=attributes, time_col='epoch', reset_index=True)
+            write_to_cdf(mag_year, directory=direc, file_name=f'{station}_gsm_{year}', attributes={'time_col': 'epoch'}, reset_index=True)

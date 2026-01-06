@@ -13,14 +13,12 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
 from matplotlib import pyplot as plt
 
-from ...analysing.calculations import circular_mean
-
 from ...plotting.config import blue, dark_mode, black
 from ...coordinates.spatial import convert_GEO_position
 
 # %% mag
 
-def plot_mag_data(station, sw, pc, param='H', coords='aGSE', quantity='phi', ind='ER', show_sw=True):
+def plot_mag_data(station, sw, pc, param='H', coords='GSE', quantity='mag', ind='ER', show_sw=True):
 
     # add argument to account for shift but probably will be taken care off when using full data
 
@@ -44,7 +42,9 @@ def plot_mag_data(station, sw, pc, param='H', coords='aGSE', quantity='phi', ind
 
     if show_sw:
         if ind=='Ey':
-            ind_col = 'E_y_GSM'
+            ind_col = f'E_y_{coords}'
+            if ind_col not in sw:
+                ind_col = 'E_y'
             ax0.set_ylabel('$E_y$ [mV/m]')
         elif ind=='ER':
             ind_col = 'E_R'
@@ -65,22 +65,26 @@ def plot_mag_data(station, sw, pc, param='H', coords='aGSE', quantity='phi', ind
     column = f'{param}_y_{coords}'
     if quantity=='mag' or column not in station:
         colour = blue
-        corr_quantity = station[f'{param}_mag'].corr(sw[ind_col])
-        ax.plot(station.index, station[f'{param}_mag'], c=colour, lw=0.7, label=f'|{param}|')
+        column = f'{param}_mag'
+        label  = f'|{param}|'
 
     elif quantity=='phi':
         colour = 'magenta'
-        corr_quantity = station[column].corr(sw[ind_col])
-        label = r'$H_\phi$' if coords=='aGSE' else r'$H_0$'
-        ax.plot(station.index, station[column], c=colour, lw=0.7, label=label)
+        label = r'$H_\phi$' if coords=='aGSE' else r'$H_y$'
 
     elif quantity=='tr':
         colour = 'green'
-        station.loc[:,'H_T'] = (station.loc[:,f'{param}_x_{coords}']**2 + station.loc[:,f'{param}_y_{coords}']**2) ** 0.5
         column = 'H_T'
-        corr_quantity = station[column].corr(sw[ind_col])
-        label = r'$H_T$'
-        ax.plot(station.index, station[column], c=colour, lw=0.7, label=label)
+        label  = r'$H_T$'
+        x_col  = f'{param}_x_{coords}'
+        if coords=='GSM':
+            x_col = f'{param}_x_GSE'
+
+        station.loc[:, column] = ((station.loc[:, x_col]**2 + station.loc[:, f'{param}_y_{coords}']**2) ** 0.5).astype(np.float32)
+
+
+    corr_quantity = station[column].corr(sw[ind_col])
+    ax.plot(station.index, station[column], c=colour, lw=0.7, label=label)
 
     ax.legend(loc='upper left')
 
@@ -95,6 +99,7 @@ def plot_mag_data(station, sw, pc, param='H', coords='aGSE', quantity='phi', ind
 
     ax2.text(0.95, 0.95, f'r = {corr_pcn:.2f}', transform=ax2.transAxes, color='r', ha='right', va='top')
     ax.text(0.95, 0.95, f'r = {corr_quantity:.2f}', transform=ax.transAxes, color=colour, ha='right', va='top')
+    ax0.text(0.1, 0.95, coords, transform=ax0.transAxes, color=black, ha='right', va='top')
 
     if (station.index[-1] - station.index[0]).total_seconds()<86400:
         ax_MLT = ax0.twiny()

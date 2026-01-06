@@ -175,7 +175,7 @@ def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
         if restrict:
             bin_width = 5e5
             if ind_src=='sw':
-                limits[1] = 12e6
+                limits[1] = 20e6
             else:
                 limits[1] = 75e6
 

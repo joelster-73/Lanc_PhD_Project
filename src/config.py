@@ -290,7 +290,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         if dtype is not None:
             path += f'{dtype.upper()}/'
 
-        if resolution in ('raw','gse','agse'):
+        if resolution in ('raw','gse','agse','gsm'):
             path += f'{resolution}/'
 
     # index

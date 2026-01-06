@@ -342,6 +342,7 @@ def update_hia_data(field_df, plasma_df):
 
     plasma_df.loc[plasma_df['N_tot']>500,'N_tot'] = np.nan
     plasma_df.loc[plasma_df['P_th']>100,'P_th'] = np.nan
+    plasma_df.loc[plasma_df['T_tot']>2e8,'T_tot'] = np.nan
 
     merged_df = pd.concat([field_df, plasma_df], axis=1)
 

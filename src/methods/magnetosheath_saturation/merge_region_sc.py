@@ -10,7 +10,6 @@ import pandas as pd
 
 from scipy.constants import m_p, physical_constants
 m_a = physical_constants['alpha particle mass'][0]
-k_B = physical_constants['Boltzmann constant in eV/K'][0]
 
 from .sc_delay_time import calc_bs_sc_delay
 
@@ -70,11 +69,12 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
     Data_pop = 'field' means field only
     data_pop = 'plasma' means including plasma (so also field)
     """
+    print(f'Processing {sample_interval} {region} data.')
 
     DIR = get_proc_directory(region, dtype=data_pop, resolution=sample_interval, create=True) # output directory
 
     dfs_combined = []
-    field_col = 'B_avg'
+    #field_col = 'B_avg'
     if sc_keys is None:
         sc_keys = spacecraft[region][data_pop]
 
@@ -85,7 +85,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
     for sc in sc_keys:
 
-        print(f'Importing {sc}')
+        print(f'Importing -{sc}-.')
         if sc in mms:
 
             df_field  = import_processed_data(sc, dtype='fgm', resolution=sample_interval)
@@ -94,20 +94,21 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
                 df_sc = df_field
             else:
                 df_plasma = import_processed_data(sc, dtype='fpi', resolution=sample_interval)
+
+                # Temporary (temp in eV)
+                from scipy.constants import k as kB, e
+                df_plasma['T_tot'] *= (e / kB) ##########
+
                 df_sc = merge_dataframes(df_field, df_plasma)
 
             intervals = mms_region_intervals('msh')
 
         elif sc in themis:
 
-            continue ##################################
-
             df_sc = import_processed_data(sc, dtype=region, resolution=sample_interval)
             intervals = themis_region_intervals(sc, region, data_pop, sample_interval)
 
         elif sc in cluster:
-
-            continue ##################################
 
             df_sc = import_processed_data(sc, dtype=region, resolution=sample_interval)
 
@@ -132,7 +133,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         location_mask = (df_sc['r_x_GSE']>0)
         if nose:
             location_mask &= (df_sc['r_z_GSE'].abs()<5)
-        location_mask &= ~np.isnan(df_sc[field_col])
+        #location_mask &= ~df_sc[field_col].isna())
 
         df_sc = df_sc.loc[location_mask]
 
@@ -165,37 +166,19 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         mask = np.zeros(len(df_merged),dtype=bool)
         interval_index = pd.IntervalIndex.from_tuples(intervals, closed='both')
 
+        # Times when have crossings
+        inside_interval = interval_index.get_indexer(df_merged.index) != -1
+        outside_interval = ~inside_interval
+
         if region=='msh':
-
-            if data_pop=='plasma':
-                condition = df_merged[f'T_tot{suffix}'] >= (1e3 / k_B) # ion temp > 1 keV
-            else:
-                condition = (df_merged['r_F']>0.1) & (df_merged['r_F']<1) # position between empirial MP and BS
-
-            if sc in themis:
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & condition)
-                mask |= condition
-
-            elif sc in cluster: # MSH interval
-                mask |= (interval_index.get_indexer(df_merged.index) != -1)
-                mask |= condition
-
-            elif sc in mms: # Within BS (BS crossings)
-                mask |= ((interval_index.get_indexer(df_merged.index) != -1) & condition)
-                mask |= condition
+            condition = (df_merged['r_F'] > 0.1) & (df_merged['r_F'] < 1)
 
         elif region=='sw':
+            condition  = (df_merged['r_F'] > 1.25) # position further than empirial BS
+            #condition &= (df_merged[f'r_mag{suffix}']<35) # exclude ARTEMIS
 
-            if data_pop=='plasma':
-                condition = df_merged[f'T_tot{suffix}'] < (1e3 / k_B) # ion temp < 1 keV
-            else:
-                condition = df_merged['r_F'] < 1 # position further than empirial BS
-
-            # Second condition is to prevent incorrect boundaries
-            mask |= ((interval_index.get_indexer(df_merged.index) != -1) & (condition))
-            mask |= condition
-
-            mask &= (df_merged[f'r_mag{suffix}']<35) # To exclude ARTEMIS
+        mask |= outside_interval & condition
+        mask |= inside_interval
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
@@ -249,7 +232,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
             # Rotation of clock angle, ignoring sw uncertainty for time being
             df_merged[f'Delta B_theta{suffix}'] = np.abs(difference_series(df_merged['B_clock_sw'],df_merged[f'B_clock{suffix}'],unit='rad'))
-            not_nan = ~np.isnan(df_merged[f'Delta B_theta{suffix}'])
+            not_nan = ~df_merged[f'Delta B_theta{suffix}'].isna()
             if f'B_clock_unc{suffix}' in df_merged: # Not implemented for Cluster currently
                 df_merged.loc[not_nan,f'Delta B_theta_unc{suffix}'] = df_merged.loc[not_nan,f'B_clock_unc{suffix}']
 

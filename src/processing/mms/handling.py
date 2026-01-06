@@ -227,11 +227,13 @@ def extract_mms_data(cdf_file, variables):
                 data_dict[var_name] = scalar_val
 
             else:
-                if var_name.startswith('T_'):
-                    # data is in eV
-                    data *= (e / kB)  # (eV → J) / (J/K) = K
 
                 data_dict[var_name] = data  # pycdf extracts as datetime, no conversion from epoch needed
+
+            # Temp is scalar or a tensor
+            if var_name.startswith('T_'):
+                # data is in eV
+                data_dict[var_name] *= (e / kB)  # (eV → J) / (J/K) = K
 
 
     return data_dict

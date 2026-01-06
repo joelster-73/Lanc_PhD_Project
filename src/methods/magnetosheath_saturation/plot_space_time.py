@@ -34,9 +34,10 @@ from ...plotting.config import black, bar_hatches
 minimum_counts = {'mins': 100, 'counts': 50}
 
 
-def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None):
+def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None, **kwargs):
 
     data_type = 'mins' if sample_interval == '1min' else 'counts'
+    column_check = kwargs.get('column_check','B_avg') # column check non-nan data for counts
 
     if sc_keys is None:
         sc_keys = ('c1','mms1','tha','thc','thd','the')
@@ -60,7 +61,8 @@ def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_k
         else:
             ax = axs[row,col]
 
-        title = f'{sc_key}: {len(df_sc[f"B_avg"].dropna()):,} {data_type}'
+        length = len(df_sc[column_check].dropna())
+        title = f'{sc_key}: {length:,} {data_type}'
 
         _, _, cbar, _ = plot_orbit_msh(df_sc, sc_keys=None, title=title, region=region, fig=fig, ax=ax, return_objs=True)
 
@@ -76,7 +78,7 @@ def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_k
     plt.show()
     plt.close()
 
-def plot_sc_sw_msh(sample_interval='1min', data_pop='plasma', sw_keys=None, msh_keys=None):
+def plot_sc_sw_msh(sample_interval='1min', data_pop='plasma', sw_keys=None, msh_keys=None, **kwargs):
 
     if sw_keys is None:
         sw_keys = ('c1','mms1','thb')
@@ -87,7 +89,7 @@ def plot_sc_sw_msh(sample_interval='1min', data_pop='plasma', sw_keys=None, msh_
     fig, axs = plt.subplots(2, 1, figsize=(12,8), dpi=400, sharex=True)
 
     for ax, region, keys, label in zip(axs,  ('sw','msh'), (sw_keys,msh_keys), ('Solar Wind','Magnetosheath')):
-        plot_sc_years(sample_interval, data_pop, region, keys, combined=True, fig=fig, ax=ax, return_objs=True)
+        plot_sc_years(sample_interval, data_pop, region, keys, combined=True, fig=fig, ax=ax, return_objs=True, **kwargs)
         ax.legend(loc='upper left')
         ax.set_ylabel(label)
 
@@ -116,6 +118,7 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     """
 
     data_type = 'mins' if sample_interval == '1min' else 'counts'
+    column_check = kwargs.get('column_check','r_x_GSE') # column check non-nan data for counts
 
     fig          = kwargs.get('fig',None)
     axs          = kwargs.get('ax',None)
@@ -154,7 +157,7 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
                 except:
                     print(f'{sc} data not found in directory')
                     continue
-                years.append(df_sc['B_avg'].dropna().index.year.to_numpy())
+                years.append(df_sc[column_check].dropna().index.year.to_numpy())
             years = np.concatenate(years)
         else:
             try:
@@ -162,12 +165,10 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
             except:
                 print(f'{sc_key} data not found in directory')
                 continue
-            years = df_sc['B_avg'].dropna().index.year.to_numpy()
+            years = df_sc[column_check].dropna().index.year.to_numpy()
 
         if len(years)==0:
             continue
-
-        print(df_sc)
 
         unique_indices.update(df_sc.index)
 

@@ -11,7 +11,7 @@ Created on Thu Aug 28 12:29:26 2025
 from src.methods.magnetosheath_saturation.plot_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
 
 sample_interval = '1min'
-data_pop = 'with_plasma'
+data_pop = 'plasma'
 
 sw_keys = ('c1','mms1','thb')
 msh_keys = ('c1','mms1','the')
