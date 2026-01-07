@@ -13,8 +13,7 @@ process_mms_files('mms1', 'state', sample_intervals=('raw','1min','5min'))
 
 process_mms_files('mms1', 'fgm', sample_intervals=('raw',))
 
-#process_mms_files('mms1', 'fgm', sample_intervals=('raw','1min','5min'))
-# resample to 1min, 5min
+#process_mms_files('mms1', 'fgm', sample_intervals=('raw','1min','5min')) # resample to 1min, 5min
 
 # %% HPCA
 

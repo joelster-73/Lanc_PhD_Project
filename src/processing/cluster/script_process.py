@@ -30,10 +30,9 @@ process_cluster_files('c1', 'hia', 'moments')
 
 # %% Update_hia
 
-update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V',))
+update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V',), field_res='spin')
 
 resample_monthly_files('c1', 'sw', 'spin', sample_intervals=('1min','5min'))
-
 resample_monthly_files('c1', 'msh', 'spin', sample_intervals=('1min','5min'))
 
 

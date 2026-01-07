@@ -14,7 +14,7 @@ from netCDF4 import Dataset
 from ..reading import import_processed_data
 from ..writing import write_to_cdf
 from ...config import get_luna_directory, get_proc_directory
-from ...coordinates.magnetic import convert_GEO_to_GSE, convert_GSE_to_aGSE, convert_GSE_to_GSM_with_angles
+from ...coordinates.magnetic import convert_GEO_to_GSE, convert_GSE_to_GSM_with_angles
 
 
 # All nT
@@ -131,7 +131,7 @@ def convert_supermag_gse(*stations):
         for (year, month), mag_month in (df_station.groupby([df_station.index.year, df_station.index.month], sort=True)):
             print(f'{year} - {month:02d}')
 
-            convert_GEO_to_GSE(mag_month)
+            convert_GEO_to_GSE(mag_month, param='H') # only care about horizontal component
 
             write_to_cdf(mag_month, directory=direc, file_name=f'{station}_gse_{year}-{month:02d}', attributes={'time_col': 'epoch'}, reset_index=True)
 

@@ -53,7 +53,10 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
     for k_i, (key, files) in enumerate(files_dict.items()):
 
         print(f'Processing {key} data.')
-        key_df = process_func(variables_dict, files, directory_name, log_file_path, time_col=time_col, **kwargs)
+        kwargs_key = kwargs.copy()
+        kwargs_key['qual_files'] = kwargs.get('qual_files',{}).get(key,[])
+
+        key_df = process_func(variables_dict, files, directory_name, log_file_path, time_col=time_col, **kwargs_key)
         if key_df.empty:
             continue
 

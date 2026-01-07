@@ -13,13 +13,15 @@ from src.processing.mag.plotting import plot_mag_data, plot_magnetometer_map
 omni = import_processed_data('omni', resolution='1min')
 omni = omni.shift(freq='17min')
 
-THL      = import_processed_data('supermag', dtype='THL', resolution='gse')
+THL      = import_processed_data('supermag', dtype='THL', resolution='gsm')
 indices  = import_processed_data('indices', file_name='combined_1min')
 
 # %%
 
-year, month, day_min, day_max = (2008, 5, 10, 11) # Quiet day
-#year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
+#year, month, day_min, day_max = (2006, 1, 1, 2) # Quiet day
+#year, month, day_min, day_max = (2008, 5, 10, 11) # Quiet day
+year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
+#year, month, day_min, day_max = (2024, 5, 11, 12) # Max PCN
 
 
 thl_sub  = THL.loc[(THL.index.year==year)&(THL.index.month==month)&(THL.index.day>=day_min)&(THL.index.day<day_max)]
@@ -33,12 +35,9 @@ import itertools as it
 
 for (ind, coords, quantity) in it.product(('ER','Ey'),('GSE','GSM'),('mag','phi','tr')):
 
-    if coords=='GSM' and quantity=='mag':
+    if (ind, coords, quantity) == ('ER', 'GSM', 'mag'):
         continue
-    elif ind=='Ey' and quantity!='phi':
-        continue
-    elif ind=='ER' and quantity=='phi':
-        continue
+
 
     ### add to function to save into file active/quiet_YYMMDD
     plot_mag_data(thl_sub, omni_sub, indices_sub, coords=coords, quantity=quantity, ind=ind)

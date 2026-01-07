@@ -45,6 +45,86 @@ def convert_GSE_to_GSM(df, field, **kwargs):
 
     return result
 
+def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
+
+    # Uses GSE and GSM B data to undo transformation
+    uy = df_coords.loc[:, f'{ref}_y_GSM{suffix}']
+    uz = df_coords.loc[:, f'{ref}_z_GSM{suffix}']
+    vy = df_coords.loc[:, f'{ref}_y_GSE{suffix}']
+    vz = df_coords.loc[:, f'{ref}_z_GSE{suffix}']
+
+    dot   = uy * vy + uz * vz
+    cross = uy * vz - uz * vy
+
+    # signed rotation angle from v -> u
+    return np.arctan2(cross, dot)
+
+def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix='', inverse=False, include_unc=False):
+    """
+    df_transform : data to rotate from GSE to GSM
+    vectors : column(s) to transform in df_transform
+    df_coords : contains GSE and GSM vectors
+    ref : column with GSE and GSM data in df_coords
+    """
+
+    print('Converting...')
+
+    if df_coords is None:
+        df_coords = df_transform
+
+    if coords_suffix!='':
+        coords_suffix = f'_{coords_suffix}'
+
+    dfs_rotated = pd.DataFrame(index=df_transform.index)
+
+    if f'gse_to_gsm_angle{coords_suffix}' not in df_coords.columns:
+        theta = calc_GSE_to_GSM_angles(df_coords, ref=ref, suffix=coords_suffix)
+    else:
+        theta = df_coords[f'gse_to_gsm_angle{coords_suffix}']
+
+    theta = theta.reindex(df_transform.index)
+
+    if interp:
+        theta = theta.interpolate(method='time')
+    else:
+        theta = theta.ffill()
+
+    theta = theta.to_numpy()
+
+    start, end = '_GSE','_GSM'
+    if inverse:
+        theta *= -1
+        start, end = '_GSM','_GSE'
+
+    # Builds rotation matrix
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+
+    zeros = np.zeros_like(theta)
+    ones  = np.ones_like(theta)
+
+    R = np.stack([
+        np.stack([ones, zeros, zeros], axis=-1),
+        np.stack([zeros, cos_theta, -sin_theta], axis=-1),
+        np.stack([zeros, sin_theta, cos_theta], axis=-1)
+    ], axis=-2)  # shape (N,3,3)
+
+    dfs_to_concat = [dfs_rotated]
+    for vec_cols in vectors: # vectors transforming
+
+        vectors_to_rot = df_transform.loc[:,vec_cols].to_numpy()  # (N,3)
+        vectors_rot = np.einsum('nij,ni->nj', R, vectors_to_rot)
+
+        df_rot = pd.DataFrame(vectors_rot, columns=[col.replace(start,end) for col in vec_cols], index=dfs_rotated.index)
+
+        if include_unc:
+            rotate_uncertainties(df_rot, df_transform, vec_cols, R)
+
+        dfs_to_concat.append(df_rot)
+
+    return pd.concat(dfs_to_concat,axis=1)
+
+# %% Angles
 
 def calc_B_GSM_angles(df, **kwargs):
 
@@ -128,86 +208,6 @@ def insert_field_mag(df, field='r', coords='GSE'):
 
     df.attrs['units'][f'{field}_mag'] = df.attrs['units'][f'{field}_x_{coords}']
 
-# %% Angles
-
-def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
-
-    # Uses GSE and GSM B data to undo transformation
-    uy = df_coords.loc[:, f'{ref}_y_GSM{suffix}']
-    uz = df_coords.loc[:, f'{ref}_z_GSM{suffix}']
-    vy = df_coords.loc[:, f'{ref}_y_GSE{suffix}']
-    vz = df_coords.loc[:, f'{ref}_z_GSE{suffix}']
-
-    dot   = uy * vy + uz * vz
-    cross = uy * vz - uz * vy
-
-    # signed rotation angle from v -> u
-    return np.arctan2(cross, dot)
-
-def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix='', inverse=False, include_unc=False):
-    """
-    df_transform : data to rotate from GSE to GSM
-    vectors : column(s) to transform in df_transform
-    df_coords : contains GSE and GSM vectors
-    ref : column with GSE and GSM data in df_coords
-    """
-
-    print('Converting...')
-
-    if df_coords is None:
-        df_coords = df_transform
-
-    if coords_suffix!='':
-        coords_suffix = f'_{coords_suffix}'
-
-    dfs_rotated = pd.DataFrame(index=df_transform.index)
-
-    if f'gse_to_gsm_angle{coords_suffix}' not in df_coords.columns:
-        theta = calc_GSE_to_GSM_angles(df_coords, ref=ref, suffix=coords_suffix)
-    else:
-        theta = df_coords[f'gse_to_gsm_angle{coords_suffix}']
-
-    theta = theta.reindex(df_transform.index)
-
-    if interp:
-        theta = theta.interpolate(method='time')
-    else:
-        theta = theta.ffill()
-
-    theta = theta.to_numpy()
-
-    start, end = '_GSE','_GSM'
-    if inverse:
-        theta *= -1
-        start, end = '_GSM','_GSE'
-
-    # Builds rotation matrix
-    cos_theta = np.cos(theta)
-    sin_theta = np.sin(theta)
-
-    zeros = np.zeros_like(theta)
-    ones  = np.ones_like(theta)
-
-    R = np.stack([
-        np.stack([ones, zeros, zeros], axis=-1),
-        np.stack([zeros, cos_theta, -sin_theta], axis=-1),
-        np.stack([zeros, sin_theta, cos_theta], axis=-1)
-    ], axis=-2)  # shape (N,3,3)
-
-    dfs_to_concat = [dfs_rotated]
-    for vec_cols in vectors: # vectors transforming
-
-        vectors_to_rot = df_transform.loc[:,vec_cols].to_numpy()  # (N,3)
-        vectors_rot = np.einsum('nij,ni->nj', R, vectors_to_rot)
-
-        df_rot = pd.DataFrame(vectors_rot, columns=[col.replace(start,end) for col in vec_cols], index=dfs_rotated.index)
-
-        if include_unc:
-            rotate_uncertainties(df_rot, df_transform, vec_cols, R)
-
-        dfs_to_concat.append(df_rot)
-
-    return pd.concat(dfs_to_concat,axis=1)
 
 def rotate_uncertainties(df, df_data, vec_cols, matrix):
     """
@@ -241,25 +241,32 @@ def rotate_uncertainties(df, df_data, vec_cols, matrix):
 
 def convert_GEO_to_GSE(df_field, param='H', inplace=True):
 
-    # Extract B in global coordinates (i.e. GEO)
-    B_geo = df_field[['B_n_GEO', 'B_e_GEO', 'B_z_GEO']].values
+    # Extract B in GEO
+    Bn = df_field['B_n_GEO'].to_numpy()
+    Be = df_field['B_e_GEO'].to_numpy()
+    Bz = df_field['B_z_GEO'].to_numpy()  # down-positive
 
-    # Uses UTC times in conversion
+    if param == 'H': # Horizontal only
+        B_geo = np.column_stack([Bn, Be, np.zeros_like(Bz)])
+    else: # flip Z to up-positive for SpacePy
+        B_geo = np.column_stack([Bn, Be, -Bz])
+
+    # UTC times for conversion
     ticks = Ticktock(df_field.index.to_pydatetime(), 'UTC')
-
-    # Convert GEO to GSE
     B_gse = convert_multitime(B_geo, ticks, 'GEO', 'GSE', itol=1.0)
 
-    columns = [f'{param}_x_GSE',f'{param}_y_GSE',f'{param}_z_GSE']
+    columns = [f'{param}_x_GSE', f'{param}_y_GSE', f'{param}_z_GSE']
 
     if inplace:
-        df_field.loc[:,columns] = pd.DataFrame(B_gse, index=df_field.index, columns=columns)
+        df_field.loc[:, columns] = pd.DataFrame(B_gse, index=df_field.index, columns=columns)
         for col in columns:
             df_field.attrs['units'][col] = 'nT'
         return None
 
     return pd.DataFrame(B_gse, index=df_field.index, columns=columns)
 
+
+# %% aGSE
 def convert_GSE_to_aGSE(df_field, df_sw, param='H', V_earth=29.78, alpha=None, inplace=True):
 
     overlap = df_field.index.intersection(df_sw.index)

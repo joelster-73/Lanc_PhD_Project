@@ -27,16 +27,16 @@ from .cluster.handling import update_hia_data, filter_hia_data
 from .themis.handling import update_esa_data, filter_esa_data
 from .mms.handling import update_fpi_data
 
-init_functions = {}
-filt_functions = {}
+INIT_FUNCTIONS = {}
+FILT_FUNCTIONS = {}
 for sc in CLUSTER_SPACECRAFT:
-    INIT_FUNCTIONS = {sc: update_hia_data}
-    FILT_FUNCTIONS = {sc: filter_hia_data}
+    INIT_FUNCTIONS[sc] = update_hia_data
+    FILT_FUNCTIONS[sc] = filter_hia_data
 for sc in THEMIS_SPACECRAFT:
-    INIT_FUNCTIONS = {sc: update_esa_data}
-    FILT_FUNCTIONS = {sc: filter_esa_data}
+    INIT_FUNCTIONS[sc] = update_esa_data
+    FILT_FUNCTIONS[sc] = filter_esa_data
 for sc in MMS_SPACECRAFT:
-    INIT_FUNCTIONS = {sc: update_fpi_data}
+    INIT_FUNCTIONS[sc] = update_fpi_data
 
 
 # %% Helpers
@@ -49,67 +49,8 @@ def insert_magnitude(df, field, vec_coords, suffix='mag'):
     x_column   = df.columns.get_loc(f'{field}_x_{vec_coords}')# insert before x column
 
     if new_column not in df:
-        df.insert(x_column, new_column, (df[[f'{field}_{c}_{vec_coords}' for c in ('x', 'y', 'z')]].pow(2).sum(axis=1))**0.5)
+        df.insert(x_column, new_column, (df[[f'{field}_{c}_{vec_coords}' for c in ('x','y','z')]].pow(2).sum(axis=1))**0.5)
 
-def assign_values(df, column, uarr, col_before=None, with_unc=False):
-
-    if not isinstance(column, str): # list of columns
-
-        if with_unc:
-            df.loc[:, column] = unp.nominal_values(uarr)
-            df.loc[:, [f'{c}_unc' for c in column]] = unp.std_devs(uarr)
-        else:
-            df.loc[:, column] = uarr
-
-    elif col_before:
-        idx = df.columns.get_loc(col_before)
-        if with_unc:
-            df.insert(idx, f'{column}_unc', unp.std_devs(uarr))
-            df.insert(idx, column, unp.nominal_values(uarr))
-        else:
-            df.insert(idx, column, uarr)
-
-    else:
-        if with_unc:
-            df[column]          = unp.nominal_values(uarr)
-            df[f'{column}_unc'] = unp.std_devs(uarr)
-        else:
-            df[column] = uarr
-
-
-def build_uarr(df, columns, with_unc=False):
-
-    values = df[columns].to_numpy()
-    if with_unc:
-        return values
-
-    values = np.nan_to_num(values, nan=0.0)
-
-    if isinstance(columns, str):
-        # single column
-        try:
-            uncs = np.nan_to_num(df[f'{columns}_unc'].to_numpy(), nan=0.0)
-        except:
-            uncs = np.zeros(len(values))
-    else:
-        # list of columns
-        try:
-            uncs = np.nan_to_num(df[[f'{c}_unc' for c in columns]].to_numpy(), nan=0.0)
-        except:
-            uncs = np.zeros(len(values))
-
-    return unp.uarray(values, uncs)
-
-def cross_u(a, b, with_unc):
-    if with_unc:
-        # Handles uncertainties
-        return np.stack([
-            a[:,1]*b[:,2] - a[:,2]*b[:,1],
-            a[:,2]*b[:,0] - a[:,0]*b[:,2],
-            a[:,0]*b[:,1] - a[:,1]*b[:,0]
-        ], axis=1)
-
-    return np.cross(a,b)
 
 # %% Resample
 
@@ -126,9 +67,9 @@ def get_file_keys(spacecraft, data, raw_res='raw'):
     data_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
     pattern = os.path.join(data_dir, '*.cdf')
     for cdf_file in sorted(glob.glob(pattern)):
-        file_name = os.path.basename(cdf_file)
-        key = file_name.split('_')[-1]
-        file_keys.append[key] = file_name
+        file_name = os.path.splitext(os.path.basename(cdf_file))[0]
+        key = file_name.split('_')[-1] # splitext removes the extension
+        file_keys[key] = file_name
     return file_keys
 
 
@@ -193,8 +134,12 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
     field_keys  = get_file_keys(spacecraft, field)
     plasma_keys = get_file_keys(spacecraft, plasma)
 
+    field_res   = kwargs.get('field_res','raw')
+    plasma_res  = kwargs.get('plasma_res','raw')
+
     if ion_source == 'omni':
         heavy_ions = import_processed_data('omni', resolution='5min')
+        heavy_ions = heavy_ions[['na_np_ratio']]
     elif ion_source == 'hpca':
         ion_species = kwargs.get('ion_species',{})
         heavy_ions = import_processed_data(spacecraft, dtype='hpca', resolution='raw')
@@ -214,12 +159,10 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
 
         ###----------PROCESSING----------###
 
-        print(f'Processing {key} data.')
+        field_df  = import_processed_data(spacecraft, field, resolution=field_res, file_name=field_file)
+        plasma_df = import_processed_data(spacecraft, plasma, resolution=plasma_res, file_name=plasma_file)
 
-        field_df  = import_processed_data(spacecraft, field, resolution='raw', file_name=field_file)
-        plasma_df = import_processed_data(spacecraft, plasma, resolution='raw', file_name=plasma_file)
-
-        merged_df = init_func(plasma_df, field_df) # initial processing
+        merged_df = init_func(field_df, plasma_df) # initial processing
 
         if spacecraft in CLUSTER_SPACECRAFT or spacecraft in THEMIS_SPACECRAFT:
             uncertainties = False
@@ -236,18 +179,18 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
                 mask = heavy_ions.index.year==int(key)
 
             ion_df = heavy_ions.loc[mask]
-
             updated_df = process_plasma_data(merged_df, ion_df, ion_source, with_unc=uncertainties, **kwargs)
-            for col in field_df:
-                if col in updated_df:
-                    updated_df.drop(columns=[col], inplace=True)
+
+            cols_to_drop = [col for col in field_df if col in updated_df]
+            updated_df.drop(columns=cols_to_drop, inplace=True)
 
         ###----------WRITE TO FILE----------###
 
         print(f'{key} processed.')
-        write_to_cdf(updated_df, directory=save_directory, file_name=f'{spacecraft.upper()}_SPIN_{key}.cdf', arguments={'R_E': R_E}, overwrite=True, reset_index=True)
+        write_to_cdf(updated_df, directory=save_directory, file_name=f'{spacecraft.upper()}_SPIN_{key}', attributes={'R_E': R_E}, overwrite=True, reset_index=True)
 
         if not filt_func:
+            print('No region filter function.')
             continue
 
         for region in regions:
@@ -256,9 +199,9 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
                 print(f'No {region} data in correct mode.')
                 continue
 
-            save_directory = get_proc_directory(spacecraft, dtype=region, resolution='spin', create=True)
-
-            write_to_cdf(filtered_df, directory=save_directory, file_name=f'{spacecraft.upper()}_{region.upper()}_{key}.cdf', arguments={'R_E': R_E}, overwrite=True, reset_index=True)
+            print(f'-{region}- data...')
+            region_save_directory = get_proc_directory(spacecraft, dtype=region, resolution='spin', create=True)
+            write_to_cdf(filtered_df, directory=region_save_directory, file_name=f'{spacecraft.upper()}_{region.upper()}_{key}', attributes={'R_E': R_E}, overwrite=True, reset_index=True)
 
 
 def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_fields=None, **kwargs):
@@ -266,39 +209,96 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     Once the plasma data has been extracted from the raw moments files
     This function will combine into total flow pressure and velocity etc
     """
+    def assign_values(df, column, uarr, col_before=None):
+
+        vals = unp.nominal_values(uarr) if with_unc else np.asarray(uarr, dtype=float)
+
+        if not isinstance(column, str):  # list of columns
+            df.loc[:, column] = vals
+            if with_unc:
+                df.loc[:, [f'{c}_unc' for c in column]] = unp.std_devs(uarr)
+
+        elif col_before:
+            idx = df.columns.get_loc(col_before)
+            df.insert(idx, column, vals)
+            if with_unc:
+                df.insert(idx + 1, f'{column}_unc', unp.std_devs(uarr))
+
+        else:
+            df[column] = vals
+            if with_unc:
+                df[f'{column}_unc'] = unp.std_devs(uarr)
+
+    def build_uarr(df, columns):
+
+        values = df[columns].to_numpy()
+        if not with_unc:
+            return values
+
+        values = np.nan_to_num(values, nan=0.0)
+
+        if isinstance(columns, str):
+            # single column
+            try:
+                uncs = np.nan_to_num(df[f'{columns}_unc'].to_numpy(), nan=0.0)
+            except:
+                uncs = np.zeros(len(values))
+        else:
+            # list of columns
+            try:
+                uncs = np.nan_to_num(df[[f'{c}_unc' for c in columns]].to_numpy(), nan=0.0)
+            except:
+                uncs = np.zeros(len(values))
+
+        return unp.uarray(values, uncs)
+
+    def cross_u(a, b):
+        if with_unc:
+            # Handles uncertainties
+            return np.stack([
+                a[:,1]*b[:,2] - a[:,2]*b[:,1],
+                a[:,2]*b[:,0] - a[:,0]*b[:,2],
+                a[:,0]*b[:,1] - a[:,1]*b[:,0]
+            ], axis=1)
+
+        return np.cross(a,b)
+
     ###----------CALCULATIONS----------###
     insert_magnitude(merged_df, 'V', 'GSE', 'flow')
 
-    if with_unc:
+    if with_unc and 'V_flow_unc' not in merged_df:
         idx = merged_df.columns.get_loc('V_flow')
         merged_df.insert(idx+1, 'V_flow_unc', (merged_df['V_x_GSE']**2 * merged_df['V_x_GSE_unc']**2 + merged_df['V_y_GSE']**2 * merged_df['V_y_GSE_unc']**2 + merged_df['V_z_GSE']**2 * merged_df['V_z_GSE_unc']**2) ** 0.5 / merged_df['V_flow'])
 
-    v_flow = build_uarr(merged_df, 'V_flow', with_unc)
+    v_flow = build_uarr(merged_df, 'V_flow')
 
     # Dynamic pressure
-    merged_df  = calc_avg_ion_mass(merged_df, ion_df, ion_source)
+    merged_df = calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs)
 
-    n_tot   = build_uarr(merged_df, 'N_tot', with_unc)
+    n_tot   = build_uarr(merged_df, 'N_tot')
     rho_tot = (merged_df['m_avg_ratio']*m_p) * n_tot # kg/cc
+
     if with_unc:
         mask = np.array(unp.nominal_values(rho_tot)) <= 0
         rho_tot[mask] = unp.uarray(np.nan, 0)
+    else:
+        rho_tot[rho_tot <= 0] = np.nan
 
     # P = 0.5 * rho * V^2
     # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
     p_flow = 0.5 * rho_tot * v_flow**2 * 1e21
-    assign_values(merged_df, 'P_flow', p_flow, with_unc=with_unc)
+    assign_values(merged_df, 'P_flow', p_flow)
 
     # Beta = p_th / p_mag, p_mag = B^2/2mu_0
     # p_dyn *= 1e-9, 1/B_avg^2 *= 1e18, so beta *= 1e9
-    P_th = build_uarr(merged_df, 'P_th', with_unc)
+    P_th = build_uarr(merged_df, 'P_th')
     beta = P_th / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
-    assign_values(merged_df, 'beta', beta, with_unc=with_unc)
+    assign_values(merged_df, 'beta', beta)
 
     # Alfven Speed = B / sqrt(mu_0 * rho)
     # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
     V_A = merged_df['B_avg'] / unp.sqrt(mu_0 * rho_tot) * 1e-15
-    assign_values(merged_df, 'V_A', V_A, with_unc=with_unc)
+    assign_values(merged_df, 'V_A', V_A)
 
     ###----------GSE to GSM----------###
 
@@ -320,29 +320,29 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     # Kan and Lee Electric Field: E_R = |V| * B_T * sin^2 (clock/2)
     # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
     E_R = (v_flow * np.sqrt(merged_df[f'B_y_{vec_coords}']**2+merged_df[f'B_z_{vec_coords}']**2) * (np.sin(B_clock/2))**2) * 1e-3
-    assign_values(merged_df, 'E_R', E_R, with_unc=with_unc)
+    assign_values(merged_df, 'E_R', E_R)
 
     ###----------CROSS PRODUCTS----------###
 
     # Build uarray for V
-    V_u = build_uarr(merged_df, vec_cols('V'))
-    B = merged_df[vec_cols('B')].to_numpy()
+    V = build_uarr(merged_df, vec_cols('V',vec_coords))
+    B = merged_df[vec_cols('B',vec_coords)].to_numpy()
 
     # E = -V x B = B x V
     # V *= 1e3, B *= 1e-9, and E *= 1e3 so E_gse *= 1e-3
-    E_u = cross_u(B, V_u) * 1e-3
-    assign_values(merged_df, vec_cols('E'), E_u, col_before=f'E_x_{vec_coords}')
+    E = cross_u(B, V) * 1e-3
+    assign_values(merged_df, vec_cols('E',vec_coords), E)
 
-    E_mag_u = unp.sqrt(np.sum(E_u**2, axis=1))
-    assign_values(merged_df, 'E_mag', E_mag_u, col_before=f'E_x_{vec_coords}')
+    E_mag = unp.sqrt(np.sum(E**2, axis=1))
+    assign_values(merged_df, 'E_mag', E_mag, col_before=f'E_x_{vec_coords}')
 
     # S = E x H = E x B / mu_0
     # E *= 1e-3, B *= 1e-9, and S *= 1e6 so S_gse *= 1e-6
-    S_u = cross_u(E_u, B) * 1e-6 / mu_0
-    assign_values(merged_df, vec_cols('S'), S_u, col_before=f'S_x_{vec_coords}')
+    S = cross_u(E, B) * 1e-6 / mu_0
+    assign_values(merged_df, vec_cols('S',vec_coords), S)
 
-    S_mag_u = unp.sqrt(np.sum(S_u**2, axis=1))
-    assign_values(merged_df, 'S_mag', S_mag_u, col_before=f'S_x_{vec_coords}')
+    S_mag = unp.sqrt(np.sum(S**2, axis=1))
+    assign_values(merged_df, 'S_mag', S_mag, col_before=f'S_x_{vec_coords}')
 
     return merged_df
 

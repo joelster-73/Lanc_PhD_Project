@@ -40,7 +40,9 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
         files_dict = get_cluster_files(directory, year, sub_folders=True)
         variables  = VARIABLES_DICT.get(data,{}).get(spacecraft.upper(),{})
 
-        kwargs['qual_files'] = get_cluster_files(directory, year, sub_folders=True)
+        qual_dir   = get_luna_directory(spacecraft, instrument='hia', info='hiaq')
+
+        kwargs['qual_files'] = get_cluster_files(qual_dir, year, sub_folders=True)
         kwargs['qual_vars']  = VARIABLES_DICT.get('quality',{}).get(spacecraft.upper(),{})
 
     else:
@@ -51,12 +53,10 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
     for sample_interval in sample_intervals:
 
         if sample_interval=='none':
-            if data in ('fgm',):
+            if data in ('fgm','hia'):
                 sample_interval = 'raw' if data_info.lower()=='spin' else data_info.lower()
             if data in ('state',):
                 sample_interval = data_info.lower()
-            elif data in ('hia',):
-                sample_interval = 'spin'
 
         samples.append(sample_interval)
 
@@ -73,38 +73,35 @@ def get_cluster_files(directory=None, year=None, sub_folders=False):
     if directory is None:
         directory = os.getcwd()
 
-    def add_file(key, path):
-        files_by_month.setdefault(key, []).append(path)
+    def add_file(dictionary, key, path):
+        dictionary.setdefault(key, []).append(path)
+
+    def create_files_dict(dictionary, pattern):
+
+        for cdf_file in sorted(glob.glob(pattern)):
+            if 'CAVEATS' in cdf_file:
+                continue
+
+            # Expect __YYYYMMDD in filename
+            yyyymm = os.path.basename(cdf_file).split('__')[1][:6]
+            key = f'{yyyymm[:4]}-{yyyymm[4:6]}'
+            add_file(dictionary, key, cdf_file)
 
     if sub_folders:
         for sub_folder in sorted(os.listdir(directory)):
             if year and sub_folder != str(year):
                 continue
 
-            sub_folder_path = os.path.join(directory, sub_folder)
-            pattern = os.path.join(sub_folder_path, '*.cdf')
+            pattern = os.path.join(directory, sub_folder, '*.cdf')
+            create_files_dict(files_by_month, pattern)
 
-            for cdf_file in sorted(glob.glob(pattern)):
-                if 'CAVEATS' in cdf_file:
-                    continue
-
-                # Expect __YYYYMMDD in filename
-                yyyymm = os.path.basename(cdf_file).split('__')[1][:6]
-                key = f'{yyyymm[:4]}-{yyyymm[4:6]}'
-                add_file(key, cdf_file)
     else:
         if year:
             pattern = os.path.join(directory, f'*__{year}*.cdf')
         else:
             pattern = os.path.join(directory, '*.cdf')
 
-        for cdf_file in sorted(glob.glob(pattern)):
-            if 'CAVEATS' in cdf_file:
-                continue
-
-            yyyymm = os.path.basename(cdf_file).split('__')[1][:6]
-            key = f'{yyyymm[:4]}-{yyyymm[4:6]}'
-            add_file(key, cdf_file)
+        create_files_dict(files_by_month, pattern)
 
     if year and not any(k.startswith(str(year)) for k in files_by_month):
         raise ValueError(f'No files found for {year}.')
@@ -123,6 +120,7 @@ def extract_cluster_data(cdf_file, variables):
         for var_name, var_code in variables.items():
 
             if var_code not in cdf:
+                print(f'"{var_code}" not in file.')
                 continue
 
             data = cdf[var_code].copy()
@@ -220,7 +218,6 @@ def process_cluster_state(variables, files, directory_name, log_file_path, time_
 def process_cluster_hia(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
     Also processes relevant quality files
-
     """
     hia_list = []
 
@@ -249,11 +246,11 @@ def process_cluster_hia(variables, files, directory_name, log_file_path, time_co
     qual_files = kwargs.get('qual_files',[])
     qual_vars  = kwargs.get('qual_vars',{})
     if qual_files and qual_vars:
-        process_cluster_hia_quality(hia_df, qual_vars, qual_vars, time_col)
+        process_cluster_hia_quality(hia_df, qual_files, qual_vars, time_col)
 
     return hia_df
 
-def process_cluster_hia_quality(df, variables, files, time_col='epoch'):
+def process_cluster_hia_quality(df, files, variables, time_col='epoch'):
 
     print('Adding quality...')
     quality_list = []
@@ -364,7 +361,7 @@ def filter_quality(df, column='quality'):
     mask = ~df[column].isin(bad_qualities)
 
     filtered_df = df.loc[mask]
-    filtered_df.drop(columns=[column], inplace=True)
+    filtered_df = filtered_df.drop(columns=[column])
     filtered_df.attrs = df.attrs
 
     return filtered_df
@@ -382,7 +379,7 @@ def filter_hia_data(df, region='sw'):
     mask = df['mode'].isin(region_modes.get(region))
 
     filtered_df = df.loc[mask]
-    filtered_df.drop(columns=['mode'], inplace=True)
+    filtered_df = filtered_df.drop(columns=['mode'])
     filtered_df.attrs = df.attrs
 
     return filtered_df

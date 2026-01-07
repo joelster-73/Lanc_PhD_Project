@@ -28,6 +28,7 @@ def plot_mag_data(station, sw, pc, param='H', coords='GSE', quantity='mag', ind=
         components = ('n','e','z')
 
     station_name = station.attrs.get('id',param)
+    station = station.copy()
 
     if show_sw:
         fig, (ax0,ax,ax2) = plt.subplots(nrows=3, figsize=(10,8), dpi=300, sharex=True)
@@ -43,12 +44,14 @@ def plot_mag_data(station, sw, pc, param='H', coords='GSE', quantity='mag', ind=
     if show_sw:
         if ind=='Ey':
             ind_col = f'E_y_{coords}'
-            if ind_col not in sw:
-                ind_col = 'E_y'
             ax0.set_ylabel('$E_y$ [mV/m]')
         elif ind=='ER':
             ind_col = 'E_R'
             ax0.set_ylabel('$E_R$ [mV/m]')
+
+        if ind_col not in sw:
+            print(f'"{ind_col}" not in df.')
+            ind_col = 'E_y'
 
         ax0.plot(sw.index,sw[ind_col],lw=0.7,c='orange')
 
@@ -62,13 +65,8 @@ def plot_mag_data(station, sw, pc, param='H', coords='GSE', quantity='mag', ind=
     for i, c in enumerate(components):
         ax.plot(station.index,station[f'B_{c}_NEZ'],lw=0.7,alpha=alpha,color=colours[i],label=f'{c.upper()}')
 
-    column = f'{param}_y_{coords}'
-    if quantity=='mag' or column not in station:
-        colour = blue
-        column = f'{param}_mag'
-        label  = f'|{param}|'
-
-    elif quantity=='phi':
+    if quantity=='phi':
+        column = f'{param}_y_{coords}'
         colour = 'magenta'
         label = r'$H_\phi$' if coords=='aGSE' else r'$H_y$'
 
@@ -81,6 +79,12 @@ def plot_mag_data(station, sw, pc, param='H', coords='GSE', quantity='mag', ind=
             x_col = f'{param}_x_GSE'
 
         station.loc[:, column] = ((station.loc[:, x_col]**2 + station.loc[:, f'{param}_y_{coords}']**2) ** 0.5).astype(np.float32)
+
+    if quantity=='mag' or column not in station:
+        colour = blue
+        column = f'{param}_mag'
+        label  = f'|{param}|'
+
 
 
     corr_quantity = station[column].corr(sw[ind_col])
