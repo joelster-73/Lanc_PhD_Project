@@ -9,6 +9,7 @@ from uncertainties import UFloat, unumpy as unp
 from spacepy.coordinates import Coords
 from spacepy.time import Ticktock
 
+
 from .config import DEFAULT_COLUMN_NAMES
 from ..processing.utils import add_unit
 
@@ -266,7 +267,49 @@ def spherical_to_cartesian(r, theta, phi):
 
 # %% GEO
 
-def convert_GEO_position(glat, glon, times, coords='GSE', df_sw=None, V_earth=29.78):
+def convert_GEO_position(glat, glon, times):
+    """
+    glat and glon in degrees
+    """
+
+    radius = 1.0  # Earth radii (ground)
+    glat = np.radians(float(glat))
+    glon = np.radians(float(glon))
+
+    R_geo = radius * np.array([np.cos(glat)*np.cos(glon), np.cos(glat)*np.sin(glon), np.sin(glat)])
+    R_geo = np.tile(R_geo, (len(times),1))
+
+    ticks = Ticktock(times.to_pydatetime(), 'UTC')
+
+    R_pos = Coords(R_geo, 'GEO', 'car', ticks=ticks)
+    R_gse = R_pos.convert('GSE', 'car')
+    R_gse = R_gse.data
+
+    return pd.DataFrame(R_gse, index=times, columns=[f'r_{c}_GSE' for c in ('x','y','z')])
+
+def convert_GEO_positions(df_positions):
+
+    times = df_positions.index
+    lat_rad = np.radians(df_positions['latitude'].to_numpy())
+    lon_rad = np.radians(df_positions['longitude'].to_numpy())
+
+    # GEO Cartesian positions (Earth radii)
+    X = np.cos(lat_rad) * np.cos(lon_rad)
+    Y = np.cos(lat_rad) * np.sin(lon_rad)
+    Z = np.sin(lat_rad)
+    R_geo = np.column_stack([X, Y, Z])
+
+    # Tick times
+    ticks = Ticktock(times.to_pydatetime(), 'UTC')
+
+    # Convert GEO -> GSE
+    R_coords = Coords(R_geo, 'GEO', 'car', ticks=ticks)
+    R_gse = R_coords.convert('GSE', 'car').data
+
+    return pd.DataFrame(R_gse, index=times, columns=['r_x_GSE', 'r_y_GSE', 'r_z_GSE'])
+
+
+def convert_GEO_position_aGSE(glat, glon, times, coords='GSE', df_sw=None, V_earth=29.78):
     """
     glat and glon in degrees
     """

@@ -30,7 +30,6 @@ process_mms_files('mms1', 'fpi', sample_intervals=('none',))
 from src.processing.updating import resample_monthly_files, update_plasma_data
 
 # Using HPCA heavy ion densities
-update_plasma_data('mms1', 'fgm', 'fpi', 'hpca', ('sw','msh'), convert_fields=('V',))
+update_plasma_data('mms1', 'fgm', 'fpi', 'hpca', (), convert_fields=('V',))
 
-resample_monthly_files('mms1', 'sw', 'spin', sample_intervals=('1min','5min'))
-resample_monthly_files('mms1', 'msh', 'spin', sample_intervals=('1min','5min'))
+resample_monthly_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min'))

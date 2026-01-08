@@ -26,6 +26,7 @@ from ..config import R_E, get_proc_directory, CLUSTER_SPACECRAFT, THEMIS_SPACECR
 from .cluster.handling import update_hia_data, filter_hia_data
 from .themis.handling import update_esa_data, filter_esa_data
 from .mms.handling import update_fpi_data
+from .mms.config import ION_MASS_DICT, ION_SPECIES
 
 INIT_FUNCTIONS = {}
 FILT_FUNCTIONS = {}
@@ -141,7 +142,7 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
         heavy_ions = import_processed_data('omni', resolution='5min')
         heavy_ions = heavy_ions[['na_np_ratio']]
     elif ion_source == 'hpca':
-        ion_species = kwargs.get('ion_species',{})
+        ion_species = kwargs.get('ion_species',ION_SPECIES)
         heavy_ions = import_processed_data(spacecraft, dtype='hpca', resolution='raw')
         heavy_ions = heavy_ions[[f'N_{ion}' for ion in ion_species]] # Just need ion density columns
     elif ion_source == 'none': # e.g. HPCA raw data
@@ -352,20 +353,11 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
     This ratio is then scaled by the total denisty measured by FPI.
     """
 
-    ion_mass_dict = kwargs.get('ION_MASS_DICT', {})
-    default_ratio = kwargs.get('default_ratio', 0.05)
-
     try: # find ratio of alpha and proton densities
-        if ion_source=='omni':
-            print('Using OMNI alpha ratio.')
 
-            merged_df = pd.merge_asof(merged_df.sort_index(), ion_df[['na_np_ratio']].sort_index(), left_index=True, right_index=True, direction='backward')   # take the closest value on or before the timestamp
-            m_avg   = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1) # kg
-            idx = merged_df.columns.get_loc('N_tot')
-            merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
-
-        elif ion_source=='hpca':
+        if ion_source=='hpca':
             print('Using HPCA data.')
+            ion_mass_dict = kwargs.get('ion_mass_dict', ION_MASS_DICT)
 
             # avoid extrapolation
             ion_interp = ion_df.reindex(merged_df.index).interpolate(method='time')
@@ -395,8 +387,17 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
             m_avg = num / den # kg
             merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
 
+        elif ion_source=='omni':
+            print('Using OMNI alpha ratio.')
+
+            merged_df = pd.merge_asof(merged_df.sort_index(), ion_df[['na_np_ratio']].sort_index(), left_index=True, right_index=True, direction='backward')   # take the closest value on or before the timestamp
+            m_avg   = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1) # kg
+            idx = merged_df.columns.get_loc('N_tot')
+            merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
+
     except:
         print('Using default alpha ratio')
+        default_ratio = kwargs.get('default_ratio', 0.05)
 
         idx = merged_df.columns.get_loc('N_tot')
         if 'na_np_ratio' in merged_df:

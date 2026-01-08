@@ -8,7 +8,7 @@ Created on Thu Dec  4 13:42:09 2025
 
 # %%
 from src.processing.reading import import_processed_data
-from src.processing.mag.plotting import plot_mag_data, plot_magnetometer_map
+from src.processing.mag.plotting import plot_mag_data, plot_mag_data_corr, plot_magnetometer_map, plot_find_optimum
 
 omni = import_processed_data('omni', resolution='1min')
 omni = omni.shift(freq='17min')
@@ -19,8 +19,8 @@ indices  = import_processed_data('indices', file_name='combined_1min')
 # %%
 
 #year, month, day_min, day_max = (2006, 1, 1, 2) # Quiet day
-#year, month, day_min, day_max = (2008, 5, 10, 11) # Quiet day
-year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
+year, month, day_min, day_max = (2008, 5, 10, 11) # Quiet day
+#year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
 #year, month, day_min, day_max = (2024, 5, 11, 12) # Max PCN
 
 
@@ -33,16 +33,20 @@ indices_sub = indices.loc[(indices.index.year==year)&(indices.index.month==month
 
 import itertools as it
 
-for (ind, coords, quantity) in it.product(('ER','Ey'),('GSE','GSM'),('mag','phi','tr')):
+phi = plot_find_optimum(thl_sub, omni_sub)
+
+plot_mag_data(thl_sub, omni_sub, indices_sub, ind='Ey')
+
+plot_combos = it.product(('ER','Ey'), ('GSE','GSM'), ('mag','phi','tr'))
+
+for (ind, coords, quantity) in plot_combos:
 
     if (ind, coords, quantity) == ('ER', 'GSM', 'mag'):
         continue
 
-
     ### add to function to save into file active/quiet_YYMMDD
-    plot_mag_data(thl_sub, omni_sub, indices_sub, coords=coords, quantity=quantity, ind=ind)
+    plot_mag_data_corr(thl_sub, omni_sub, indices_sub, coords=coords, quantity=quantity, ind=ind, phi=phi)
 
 
-# %% Map
-plot_magnetometer_map(thl_sub, df_sw=omni_sub, coords='GSE')
+plot_magnetometer_map(thl_sub, coords='GSE')
 

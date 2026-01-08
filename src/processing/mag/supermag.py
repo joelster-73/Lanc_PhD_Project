@@ -125,13 +125,15 @@ def convert_supermag_gse(*stations):
         except:
             continue
 
+        glat, glon = df_station.attrs.get('glat',77.46999), df_station.attrs.get('glon',290.76996) # default THL
+
         print(f'Converting {station}.')
         direc = get_proc_directory('supermag', dtype=station, resolution='gse', create=True)
 
         for (year, month), mag_month in (df_station.groupby([df_station.index.year, df_station.index.month], sort=True)):
             print(f'{year} - {month:02d}')
 
-            convert_GEO_to_GSE(mag_month, param='H') # only care about horizontal component
+            convert_GEO_to_GSE(mag_month, glat, glon, param='H') # only care about horizontal component
 
             write_to_cdf(mag_month, directory=direc, file_name=f'{station}_gse_{year}-{month:02d}', attributes={'time_col': 'epoch'}, reset_index=True)
 

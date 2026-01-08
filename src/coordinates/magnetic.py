@@ -239,7 +239,7 @@ def rotate_uncertainties(df, df_data, vec_cols, matrix):
 
 # %% GEO
 
-def convert_GEO_to_GSE(df_field, param='H', inplace=True):
+def convert_GEO_to_GSE(df_field, glat, glon, param='H', inplace=True):
 
     # Extract B in GEO
     Bn = df_field['B_n_GEO'].to_numpy()
@@ -247,9 +247,26 @@ def convert_GEO_to_GSE(df_field, param='H', inplace=True):
     Bz = df_field['B_z_GEO'].to_numpy()  # down-positive
 
     if param == 'H': # Horizontal only
-        B_geo = np.column_stack([Bn, Be, np.zeros_like(Bz)])
+        B_top = np.column_stack([Bn, Be, np.zeros_like(Bz)])
+
     else: # flip Z to up-positive for SpacePy
-        B_geo = np.column_stack([Bn, Be, -Bz])
+        B_top = np.column_stack([Bn, Be, -Bz])
+
+    def topocentric_to_ecef(B_topo, lat, lon):
+        lat = np.radians(float(lat))
+        lon = np.radians(float(lon))
+
+        # rotation matrix from topocentric GEO (N,E,Z) to ECEF
+
+        R = np.array([
+            [-np.sin(lat)*np.cos(lon), -np.sin(lat)*np.sin(lon),  np.cos(lat)],
+            [-np.sin(lon),              np.cos(lon),              0        ],
+            [-np.cos(lat)*np.cos(lon), -np.cos(lat)*np.sin(lon), -np.sin(lat)]
+        ])
+
+        return B_topo @ R.T
+
+    B_geo = topocentric_to_ecef(B_top, glat, glon)
 
     # UTC times for conversion
     ticks = Ticktock(df_field.index.to_pydatetime(), 'UTC')
@@ -276,7 +293,7 @@ def convert_GSE_to_aGSE(df_field, df_sw, param='H', V_earth=29.78, alpha=None, i
 
     if alpha is None:
         # Aberration including Earth orbital speed
-        alpha      = -np.arctan((V_earth + V_vals[:,1])/np.abs(V_vals[:,0]))
+        alpha  = -np.arctan((V_earth + V_vals[:,1])/np.abs(V_vals[:,0]))
     cosa, sina = np.cos(alpha), np.sin(alpha)
 
     # Rotate in-plane components

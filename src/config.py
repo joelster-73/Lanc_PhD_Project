@@ -215,7 +215,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             elif dtype=='field':
                 raise ValueError('"field" has been replaced by "fgm"')
 
-            if dtype in ('fgm','hpca','fpi','state'):
+            if dtype in ('fgm','hpca','fpi','state','sw','msh'):
                 path += f'{dtype}/'
 
             if resolution in ('fast','spin','raw','1min','5min'):

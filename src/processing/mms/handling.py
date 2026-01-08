@@ -471,14 +471,14 @@ def update_fpi_data(field_df, plasma_df):
 
     # Align field on plasma timestamps (as plasma contains mode, quality etc. numbers)
     field_df = field_df.reindex(plasma_df.index, method=None).interpolate(method='time')
-    filter_quality(field_df, column='B_flag')
+    field_df = filter_quality(field_df, column='B_flag')
 
     plasma_df['N_tot']      -= plasma_df['N_tot_bg'] # removes background counts
     plasma_df['P_th_tens']  -= plasma_df['P_th_bg']
 
     plasma_df.rename(columns={'P_th_tens': 'P_th', 'T_tens': 'T_tot', 'V_mag': 'V_flow', 'V_mag_unc': 'V_flow_unc'}, inplace=True)
     plasma_df.drop(columns=['N_tot_bg', 'P_th_bg'], inplace=True)
-    filter_quality(plasma_df, column='flag')
+    plasma_df = filter_quality(plasma_df, column='flag')
 
     merged_df = pd.concat([field_df, plasma_df], axis=1)
 
@@ -497,7 +497,7 @@ def filter_quality(df, column='flag'):
     mask = (df[column].fillna(-2) == good_quality)
 
     filtered_df = df.loc[mask]
-    filtered_df.drop(columns=[column],inplace=True)
+    filtered_df = filtered_df.drop(columns=[column])
     filtered_df.attrs = df.attrs
 
     return filtered_df

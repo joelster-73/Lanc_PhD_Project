@@ -369,7 +369,6 @@ def plot_scatter_binned(xs, ys, **kwargs):
             ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
 
         if zs is not None:
-
             z = average_of_averages(zs, zs_unc, zs_counts, mask)
             if isinstance(z, UFloat):
                 z = z.n
