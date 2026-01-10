@@ -37,12 +37,12 @@ def car_to_aGSE(df, column_names=None, simple=False, return_rotation=False):
     df_aGSE = pd.DataFrame(index=df.index)
 
     # Magnitude of cluster vector
-    df_aGSE[r_name] = np.sqrt(df[r_x_name]**2 + df[r_y_name]**2 + df[r_z_name]**2)
+    df_aGSE[r_name] = (df[r_x_name]**2 + df[r_y_name]**2 + df[r_z_name]**2) ** 0.5
 
     try:
         df_aGSE[v_x_name] = df[v_x_name]
     except:
-        df_aGSE[v_x_name] = np.full(len(df),-400) # default is v_x=-400
+        df_aGSE[v_x_name] = np.full(len(df),-400) # default is v_x = -400
 
     if simple:
         v_Earth = 30
@@ -52,12 +52,12 @@ def car_to_aGSE(df, column_names=None, simple=False, return_rotation=False):
         try:
             df_aGSE[v_y_name] = df[v_y_name]
         except:
-            df_aGSE[v_y_name] = np.zeros(len(df)) # default is v_y=0
+            df_aGSE[v_y_name] = np.zeros(len(df)) # default is v_y = 0
 
         try:
             df_aGSE[v_z_name] = df[v_z_name]
         except:
-            df_aGSE[v_z_name] = np.zeros(len(df)) # default is v_z=0
+            df_aGSE[v_z_name] = np.zeros(len(df)) # default is v_z = 0
 
     valid_mask = ~df_aGSE[v_x_name].isna()
 
@@ -241,23 +241,27 @@ def cartesian_to_cylindrical(x, y, z):
 
 def cartesian_to_spherical(x, y, z):
 
-
     r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
-    theta = np.arccos(x / r)
-    phi = np.arctan2(y, z)
+    theta = np.full_like(r, np.nan, dtype=float)
+    phi   = np.full_like(r, np.nan, dtype=float)
+
+    #theta = np.arccos(x / r)
+    #phi = np.arctan2(y, z)
+
+    mask = (r != 0)
+    theta[mask] = np.arccos(np.clip(x[mask] / r[mask], -1.0, 1.0))
+    phi[mask]   = np.arctan2(y[mask], z[mask])
     return r, theta, phi
 
 
 def spherical_to_cartesian(r, theta, phi):
 
     if isinstance(theta,UFloat) or isinstance(phi,UFloat):
-
         x = r * unp.cos(theta)
         y = r * unp.sin(theta) * unp.sin(phi)
         z = r * unp.sin(theta) * unp.cos(phi)
 
     else:
-
         x = r * np.cos(theta)
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.sin(theta) * np.cos(phi)

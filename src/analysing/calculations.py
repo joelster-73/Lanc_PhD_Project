@@ -384,18 +384,23 @@ def calc_average_vector(df_vec, param=None):
         y_label = f'{vec}_y_{coords}'
         z_label = f'{vec}_z_{coords}'
 
-    x_data = df_vec.loc[:,x_label].to_numpy()
-    y_data = df_vec.loc[:,y_label].to_numpy()
-    z_data = df_vec.loc[:,z_label].to_numpy()
+    not_nan = np.isfinite(df_vec[[x_label, y_label, z_label]].to_numpy()).all(axis=1)
 
-    if len(df_vec)==1:
+    if np.sum(not_nan)==0:
+        return unp.uarray([], [])
+
+    x_data = df_vec.loc[not_nan,x_label].to_numpy()
+    y_data = df_vec.loc[not_nan,y_label].to_numpy()
+    z_data = df_vec.loc[not_nan,z_label].to_numpy()
+
+    if len(x_data)==1:
         return unp.uarray([x_data[0],y_data[0],z_data[0]], [0, 0, 0])
 
     r, theta, phi = cartesian_to_spherical(x_data, y_data, z_data)
 
-    r_avg = calc_simple_mean_error(r)
+    r_avg     = calc_simple_mean_error(r)
     theta_avg = calc_circular_mean_error(theta)
-    phi_avg = calc_circular_mean_error(phi)
+    phi_avg   = calc_circular_mean_error(phi)
 
     x, y, z = spherical_to_cartesian(r_avg, theta_avg, phi_avg)
 

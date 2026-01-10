@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 from .config import DEFAULT_COLUMN_NAMES
 from .spatial import car_to_aGSE, car_to_aGSE_constant, aGSE_to_car_constant, cartesian_to_spherical
-
+from .magnetic import convert_GSE_to_GSM_with_angles
 
 def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=None, data_key=None, column_names=None, inc_nose=False, **kwargs):
 
@@ -77,9 +77,7 @@ def calc_msh_r_diff(df, surface, model=None, aberration='model', position_key=No
         print('Using default field.')
         Bz = -0.001
 
-    theta_ps = np.arccos(
-        df_ab.loc[valid_mask, r_ax_name] / df_ab.loc[valid_mask, r_name]
-    )
+    theta_ps = np.arccos(df_ab.loc[valid_mask, r_ax_name] / df_ab.loc[valid_mask, r_name])
 
     # Compute the radial distances based on the selected model
     if surface == 'BOTH':
@@ -298,6 +296,45 @@ def calc_normal_for_sc(df, surface, model=None, aberration='model', position_key
     return pd.DataFrame(n_GSE, index=df_ab.loc[valid_mask].index, columns=[f'N{comp}_GSE_{surface}' for comp in ('x','y','z')])
 
 
+def vector_component_surface(df, sc, region, data_pop, surface_params={}):
+    """
+    Calculate the perpendicular and parallel component of a vector along the normal of the bow shock or magnetopause surface
+
+    """
+    surfaces  = {'sw': 'BS', 'msh': 'MP'}
+    norm_vecs = {'field': ('B',), 'plasma': ('B','E','V','S')}
+
+    surface = surfaces[region]
+    couple_vecs = norm_vecs[data_pop]
+
+    suffix = f'_{sc}'
+
+    if surface=='MP': # BS not currently implemented
+        normals = calc_normal_for_sc(df, surface, position_key=sc, data_key='sw', column_names=surface_params)
+
+        normals_gsm = convert_GSE_to_GSM_with_angles(normals, (list(normals.columns),), df_coords=df, coords_suffix='sw')
+        df = pd.concat([df,normals_gsm],axis=1)
+
+        norm_cols = [f'N{comp}_GSM_{surface}' for comp in ('x','y','z')]
+        N = df[norm_cols].to_numpy()
+        for vec in couple_vecs:
+
+            A_cols = [f'{vec}_{comp}_GSM{suffix}' for comp in ('x','y','z')]
+            if A_cols[0] not in df:
+                A_cols[0] = A_cols[0].replace('GSM','GSE')
+
+            A = df[A_cols].to_numpy()
+            A_dot_N   = np.einsum('ij,ij->i', A, N)
+            A_norm_sq = np.einsum('ij,ij->i', A, A)
+
+            with np.errstate(divide='ignore', invalid='ignore'):
+                tangential_mag = np.sqrt(A_norm_sq - (A_dot_N ** 2))
+                tangential_mag = np.nan_to_num(tangential_mag)  # Replace NaNs with 0
+
+            df[f'{vec}_perp{suffix}']     = A_dot_N
+            df[f'{vec}_parallel{suffix}'] = tangential_mag
+
+        df.rename(columns={col: f'{col}{suffix}' for col in norm_cols}, inplace=True) # adds _sc suffix
 
 # %% Models
 

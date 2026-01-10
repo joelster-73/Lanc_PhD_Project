@@ -6,9 +6,12 @@ Created on Thu Dec  4 13:42:09 2025
 """
 
 
-# %%
+# %% import
+
 from src.processing.reading import import_processed_data
-from src.processing.mag.plotting import plot_mag_data, plot_mag_data_corr, plot_magnetometer_map, plot_find_optimum
+from src.processing.mag.plotting import plot_magnetometer_overview
+
+from datetime import datetime
 
 omni = import_processed_data('omni', resolution='1min')
 omni = omni.shift(freq='17min')
@@ -16,37 +19,16 @@ omni = omni.shift(freq='17min')
 THL      = import_processed_data('supermag', dtype='THL', resolution='gsm')
 indices  = import_processed_data('indices', file_name='combined_1min')
 
-# %%
-
-#year, month, day_min, day_max = (2006, 1, 1, 2) # Quiet day
-year, month, day_min, day_max = (2008, 5, 10, 11) # Quiet day
-#year, month, day_min, day_max = (2015, 3, 17, 18) # Max PCN
-#year, month, day_min, day_max = (2024, 5, 11, 12) # Max PCN
-
-
-thl_sub  = THL.loc[(THL.index.year==year)&(THL.index.month==month)&(THL.index.day>=day_min)&(THL.index.day<day_max)]
-omni_sub = omni.loc[(omni.index.year==year)&(omni.index.month==month)&(omni.index.day>=day_min)&(omni.index.day<day_max)]
-indices_sub = indices.loc[(indices.index.year==year)&(indices.index.month==month)&(indices.index.day>=day_min)&(indices.index.day<day_max)]
-
-
 # %% plot
 
-import itertools as it
+times = [datetime(2006, 1, 1),  # Quiet day
+         datetime(2008, 5, 10), # Quiet day
+         datetime(2015, 3, 17), # Max PCN
+         datetime(2024, 5, 11)  # Max PCN
+]
 
-phi = plot_find_optimum(thl_sub, omni_sub)
-
-plot_mag_data(thl_sub, omni_sub, indices_sub, ind='Ey')
-
-plot_combos = it.product(('ER','Ey'), ('GSE','GSM'), ('mag','phi','tr'))
-
-for (ind, coords, quantity) in plot_combos:
-
-    if (ind, coords, quantity) == ('ER', 'GSM', 'mag'):
-        continue
-
-    ### add to function to save into file active/quiet_YYMMDD
-    plot_mag_data_corr(thl_sub, omni_sub, indices_sub, coords=coords, quantity=quantity, ind=ind, phi=phi)
+for start_time in times:
+    plot_magnetometer_overview(THL, omni, indices, start_time)
 
 
-plot_magnetometer_map(thl_sub, coords='GSE')
-
+plot_magnetometer_overview(THL, omni, indices, datetime(2024, 5, 10), datetime(2024, 5, 12))

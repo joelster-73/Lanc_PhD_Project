@@ -12,7 +12,6 @@ def create_log_file(log_file_path):
             log_file.write(f"Log created on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
 
-
 def log_missing_file(log_file_path, file_path, e=None):
 
     create_log_file(log_file_path)

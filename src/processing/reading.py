@@ -10,8 +10,25 @@ from spacepy import pycdf
 from contextlib import ExitStack
 
 from .handling import get_processed_files, get_cdf_file
-from .dataframes import set_df_indices
+from .dataframes import set_df_indices, merge_dataframes
 from ..config import get_proc_directory
+
+
+def import_processed_spacecraft(spacecraft, data_pop='state', resolution='1min'):
+
+    populations = ['state']
+
+    if data_pop in ('field','plasma'):
+        populations.append('fgm')
+    if data_pop in ('plasma',):
+        populations.append('fpi')
+
+    all_data = []
+    for data in populations:
+        df_sc = import_processed_data(spacecraft, dtype=data, resolution=resolution)
+        all_data.append(df_sc)
+
+    return merge_dataframes(all_data)
 
 
 def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, year=None, axis=0):
@@ -36,7 +53,7 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
             try:
                 df = read_spacepy_object(cdf_files)
             except Exception: # CDF files for different parameters
-                print('Different file structures')
+                print('Different file structures.')
                 df = pd.DataFrame()
                 for f in cdf_files:
                     df_param = read_spacepy_object(f)
@@ -71,10 +88,6 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         placeholder_date = pd.Timestamp('9999-12-31 23:59:59.999')
         set_df_indices(df, time_col)  # Sets the index as datetime
 
-    ########
-    # weighted average overlapping year boundaries
-    # for time being just drop earlier one
-    #######
     df = df.loc[~df.index.duplicated(keep='last')]
 
     for placeholder_date in placeholder_dates:

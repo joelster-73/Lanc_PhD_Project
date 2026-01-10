@@ -11,42 +11,56 @@ def add_df_units(df):
         unit_attrs[column] = add_unit(column)
     df.attrs['units'] = unit_attrs
 
-def merge_dataframes(df1, df2, suffix_1=None, suffix_2=None, clean=True, print_info=False):
+def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False):
+
+    if len(dfs) < 2:
+        raise ValueError('At least two dataframes are required')
+
+    if suffices is None:
+        suffices = [None] * len(dfs)
+
+    if len(suffices) != len(dfs):
+        raise ValueError('suffixes length must match number of dataframes')
+
+    if all(s is None for s in suffices):
+        raise ValueError('All suffixes are None; column collisions will occur')
+
+    relabelled = [relabel_columns(df, suf) for df, suf in zip(dfs, suffices)]
 
     if print_info:
-        print(f'Length of df1: {len(df1):,}')
-        print(f'Length of df2: {len(df2):,}')
+        for i, df in enumerate(relabelled, 1):
+            print(f'Length of df{i}: {len(df):,}')
 
-    # Relabel columns with specified suffixes
-    if suffix_1 is None and suffix_2 is None:
-        print ('Both new suffices are "None"; duplicate columns will introduce errors.')
-    new_df1 = relabel_columns(df1, suffix_1)
-    new_df2 = relabel_columns(df2, suffix_2)
+    merged = relabelled[0]
+    for df in relabelled[1:]:
+        merged = merged.merge(df, left_index=True, right_index=True)
 
-    # Merge DataFrames based on their indices
-    merged = new_df1.merge(new_df2, left_index=True, right_index=True)
-
-    # Combine units attributes from both DataFrames
     merged.attrs = {}
 
-    # merge non-unit attrs
-    merged.attrs.update({k: v for k, v in new_df1.attrs.items() if k != 'units'})
-    merged.attrs.update({k: v for k, v in new_df2.attrs.items() if k != 'units'})
+    for df in relabelled:
+        for k, v in df.attrs.items():
+            if k != 'units':
+                merged.attrs[k] = v
 
-    # merge units explicitly
     merged.attrs['units'] = {}
-    merged.attrs['units'].update(new_df1.attrs.get('units', {}))
-    merged.attrs['units'].update(new_df2.attrs.get('units', {}))
+    for df in relabelled:
+        merged.attrs['units'].update(df.attrs.get('units', {}))
 
     if clean:
-        cleaned = merged.dropna(how='all')
-        if print_info:
-            print(f'Length of merged df: {len(cleaned):,}\n')
-        return cleaned
+        merged = merged.dropna(how='all')
+
     if print_info:
         print(f'Length of merged df: {len(merged):,}\n')
+
     return merged
 
+def rename_columns(df, column_map):
+
+    rename_map = {col: column_map[key] + col[len(key):] for col in df.columns for key in column_map if col.startswith(key)}
+    df.rename(columns=rename_map, inplace=True)
+
+    if df.attrs.get('units',{}):
+        df.attrs['units'] = {rename_map.get(col, col): unit for col, unit in df.attrs['units'].items()}
 
 def relabel_columns(df, label):
 
@@ -70,7 +84,6 @@ def relabel_columns(df, label):
 
         return new_df
     return df
-
 
 def replace_inf(df, replace_large=False, threshold=1e28):
     # Replace infinities with NaN, without using inplace=True

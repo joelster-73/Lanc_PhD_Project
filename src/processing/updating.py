@@ -74,7 +74,7 @@ def get_file_keys(spacecraft, data, raw_res='raw'):
     return file_keys
 
 
-def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True):
+def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, start_year=None):
     """
     Resample monthly files into yearly files.
     """
@@ -103,6 +103,8 @@ def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('
     for year, files in files_by_year.items():
         print(f'Updating {year}.')
         yearly_list = []
+        if start_year and int(year)<start_year:
+            continue
 
         for file in files:
             df = import_processed_data(spacecraft, dtype=data, resolution=raw_res, file_name=file)
@@ -117,9 +119,9 @@ def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('
             sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
 
             attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
+            print(f'{sample_interval} reprocessed.')
             write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{year}', attributes=attributes, overwrite=overwrite, reset_index=True)
 
-            print(f'{sample_interval} reprocessed.')
 
 # %% Plasma
 

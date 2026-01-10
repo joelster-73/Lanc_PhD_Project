@@ -18,6 +18,8 @@ process_cluster_files('c1', 'fgm', 'SPIN')
 process_cluster_files('c1', 'state', '5VPS')
 process_cluster_files('c1', 'state', 'SPIN')
 
+resample_monthly_files('c1', 'state', 'spin', sample_intervals=('1min','5min'))
+
 # %% Update_fgm
 
 update_fgm_data('c1', 'raw')
