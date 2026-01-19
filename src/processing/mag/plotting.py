@@ -37,10 +37,10 @@ def plot_mag_data(station, sw, pc, param='H', ind='ER', show_sw=True, folder=Non
     station = station.copy()
 
     if show_sw:
-        fig, (ax0,ax,ax2) = plt.subplots(nrows=3, figsize=(10,8), dpi=300, sharex=True)
+        fig, (ax0,ax,ax2) = plt.subplots(nrows=3, figsize=(10,8), dpi=400, sharex=True)
         ax0.axhline(0,c='k',ls=':')
     else:
-        fig, (ax,ax2) = plt.subplots(nrows=2, figsize=(10,6), dpi=300, sharex=True)
+        fig, (ax,ax2) = plt.subplots(nrows=2, figsize=(10,6), dpi=400, sharex=True)
 
     ax2.axhline(0,c='k',ls=':')
     ax.axhline(0,c='k',ls=':')
@@ -117,10 +117,10 @@ def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag',
     station = station.copy()
 
     if show_sw:
-        fig, (ax0,ax,ax2) = plt.subplots(nrows=3, figsize=(10,8), dpi=300, sharex=True)
+        fig, (ax0,ax,ax2) = plt.subplots(nrows=3, figsize=(10,8), dpi=400, sharex=True)
         ax0.axhline(0,c='k',ls=':')
     else:
-        fig, (ax,ax2) = plt.subplots(nrows=2, figsize=(10,6), dpi=300, sharex=True)
+        fig, (ax,ax2) = plt.subplots(nrows=2, figsize=(10,6), dpi=400, sharex=True)
 
     ax2.axhline(0,c='k',ls=':')
     ax.axhline(0,c='k',ls=':')
@@ -264,7 +264,7 @@ def plot_find_optimum(station, sw, param='H', coords='GSM', ind='Ey', folder=Non
         corrs[i] = np.corrcoef(pz, sz)[0, 1]
         rmse_norm[i] = np.sqrt(np.mean((pz - sz) ** 2))
 
-    fig, (ax1,ax2) = plt.subplots(2, 1, sharex=True, dpi=300, figsize=(10,8))
+    fig, (ax1,ax2) = plt.subplots(2, 1, sharex=True, dpi=400, figsize=(10,8))
     plt.subplots_adjust(hspace=0)
 
     ax1.plot(np.degrees(phi_range), corrs, c='b', lw=0.8)
@@ -292,7 +292,7 @@ def plot_magnetometer_map(df_field, coords='GSE', param='H', invert=True, show_d
 
     colours = np.where(df_field['H_y_GSE'] > 0, 'red', 'orange')
 
-    fig, ax = plt.subplots(dpi=300, figsize=(8,8))
+    fig, ax = plt.subplots(dpi=400, figsize=(8,8))
 
     # default position is Thule
     positions = convert_GEO_position(df_field.attrs.get('glat',77.46999), df_field.attrs.get('glon',290.76996), df_field.index)

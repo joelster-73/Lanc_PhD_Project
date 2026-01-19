@@ -269,7 +269,7 @@ def calc_normal_for_sc(df, surface, model=None, aberration='model', position_key
     if surface == 'MP':
         if model == 'shue':
             print('Using Shue mp.')
-            n = mp_shue1998_normal(theta_ps.to_numpy(), phis_ps.to_numpy(), Pd=p, Bz=B)
+            n = mp_shue1998_normal(theta_ps, phis_ps, Pd=p, Bz=B)
 
         elif model == 'jelinek':
             print('Using Jelínek mp.')

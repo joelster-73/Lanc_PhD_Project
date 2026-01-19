@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from uncertainties import ufloat
 
-from ..reading import import_processed_data
+from ..reading import import_processed_spacecraft
 from ...config import get_proc_directory
 
 def obtain_mp_boundaries(themis_dir, mp_file='Grimmich_2023_MP_Crossings.txt', resolution='5min'):
@@ -215,7 +215,7 @@ def determine_bs_direction(bs_boundaries, df_sc, resolution, data_pop):
 
 # %% Determine_direction
 
-def themis_region_intervals(spacecraft, region='msh', data_pop='plasma', resolution='5min', max_gap=None):
+def themis_region_intervals(spacecraft, region='msh', populations=['STATE'], resolution='5min', max_gap=None, df_sc=None):
 
     """
     Resolution is the data point before and after the boundary used to determine the conditinos
@@ -226,7 +226,13 @@ def themis_region_intervals(spacecraft, region='msh', data_pop='plasma', resolut
     boundaries    = obtain_mp_boundaries(themis_dir, resolution=resolution)
     sc_boundaries = boundaries[boundaries['Probe']==spacecraft]
 
-    df_sc  = import_processed_data(spacecraft, dtype=region, resolution=resolution)
+    if region in populations:
+        data_pop = 'plasma'
+    else:
+        data_pop = 'FGM'
+
+    if df_sc is None:
+        df_sc = import_processed_spacecraft(spacecraft, populations=populations, resolution=resolution)
 
     if region=='msh':
         boundaries = obtain_mp_boundaries(themis_dir, resolution=resolution)

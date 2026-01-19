@@ -81,6 +81,18 @@ def get_luna_directory(source, instrument=None, info=None):
 
         path += folder
 
+    # themis
+    elif source in THEMIS_SPACECRAFT:
+        path = f'{LUNA_THEMIS_DIR}/{source}/'
+
+        if instrument.upper() in ('FGM', 'GMOM', 'MOM', 'STATE'):
+            folder = f'{instrument.upper()}/'
+
+        elif instrument.lower() in ('esa',):
+            folder = f'{instrument.lower()}/'
+
+        path += folder
+
     # mms
     elif source in MMS_SPACECRAFT:
         path = f'{LUNA_MMS_DIR}/{source}/'
@@ -98,18 +110,6 @@ def get_luna_directory(source, instrument=None, info=None):
 
         elif instrument.upper() == 'FPI':
             folder += f'_{instrument.upper()}_FAST_L2_DIS-MOMS'
-
-        path += folder
-
-    # themis
-    elif source in THEMIS_SPACECRAFT:
-        path = f'{THEMIS_DIR}/{source}/'
-
-        if instrument.upper() in ('FGM', 'GMOM', 'MOM', 'STATE'):
-            folder = f'{instrument.upper()}/'
-
-        elif instrument.lower() in ('esa',):
-            folder = f'{instrument.lower()}/'
 
         path += folder
 
@@ -197,9 +197,37 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
 
             if dtype in ('crossings','fgm','hia','hiaq','state','combined','sw','msh'):
                 path += f'{dtype}/'
+            elif dtype != ' ':
+                print(f'"{dtype}" not valid.')
 
             if resolution in ('raw','5vps','spin','1min','5min','spin_raw'):
                 path += f'{resolution}/'
+            elif resolution != ' ':
+                print(f'"{resolution}" not valid.')
+
+        # themis
+    elif source in THEMIS_SPACECRAFT:
+
+        if dtype == 'base':
+            path = THEMIS_DIR
+
+        else:
+            path = f'{THEMIS_DIR}/{source}/'
+
+            if dtype=='plasma':
+                raise ValueError('"plasma" has been replaced by "hpca" and "fpi"')
+            elif dtype=='field':
+                raise ValueError('"field" has been replaced by "fgm"')
+
+            if dtype in ('sw', 'msh', 'combined', 'FGM', 'MOM', 'STATE'):
+                path += f'{dtype}/'
+            elif dtype != ' ':
+                print(f'"{dtype}" not valid.')
+
+            if resolution in ('raw','1min','5min','spin'):
+                path += f'{resolution}/'
+            elif resolution != ' ':
+                print(f'"{resolution}" not valid.')
 
     # mms
     elif source in MMS_SPACECRAFT:
@@ -217,38 +245,25 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
 
             if dtype in ('fgm','hpca','fpi','state','sw','msh'):
                 path += f'{dtype}/'
+            elif dtype != ' ':
+                print(f'"{dtype}" not valid.')
 
             if resolution in ('fast','spin','raw','1min','5min'):
                 path += f'{resolution}/'
-
-    # themis
-    elif source in THEMIS_SPACECRAFT:
-
-        if dtype == 'base':
-            path = THEMIS_DIR
-
-        else:
-            path = f'{THEMIS_DIR}/{source}/'
-
-            if dtype=='plasma':
-                raise ValueError('"plasma" has been replaced by "hpca" and "fpi"')
-            elif dtype=='field':
-                raise ValueError('"field" has been replaced by "fgm"')
-
-            if dtype in ('sw', 'msh', 'combined', 'fgm', 'mom', 'state'):
-                path += f'{dtype}/'
-
-            if resolution in ('raw','1min','5min'):
-                path += f'{resolution}/'
+            elif resolution != ' ':
+                print(f'"{resolution}" not valid.')
 
     # omni
     elif source=='omni':
         path = f'{PROCESSED_DATA_DIR}/OMNI/'
 
-        if resolution == '':
+        if resolution == ' ':
             resolution = '1min'
+
         if resolution in ('1min','5min'):
             path += f'{resolution}/'
+        elif resolution != ' ':
+            print(f'"{resolution}" not valid.')
 
 
     # wind
@@ -268,9 +283,13 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             path += 'field/'
         elif 'plasma' in dtype:
             path += 'plasma/'
+        elif dtype != ' ':
+            print(f'"{dtype}" not valid.')
 
         if resolution in ('1min','5min'):
             path += f'{resolution}/'
+        elif resolution != ' ':
+            print(f'"{resolution}" not valid.')
 
     # index
     elif source in ('pcn','pcc','aa','sme','indices'):
@@ -292,6 +311,8 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
 
         if resolution in ('raw','gse','agse','gsm'):
             path += f'{resolution}/'
+        elif resolution != ' ':
+            print(f'"{resolution}" not valid.')
 
     # index
     elif source=='crossings':

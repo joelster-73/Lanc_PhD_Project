@@ -14,7 +14,7 @@ MODES              = ('5VPS', 'SPIN')
 
 STATE_VARIABLES_TEMPLATE = {
     'epoch' : 'time_tags__{sc}_CP_FGM_{mode}',      # epoch time in milliseconds (scalar)
-    'r'     : 'sc_pos_xyz_gse__{sc}_CP_FGM_{mode}', # position in km from centre of Earth (vector)
+    'r_gse' : 'sc_pos_xyz_gse__{sc}_CP_FGM_{mode}', # position in km from centre of Earth (vector)
 }
 
 CLUSTER_VARIABLES_STATE = {
@@ -36,7 +36,7 @@ CLUSTER_VARIABLES_STATE = {
 FGM_VARIABLES_TEMPLATE = {
     'epoch' : 'time_tags__{sc}_CP_FGM_{mode}',      # epoch time in milliseconds (scalar)
     'B_avg' : 'B_mag__{sc}_CP_FGM_{mode}',          # fgm data in nT (magnitude)
-    'B'     : 'B_vec_xyz_gse__{sc}_CP_FGM_{mode}',  # fgm data in nT (vector)
+    'B_gse' : 'B_vec_xyz_gse__{sc}_CP_FGM_{mode}',  # fgm data in nT (vector)
 }
 
 CLUSTER_VARIABLES_FGM = {
@@ -54,7 +54,7 @@ CLUSTER_VARIABLES_FGM = {
 
 HIA_VARIABLES_TEMPLATE = {
     'epoch' : 'time_tags__{sc}_CP_CIS-HIA_ONBOARD_MOMENTS',      # epoch time in milliseconds (scalar)
-    'V'     : 'velocity_gse__{sc}_CP_CIS-HIA_ONBOARD_MOMENTS',   # plasma velocity in km/s (vector)
+    'V_gse' : 'velocity_gse__{sc}_CP_CIS-HIA_ONBOARD_MOMENTS',   # plasma velocity in km/s (vector)
     'T_ion' : 'temperature__{sc}_CP_CIS-HIA_ONBOARD_MOMENTS',    # temperature (MK)
     'N_ion' : 'density__{sc}_CP_CIS-HIA_ONBOARD_MOMENTS',        # density (n/cc)
     'P_ion' : 'pressure__{sc}_CP_CIS-HIA_ONBOARD_MOMENTS',       # thermal pressure (nPa)

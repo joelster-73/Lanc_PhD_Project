@@ -7,11 +7,12 @@ Created on Thu May  8 17:48:07 2025
 # config.py
 
 THEMIS_SPACECRAFT = ('tha', 'thb', 'thc', 'thd', 'the')
+THEMIS_PLASMA_SPACECRAFT = ('thb', 'the')
 
 # %% State
 STATE_VARIABLES_TEMPLATE = { # 1 minute resolution
-    'time': '{sc}_state_time',
-    'r':    '{sc}_pos_gse'
+    'time':  '{sc}_state_time',
+    'r_GSE': '{sc}_pos_gse'
 }
 
 THEMIS_VARIABLES_STATE = {
@@ -24,8 +25,8 @@ THEMIS_VARIABLES_STATE = {
 FGM_VARIABLES_TEMPLATE = {
     'time':    '{sc}_{suffix}_time',
     'B_avg':   '{sc}_{suffix}_btotal',
-    'B_GSE':   '{sc}_{suffix}_gse',
-    'B_GSM':   '{sc}_{suffix}_gsm',
+    'B_gse':   '{sc}_{suffix}_gse',
+    'B_gsm':   '{sc}_{suffix}_gsm',
     'quality': '{sc}_fgm_{suffix}_quality'          # 0 = good, >1 = bad
 }
 
@@ -49,8 +50,8 @@ PLASMA_VARIABLES_TEMPLATE = {
     'N_ion':        '{sc}_peim_density',            # n/cc
     'P_ion':        '{sc}_peim_ptot',               # eV/cc
     'T_vec':        '{sc}_peim_t3_mag',             # Field aligned temperature (scalar = mean of components), eV
-    'V_GSE':        '{sc}_peim_velocity_gse',       # km/s
-    'V_GSM':        '{sc}_peim_velocity_gsm'
+    'V_gse':        '{sc}_peim_velocity_gse',       # km/s
+    'V_gsm':        '{sc}_peim_velocity_gsm'
 
 }
 
@@ -59,5 +60,5 @@ THEMIS_VARIABLES_PEIM = {
     for sc in THEMIS_SPACECRAFT
 }
 
-VARIABLES_DICT = {'fgm': THEMIS_VARIABLES_FGM, 'state': THEMIS_VARIABLES_STATE, 'mom': THEMIS_VARIABLES_PEIM}
+VARIABLES_DICT = {'FGM': THEMIS_VARIABLES_FGM, 'STATE': THEMIS_VARIABLES_STATE, 'MOM': THEMIS_VARIABLES_PEIM}
 

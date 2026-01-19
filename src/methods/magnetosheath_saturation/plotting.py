@@ -6,7 +6,6 @@ Created on Mon Oct  6 10:55:08 2025
 """
 
 import numpy as np
-import pandas as pd
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -37,21 +36,15 @@ def shift_angular_data(df, *cols):
 
     return df
 
-def mask_df(df, ind_col, ind_limits=None, dep_col=None, grp_col=None):
+def mask_df(df, col, limits=None):
 
-        cols_to_check = [ind_col]
-        if dep_col:
-            cols_to_check.append(dep_col)
-        if grp_col:
-            cols_to_check.append(grp_col)
+        mask = ~df[col].isna()
 
-        mask = ~df[cols_to_check].isna().any(axis=1)
-
-        if ind_limits:
-            if ind_limits[0] is not None:
-                mask &= df[ind_col] >= ind_limits[0]
-            if ind_limits[-1] is not None:
-                mask &= df[ind_col] <= ind_limits[1]
+        if limits:
+            if limits[0] is not None:
+                mask &= df[col] >= limits[0]
+            if limits[-1] is not None:
+                mask &= df[col] <= limits[1]
 
         return df.loc[mask]
 
@@ -404,9 +397,7 @@ def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', s
     plt.show()
     plt.close()
 
-
-def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, index_map={}, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
-
+def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
     """
     Look at OMNI and in-situ data in driver-response
     So dependent variable is a PC index
@@ -435,6 +426,8 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
         shift_centre = False
 
     ###----------PLOT GRIDS----------###
+    ind = ind_var
+
     n_rows, n_cols = 2, len(dep_vars)
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=200, height_ratios=[3,2], sharex='col')
@@ -444,18 +437,16 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
         ax0 = axs[0][i]
         ax1 = axs[1][i]
 
-        ind = ind_var
-        dep_adj = index_map.get(dep_var,dep_var)
-
         if ind_src=='msh' or df_omni is None:
             omni_j = -1
-            enumerator = ((df_sc,dep_adj,sc_colour),)
+            enumerator = ((df_sc,dep_var,sc_colour),)
         elif df_sc is None:
             omni_j = 0
             enumerator = ((df_omni,dep_var,omni_colour),)
         else:
             omni_j = 0
-            enumerator = zip((df_omni,df_omni.loc[df_sc.index],df_sc),(dep_var,dep_var,dep_adj),(omni_colour,contemp_colour,sc_colour))
+            overlap = df_omni.index.intersection(df_sc.index)
+            enumerator = zip((df_omni,df_omni.loc[overlap],df_sc),(dep_var,dep_var,dep_var),(omni_colour,contemp_colour,sc_colour))
 
         for j, (df, dep, colour) in enumerate(enumerator):
             print(dep)
@@ -506,7 +497,6 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
                 ax1.set_yscale('log')
 
             elif bottom_axis=='scatter':
-
                 # Scatter
                 kwargs_copy = kwargs.copy()
                 kwargs_copy['display'] = 'scatter'
@@ -601,19 +591,12 @@ def plot_different_lags(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, 
     plt.show()
     plt.close()
 
-
-
-def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', sample_interval='1min', bounds=None, restrict=True, shift_centre=True, compare_colour=green, **kwargs):
+def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restrict=True, shift_centre=True, compare_colour=green, **kwargs):
     """
     Pulkkinen comparisons
 
     So plots OMNI vs sc (sw or msh) for range of parameters
     """
-
-
-    # Ideally replace sample interval with df_sc.attrs
-
-
 
     msh_map  = kwargs.get('msh_map',{})
     name_map = kwargs.get('data_name_map',{})
@@ -640,14 +623,7 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', sample_interval='1
             n_cols, n_rows = n, len(enumerator) // n
             break
 
-
-    if 'prop_time_s' in df_sc:
-        df_sc = df_sc.copy(deep=False)
-        df_sc.index = df_sc.index - pd.to_timedelta(df_sc['prop_time_s'], unit='s')
-        df_sc = df_sc.infer_objects(copy=False)
-
-
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(width*n_cols, height*n_rows), dpi=200)
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(width*n_cols, height*n_rows), dpi=400)
 
     ###----------PLOT GRIDS----------###
     for i, (independent, dependent), in enumerate(enumerator):
@@ -661,16 +637,15 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', sample_interval='1
         ind_err, ind_count = def_param_names(df_omni, independent)
         dep_err, dep_count = def_param_names(df_sc, dependent)
 
-        bin_width, limits, invert = ind_variable_range(independent, source, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=(independent=='B_clock' and shift_centre))
+        bin_width, limits, invert = ind_variable_range(independent, source, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
         # Shift angular data to centre lies at +-180 rather than 0
         if independent=='B_clock' and shift_centre:
             df_omni = shift_angular_data(df_omni, independent)
             df_sc   = shift_angular_data(df_sc, dependent)
 
-        df_ind = mask_df(df_omni, independent, limits, dep_col=dependent)
-
-        df_dep = mask_df(df_sc, dependent)
+        df_ind = mask_df(df_omni, independent, limits)
+        df_dep = mask_df(df_sc, dependent, limits if source=='sw' and independent!='B_clock' else None)
         df_dep = df_dep.sort_index()
 
         df_dep = df_dep.reindex(df_ind.index, method='nearest', tolerance='30s').dropna(how='all')

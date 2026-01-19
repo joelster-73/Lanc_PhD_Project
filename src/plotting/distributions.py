@@ -15,7 +15,8 @@ import matplotlib.colors as mcolors
 from matplotlib import ticker as mticker
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from .config import black, white, blue, grey
+from .config import black, white, blue
+#from .config import grey
 from .formatting import add_legend, add_figure_title, create_label, dark_mode_fig, data_string
 from .utils import save_figure, calculate_bins
 
@@ -530,6 +531,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
             mask = (xs >= x_c-w/2) & (xs <= x_c+w/2)
 
         if np.sum(mask)>=min_count:
+
             if region=='med':
                 med, q1, q3 = median_with_counts(ys, ys_counts, mask)
                 y_vals[i] = med

@@ -277,7 +277,7 @@ def plot_scatter(xs, ys, **kwargs):
 
             spacecraft_counts = Counter(zs)
             colours = pd.Series(zs).str.upper().map(sc_colours).fillna(black).to_numpy()
-            scatter = ax.scatter(xs, ys, c=colours, marker=scat_marker, s=scat_size)
+            scatter = ax.scatter(xs, ys, c=colours, marker=scat_marker, s=scat_size, alpha=0.8)
 
             legend_elements = [Line2D([0], [0], marker='o', color=colour, label=f'{label}: {spacecraft_counts.get(label, 0)}', markersize=1, linestyle='None') for label, colour in sc_colours.items() if spacecraft_counts.get(label, 0) > 0]
 

@@ -21,11 +21,11 @@ from ...processing.themis.analysis import themis_region_intervals
 from ...processing.omni.config import indices_columns
 
 from ...processing.reading import import_processed_data, import_processed_spacecraft
-from ...processing.dataframes import merge_dataframes, rename_columns
+from ...processing.dataframes import merge_dataframes
 from ...processing.writing import write_to_cdf
 
-from ...coordinates.boundaries import calc_msh_r_diff, calc_normal_for_sc, vector_component_surface
-from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles, calc_GSE_to_GSM_angles
+from ...coordinates.boundaries import calc_msh_r_diff, vector_component_surface
+from ...coordinates.magnetic import calc_GSE_to_GSM_angles
 from ...analysing.comparing import difference_series
 from ...analysing.calculations import calc_angle_between_vecs
 
@@ -44,9 +44,6 @@ column_names = {
     'bz_name'   : 'B_z_GSM'
 }
 
-# Map to make consistent with other dataframes
-cluster_column_map = {'V_mag': 'V_flow', 'T_thm': 'T_tot', 'N_ion': 'N_tot'}
-
 # MP & BS
 pos_cols  = ['r_MP','r_BS','r_phi','r_F']
 norm_vecs = {'field': ('B',), 'plasma': ('B','E','V','S')}
@@ -59,6 +56,35 @@ spacecraft     = {'sw': {'field': all_spacecraft, 'plasma': ('c1','mms1','thb')}
 
 # %%% Merge_OMNI_sc
 
+def data_populations(sc, data, region):
+
+    populations = ['state']
+
+    if sc in cluster:
+
+        if data in ('field','plasma'):
+            populations.append('fgm')
+        if data in ('plasma',):
+            populations.append(region)
+
+    elif sc in themis:
+
+        populations[0] = 'STATE'
+
+        if data in ('field','plasma'):
+            populations.append('FGM')
+        if data in ('plasma',):
+            populations.append(region)
+
+    elif sc in mms:
+
+        if data in ('field','plasma'):
+            populations.append('fgm')
+        if data in ('plasma',):
+            populations.append('fpi')
+
+    return populations
+
 def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_keys=None, nose=False):
 
     """
@@ -70,7 +96,6 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
     DIR = get_proc_directory(region, dtype=data_pop, resolution=sample_interval, create=True) # output directory
 
     dfs_combined = []
-    #field_col = 'B_avg'
     if sc_keys is None:
         sc_keys = spacecraft[region][data_pop]
 
@@ -83,62 +108,18 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         print(f'Importing -{sc}-.')
 
-        if sc in cluster:
-
-            populations = ['state']
-
-            if data_pop in ('field','plasma'):
-                populations.append('FGM')
-            if data_pop in ('plasma',):
-                populations.append(region)
-
-            intervals = cluster_region_intervals(sc, region)
-
-        elif sc in themis:
-
-            populations = ['STATE']
-
-            if data_pop in ('field','plasma'):
-                populations.append('FGM')
-            if data_pop in ('plasma',):
-                populations.append(region)
-
-            intervals = themis_region_intervals(sc, region, data_pop, sample_interval)
-
-        elif sc in mms:
-
-            populations = ['state']
-
-            if data_pop in ('field','plasma'):
-                populations.append('fgm')
-            if data_pop in ('plasma',):
-                populations.append('fpi')
-
-            intervals = mms_region_intervals(region)
-
-        else:
-            raise Exception(f'"{sc}" not implemented.')
+        populations = data_populations(sc, data_pop, region)
 
         df_sc = import_processed_spacecraft(sc, populations, sample_interval)
 
-        # Temporary fixes/clean ups
-
         if sc in cluster:
+            intervals = cluster_region_intervals(sc, region)
 
-            rename_columns(df_sc, cluster_column_map)
-
-        elif sc in themis:
-
-            for column in ('quality_esa','flag','quality_fgm'):
-                # Erroneous columns left in thb before resampling
-                if column in df_sc:
-                    print(f'Dropping "{column}".')
-                    df_sc.drop(columns=[column],inplace=True)
+        elif sc in themis: # requires themis data to determine crossings
+            intervals = themis_region_intervals(sc, region, data_pop, sample_interval, df_sc=df_sc)
 
         elif sc in mms:
-
-            from scipy.constants import k as kB, e
-            df_sc['T_tot'] *= (e / kB)
+            intervals = mms_region_intervals(region)
 
         ###---------------FILTERING------------###
 
@@ -171,7 +152,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
             condition = (df_merged['r_F'] > 0.1) & (df_merged['r_F'] < 1)
 
         elif region=='sw':
-            condition = (df_merged['r_F'] > 1.25) # position further than empirial BS
+            condition = (df_merged['r_F'] > 1.5) # position further than empirial BS
             #condition &= (df_merged[f'r_mag{suffix}']<35) # exclude ARTEMIS
 
         mask |= outside_interval & condition
@@ -191,7 +172,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         # Correction to time lag based on spacecraft position in solar wind
         calc_bs_sc_delay(df_merged, omni_key='sw', sc_key=sc, region=region)
 
-        extra_parameters(df_merged, sc, region)
+        update_parameters(df_merged, sc, region)
 
         ###----------WRITING----------###
 
@@ -204,11 +185,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         df_merged = df_merged.rename(columns={col: col[:-len(suffix)] for col in df_merged.columns if col.endswith(suffix)})
 
         # Writes individual to file with omni
-        df_merged.attrs = df_merged_attrs
-        df_merged.attrs['units']['prop_time_s'] = 's'
-        if region=='msh':
-            df_merged.attrs['units']['Delta B_theta'] = 'rad'
-            df_merged.attrs['units']['Delta B_z'] = '1'
+        update_attributes(df_merged, df_merged_attrs, region, suffix)
 
         print(f'Writing {sc} to file...')
         write_to_cdf(df_merged, directory=DIR, file_name=f'{region}_times_{sc}', reset_index=True)
@@ -231,12 +208,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
     df_combined = pd.concat(result).sort_index()
     df_combined.index.name = 'epoch'
-    df_combined.attrs = df_merged_attrs
-
-    df_combined.attrs['units']['prop_time_s'] = 's'
-    if region=='msh':
-        df_combined.attrs['units']['Delta B_theta'] = 'rad'
-        df_combined.attrs['units']['Delta B_z'] = '1'
+    update_attributes(df_combined, df_merged_attrs, region, '')
 
     print('Merging')
     df_combined.attrs['units'][f'sc_{region}'] = 'STRING'
@@ -254,7 +226,10 @@ def update_omni(df, drop_cols=indices_columns):
     # Rename temperature for consistency, assuming isothermal
     df.rename(columns={'P_flow': 'P_p', 'T_p': 'T_tot'}, inplace=True)
     df.attrs['units']['P_p'] = 'nPa'
+
     df.loc[df['T_tot']>=9999999, 'T_tot'] = np.nan # replace fills
+    df['T_tot'] /= 1e6 #convert to MK
+    df.attrs['units']['T_tot'] = 'MK'
 
     # OMNI defines pressure as rhoV^2 for just the protons, so halving for consistency
     df['P_flow'] = 0.5 * (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
@@ -266,6 +241,7 @@ def update_omni(df, drop_cols=indices_columns):
 
     # Theta Bn angle - quasi-perp/quasi-para
     df['theta_Bn'] = calc_angle_between_vecs(df, 'B_GSE', 'R_BSN')
+
     # restrict to be between 0 and 90 degrees
     df.loc[df['theta_Bn']>np.pi/2,'theta_Bn'] = np.pi - df.loc[df['theta_Bn']>np.pi/2,'theta_Bn']
     df.attrs['units']['theta_Bn'] = 'rad'
@@ -291,12 +267,15 @@ def spacecraft_distance(df):
     if 'r_mag_count' in df:
         df.drop(columns=['r_mag_count'],inplace=True)
 
-def extra_parameters(df, sc, region):
+def update_parameters(df, sc, region):
 
     suffix = f'_{sc}'
 
+    for temp in (f'T_tot{suffix}',f'T_tot_unc{suffix}'):
+        df[temp] /= 1e6 #convert to MK
+
     if region=='sw':
-        remove_extremes(df, {f'beta{suffix}': 1000, f'P_flow{suffix}': 30})
+        remove_extremes(df, {f'beta{suffix}': 100, f'P_flow{suffix}': 30, f'E_mag{suffix}': 20, f'E_y_GSM{suffix}': 20})
 
     elif region=='msh':
         remove_extremes(df, {f'B_avg{suffix}': 100}, {f'B_z_GSM{suffix}': 250, f'beta{suffix}': 100})
@@ -326,3 +305,15 @@ def remove_extremes(df, mapping={}, abs_mapping={}):
 
     for col, limit in abs_mapping.items():
         df.loc[df[col].abs()>limit,col] = np.nan
+
+
+def update_attributes(df, attrs_dict, region='sw', suffix=''):
+
+    df.attrs = attrs_dict
+    for temp in (f'T_tot{suffix}',f'T_tot_unc{suffix}'):
+        df.attrs['units'][temp] = 'MK'
+
+    df.attrs['units']['prop_time_s'] = 's'
+    if region=='msh':
+        df.attrs['units']['Delta B_theta'] = 'rad'
+        df.attrs['units']['Delta B_z'] = '1'

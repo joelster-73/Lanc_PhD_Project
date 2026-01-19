@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['src\\processing\\mag\\script_process.py', 'src\\processing\\cluster\\script_process.py', 'src\\processing\\mms\\config.py']
+recent_files = ['scripts\\paper_figures\\2025_09_Magnetosheath\\section_0.py', 'src\\methods\\magnetosheath_saturation\\merge_region_sc.py', 'scripts\\paper_figures\\2025_09_Magnetosheath\\section_3a_sw.py', 'src\\processing\\dataframes.py']
 
 [main]
 version = 0.2.0

@@ -5,9 +5,6 @@ Created on Wed Dec 24 11:18:29 2025
 @author: richarj2
 """
 
-import os
-import glob
-
 import numpy as np
 import pandas as pd
 from uncertainties import unumpy as unp
@@ -15,10 +12,9 @@ from scipy.constants import mu_0, m_p
 from scipy.constants import physical_constants
 m_a = physical_constants['alpha particle mass'][0]
 
-from .dataframes import add_df_units, resample_data
 from .writing import write_to_cdf
 from .reading import import_processed_data
-from .utils import create_directory
+from .handling import get_file_keys
 
 from ..coordinates.magnetic import convert_GSE_to_GSM_with_angles
 from ..config import R_E, get_proc_directory, CLUSTER_SPACECRAFT, THEMIS_SPACECRAFT, MMS_SPACECRAFT
@@ -30,20 +26,26 @@ from .mms.config import ION_MASS_DICT, ION_SPECIES
 
 INIT_FUNCTIONS = {}
 FILT_FUNCTIONS = {}
+
 for sc in CLUSTER_SPACECRAFT:
     INIT_FUNCTIONS[sc] = update_hia_data
     FILT_FUNCTIONS[sc] = filter_hia_data
+
 for sc in THEMIS_SPACECRAFT:
     INIT_FUNCTIONS[sc] = update_esa_data
     FILT_FUNCTIONS[sc] = filter_esa_data
+
 for sc in MMS_SPACECRAFT:
     INIT_FUNCTIONS[sc] = update_fpi_data
 
 
 # %% Helpers
 
-def vec_cols(field, vec_coords='GSE'):
-    return [f'{field}_x_{vec_coords}',f'{field}_y_{vec_coords}',f'{field}_z_{vec_coords}']
+def vec_cols(field, vec_coords='GSE', df=None):
+    columns = [f'{field}_x_{vec_coords}',f'{field}_y_{vec_coords}',f'{field}_z_{vec_coords}']
+    if df is not None and vec_coords=='GSM' and columns[0] not in df.columns:
+        columns[0] = f'{field}_x_GSE'
+    return columns
 
 def insert_magnitude(df, field, vec_coords, suffix='mag'):
     new_column = f'{field}_{suffix}'
@@ -51,76 +53,6 @@ def insert_magnitude(df, field, vec_coords, suffix='mag'):
 
     if new_column not in df:
         df.insert(x_column, new_column, (df[[f'{field}_{c}_{vec_coords}' for c in ('x','y','z')]].pow(2).sum(axis=1))**0.5)
-
-
-# %% Resample
-
-def rename_files(directory, old_string, new_string):
-    for filename in os.listdir(directory):
-        if old_string in filename:
-            old_path = os.path.join(directory, filename)
-            new_filename = filename.replace(old_string, new_string)
-            new_path = os.path.join(directory, new_filename)
-            os.rename(old_path, new_path)
-
-def get_file_keys(spacecraft, data, raw_res='raw'):
-    file_keys = {}
-    data_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
-    pattern = os.path.join(data_dir, '*.cdf')
-    for cdf_file in sorted(glob.glob(pattern)):
-        file_name = os.path.splitext(os.path.basename(cdf_file))[0]
-        key = file_name.split('_')[-1] # splitext removes the extension
-        file_keys[key] = file_name
-    return file_keys
-
-
-def resample_monthly_files(spacecraft, data, raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, start_year=None):
-    """
-    Resample monthly files into yearly files.
-    """
-    ###----------SET UP----------###
-    print('Resampling.')
-
-    save_directories = {}
-
-    for sample_interval in sample_intervals:
-
-        save_directory = get_proc_directory(spacecraft, dtype=data, resolution=sample_interval, create=True)
-        create_directory(save_directory)
-        save_directories[sample_interval] = save_directory
-
-    raw_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
-    pattern = os.path.join(raw_dir, '*.cdf')
-    files_by_year = {}
-
-    for cdf_file in sorted(glob.glob(pattern)):
-        file_name = os.path.basename(cdf_file)
-        dir_name = '_'.join(file_name.split('_')[:-1])
-        year = file_name.split('_')[-1][:4]
-        files_by_year.setdefault(year, []).append(file_name)
-
-    ###----------PROCESS----------###
-    for year, files in files_by_year.items():
-        print(f'Updating {year}.')
-        yearly_list = []
-        if start_year and int(year)<start_year:
-            continue
-
-        for file in files:
-            df = import_processed_data(spacecraft, dtype=data, resolution=raw_res, file_name=file)
-            yearly_list.append(df)
-
-        yearly_df = pd.concat(yearly_list) # don't set ignore_index to True
-        yearly_df.drop(columns=[c for c in yearly_df.columns if c.endswith('_unc')],inplace=True) # measurement error << statistical uncertainty
-        add_df_units(yearly_df)
-
-        for sample_interval, samp_dir in save_directories.items():
-
-            sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
-
-            attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
-            print(f'{sample_interval} reprocessed.')
-            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{year}', attributes=attributes, overwrite=overwrite, reset_index=True)
 
 
 # %% Plasma
@@ -305,13 +237,12 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
 
     ###----------GSE to GSM----------###
 
-    print('Rotating...')
-
     if convert_fields is not None:
-        convert_columns = [vec_cols(field,'GSE') for field in convert_fields]
+        print('Rotating...')
+        convert_columns = [vec_cols(field,'GSE',merged_df) for field in convert_fields]
+        gsm_vectors = convert_GSE_to_GSM_with_angles(merged_df, convert_columns, ref='B', interp=True, include_unc=with_unc)
+        merged_df   = pd.concat([merged_df,gsm_vectors], axis=1)
 
-    gsm_vectors = convert_GSE_to_GSM_with_angles(merged_df, convert_columns, ref='B', interp=True, include_unc=with_unc)
-    merged_df   = pd.concat([merged_df,gsm_vectors], axis=1)
     vec_coords = 'GSM'
 
     # Clock Angle: theta = atan2(By,Bz)
@@ -327,9 +258,9 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
 
     ###----------CROSS PRODUCTS----------###
 
-    # Build uarray for V
-    V = build_uarr(merged_df, vec_cols('V',vec_coords))
-    B = merged_df[vec_cols('B',vec_coords)].to_numpy()
+    # Build uarray for V and B
+    V = build_uarr(merged_df, vec_cols('V',vec_coords,merged_df))
+    B = merged_df[vec_cols('B',vec_coords,merged_df)].to_numpy()
 
     # E = -V x B = B x V
     # V *= 1e3, B *= 1e-9, and E *= 1e3 so E_gse *= 1e-3

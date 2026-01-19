@@ -14,28 +14,21 @@ from .dataframes import set_df_indices, merge_dataframes
 from ..config import get_proc_directory
 
 
-def import_processed_spacecraft(spacecraft, data_pop='state', resolution='1min'):
-
-    populations = ['state']
-
-    if data_pop in ('field','plasma'):
-        populations.append('fgm')
-    if data_pop in ('plasma',):
-        populations.append('fpi')
+def import_processed_spacecraft(spacecraft, populations=['state'], resolution='1min', year=None):
 
     all_data = []
     for data in populations:
-        df_sc = import_processed_data(spacecraft, dtype=data, resolution=resolution)
+        df_sc = import_processed_data(spacecraft, dtype=data, resolution=resolution, year=year)
         all_data.append(df_sc)
 
-    return merge_dataframes(all_data)
+    return merge_dataframes(*all_data)
 
 
 def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, year=None, axis=0):
 
     directory = get_proc_directory(source, dtype, resolution)
 
-    # axis = 0 combines files that have the same columns at different times
+    # axis = 0 combines files that have (mostly) the same columns at different times
     # axis = 1 combines files that have different columns
 
     if file_name:
@@ -44,7 +37,7 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
 
     else: # Find all .cdf files containing the specified keyword in their names and within the date range
         cdf_files = get_processed_files(directory, year)
-        cdf_file = cdf_files[0]
+        cdf_file  = cdf_files[0]
 
         if len(cdf_files)==1:
             df = read_spacepy_object(cdf_files)
@@ -52,6 +45,7 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         else:
             try:
                 df = read_spacepy_object(cdf_files)
+
             except Exception: # CDF files for different parameters
                 print('Different file structures.')
                 df = pd.DataFrame()
@@ -61,6 +55,9 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
                     for k, v in df_param.attrs.items():
                         if k not in df.attrs:
                             df.attrs[k] = v
+
+    ### NOTE TO SELF: CHECK THE ORDER OF THE STATEMENTS BELOW, PARTICULARLY REGARDING ATTRIBUTES
+
 
     for column in df.columns:
         if df.attrs.get('units',{}).get(column, '') == 'STRING':

@@ -15,7 +15,7 @@ from ..handling import log_missing_file, get_processed_files
 from ..writing import write_to_cdf
 from ..dataframes import add_df_units
 from ..reading import import_processed_data
-from ..process import process_overlapping_files
+from ..process import process_overlapping_files, format_extracted_vector, resample_files
 
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_proc_directory, get_luna_directory
@@ -62,7 +62,7 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
 
     kwargs['resolutions'] = {'spin' : '4s', '5vps': '0.2s'}
 
-    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, filt_func=filter_quality, **kwargs)
+    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filter_quality, **kwargs)
 
 def get_cluster_files(directory=None, year=None, sub_folders=False):
     """
@@ -141,13 +141,19 @@ def extract_cluster_data(cdf_file, variables):
 
 
             if data.ndim == 2 and data.shape[1] == 3:  # Assuming a 2D array for vector components
-                if var_name == 'r':
+                field  = var_name.split('_')[0]
+
+                if '_gse' in var_name:
+                    coords = 'GSE'
+                elif '_gsm' in var_name:
+                    coords = 'GSM'
+                else:
+                    raise Exception(f'Coord system of variable not implemented: {var_name}.')
+
+                if var_name.startswith('r_'):
                     data /= R_E  # Scales distances to multiples of Earth radii
 
-                data_dict[f'{var_name}_mag']   = np.sqrt(data[:,0]**2+data[:,1]**2+data[:,2]**2)
-                data_dict[f'{var_name}_x_GSE'] = data[:, 0]
-                data_dict[f'{var_name}_y_GSE'] = data[:, 1]
-                data_dict[f'{var_name}_z_GSE'] = data[:, 2]
+                format_extracted_vector(data_dict, data, field, coords)
 
             else:
                 if var_name == 'T_ion':
@@ -319,6 +325,12 @@ def update_fgm_data(spacecraft, sample='raw'):
 
 # %% Plasma
 def update_hia_data(field_df, plasma_df):
+    """
+    To be used as init_func() in processing/updating/update_plasma_data()
+    Merges the field and plasma dataframes so quantities such as E can be calculated
+    It drops any low-quality data, and renames columns as appropriate
+    Then parent function then drops the field columns
+    """
 
     ###----------CLEAN UP RAW DATA----------###
 
@@ -345,28 +357,12 @@ def update_hia_data(field_df, plasma_df):
 
     return merged_df
 
-def filter_quality(df, column='quality'):
-
-    bad_qualities = (0, 1, 2)
-    # 0 : science mode
-    # 1 : major
-    # 2 : minor
-    # 3 : good
-    # 4 : excellent
-
-    if column not in df:
-        print(f'No {column} column.')
-        return df
-
-    mask = ~df[column].isin(bad_qualities)
-
-    filtered_df = df.loc[mask]
-    filtered_df = filtered_df.drop(columns=[column])
-    filtered_df.attrs = df.attrs
-
-    return filtered_df
-
 def filter_hia_data(df, region='sw'):
+    """
+    To be used as filt_func() in processing/updating/update_plasma_data()
+    Drops any data that is not flagged as being in the correct region of the magnetosphere
+    Then parent function then writes the region data to file
+    """
 
     # Modes for CIS instrument
     region_modes = {'msh': [8,9,10,11,12,13,14],
@@ -383,3 +379,39 @@ def filter_hia_data(df, region='sw'):
     filtered_df.attrs = df.attrs
 
     return filtered_df
+
+def filter_quality(df, column='quality'):
+
+    if column not in df:
+        print(f'No {column} column.')
+        return df
+    else:
+        print(f'Filtering quality: {column}.')
+
+    bad_qualities = (0, 1, 2)
+    # 0 : science mode
+    # 1 : major
+    # 2 : minor
+    # 3 : good
+    # 4 : excellent
+
+    mask = ~df[column].isin(bad_qualities)
+
+    filtered_df = df.loc[mask]
+    filtered_df = filtered_df.drop(columns=[column])
+    filtered_df.attrs = df.attrs
+
+    return filtered_df
+
+
+# %% Resample
+
+def resample_cluster_files(spacecraft, data, raw_res='spin', new_grouping='yearly', **kwargs):
+    """
+    Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
+    """
+
+    QUAL_FUNCTIONS      = {'hia': filter_quality}
+    kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
+
+    resample_files(spacecraft, data, raw_res=raw_res, new_grouping=new_grouping, **kwargs)

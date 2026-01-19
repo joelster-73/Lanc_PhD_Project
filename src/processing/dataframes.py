@@ -1,9 +1,12 @@
 import numpy as np
 import pandas as pd
+import warnings
 from uncertainties import unumpy as unp
 
 from .utils import add_unit, cdf_epoch_to_datetime
-from ..analysing.calculations import calc_mean_error, calc_average_vector
+from ..analysing.calculations import calc_mean_error, calc_average_vector, average_of_averages
+
+SKIP_COLUMNS = ('quality', 'mode', 'B_flag', 'flag', 'quality_esa', 'quality_fgm', 'sc_sw')
 
 def add_df_units(df):
     unit_attrs = {}
@@ -14,16 +17,16 @@ def add_df_units(df):
 def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False):
 
     if len(dfs) < 2:
-        raise ValueError('At least two dataframes are required')
+        raise ValueError('At least two dataframes are required.')
 
     if suffices is None:
         suffices = [None] * len(dfs)
 
     if len(suffices) != len(dfs):
-        raise ValueError('suffixes length must match number of dataframes')
+        raise ValueError('suffixes length must match number of dataframes.')
 
     if all(s is None for s in suffices):
-        raise ValueError('All suffixes are None; column collisions will occur')
+        warnings.warn('All suffices are None; column collisions may occur.')
 
     relabelled = [relabel_columns(df, suf) for df, suf in zip(dfs, suffices)]
 
@@ -109,14 +112,18 @@ def safe_stddevs(arr):
     else:
         return unp.std_devs(arr)
 
-def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=('quality','mode','flag', 'quality_esa','quality_fgm')):
-
+def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=SKIP_COLUMNS, drop_nans=True):
 
     if sample_interval in ('none','NONE'):
         print('No valid sampling interval provided.')
         return df
 
+    print(f'Reprocessing to {sample_interval} resolution...\n')
+
+    attributes = df.attrs
+
     df = df.copy()
+    df.attrs = attributes
     if time_col == 'index':
         df['utc'] = df.index.floor(sample_interval)
     else:
@@ -133,17 +140,27 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     non_nan_counts = grouped.count()
 
     for column in df.columns:
-        print(column)
 
-        if column in ('utc',time_col) or column in columns_to_skip:
+        if column in ('utc',time_col) or column in columns_to_skip or column.endswith('_unc') or column.endswith('_count'):
+
+            print(f'Skipping {column}.')
             # columns that are meaningless to average, e.g. quality, mode
             continue
 
-        elif len(df[column].dropna())==0:
+        elif df[column].count()==0:
+
             # Handles problems with missing data
-            continue
+            if drop_nans:
+                print(f'Skipping {column} (all NaN).')
+                continue
+            print(f'Processing {column} (all NaN).')
+            aggregated_columns[column] = np.nan
+            aggregated_columns[f'{column}_unc']   = np.nan
+            aggregated_columns[f'{column}_count'] = 0
 
         elif '_GS' in column:
+
+            print(f'Processing {column} (vector).')
 
             field, _, coords = column.split('_')
             if column in aggregated_columns:
@@ -181,15 +198,16 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
         else:
 
+            print(f'Processing {column}.')
+
             # Use standard mean for other columns
-            unit = df.attrs['units'].get(column)
+            unit = df.attrs.get('units',{}).get(column,None)
             ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x.dropna(), unit=unit))
 
             aggregated_columns[column] = unp.nominal_values(ufloat_series.to_numpy())
             if inc_info:
                 aggregated_columns[f'{column}_unc']   = unp.std_devs(ufloat_series.to_numpy())
                 aggregated_columns[f'{column}_count'] = non_nan_counts[column].to_numpy()
-
 
     resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
     resampled_df.rename_axis('epoch', inplace=True)
@@ -201,7 +219,82 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     if 'utc' in resampled_df:
         resampled_df.drop(columns=['utc'], inplace=True)
 
+    print(f'{sample_interval} done.')
+
     return resampled_df
+
+
+def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns_to_skip=SKIP_COLUMNS):
+
+    if sample_interval in ('none','NONE'):
+        print('No valid sampling interval provided.')
+        return df
+
+    print(f'Reprocessing {len(df)} overlapping timestamps.\n')
+
+    attributes = df.attrs
+
+    df = df.copy()
+    df.attrs = attributes
+    if time_col == 'index':
+        df['utc'] = df.index.floor(sample_interval)
+    else:
+        df['utc'] = df[time_col].dt.floor(sample_interval)
+
+    grouped = df.groupby('utc')
+
+    if len(grouped) == len(df):
+        df.drop(columns=['utc'],inplace=True)
+        df.rename(columns={time_col: 'epoch'},inplace=True)
+        return df
+
+    aggregated_columns = {}
+
+    for column in df.columns:
+
+        if column in ('utc',time_col) or column in columns_to_skip:
+
+            print(f'Skipping {column}.')
+            # columns that are meaningless to average, e.g. quality, mode
+            continue
+
+        elif column in aggregated_columns:
+            continue
+
+        print(column)
+
+        if column=='sc_sw':
+            aggregated_columns[column] = grouped[column].first()
+
+        unc_column = f'{column}_unc'
+        count_column = f'{column}_count'
+
+        if '_GS' in column:
+            parts = column.split('_')
+            count_column = '_'.join([parts[0], parts[2]]) + '_count'
+        elif column=='r_mag':
+            count_column = 'r_GSE_count'
+
+        ufloat_series = grouped.apply(lambda g: average_of_averages(g[column], series_uncs=g[unc_column], series_counts=g[count_column]), include_groups=False).to_numpy()
+
+        aggregated_columns[column]       = unp.nominal_values(ufloat_series)
+        aggregated_columns[unc_column]   = unp.std_devs(ufloat_series)
+        aggregated_columns[count_column] = grouped[count_column].sum().to_numpy()
+
+    resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
+    resampled_df.rename_axis('epoch', inplace=True)
+
+    if time_col != 'index':
+        resampled_df.reset_index(inplace=True)
+    resampled_df.dropna(how='all',inplace=True)
+
+    if 'utc' in resampled_df:
+        resampled_df.drop(columns=['utc'], inplace=True)
+
+    print('Weighted average done.')
+
+    return resampled_df
+
 
 def set_df_indices(df, time_col):
 

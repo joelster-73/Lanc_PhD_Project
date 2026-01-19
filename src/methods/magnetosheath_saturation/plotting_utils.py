@@ -52,163 +52,168 @@ def def_param_names(df, variable, source=None):
 
 def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
 
-    limits = [None, None]
     invert = False
 
     if ind_var.startswith('AA'):
-        bin_width, limits[0] = 20, 0
-        if restrict:
-            limits[1] = 400
+        bin_width = 20
 
     elif ind_var.startswith(('PCN','PCC')):
-        bin_width, limits[0] = 0.5, 0
-        if restrict:
-            limits[1] = 20
+        bin_width = 0.5
 
-    elif ind_var.startswith('SME'):
-        bin_width, limits[0] = 50, 0
-        if restrict:
-            limits[1] = 2200
+    elif ind_var.startswith(('SME','AE')):
+        bin_width = 50
 
-    elif ind_var.startswith('AE'):
-        bin_width, limits[0] = 50, 0
-        if restrict:
-            limits[1] = 1800
+    elif ind_var.startswith('B_'):
 
-    elif ind_var=='B_avg':
-        bin_width, limits[0] = 2, 0
-        if restrict:
-            bin_width, limits[1] = 1, 15
+        if ind_var.startswith(('B_avg', 'B_para','B_y')):
+            bin_width = 1 if restrict else 2
 
-    elif ind_var=='B_parallel':
-        bin_width, limits[0] = 2, 0
-        if restrict:
-            bin_width, limits[1] = 1, 80
-
-    elif ind_var=='B_clock':
-        invert = True
-        # Ensures 180 degrees is in the centre
-        bin_width = np.pi/18
-        if shift_centre:
-            limits[0], limits[1] = 0, 2*np.pi
         else:
-            limits[0], limits[1] = -np.pi, np.pi
+            invert = True
 
-    elif 'B_y' in ind_var:
-        bin_width, limits[0] = 2, 0
-        if restrict:
-            bin_width, limits[1] = 1, 25
-
-    elif 'B_' in ind_var:
-        invert = True
-        bin_width, limits[1] = 5, 0
-        if restrict:
-            bin_width = 4
-            if ind_src=='msh':
-                limits[0] = -80
-            elif ind_var==dep_var:
-                bin_width, limits[0] = 2, -20
+            if ind_var=='B_clock':
+                bin_width = np.pi/18
             else:
-                limits[0] = -40
+                bin_width = 2 if restrict else 5
 
-    elif ind_var=='V_flow':
-        bin_width, limits[0] = 50, 200
-        if restrict:
-            limits[1] = 1000
-            if ind_src=='msh':
-                limits[1] = 750
+    elif ind_var.startswith('V_'):
 
-    elif ind_var=='V_A':
-        bin_width, limits[0] = 20, 0
-        if restrict:
-            bin_width, limits[1] = 10, 200
+        if ind_var.startswith('V_A'):
+            bin_width = 10 if restrict else 20
+        else:
+            if not ind_var.startswith('V_flow'):
+                invert = True
+            bin_width = 50
 
-    elif 'V_' in ind_var:
-        invert = True
-        bin_width, limits[1] = 50, 0
+    elif ind_var.startswith('E_'):
+        bin_width = 1 if restrict else 2
 
-    elif ind_var=='E_parallel':
-        bin_width, limits[0] = 2, 0
-        if restrict:
-            bin_width = 1
-            limits[1] = 14
+    elif ind_var.startswith('N_'):
+        bin_width = 5 if restrict else 10
 
-    elif 'E_' in ind_var:
-        bin_width, limits[0] = 2, 0
-        if restrict:
-            bin_width = 1
-            if ind_src=='msh':
-                limits[1] = 20
-            elif (dep_var is not None) and (
-                    (ind_var==dep_var) or (dep_var.startswith('E_parallel'))):
-                bin_width, limits[1] = 0.5, 10
-            elif ind_var.startswith('E_parallel'):
-                bin_width, limits[1] = 0.5, 15
-            else:
-                limits[1] = 20
+    elif ind_var.startswith('P_'):
+        bin_width = 1 if restrict else 5
 
-    elif 'N_' in ind_var:
-        bin_width, limits[0] = 10, 0
-        if restrict:
-            bin_width = 5
-            if ind_src=='msh':
-                limits[1] = 100
-            elif ind_var==dep_var:
-                limits[1] = 40
-            else:
-                limits[1] = 50
+    elif ind_var.startswith('T_'):
+        bin_width = 0.1 if restrict else 0.5
 
-    elif 'P_' in ind_var:
-        bin_width, limits[0] = 5, 0
-        if restrict:
-            bin_width = 1
-            if ind_src=='msh':
-                limits[1] = 10
-            elif ind_var==dep_var:
-                limits[1] = 10
-            else:
-                limits[1] = 10
+    elif ind_var.startswith('S_'):
+        bin_width = 5 if restrict or ind_var.startswith('S_perp') else 10
 
-    elif 'T_' in ind_var:
-        # Up to ~1keV in the sw (11.604525 MK)
-        bin_width, limits[0] = 1e6, 0
-        if restrict:
-            bin_width = 5e5
-            if ind_src=='sw':
-                limits[1] = 20e6
-            else:
-                limits[1] = 75e6
+    elif ind_var.startswith('M_A'):
+        bin_width = 5
 
-    elif ind_var=='S_perp':
-        invert = True
-        bin_width, limits[1] = 5, 0
-        if restrict:
-            limits[0] = -150
-
-    elif 'S_' in ind_var:
-        bin_width, limits[1] = 10, 0
-        if restrict:
-            bin_width, limits[0] = 5, -100
-            if ind_src=='msh':
-                bin_width, limits[0] = 20, -600
-
-    elif 'M_A' in ind_var:
-        bin_width, limits[0] = 5, 0
-        if restrict:
-            bin_width, limits[1] = 5, 50
-
-    elif 'beta' in ind_var:
-        bin_width, limits[0] = 1, 0
-        if restrict:
-            limits[1] = 30
+    elif ind_var.startswith('beta'):
+        bin_width = 1
 
     else:
         raise ValueError(f'"{ind_var} not implemented.')
 
-    if bounds is not None:
-        limits = bounds
+    limits = var_limits(ind_var, ind_src, dep_var, restrict, bounds, shift_centre)
 
     return bin_width, limits, invert
+
+def var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
+
+    shift_centre = shift_centre and ind_var.startswith('B_clock')
+    restrict     = restrict and not ind_var.startswith('B_clock')
+
+    if bounds is not None:
+        return bounds
+
+    limits = [0, None]
+
+    if ind_var.startswith(('B_', 'V_', 'S_')) and not (ind_var.startswith(('B_avg','B_clock','B_parallel','B_y','V_flow','V_A')) or ind_var.endswith('_mag')):
+
+        limits = [None, 0] # Negative quantities
+
+    elif ind_var=='B_clock':
+        if shift_centre: # Ensures 180 degrees is in the centre
+            limits = [0, 2*np.pi]
+        else:
+            limits = [-np.pi, np.pi]
+
+    if restrict:
+
+        if ind_var.startswith('AA'):
+            limits[1] = 400
+
+        elif ind_var.startswith(('PCN','PCC')):
+            limits[1] = 20
+
+        elif ind_var.startswith('SME'):
+            limits[1] = 2200
+
+        elif ind_var.startswith('AE'):
+            limits[1] = 1800
+
+        elif ind_var.startswith('B_'):
+
+            if ind_var.startswith('B_avg'):
+                limits[1] = 15
+
+            elif ind_var.startswith('B_para'):
+                limits[1] = 80
+
+            elif ind_var.startswith('B_y'):
+                limits[1] = 25
+
+            else:
+                limits[0] = -40
+                if ind_src=='msh':
+                    limits[0] = -80
+                elif ind_var==dep_var:
+                    limits[0] = -20
+
+        elif ind_var.startswith('V_'):
+
+            if ind_var.startswith('V_flow'):
+                limits[1] = 1000
+
+            elif ind_var.startswith('V_A'):
+                limits[1] = 200
+
+        elif ind_var.startswith('E_'):
+            limits[1] = 20
+            if ind_src=='msh':
+                limits[1] = 20
+            elif ind_var.startswith('E_para'):
+                limits[1] = 15
+            elif (dep_var is not None) and ((ind_var==dep_var) or (dep_var.startswith('E_para'))):
+                limits[1] = 10
+
+        elif ind_var.startswith('N_'):
+            limits[1] = 50
+            if ind_src=='msh':
+                limits[1] = 100
+            elif ind_var==dep_var:
+                limits[1] = 40
+
+        elif ind_var.startswith('P_'):
+            limits[1] = 10
+
+        elif ind_var.startswith('T_'): # MK
+            # Up to ~0.5keV in the sw (11.604525 MK)
+            limits[1] = 20
+            if ind_src=='sw':
+                limits[1] = 5
+
+        elif ind_var.startswith('S_'):
+            limits[0] = -100
+            if ind_var.startswith('S_perp'):
+                limits[0] = -150
+            if ind_src=='msh':
+                limits[0] = -600
+
+        elif ind_var.startswith('M_A'):
+            limits[1] = 50
+
+        elif ind_var.startswith('beta'):
+            limits[1] = 30
+
+    return limits
+
+
 
 def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
 

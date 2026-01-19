@@ -1,8 +1,11 @@
 import os
 import glob
 
+from collections import defaultdict
+
 from datetime import datetime
 from .utils import create_directory
+from ..config import get_proc_directory
 
 def create_log_file(log_file_path):
 
@@ -67,3 +70,46 @@ def get_cdf_file(directory, filename=None):
 
     return cdf_files[0]
 
+def get_file_keys(spacecraft, data, raw_res='raw'):
+    file_keys = {}
+    data_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
+    pattern = os.path.join(data_dir, '*.cdf')
+
+    for cdf_file in sorted(glob.glob(pattern)):
+        file_name = os.path.splitext(os.path.basename(cdf_file))[0]
+        key = file_name.split('_')[-1] # splitext removes the extension
+        file_keys[key] = file_name
+
+    return file_keys
+
+def refactor_keys(keys_dict, new_grouping='yearly'):
+    if '-' in list(keys_dict.keys())[0]:
+        grouping = 'monthly'
+    else:
+        grouping = 'yearly'
+
+    if grouping==new_grouping:
+        return {k: [v] for k, v in keys_dict.items()}
+    elif grouping=='yearly' and new_grouping=='monthly':
+        print('Yearly to monthly not implemented.')
+        return {k: [v] for k, v in keys_dict.items()}
+
+    out = defaultdict(list) # if key doesn't exist, it's automatically created with the value type passed in, list here
+
+    for k, v in keys_dict.items():
+        year = k.split('-')[0]
+        out[int(year)].append(v)
+
+    out = {k: sorted(v) for k, v in sorted(out.items())}
+
+    return out
+
+def rename_files(directory, old_string, new_string):
+    for filename in os.listdir(directory):
+        if old_string not in filename:
+            continue
+
+        old_path = os.path.join(directory, filename)
+        new_filename = filename.replace(old_string, new_string)
+        new_path = os.path.join(directory, new_filename)
+        os.rename(old_path, new_path)

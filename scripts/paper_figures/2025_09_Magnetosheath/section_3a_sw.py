@@ -11,7 +11,7 @@ Showing saturation present with in-situ, so not due to OMNI (solely)
 from src.processing.reading import import_processed_data
 from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses, plot_different_lags, plot_pulkkinen_grid
 from src.methods.magnetosheath_saturation.merge_region_sc import update_omni
-from src.methods.magnetosheath_saturation.sc_delay_time import add_dynamic_index_lag
+from src.methods.magnetosheath_saturation.sc_delay_time import shift_sc_to_bs
 
 sample_interval = '5min'
 data_pop = 'with_plasma'
@@ -25,7 +25,8 @@ spacecraft = 'combined'
 
 df_sc = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{spacecraft}')
 df_pc = import_processed_data('indices', file_name=f'combined_{sample_interval}')
-add_dynamic_index_lag(df_sc, df_pc)
+
+df_sc = shift_sc_to_bs(df_sc, sample_interval)
 
 
 # %% Params
@@ -46,23 +47,11 @@ sc_index_map = {name: f'{name}_adj' for name in ('AE_53m','PCN_17m','PCC_17m','S
 
 # %% Verify
 
-### TEMP
-
-import numpy as np
-df_sc.loc[(df_sc['T_tot']>2e8)&(df_sc[f'sc_{region}']=='c1'),'T_tot'] = np.nan
-
-
-from scipy.constants import k as kB, e
-
-df_sc.loc[(df_sc[f'sc_{region}']=='mms1'),'T_tot'] *= (e / kB)
-
-###
-
-params = ('E_mag','E_y_GSM','B_avg','B_z_GSM','beta','N_tot','V_flow','P_flow','B_clock','T_tot')
-
+params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot','P_flow','T_tot')
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='scatter')
-plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)
 
+params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot')
+plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)
 
 
 # %% Papers

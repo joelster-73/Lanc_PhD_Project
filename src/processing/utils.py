@@ -21,7 +21,7 @@ UNIT_MAP = {
     r'(theta|phi|alpha|pitch|clock|cone|angle)': 'rad',
     r'^(Nx|Ny|Nz|M_|Beta_|beta)': '1',
     r'(ratio|coeff|beta,r_F)': '1',
-    r'(mode|quality|_num)': 'NUM',
+    r'(mode|quality|_num|flag|B_flag)': 'NUM',
     r'_time$': 'datetime',
     r'^(N_|ni|np|n_i|n_p)': 'n/cc',
     r'(unc_s|_delay|_s|_duration)$': 's',

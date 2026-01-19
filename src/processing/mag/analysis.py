@@ -13,7 +13,7 @@ from src.processing.mag.plotting import plot_magnetometer_overview
 
 from datetime import datetime
 
-omni = import_processed_data('omni', resolution='1min')
+omni = import_processed_data('omni', resolution='1min', year=2005)
 omni = omni.shift(freq='17min')
 
 THL      = import_processed_data('supermag', dtype='THL', resolution='gsm')

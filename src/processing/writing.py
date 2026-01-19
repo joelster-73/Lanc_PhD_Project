@@ -5,15 +5,16 @@ Created on Thu May  8 18:08:31 2025
 @author: richarj2
 """
 import os
-import re
 import numpy as np
+import pandas as pd
+
 from spacepy import pycdf
 
 from .utils import datetime_to_cdf_epoch, add_unit, create_directory
 from .handling import get_processed_files
 from .reading import import_processed_data
 from .dataframes import resample_data, add_df_units
-from ..config import R_E
+from ..config import R_E, get_proc_directory
 
 
 def write_to_cdf(df, output_file=None, directory=None, file_name=None, attributes=None, overwrite=True, append_rows=False, update_column=False, reset_index=False):
@@ -147,57 +148,52 @@ def update_cdf_attributes(directory, new_values, add=True):
 
     print('Attribute update complete.')
 
+def resample_cdf_files(spacecraft, data, raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, qual_func=None, files_by_keys={}):
+    """
+    Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
+    """
+    ###----------SET UP----------###
+    print('Resampling.')
 
-def resample_cdf_files(directory, sample_interval='1min', yearly_files=False, year=None):
+    save_directories = {}
 
-    parent = os.path.dirname(directory)
-    samp_dir = os.path.join(parent, sample_interval) # output
-    create_directory(samp_dir)
+    for sample_interval in sample_intervals:
+        save_directory = get_proc_directory(spacecraft, dtype=data, resolution=sample_interval, create=True)
+        create_directory(save_directory)
+        save_directories[sample_interval] = save_directory
 
-    cdf_files = get_processed_files(directory)
+    ###----------PROCESS----------###
+    for key, files in files_by_keys.items():
 
-    if not yearly_files:
-        raw_df = import_processed_data(directory)
-        time_col = raw_df.attrs.get('global',{}).get('time_col','epoch')
-
-    print(f'Resampling to {sample_interval} resolution.')
-
-    if year is not None:
-        year_range = (year,)
-    else:
-        year_range = [int(re.search(r'\d{4}', f).group()) for f in os.listdir(directory) if re.search(r'\d{4}', f)]
-
-    for year in year_range:
-
-        print(f'Processing {year} data.')
-
-        if yearly_files:
-            try:
-                yearly_df = import_processed_data(directory,year=year)
-            except:
-                print(f'No {year} data.\n')
-                continue
-
-            time_col = yearly_df.attrs.get('global',{}).get('time_col','epoch')
-
-        else:
-            year_mask = raw_df.index.year==year
-            if np.sum(year_mask)==0:
-                print(f'No {year} data.\n')
-                continue
-
-            yearly_df = raw_df.loc[year_mask]
-
-        file_name = next((os.path.basename(f) for f in cdf_files if f'_{year}' in os.path.basename(f)),None)
-        if file_name is None:
+        ############ TEMPORARY ##########
+        year, month = key.split('-')
+        if int(year)<2018:
+            print(f'Skipping {key} - REMOVE TEMP')
+            continue
+        elif int(year)==2018 and int(month)<7:
+            print(f'Skipping {key} - REMOVE TEMP')
             continue
 
-        # resample and write to file
-        sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
-        add_df_units(sampled_df)
+        print(f'Updating {key}.')
+        yearly_list = []
 
-        output_file = os.path.join(samp_dir, file_name)
-        attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
-        print(f'{year} processed.\n')
-        write_to_cdf(sampled_df, output_file, attributes, overwrite=True, reset_index=True)
+        for file in files:
+            df = import_processed_data(spacecraft, dtype=data, resolution=raw_res, file_name=file)
+            yearly_list.append(df)
+
+        dir_name = '_'.join(files[0].split('_')[:-1])
+
+        yearly_df = pd.concat(yearly_list) # don't set ignore_index to True
+        yearly_df.drop(columns=[c for c in yearly_df.columns if c.endswith('_unc')],inplace=True) # measurement error << statistical uncertainty
+        add_df_units(yearly_df)
+
+        if qual_func: # filter quality etc
+            yearly_df = qual_func(yearly_df)
+
+        for sample_interval, samp_dir in save_directories.items():
+
+            sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval, drop_nans=False)
+
+            attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
+            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{key}', attributes=attributes, overwrite=overwrite, reset_index=True)
 

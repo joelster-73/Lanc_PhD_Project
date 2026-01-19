@@ -20,7 +20,7 @@ from .config import ION_MASS_DICT, ION_SPECIES, VARIABLES_DICT
 
 from ..handling import log_missing_file
 from ..dataframes import add_df_units
-from ..process import process_overlapping_files
+from ..process import process_overlapping_files, format_extracted_vector, resample_files
 
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_luna_directory
@@ -67,7 +67,7 @@ def process_mms_files(spacecraft, data, sample_intervals=('raw',), year=None, **
 
     kwargs['resolutions'] = {'spin' : '3s', '5vps': '0.2s'}
 
-    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, filt_func=filtering, **kwargs)
+    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filtering, **kwargs)
 
 def get_mms_files_year(directory=None, year=None):
     """
@@ -159,29 +159,7 @@ def extract_mms_data(cdf_file, variables):
 
             ###-----------CHECKING LENGTHS----------###
 
-            if data.ndim == 2 and data.shape[1] == 4:  # Assuming a 2D array for vector mag and components
-
-                suffix = 'avg' # For consistency with other spacecraft
-                if var_name == 'r_gse':
-                    data /= R_E  # Scales distances to multiples of Earth radii
-                    suffix = 'mag'
-
-                if '_gse' in var_name:
-                    coords = 'GSE'
-                elif '_gsm' in var_name:
-                    coords = 'GSM'
-                else:
-                    raise Exception(f'Coord system of variable not implemented: {var_name}.')
-                field = var_name.split('_')[0]
-
-                if f'{field}_{suffix}' not in data_dict: # stops redundant write
-                    data_dict[f'{field}_{suffix}']   = data[:, 3]
-
-                data_dict[f'{field}_x_{coords}'] = data[:, 0]
-                data_dict[f'{field}_y_{coords}'] = data[:, 1]
-                data_dict[f'{field}_z_{coords}'] = data[:, 2]
-
-            elif data.ndim == 2 and data.shape[1] == 3:  # Assuming a 2D array for vector components
+            if data.ndim == 2:
 
                 if '_gse' in var_name:
                     coords = 'GSE'
@@ -190,35 +168,29 @@ def extract_mms_data(cdf_file, variables):
                 else:
                     raise Exception(f'Coord system of variable not implemented: {var_name}.')
 
-                if 'hpca' in var_code:
-                    field = var_name.split('_')[0]
-                    ion   = var_name.split('_')[-1]
+                field  = var_name.split('_')[0]
+                suffix = ''
 
-                    if coords=='GSE' or f'{field}_x_GSE_{ion}' not in data_dict: # doesn't add X_GSM
-                        data_dict[f'{field}_x_{coords}_{ion}'] = data[:, 0]
+                if data.shape[1] == 4: # Assuming a 2D array for vector components and mag
 
-                    data_dict[f'{field}_y_{coords}_{ion}'] = data[:, 1]
-                    data_dict[f'{field}_z_{coords}_{ion}'] = data[:, 2]
+                    fourD = True
 
-                    if f'{field}_mag_{ion}' not in data_dict:
-                        data_dict[f'{field}_mag_{ion}'] = np.linalg.norm(data,axis=1)
+                    if var_name.startswith('r_'):
+                        data /= R_E  # Scales distances to multiples of Earth radii
 
-                elif 'dis' in var_code:
-                    field = var_name.split('_')[0]
-                    rest_name = '_'.join(var_name.split('_')[2:]) # The [1] component is coordinates
-                    if rest_name=='':
-                        suffix = ''
-                    else:
-                        suffix = f'_{rest_name}'
+                elif data.shape[1] == 3:  # Assuming a 2D array for vector components
 
-                    if coords=='GSE' or f'{field}_x_GSE{suffix}' not in data_dict: # doesn't add X_GSM
-                        data_dict[f'{field}_x_{coords}{suffix}'] = data[:, 0]
+                    fourD = False
 
-                    data_dict[f'{field}_y_{coords}{suffix}'] = data[:, 1]
-                    data_dict[f'{field}_z_{coords}{suffix}'] = data[:, 2]
+                    if 'hpca' in var_code:
+                        suffix = var_name.split('_')[-1] # ion species
 
-                    if f'{field}_mag{suffix}' not in data_dict:
-                        data_dict[f'{field}_mag{suffix}'] = np.linalg.norm(data,axis=1)
+                    elif 'dis' in var_code:
+                        rest_name = '_'.join(var_name.split('_')[2:]) # The [1] component is coordinates
+                        if rest_name!='':
+                            suffix = rest_name
+
+                format_extracted_vector(data_dict, data, field, coords, suffix, fourD)
 
             elif data.ndim == 3 and data.shape[1:] == (3, 3):  # Assuming a 3D array for tensor components
                 # Compute 1/3 * trace for each time step
@@ -271,8 +243,12 @@ def process_mms_fgm(variables, files, directory_name, log_file_path, time_col='e
         print('No data.')
         return pd.DataFrame()
 
+    # GSM angles
     field_df = pd.concat(field_list, ignore_index=True)
-    gsm      = calc_B_GSM_angles(field_df, time_col=time_col)
+    add_df_units(field_df)
+
+    # GSM angles
+    gsm      = calc_B_GSM_angles(field_df, time_col=time_col).drop(columns=['B_mag'])
     field_df = pd.concat([field_df, gsm], axis=1)
     add_df_units(field_df)
 
@@ -462,9 +438,10 @@ def process_hpca_data(field_df, plasma_df):
 
 def update_fpi_data(field_df, plasma_df):
     """
-    Once the plasma data has been extracted from the raw moments files
-    This function convert the coordinates and calculate other parameters
-    Will work on monthly files, and then resample afterwards
+    To be used as init_func() in processing/updating/update_plasma_data()
+    Merges the field and plasma dataframes so quantities such as E can be calculated
+    It drops any low-quality data, and renames columns as appropriate
+    Then parent function then drops the field columns
     """
 
     ###----------CLEAN UP RAW DATA----------###
@@ -485,6 +462,11 @@ def update_fpi_data(field_df, plasma_df):
     return merged_df
 
 
+"""
+There is no filt_func(region) for MMS
+"""
+
+
 def filter_quality(df, column='flag'):
 
     good_quality = 0 # good data
@@ -492,6 +474,8 @@ def filter_quality(df, column='flag'):
     if column not in df:
         print(f'No "{column}" column.')
         return df
+    else:
+        print(f'Filtering quality: {column}.')
 
     # solar wind flag
     mask = (df[column].fillna(-2) == good_quality)
@@ -501,3 +485,20 @@ def filter_quality(df, column='flag'):
     filtered_df.attrs = df.attrs
 
     return filtered_df
+
+# %% Resample
+
+def resample_mms_files(spacecraft, data, raw_res='spin', new_grouping='yearly', **kwargs):
+    """
+    Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
+    """
+
+    def filter_mms_fgm(df):
+        return filter_quality(df, column='B_flag')
+    def filter_mms_fpi(df):
+        return filter_quality(df, column='flag')
+
+    QUAL_FUNCTIONS = {'fgm': filter_mms_fgm, 'fpi': filter_mms_fpi}
+    kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
+
+    resample_files(spacecraft, data, raw_res=raw_res, new_grouping=new_grouping, **kwargs)
