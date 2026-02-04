@@ -6,6 +6,8 @@ Created on Thu Nov  6 17:19:46 2025
 """
 import numpy as np
 import pandas as pd
+import warnings
+
 
 from ...config import R_E
 from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles
@@ -63,14 +65,14 @@ def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60):
     df_sc.index -= pd.to_timedelta(df_sc['prop_time_s'], unit='s')
     df_sc        = df_sc.infer_objects(copy=False)
 
-    idx_min  = df_sc.index.floor(sample_interval)
-    dup_mask = idx_min.duplicated(keep=False)
+    df_sc.index = df_sc.index.floor(sample_interval)
+    dup_mask = df_sc.index.duplicated(keep=False)
 
     if np.sum(dup_mask)==0:
         print('No duplicate indices.')
 
     else:
-        df_duplicates = df_sc.loc[dup_mask].assign(index_minute=idx_min[dup_mask])
+        df_duplicates = df_sc.loc[dup_mask]
 
         df_resampled = resample_data_weighted(df_duplicates, time_col='index', sample_interval=sample_interval)
 
@@ -88,6 +90,13 @@ def add_dynamic_index_lag(df_sc, df_pc, indices=lagged_indices):
     And also accounts for the position of the spacecraft relative to the bow shock.
     So comparing df_sc[t] and df_pc[t] is the appropriate driver-response.
     """
+
+    warnings.warn(
+        'add_dynamic_index_lag() is deprecated and will be removed in v2.0. '
+        'Use shift_sc_to_bs() instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     overlap = df_sc.index.intersection(df_pc.index)
     dt_variable = pd.to_timedelta(df_sc.loc[overlap, 'prop_time_s'], unit='s')

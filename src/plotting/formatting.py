@@ -85,7 +85,10 @@ def format_string(s):
     # do something similar for avg and put it under a bar
 
     if 'mag' in s or 'avg' in s:
-        s = f'|{s[0]}|' + s[5:]
+        parts = s.split('_')
+        s = f'|{parts[0]}|'
+        if len(parts)>2:
+            s += '_' + '_'.join(parts[2:])
 
     #s = s.replace('r_rho', r'\\rho')
     s = s.replace('r_rho', r'\sqrt{Y^2+Z^2}')

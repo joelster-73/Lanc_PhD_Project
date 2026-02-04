@@ -36,7 +36,10 @@ def def_param_names(df, variable, source=None):
             var_count   = 'imf_counts'
 
     elif '_GS' in variable:
-        field, _, coords = variable.split('_')
+        parts = variable.split('_')
+        field = parts[0]
+        coords = parts[2]
+
         var_count = '_'.join((field,coords,'count'))
 
     else:
@@ -50,70 +53,77 @@ def def_param_names(df, variable, source=None):
 
     return var_err, var_count
 
-def ind_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
+def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
 
     invert = False
 
-    if ind_var.startswith('AA'):
-        bin_width = 20
+    if ind_var.startswith('B_') and not ind_var.startswith(('B_avg', 'B_para','B_y')):
+        invert = True
 
-    elif ind_var.startswith(('PCN','PCC')):
-        bin_width = 0.5
+    elif ind_var.startswith('V_') and not ind_var.startswith('V_flow'):
+        invert = True
 
-    elif ind_var.startswith(('SME','AE')):
-        bin_width = 50
+    bin_width = get_var_bin_width(ind_var, restrict)
 
-    elif ind_var.startswith('B_'):
-
-        if ind_var.startswith(('B_avg', 'B_para','B_y')):
-            bin_width = 1 if restrict else 2
-
-        else:
-            invert = True
-
-            if ind_var=='B_clock':
-                bin_width = np.pi/18
-            else:
-                bin_width = 2 if restrict else 5
-
-    elif ind_var.startswith('V_'):
-
-        if ind_var.startswith('V_A'):
-            bin_width = 10 if restrict else 20
-        else:
-            if not ind_var.startswith('V_flow'):
-                invert = True
-            bin_width = 50
-
-    elif ind_var.startswith('E_'):
-        bin_width = 1 if restrict else 2
-
-    elif ind_var.startswith('N_'):
-        bin_width = 5 if restrict else 10
-
-    elif ind_var.startswith('P_'):
-        bin_width = 1 if restrict else 5
-
-    elif ind_var.startswith('T_'):
-        bin_width = 0.1 if restrict else 0.5
-
-    elif ind_var.startswith('S_'):
-        bin_width = 5 if restrict or ind_var.startswith('S_perp') else 10
-
-    elif ind_var.startswith('M_A'):
-        bin_width = 5
-
-    elif ind_var.startswith('beta'):
-        bin_width = 1
-
-    else:
-        raise ValueError(f'"{ind_var} not implemented.')
-
-    limits = var_limits(ind_var, ind_src, dep_var, restrict, bounds, shift_centre)
+    limits = get_var_limits(ind_var, ind_src, dep_var, restrict, bounds, shift_centre)
 
     return bin_width, limits, invert
 
-def var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
+def get_var_bin_width(var, restrict):
+
+    if var.startswith('AA'):
+        bin_width = 20
+
+    elif var.startswith(('PCN','PCC')):
+        bin_width = 0.5
+
+    elif var.startswith(('SME','AE','SMC')):
+        bin_width = 50
+
+    elif var.startswith('B_'):
+
+        if var.startswith(('B_avg', 'B_para','B_y')):
+            bin_width = 1 if restrict else 2
+        elif var=='B_clock':
+            bin_width = np.pi/18
+        else:
+            bin_width = 2 if restrict else 5
+
+    elif var.startswith('V_'):
+
+        if var.startswith('V_A'):
+            bin_width = 10 if restrict else 20
+        else:
+            bin_width = 50
+
+    elif var.startswith(('E_','Ey')):
+        bin_width = 1 if restrict else 2
+
+    elif var.startswith('N_'):
+        bin_width = 5 if restrict else 10
+
+    elif var.startswith('P_'):
+        bin_width = 1 if restrict else 5
+
+    elif var.startswith('T_'):
+        bin_width = 0.1 if restrict else 0.5
+
+    elif var.startswith('S_'):
+        bin_width = 5 if restrict or var.startswith('S_perp') else 10
+
+    elif var.startswith('M_A'):
+        bin_width = 5
+
+    elif var.startswith('beta'):
+        bin_width = 1
+
+    else:
+        raise ValueError(f'"{var} not implemented.')
+
+    return bin_width
+
+
+def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
 
     shift_centre = shift_centre and ind_var.startswith('B_clock')
     restrict     = restrict and not ind_var.startswith('B_clock')
@@ -139,13 +149,16 @@ def var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift
             limits[1] = 400
 
         elif ind_var.startswith(('PCN','PCC')):
-            limits[1] = 20
+            limits[1] = 24
 
         elif ind_var.startswith('SME'):
             limits[1] = 2200
 
         elif ind_var.startswith('AE'):
             limits[1] = 1800
+
+        elif ind_var.startswith('SMC'):
+            limits[1] = 1000
 
         elif ind_var.startswith('B_'):
 
@@ -193,10 +206,10 @@ def var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift
             limits[1] = 10
 
         elif ind_var.startswith('T_'): # MK
-            # Up to ~0.5keV in the sw (11.604525 MK)
-            limits[1] = 20
-            if ind_src=='sw':
-                limits[1] = 5
+            # Up to ~0.2keV in the sw (1eV = 11.604525 MK)
+            limits[1] = 5
+            if ind_src in ('sw','omni'):
+                limits[1] = 2
 
         elif ind_var.startswith('S_'):
             limits[0] = -100
@@ -341,3 +354,19 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
                 z_labels.append(f'${grp_string}$={edge:.1f}{z_unit_str}')
 
     return edges, bin_width, grp_label, z_labels, used_median
+
+def get_lagged_columns(df, dep, skip_zero=False):
+
+    dep_vars = {}
+    for col in df.columns:
+        if col==dep:
+            if not skip_zero:
+                dep_vars[0] = col
+
+        elif col.startswith(dep) and '_' in col:
+            name = '_'.join(col.split('_')[:-1])
+            if name==dep:
+                lag = col.split('_')[-1][:2]
+                dep_vars[int(lag)] = col
+
+    return dep_vars

@@ -63,9 +63,8 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
     func = fit_dict['func']
     popt = [v.n for v in fit_dict['params'].values()]
     param_dict = fit_dict['params']
-    R2 = fit_dict['R2']
 
-    if R2 < 0:
+    if fit_dict['R2'] < 0:
         print(f'Fitting failed; popt: {popt}.')
         return fit_dict
 
@@ -92,8 +91,10 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
 
         ax.plot(x_vals, y_vals, c=colour, ls=ls, lw=lw)
 
+    label = get_plot_label(fit_type)
+
     if fit_type in ('bimodal','bimodal_offset'):
-        label1, label2 = bimodal_label(param_dict,inc_errs,unit)
+        label1, label2 = format_label(label[0], param_dict, inc_errs, unit), format_label(label[1], param_dict, inc_errs, unit)
 
         if as_text and orientation=='vertical':
             text = label1.replace('\n',', ') + '\n' + label2.replace('\n',', ')
@@ -106,25 +107,14 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
             ax.plot([],[],' ',label=label2)
 
     else:
-        if fit_type=='gaussian':
-            label = gaussian_label(param_dict,inc_errs,unit)
-        elif fit_type=='lognormal':
-            label = lognormal_label(param_dict,inc_errs,unit)
-        elif fit_type=='straight' and as_text:
-            label = straight_label(param_dict,inc_errs,unit,R2)
-        elif fit_type=='straight' and not as_text:
-            try:
-                xunit = xs.attrs.get('units',{}).get(xs.name,'')
-            except:
-                xunit = kwargs.get('unit','')
-            if xunit=='1':
-                xunit = ''
-            label = straight_label_params(param_dict,inc_errs,unit,xunit,R2)
-        else:
-            label = None
+        statistics = {'chi2': fit_dict['chi2']}
+        if fit_type=='straight':
+            statistics['R2'] = fit_dict['R2']
+
+        label = format_label(label, param_dict, inc_errs, unit, **statistics)
 
         if as_text:
-            ax.text(0.5, 0.975, label, ha='center', va='top', transform=ax.transAxes)
+            ax.text(0.5, 0.975, label, color=colour, ha='center', va='top', transform=ax.transAxes)
         else:
             ax.plot([],[],' ',label=label)
 
@@ -614,139 +604,108 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
     add_legend(fig, ax, legend_on=want_legend)
 
 # %% Labels
-def straight_label_params(param_dict, detailed=True, unity='', unitx='', R2=''):
 
-    labels = param_dict.copy()
-    labels['R2'] = R2
+def format_label(equation, param_dict, detailed=True, unit='', **statistics):
 
-    strings = []
+    params = {}
 
-    for key, value in labels.items():
-        if value=='' or value is None:
+    for key, value in param_dict.items():
+        if value in ('', None):
             continue
 
-        if unity in ('rad','deg','°'):
-            value = np.degrees(value)
+        if unit =='rad':
+            value *= (180 / np.pi)
+            unit = '°'
 
-        if detailed:
-            try:
-                val = f'${value:L}$'
-            except:
-                val = f'{value:.3g}'
+        if detailed and isinstance(value, UFloat):
+            params[key] = f'(${value:L}$)'
         elif isinstance(value, UFloat):
-            val = f'{value.n:.3g}'
+            params[key] = f'{value.n:.4g}'
         else:
-            val = f'{value:.3g}'
+            params[key] = f'{value:.4g}'
 
-        if key=='m':
-            if unity==unitx:
-                strings.append(f'$m$: {val}')
+    equation = equation.format(**params, unit=unit)
+
+    if detailed:
+        stats = []
+
+        for key, value in statistics.items():
+            if key=='R2':
+                label = r'$R^2$'
+            elif key=='chi2':
+                label = r'$\chi^2_\nu$'
             else:
-                strings.append(f'$m$: {val} {unity} {unitx}${-1}$')
-        elif key=='c':
-            strings.append(f'$c$: {val} {unity}')
-        elif key=='R2':
-            strings.append(f'$R^2$: {val}')
+                label = key
+            stats.append(f'{label}: {value:.4g}')
 
-    return '\n'.join(strings)
+        if len(stats)>0:
+            equation += '\n' + ', '.join(stats)
 
+    return equation
 
-def straight_label(param_dict, detailed=True, unit='', R2=''):
+def get_plot_label(fit_type):
 
-    labels = param_dict.copy()
-    labels['R2'] = R2
+    if fit_type in ('gaussian','lognormal'):
+        return gaussian_params()
 
-    strings = []
+    elif fit_type in ('bimodal','bimodal_offset'):
+        return bimodal_params()
 
-    for key, value in labels.items():
-        if value=='' or value is None:
-            continue
+    elif fit_type=='saturation':
+        return saturation_equation()
 
-        if key=='c':
-            if value<0:
-                sign = '-'
-            else:
-                sign = '+'
-            value = np.abs(value)
+    elif fit_type=='straight':
+        return straight_equation()
 
-        if unit in ('rad','deg','°'):
-            value *= 180 / np.pi
+    elif fit_type=='linear_flat':
+        return linear_flat_equation()
 
-        if detailed:
-            try:
-                val = f'${value:L}$'
-            except:
-                val = f'{value:.3g}'
-        elif isinstance(value, UFloat):
-            val = f'{value.n:.3g}'
-        else:
-            val = f'{value:.3g}'
+    return None
 
-        if key=='m':
-            strings.append(f'$y=({val})\\cdot x')
-        elif key=='c':
-            strings.append(f'{sign} ({val})$ {unit}')
-        elif key=='R2':
-            strings.append(f'\n$R^2$: {val}')
+def straight_equation():
+    # y = a + bx
+    return r"$y = {c} + {m} \cdot x\ \mathrm{{{unit}}}$"
 
-    return ' '.join(strings)
+def straight_params():
+    # y = a + bx
+    return (
+        r"$a = {c}\ \mathrm{{{unit}}}$"
+        "\n"
+        r"$b = {m}$"
+    )
 
+def saturation_equation():
+    # Vmax * x / (K + x)
+    return r"$y = ({V_max} \cdot x) / ({K} + x)\ \mathrm{{{unit}}}$"
 
+def linear_flat_equation():
+    # y = (y_b / x_b) * x     for x <= x_b
+    # y = y_b                 for x >  x_b
+    return (
+        r"$y = ({y_b} / {x_b}) \cdot x\ \mathrm{{{unit}}}"
+        r"\quad x \leq {x_b}$"
+        "\n"
+        r"$y = {y_b}\ \mathrm{{{unit}}}"
+        r"\quad x > {x_b}$"
+    )
 
-def gaussian_label(param_dict, detailed=True, unit=''):
+def gaussian_params():
+    return (
+        r"$\mu = {mu}\ \mathrm{{{unit}}}$"
+        "\n"
+        r"$\sigma = {sigma}\ \mathrm{{{unit}}}$"
+    )
 
-    mu  = param_dict['mu']
-    std = param_dict['sigma']
-
-    if detailed:
-        try:
-            return f'$\\mu$: ${mu:L}$ {unit}\n$\\sigma$: ${std:L}$ {unit}'
-        except:
-            return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
-
-    mu = mu.n if isinstance(mu, UFloat) else mu
-    std = std.n if isinstance(std, UFloat) else std
-
-    return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
-
-def bimodal_label(param_dict, detailed=True, unit=''):
-
-    mu1  = param_dict['mu1']
-    std1 = param_dict['sigma1']
-    mu2  = param_dict['mu2']
-    std2 = param_dict['sigma2']
-
-    if detailed:
-        try:
-            label1=f'$\\mu_1$: ${mu1:L}$ {unit}\n$\\sigma_1$: ${std1:L}$ {unit}'
-            label2=f'$\\mu_2$: ${mu2:L}$ {unit}\n$\\sigma_2$: ${std2:L}$ {unit}'
-        except:
-            label1=f'$\\mu_1$ = {mu1:.3g} {unit}\n$\\sigma_1$ = {std1:.3g} {unit}'
-            label2=f'$\\mu_2$ = {mu2:.3g} {unit}\n$\\sigma_2$ = {std2:.3g} {unit}'
-    else:
-        mu1 = mu1.n if isinstance(mu1, UFloat) else mu1
-        std1 = std1.n if isinstance(std1, UFloat) else std1
-
-        mu2 = mu2.n if isinstance(mu2, UFloat) else mu2
-        std2 = std2.n if isinstance(std2, UFloat) else std2
-
-        label1=f'$\\mu_1$ = {mu1:.3g} {unit}\n$\\sigma_1$ = {std1:.3g} {unit}'
-        label2=f'$\\mu_2$ = {mu2:.3g} {unit}\n$\\sigma_2$ = {std2:.3g} {unit}'
-
-    return label1, label2
-
-def lognormal_label(param_dict, detailed=True, unit=''):
-
-    mu  = param_dict['mu']
-    std = param_dict['sigma']
-
-    if detailed:
-        try:
-            return f'$\\mu$: ${mu:L}$ {unit}\n$\\sigma$: ${std:L}$ {unit}'
-        except:
-            return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
-
-    mu = mu.n if isinstance(mu, UFloat) else mu
-    std = std.n if isinstance(std, UFloat) else std
-
-    return f'$\\mu$ = {mu:.3g} {unit}\n$\\sigma$ = {std:.3g} {unit}'
+def bimodal_params():
+    return (
+        (
+            r"$\mu_1 = {mu1:L}\ \mathrm{{{unit}}}$"
+            "\n"
+            r"$\sigma_1 = {std1:L}\ \mathrm{{{unit}}}$"
+        ),
+        (
+            r"$\mu_2 = {mu2:L}\ \mathrm{{{unit}}}$"
+            "\n"
+            r"$\sigma_2 = {std2:L}\ \mathrm{{{unit}}}$"
+        )
+    )

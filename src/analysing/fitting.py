@@ -14,8 +14,37 @@ from scipy.signal import find_peaks
 from uncertainties import ufloat, umath
 
 
-def fit_function(xs, ys, print_text=False, **kwargs):
+# %% Wrapper
 
+
+def fit_series(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
+
+    if df2 is None:
+        df2 = df1
+
+    series1 = df1.loc[:,col1]
+    series2 = df2.loc[:,col2]
+
+    kwargs['xunit'] = series1.attrs.get('units',{}).get(col1,'')
+    kwargs['yunit'] = series2.attrs.get('units',{}).get(col2,'')
+
+    if col1_err is not None:
+        kwargs['xs_unc'] = df1.loc[:,col1_err]
+
+    if col2_err is not None:
+        kwargs['ys_unc'] = df2.loc[:,col2_err]
+
+    if col1_counts is not None:
+        kwargs['xs_counts'] = df1.loc[:,col1_counts]
+
+    if col2_counts is not None:
+        kwargs['ys_counts'] = df2.loc[:,col2_counts]
+
+    return fit_function(series1, series2, **kwargs)
+
+# %% Routines
+
+def fit_function(xs, ys, print_text=False, **kwargs):
 
     if len(xs)==0:
         print('xs is empty')
@@ -36,42 +65,45 @@ def fit_function(xs, ys, print_text=False, **kwargs):
 
     fit_type = kwargs.get('fit_type','straight')
 
-
     fit_dict = {}
 
-    if fit_type=='straight':
-        fit_func = straight_best_fit
-        func = straight_line
+    FIT_MAP = {
+        'straight':       {'fit_func': straight_best_fit,    'func': straight_line},
+        'saturation':     {'fit_func': saturation_fit,       'func': saturation},
+        'gaussian':       {'fit_func': gaussian_fit,         'func': gaussian},
+        'bimodal':        {'fit_func': bimodal_fit,          'func': bimodal},
+        'bimodal_offset': {'fit_func': bimodal_fit_offset,   'func': bimodal_offset},
+        'lognormal':      {'fit_func': lognormal_fit,        'func': lognormal},
+        'linear_flat':    {'fit_func': linear_flat_fit,      'func': linear_flat},
+    }
 
-    elif fit_type=='gaussian':
-        fit_func = gaussian_fit
-        func = gaussian
-
-    elif fit_type=='bimodal':
-        fit_func = bimodal_fit
-        func = bimodal
-
-    elif fit_type=='bimodal_offset':
-        fit_func = bimodal_fit_offset
-        func = bimodal_offset
-
-    elif fit_type=='lognormal':
-        fit_func = lognormal_fit
-        func = lognormal
-    else:
+    try:
+        fit_func = FIT_MAP[fit_type]['fit_func']
+        func     = FIT_MAP[fit_type]['func']
+    except KeyError:
         raise Exception(f'{fit_type} not valid fit type.')
 
-    popt, perr, plab = fit_func(xs, ys, **kwargs)
+
+    data_units = {}
+    data_units['xunit'] = kwargs.get('xunit','')
+    data_units['yunit'] = kwargs.get('yunit','')
+
+    # popt, perr, ('m', 'c'), (r'{yunit} {xunit}$^{-1}$', '{yunit}')
+    popt, perr, plab, punits = fit_func(xs, ys, **kwargs)
     params = {}
-    for lab, p, err in zip(plab, popt, perr):
+    units = {}
+
+    for lab, p, err, unit in zip(plab, popt, perr, punits):
         params[lab] = ufloat(p, err)
+        units[lab]  = unit.format(**data_units)
 
     fit_dict['params'] = params
+    fit_dict['units'] = units
     fit_dict['func'] = func
 
     y_fit = func(xs, *popt)
-    r_squared = r2_score(ys, y_fit)
-    fit_dict['R2'] = r_squared
+    fit_dict['R2'] = r2_score(ys, y_fit)
+    fit_dict['chi2'] = reduced_chi2(ys, y_fit, len(popt), kwargs.get('ys_unc',None))
 
     if fit_type == 'gaussian':
         peak_x = params['mu']
@@ -96,7 +128,8 @@ def fit_function(xs, ys, print_text=False, **kwargs):
         print('Best fit params for {fit_type} fit:')
         for key, value in params.items:
             print(f'{key}: ${value:L}$')
-        print(f'$R^2$; {r_squared:.3g}')
+        print(f'$R^2$; {fit_dict["R2"]:.3g}')
+        print(f'$\\chi^2_\\nu$; {fit_dict["chi2"]:.5g}')
 
     return fit_dict
 
@@ -127,9 +160,7 @@ def fit_with_errors(model_func, x, y, p0=None, bounds=(-np.inf, np.inf), yerr=No
 
         if yerr is None:
             # Scale covariance by reduced chi-square
-            residuals = y - model_func(x, *popt)
-            dof = len(y) - len(popt)
-            chi2_red = np.sum(residuals**2) / dof
+            chi2_red = reduced_chi2(y, model_func(x, *popt), len(popt))
             perr = np.sqrt(np.diag(pcov) * chi2_red)
         else:
             perr = np.sqrt(np.diag(pcov))
@@ -193,7 +224,65 @@ def straight_best_fit(x, y, **kwargs):
         p0 = (m0, c0)
 
     popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
-    return popt, perr, ('m', 'c') if not origin else ('m',)
+    if not origin:
+        return popt, perr, ('m', 'c'), (r'{yunit} ({xunit})$^{{-1}}$', '{yunit}')
+
+    return popt, perr, ('m',), (r'{yunit} ({xunit})$^{{-1}}$',)
+
+
+# %% Saturation
+def saturation(x, *params):
+    """
+    Michaelis–Menten saturation curve:
+        y = V_max * x / (K + x)
+    """
+    V_max, K = params
+    return V_max * x / (K + x)
+
+def saturation_fit(x, y, **kwargs):
+
+    yerr = kwargs.get('ys_unc', None)
+
+    def func(xt, V_max, K):
+        return V_max * xt / (K + xt)
+
+    # Initial guesses
+    V_max0 = np.max(y)
+    K0     = np.median(x)
+
+    p0 = (V_max0, K0)
+
+    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
+    return popt, perr, ('V_max', 'K'), ('{yunit}', '{xunit}')
+
+
+def linear_flat(x, *params):
+    """
+    Linear up to a breakpoint, then flat:
+        y = (y_b / x_b) * x          for x <= x_b
+        y = y_b                      for x >  x_b
+    """
+    y_b, x_b = params
+    slope = y_b / x_b
+    return np.where(x <= x_b, slope * x, y_b)
+
+
+def linear_flat_fit(x, y, **kwargs):
+
+    yerr = kwargs.get('ys_unc', None)
+
+    def func(xt, y_b, x_b):
+        slope = y_b / x_b
+        return np.where(xt <= x_b, slope * xt, y_b)
+
+    # Initial guesses
+    x_b0 = np.median(x)
+    y_b0 = np.interp(x_b0, x, y)
+
+    p0 = (y_b0, x_b0)
+
+    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
+    return popt, perr, ('y_b', 'x_b'), ('{yunit}', '{xunit}')
 
 
 # %% Gaussian
@@ -220,7 +309,7 @@ def gaussian_fit(x, y, **kwargs):
 
     # Perform the curve fitting
     popt, perr = fit_with_errors(gaussian, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
-    return popt, perr, ('A','mu','sigma')
+    return popt, perr, ('A','mu','sigma'), ('{yunit}', '{xunit}', '{xunit}')
 
 
 # %% Bimodal
@@ -268,7 +357,7 @@ def bimodal_fit(x, y, **kwargs):
 
     # Perform the curve fitting
     popt, perr = fit_with_errors(bimodal, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
-    return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2')
+    return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2'), ('{yunit}', '{xunit}', '{xunit}', '{yunit}', '{xunit}', '{xunit}')
 
 
 
@@ -304,7 +393,7 @@ def bimodal_fit_offset(x, y, **kwargs):
 
     # Perform the curve fitting
     popt, perr = fit_with_errors(bimodal_offset, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
-    return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c')
+    return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c'), ('{yunit}', '{xunit}', '{xunit}', '{yunit}', '{xunit}', '{xunit}', '{yunit}')
 
 
 # %% Lognormal
@@ -325,6 +414,7 @@ def lognormal_fit(x, y, **kwargs):
 
     # Perform the curve fitting
     popt, perr = fit_with_errors(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf), yerr=yerr)
-    return popt, perr, ('A', 'mu', 'sigma')
+    return popt, perr, ('A', 'mu', 'sigma'), ('{yunit}', '{xunit}', '{xunit}')
+
 
 

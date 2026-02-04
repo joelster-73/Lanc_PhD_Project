@@ -269,17 +269,22 @@ def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns
         unc_column = f'{column}_unc'
         count_column = f'{column}_count'
 
+        ### Consider using circular averaging instead for angles and vectors, currently simple mean
+
         if '_GS' in column:
             parts = column.split('_')
             count_column = '_'.join([parts[0], parts[2]]) + '_count'
         elif column=='r_mag':
             count_column = 'r_GSE_count'
 
-        ufloat_series = grouped.apply(lambda g: average_of_averages(g[column], series_uncs=g[unc_column], series_counts=g[count_column]), include_groups=False).to_numpy()
+        ufloat_series = grouped.apply(lambda g: average_of_averages(g[column], series_uncs=(g[unc_column] if unc_column in g else None), series_counts=(g[count_column] if count_column in g else None)), include_groups=False).to_numpy()
 
         aggregated_columns[column]       = unp.nominal_values(ufloat_series)
         aggregated_columns[unc_column]   = unp.std_devs(ufloat_series)
-        aggregated_columns[count_column] = grouped[count_column].sum().to_numpy()
+        if count_column in grouped:
+            aggregated_columns[count_column] = grouped[count_column].sum().to_numpy()
+        else:
+            aggregated_columns[count_column] = grouped.size().to_numpy()
 
     resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
     resampled_df.rename_axis('epoch', inplace=True)

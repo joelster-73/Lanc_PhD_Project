@@ -183,9 +183,11 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_sme = process_SME_data()
 
     # SuperMAG PolarCap
-    # Currently using magnitude of horizontal field as "index"
+    # Currently using magnitude of horizontal field and y-component as "index"
     # Will change eventually to field proected onto optimum direction
-    df_smp = import_processed_data('supermag', dtype='THL', resolution='gse')
+    df_THL = import_processed_data('supermag', dtype='THL', resolution='gsm')
+    THL_columns = ['H_mag','H_y_GSE','H_y_GSM']
+    THL_columns_new = ['SMC','SMC_y_GSE','SMC_y_GSM']
 
     # Extracts indices contained in OMNI - doesn't use any of the SW data
     df_pc  = import_processed_data('omni', resolution=sample_interval)
@@ -195,11 +197,17 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_pc['SME'] = df_sme['SME'].reindex(df_pc.index)
     df_pc['PCN'] = df_pcn['PCN'].reindex(df_pc.index)
     df_pc['PCC'] = df_pcc['PCC'].reindex(df_pc.index)
-    df_pc['SMP'] = df_smp['H_mag'].reindex(df_pc.index)
     df_pc['AA']  = df_aa['aa'].reindex(df_pc.index, method='ffill') # 3 hourly
+    df_pc[THL_columns_new] = df_THL[THL_columns].reindex(df_pc.index)
 
-    for ind, lags in indices.items():
-        if ind not in df_pc:
+    print(df_pc.columns)
+
+    print('Lagging...')
+
+    for ind in df_pc.columns:
+        lags = indices.get(ind,None)
+        if lags is None:
+            print(f'{ind} has no lag times.')
             continue
         print(ind,lags)
 
@@ -210,6 +218,10 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
             if (dt_lag % pd.Timedelta(sample_interval)) == pd.Timedelta(0):
                 new_data = df_pc[ind].shift(freq=dt_lag)
             else:
+
+                # Perhaps instead don't include?
+
+
                 print('Interpolating lag.')
                 target_index = df_pc.index + dt_lag
                 full_index = df_pc.index.union(target_index)

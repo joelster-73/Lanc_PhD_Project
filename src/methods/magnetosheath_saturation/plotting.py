@@ -6,6 +6,7 @@ Created on Mon Oct  6 10:55:08 2025
 """
 
 import numpy as np
+import itertools as it
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -13,12 +14,13 @@ import matplotlib.ticker as ticker
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 
-from .plotting_utils import minimum_counts, def_param_names, ind_variable_range, grp_param_splitting
+from .plotting_utils import minimum_counts, def_param_names, get_var_bin_width, get_variable_range, grp_param_splitting, get_lagged_columns
 
 from ...plotting.space_time import plot_orbit_msh
 from ...plotting.utils import save_figure, calculate_bins
-from ...plotting.formatting import create_label, add_legend, shifted_angle_ticks
+from ...plotting.formatting import create_label, add_legend, shifted_angle_ticks, format_string
 from ...plotting.comparing.parameter import compare_dataframes
+from ...plotting.relationships import plot_fit_params_against_z
 from ...plotting.config import black, blue, grey, pink, green
 
 
@@ -74,7 +76,7 @@ def plot_saturation_overview(df_sw, df_msh, df_pc, ind_var, dep_var, grp_var, in
 
     ###----------MASKS----------###
 
-    bin_width, limits, invert = ind_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds)
+    bin_width, limits, invert = get_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds)
 
     df_ind = mask_df(df_sw, ind_var, limits)
     df_dep = mask_df(df_pc, dep_var)
@@ -300,7 +302,7 @@ def plot_driver_response(df_sw, df_msh, df_pc, ind_var, dep_var, dep_src='pc', s
         ind_err, ind_count = def_param_names(df_ind, ind)
         dep_err, dep_count = def_param_names(df_dep, dep)
 
-        bin_width, limits, invert = ind_variable_range(ind, ind_src, dep_var=dep, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+        bin_width, limits, invert = get_variable_range(ind, ind_src, dep_var=dep, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
         if shift_centre:
             df_ind = shift_angular_data(df_ind, ind)
@@ -456,7 +458,7 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
             ind_err, ind_count = def_param_names(df, ind_var)
             dep_err, dep_count = def_param_names(df, dep_var)
 
-            bin_width, limits, invert = ind_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+            bin_width, limits, invert = get_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
             if shift_centre:
                 df = shift_angular_data(df, ind_var)
@@ -535,16 +537,16 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
     plt.show()
     plt.close()
 
-def plot_different_lags(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, restrict=True, data_type='counts', skip_zero=False, **kwargs):
+def plot_different_lags_saturation(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, restrict=True, skip_zero=False, **kwargs):
 
-    kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
+    kwargs['min_count'] = kwargs.get('min_count',minimum_counts['counts'])
     kwargs['display']   = kwargs.get('display','rolling')
     if kwargs['display']=='rolling':
         kwargs['region'] = kwargs.get('region','sem')
 
     ind_err, ind_count = def_param_names(df, ind_var)
 
-    bin_width, limits, invert = ind_variable_range(ind_var, ind_src, restrict=restrict, bounds=bounds)
+    bin_width, limits, invert = get_variable_range(ind_var, ind_src, restrict=restrict, bounds=bounds)
     kwargs['window_width'] = bin_width
 
     df_ind = mask_df(df, ind_var, limits)
@@ -588,6 +590,31 @@ def plot_different_lags(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, 
     add_legend(fig, ax)
     plt.tight_layout()
     save_figure(fig)
+    plt.show()
+    plt.close()
+
+def plot_different_lags_fits(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, restrict=True, skip_zero=True, **kwargs):
+
+    kwargs['fit_type'] = kwargs.get('fit_type','saturation')
+
+    ind_err, ind_count = def_param_names(df, ind_var)
+    dep_err, dep_count = def_param_names(df_pc, dep_var)
+
+    _, limits, _ = get_variable_range(ind_var, ind_src, restrict=restrict, bounds=bounds)
+
+    df_ind = mask_df(df, ind_var, limits)
+
+    dep_vars = get_lagged_columns(df_pc, dep_var, skip_zero)
+
+    fig, (ax, ax2) = plot_fit_params_against_z(df_ind, ind_var, dep_vars, df_dep=df_pc, col1_err=ind_err, col2_err=dep_err, col1_counts=ind_count, col2_counts=dep_count, **kwargs)
+    ax.set_xlabel('Lag [mins]')
+
+    ind_str = format_string(ind_var)
+    dep_str = format_string(dep_var)
+    ax.set_title(f'Fitting ${dep_str}$ against {ind_src.upper()} ${ind_str}$')
+
+    file_name = f'Fitting_{kwargs["fit_type"]}_of_{dep_var}_to_{ind_src}_{ind_var}_lags'
+    save_figure(fig, file_name=file_name, sub_directory='Comparing_Lags')
     plt.show()
     plt.close()
 
@@ -637,7 +664,7 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restr
         ind_err, ind_count = def_param_names(df_omni, independent)
         dep_err, dep_count = def_param_names(df_sc, dependent)
 
-        bin_width, limits, invert = ind_variable_range(independent, source, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+        bin_width, limits, invert = get_variable_range(independent, source, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
         # Shift angular data to centre lies at +-180 rather than 0
         if independent=='B_clock' and shift_centre:
@@ -678,6 +705,10 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restr
             shifted_angle_ticks(ax, 'x')
             shifted_angle_ticks(ax, 'y')
 
+        if independent.startswith('T_') and kwargs['display']!='heat':
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+
         if invert:
             ax.invert_xaxis()
             ax.invert_yaxis()
@@ -685,6 +716,234 @@ def plot_pulkkinen_grid(df_omni, df_sc, params, source='msh', bounds=None, restr
     axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
 
     plt.tight_layout()
-    save_figure(fig, file_name=f'OMNI_vs_{source}_sc_{kwargs.get("region","scatter")}', sub_directory='Pulkkinen')
+    save_figure(fig, file_name=f'OMNI_vs_{source}_sc_{kwargs["display"]}', sub_directory='Pulkkinen')
+    plt.show()
+    plt.close()
+
+
+# %% Compare_All
+
+def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=blue, contemp_colour=black, sc_colour=pink, restrict=True, shift_centre=True, contemp_omni=False, **kwargs):
+    """
+    2x2 grid comparing OMNI & in-situ as input and Index & Mag. as output
+    Dep_var is either 'PC' for comparing PC and THL or 'AE' for comparing AE and SME
+    """
+
+    if df_pc is None:
+        raise ValueError('Polar cap dataframe is none.')
+
+    if df_sc is not None:
+        sample_interval = df_sc.attrs.get('sample_interval','5min')
+    elif df_omni is not None:
+        sample_interval = df_omni.attrs.get('sample_interval','5min')
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
+
+    kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
+    kwargs['display']   = kwargs.get('display','heat')
+    kwargs['fit_type']  = kwargs.get('fit_type','saturation')
+    if kwargs['display']=='rolling':
+        kwargs['region'] = kwargs.get('region','sem')
+
+    if 'data1_name' in kwargs:
+        kwargs['data1_name'] = create_label(kwargs['data1_name'])
+
+    if ind_var=='B_clock':
+        shift_centre = True and shift_centre
+    else:
+        shift_centre = False
+
+    dep_lags = {'PCN': 17, 'PCC': 17, 'AE': 53}
+    lag = kwargs.get('lag',dep_lags.get(dep,0))
+
+    dep_cols = {0: {'PCN': ['PCN','SMC_y_GSM'],
+                    'PCC': ['PCC','SMC'],
+                    'AE':  ['AE', 'SME']},
+                1: {'PCN': [f'PCN_{lag}m',f'SMC_y_GSM_{lag}m'],
+                    'PCC': [f'PCC_{lag}m',f'SMC_{lag}m'],
+                    'AE':  [f'AE_{lag}m', f'SME_{lag}m']}}
+
+    dep_cols = dep_cols.get(lag,dep_cols[1]) # Uses 1 for all implemented lags
+    dep_vars = dep_cols.get(dep,None)
+    if not dep_vars:
+        raise Exception(f'"{dep}" not implemented.')
+
+    ###----------PLOT GRIDS----------###
+    n_rows, n_cols = 2, 2
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=200, sharex='col', sharey='row')
+
+    for i, (df, dep_var) in enumerate(it.product([df_omni,df_sc],dep_vars)):
+
+        row, col = i % n_rows, i // n_rows
+        ax = axs[row][col]
+
+        if df is df_omni:
+            if contemp_omni:
+                overlap = df.index.intersection(df_sc.index)
+                df = df.loc[overlap]
+                colour = contemp_colour
+            else:
+                colour = omni_colour
+        else:
+            colour = sc_colour
+
+        ind_err, ind_count = def_param_names(df, ind_var)
+        dep_err, dep_count = def_param_names(df_pc, dep_var)
+
+        bin_width, limits, invert = get_variable_range(ind_var, 'sw', dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
+
+        if shift_centre:
+            df = shift_angular_data(df, ind_var)
+
+        df_ind = mask_df(df, ind_var, limits)
+        df_dep = mask_df(df_pc, dep_var)
+
+        intersect = df_ind.index.intersection(df_dep.index)
+        df_ind = df_ind.loc[intersect]
+        df_dep = df_dep.loc[intersect]
+
+        if kwargs['display']=='heat':
+            dep_bin_width = get_var_bin_width(dep_var, restrict)
+            kwargs['bin_width'] = (bin_width,dep_bin_width)
+            kwargs['fit_colour'] = 'cyan'
+        elif kwargs['display']=='rolling':
+            kwargs['window_width'] = bin_width
+            kwargs['window_step']  = bin_width/10
+        elif kwargs['display']=='scatter':
+            kwargs['data_colour']  = colour
+            kwargs['error_colour'] = colour
+        kwargs['as_text'] = True
+
+        if 'data_name_map' in kwargs:
+            kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
+
+        if df.attrs.get('units',{}).get(ind_var,'i')==df_pc.attrs.get('units',{}).get(dep_var,'d'):
+            kwargs['reference_line'] = 'x'
+        else:
+            kwargs['reference_line'] = None
+
+        # Rolling window
+        objs = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        if len(objs)==3 and col!=n_cols-1: # indicates cbar present
+            cbar = objs[-1]
+            cbar.set_label(None)
+
+        ###----------FORMATTING----------###
+        if df is df_omni:
+            title = f'OMNI (N={len(df_ind):,})'
+        else:
+            title = f'Spacecraft (N={len(df_ind):,})'
+
+        # Formatting
+        if shift_centre:
+            ax.axvline(x=np.pi, c=grey, ls=':')
+            if row==n_rows-1:
+                shifted_angle_ticks(ax, 'x')
+
+        if invert:
+            ax.invert_xaxis()
+
+        if row==0:
+            ax.set_title(title)
+        if row==n_rows-1:
+            ax.tick_params(labelbottom=True)
+        else:
+            ax.tick_params(labelbottom=False)
+            ax.set_xlabel(None)
+
+        if col!=0:
+            ax.set_ylabel(None)
+
+    if n_cols>1:
+        fig.align_ylabels(axs[:,0])
+    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
+
+    file_name = f'Comparing_{ind_var}_{dep}_OMNI_sc_{lag}m'
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, sub_directory='Driver_Response')
+    plt.show()
+    plt.close()
+
+def plot_compare_sources_with_lags(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=blue, contemp_colour=black, sc_colour=pink, restrict=True, shift_centre=True, contemp_omni=False, **kwargs):
+    """
+    2x2 grid comparing OMNI & in-situ as input and Index & Mag. as output
+    Dep_var is either 'PC' for comparing PC and THL or 'AE' for comparing AE and SME
+    This plots the fitted function parameters over different lags, for comparison
+    """
+
+    if df_pc is None:
+        raise ValueError('Polar cap dataframe is none.')
+
+    kwargs['fit_type']  = kwargs.get('fit_type','saturation')
+
+    if 'data1_name' in kwargs:
+        kwargs['data1_name'] = create_label(kwargs['data1_name'])
+
+
+    dep_cols = {'PCN': ['PCN','SMC_y_GSM'],
+                'PCC': ['PCC','SMC'],
+                'AE':  ['AE', 'SME']}
+
+    dep_vars = dep_cols.get(dep,None)
+    if not dep_vars:
+        raise Exception(f'"{dep}" not implemented.')
+
+
+    ###----------PLOT GRIDS----------###
+    n_rows, n_cols = 2, 2
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=200, sharex='col')
+    kwargs['fig'] = fig
+
+    for i, ((df,ind_src), dep_var) in enumerate(it.product([(df_omni,'omni'),(df_sc,'sw')],dep_vars)):
+        print(ind_src,dep_var)
+
+        row, col = i % n_rows, i // n_rows
+        ax = axs[row][col]
+
+        if df is df_omni and contemp_omni:
+            overlap = df.index.intersection(df_sc.index)
+            df = df.loc[overlap]
+
+        ind_err, ind_count = def_param_names(df, ind_var)
+        dep_err, dep_count = def_param_names(df_pc, dep_var)
+
+        _, limits, _ = get_variable_range(ind_var, ind_src, restrict=restrict)
+
+        df_ind = mask_df(df, ind_var, limits)
+
+        dep_lagged = get_lagged_columns(df_pc, dep_var)
+
+        _, (ax, ax2) = plot_fit_params_against_z(df_ind, ind_var, dep_lagged, df_dep=df_pc, col1_err=ind_err, col2_err=dep_err, col1_counts=ind_count, col2_counts=dep_count, ax=ax, **kwargs)
+
+        ###----------FORMATTING----------###
+        ind_str = format_string(ind_var)
+        dep_str = format_string(dep_var)
+        ax.set_title(f'${dep_str}$ vs {ind_src.upper()} ${ind_str}$')
+
+        if row==n_rows-1:
+            ax.tick_params(labelbottom=True)
+            ax.set_xlabel('Lags [mins]')
+        else:
+            ax.tick_params(labelbottom=False)
+            ax.set_xlabel(None)
+
+        if col==0:
+            ax2.set_ylabel(None)
+        else:
+            ax.set_ylabel(None)
+
+        if i!=0:
+            ax.get_legend().remove()
+
+    if n_cols>1:
+        fig.align_ylabels(axs[:,0])
+    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
+
+    file_name = f'Comparing_{ind_var}_{dep}_fit_{kwargs["fit_type"]}'
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, sub_directory='Driver_Response')
     plt.show()
     plt.close()

@@ -55,7 +55,7 @@ def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col
     if col2_counts is not None:
         kwargs['ys_counts'] = df.loc[:,col2_counts]
 
-    compare_series(series1, series2, **kwargs)
+    return compare_series(series1, series2, **kwargs)
 
 
 def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, df3=None, col3=None, **kwargs):
@@ -80,7 +80,7 @@ def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_
     if col2_counts is not None:
         kwargs['ys_counts'] = df2.loc[:,col2_counts]
 
-    compare_series(series1, series2, **kwargs)
+    return compare_series(series1, series2, **kwargs)
 
 
 def investigate_difference(df, col1, col2, ind_col, **kwargs):
@@ -96,7 +96,7 @@ def investigate_difference(df, col1, col2, ind_col, **kwargs):
     if kwargs.get('ind_name_str',None) is not None:
         kwargs['data1_name'] = kwargs.get('ind_name_str')
 
-    compare_series(series1, series2, **kwargs)
+    return compare_series(series1, series2, **kwargs)
 
 # %% Main function
 
@@ -119,12 +119,6 @@ def compare_series(series1, series2, **kwargs):
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
     return_objs = kwargs.get('return_objs',False)
-
-    line_colour = 'k'
-    is_heat = False
-    if display == 'heat':
-        is_heat = True
-        line_colour = 'w'
 
     ###---------------CONSTRUCT COLUMN LABELS---------------###
 
@@ -168,21 +162,24 @@ def compare_series(series1, series2, **kwargs):
         else:
             n_bins = (calculate_bins(series1,bin_width), calculate_bins(series2,bin_width))
         h = ax.hist2d(series1, series2, bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
+        ax.set_facecolor('k')
 
         cbar = fig.colorbar(h[3], ax=ax)
-        cbar.set_label('Number of Points')
+        cbar.set_label('Counts')
 
     elif display != 'scatter_dict':
         raise ValueError(f'"{display}" not valid display mode.')
 
     if reference_line is not None:
         if reference_line=='x':
-            ax.axline((0, 0), slope=1, color=line_colour, label='y=x', lw=2, ls=':')
+            ax.axline((0, 0), slope=1, color='k', lw=2, ls='-')
+            ax.axline((0, 0), slope=1, color='w', lw=2, ls=':')
         elif isinstance(reference_line, int) or isinstance(reference_line, int):
-            ax.axhline(y=reference_line, color=line_colour, label=f'y={reference_line}', lw=2, ls=':')
+            ax.axhline(y=reference_line, color='k', label=f'y={reference_line}', lw=2, ls='-')
+            ax.axhline(y=reference_line, color='w', lw=2, ls=':')
 
     fit_kwargs = kwargs.copy()
-    fit_kwargs['fit_colour'] = black
+    fit_kwargs['fit_colour'] = kwargs.get('fit_colour',black)
     fit_kwargs['fit_style'] = '--'
     fit_kwargs['fit_width'] = 1.25
 
@@ -199,12 +196,10 @@ def compare_series(series1, series2, **kwargs):
     unit2 = series2.attrs.get('units',{}).get(series2.name, None)
 
     if unit1 == 'rad':
-
         standard_angle_ticks(ax, series1, 'x', np.pi/4)
         unit1 = '°'
 
     if unit2 == 'rad':
-
         standard_angle_ticks(ax, series2, 'y', np.pi/4)
         unit2 = '°'
 
@@ -220,7 +215,7 @@ def compare_series(series1, series2, **kwargs):
         brief_title += f', N={len(series1):,}'
 
     ###---------------LABELLING AND FINISHING TOUCHES---------------###
-    add_legend(fig, ax, legend_on=want_legend, heat=is_heat, loc=legend_loc)
+    add_legend(fig, ax, legend_on=want_legend, heat=display=='heat', loc=legend_loc)
     add_figure_title(fig, brief_title, ax=ax)
     plt.tight_layout();
 

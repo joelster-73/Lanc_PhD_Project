@@ -4,14 +4,70 @@ Created on Mon Aug 18 10:06:47 2025
 
 @author: richarj2
 """
-
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
+from uncertainties import UFloat
 from .utils import save_figure
-#from .formatting import add_figure_title
+from .formatting import add_legend, create_label
 from .distributions import plot_freq_hist
 from .comparing.parameter import compare_series
+from ..analysing.fitting import fit_series
+
+def plot_fit_params_against_z(df_ind, ind_var, dep_vars, df_dep=None, **kwargs):
+
+    fig         = kwargs.get('fig',None)
+    ax          = kwargs.get('ax',None)
+    return_objs = kwargs.get('return_objs',True)
+
+    if not fig or not ax:
+        fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
+    ax2 = ax.twinx()
+
+    markers = ('v','x','s')
+    colours = ('b','r','o')
+    axes    = (ax,ax2)
+
+    for i, (dep_val, dep_col) in enumerate(dep_vars.items()):
+
+        param_dict = fit_series(df_ind, ind_var, dep_col, df2=df_dep, **kwargs)
+
+        for j, (k, v) in enumerate(param_dict['params'].items()):
+
+            print(k,v)
+            marker = markers[j]
+            colour = colours[j]
+            axis   = axes[j]
+
+            if isinstance(v,UFloat) and v.s<np.abs(v.n):
+                axis.errorbar(dep_val, v.n, yerr=v.s, capsize=2, marker=marker, color=colour)
+
+            else:
+                axis.errorbar(dep_val, v.n, yerr=v.s, marker=marker, color=colour)
+
+
+    for j, (k, v) in enumerate(param_dict['params'].items()):
+
+        marker = markers[j]
+        colour = colours[j]
+        axis   = axes[j]
+
+        label = create_label(k, unit=param_dict.get('units',{}).get(k,''))
+
+        ax.scatter([], [], marker=marker, color=colour, label=k) # on same axis for legend
+        axis.set_ylabel(label)
+
+
+    add_legend(fig, ax, loc='upper center', cols=len(param_dict['params']))
+    plt.tight_layout()
+
+    if return_objs:
+        return fig, (ax, ax2)
+
+    save_figure(fig)
+    plt.show()
+    plt.close()
 
 
 def plot_with_side_figs(series_1, series_2, bottom_panel=None, right_panel=None, **kwargs):

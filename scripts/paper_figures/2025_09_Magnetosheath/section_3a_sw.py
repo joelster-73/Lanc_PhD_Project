@@ -24,10 +24,9 @@ update_omni(df_omni)
 spacecraft = 'combined'
 
 df_sc = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{spacecraft}')
-df_pc = import_processed_data('indices', file_name=f'combined_{sample_interval}')
-
 df_sc = shift_sc_to_bs(df_sc, sample_interval)
 
+df_pc = import_processed_data('indices', file_name=f'combined_{sample_interval}')
 
 # %% Params
 
@@ -49,6 +48,8 @@ sc_index_map = {name: f'{name}_adj' for name in ('AE_53m','PCN_17m','PCC_17m','S
 
 params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot','P_flow','T_tot')
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='scatter')
+
+plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names, display='heat')
 
 params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot')
 plot_pulkkinen_grid(df_omni, df_sc, params, source='sw', restrict=True, data_name_map=param_names)
