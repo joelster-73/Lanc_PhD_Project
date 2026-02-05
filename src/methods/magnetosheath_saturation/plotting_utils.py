@@ -16,6 +16,32 @@ imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_a
 
 plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSM', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSM', 'S_y_GSM', 'S_z_GSM', 'E_R']
 
+def shift_angular_data(df, *cols):
+    # Shift angular data to centre lies at +-180 rather than 0
+
+    df = df.copy()
+
+    for to_shift in cols:
+        shift_unit = df.attrs.get('units',{}).get(to_shift,'')
+        if shift_unit == 'rad':
+            df[to_shift] = (df[to_shift] + 2*np.pi) % (2*np.pi)
+        elif shift_unit in ('deg','°'):
+            df[to_shift] = (df[to_shift] + 360) % 360
+
+    return df
+
+def mask_df(df, col, limits=None):
+
+        mask = ~df[col].isna()
+
+        if limits:
+            if limits[0] is not None:
+                mask &= df[col] >= limits[0]
+            if limits[-1] is not None:
+                mask &= df[col] <= limits[1]
+
+        return df.loc[mask]
+
 def def_param_names(df, variable, source=None):
 
     if source in ('sw','pc'):

@@ -14,12 +14,46 @@ import scipy.stats as stats
 
 from ..coordinates.spatial import cartesian_to_spherical, spherical_to_cartesian
 
+# %% Weighted
 
-# %% Mean_error
-
-def average_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+def average_of_averages(series, series_uncs=None, series_counts=None, mask=None, unit=None):
     """
-    Level 1
+    Level 1 dispatcher.
+    - Standard scalar
+    - Circular scalar
+    - Vector components
+    """
+
+    if isinstance(series, pd.DataFrame) and series.shape[1] == 3:
+        return vector_average_of_averages(
+            series,
+            series_uncs=series_uncs,
+            series_counts=series_counts,
+            mask=mask
+        )
+
+    if unit is None:
+        unit = series.attrs.get('units',{}).get(series.name,'')
+
+    if unit in ('rad', 'deg', '°'):
+        return circular_average_of_averages(
+            series,
+            series_uncs=series_uncs,
+            series_counts=series_counts,
+            mask=mask
+        )
+
+    return standard_average_of_averages(
+        series,
+        series_uncs=series_uncs,
+        series_counts=series_counts,
+        mask=mask
+    )
+
+
+def standard_average_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+    """
+    Level 2
     Average of data with counts and/or uncertainties
     """
 
@@ -28,44 +62,105 @@ def average_of_averages(series, series_uncs=None, series_counts=None, mask=None)
 
     for data in (series,series_uncs,series_counts):
         if data is not None:
-            mask &= ~np.isnan(data)
+            mask &= ~data.isna()
 
     if series_counts is not None:
         mask &= series_counts>0
 
-    # Case 1: No counts provided (or all zero) → fall back to simple mean/error
+    # Case 1: No counts provided (or all zero)
     if series_counts is None or np.nansum(series_counts.loc[mask]) == 0:
-        unit = series.attrs.get('units',{}).get(series.name,'')
+        ufloats = None
         if series_uncs is not None:
             ufloats = series.loc[mask].combine(series_uncs.loc[mask], lambda v, u: ufloat(v, u))
-            return calc_mean_error(ufloats, unit=unit)
-        return calc_mean_error(series.loc[mask], unit=unit)
+        else:
+            ufloats = series.loc[mask]
+        return calc_simple_mean_error(ufloats)
 
     # Extract arrays
     means  = np.array(series.loc[mask], dtype=float)
     counts = np.array(series_counts.loc[mask], dtype=float)
 
+    valid = counts >= 2
+    if series_uncs is not None:
+        sems = np.array(series_uncs.loc[mask], dtype=float)
+        eps = 1e-8
+        sems = np.maximum(sems, eps)
+
+    means  = means[valid]
+    counts = counts[valid]
+    if series_uncs is not None:
+        sems = sems[valid]
+
+    if means.size == 0:
+        return ufloat(np.nan, np.nan)
+
     # Case 2: Counts provided, SEMs missing
     if series_uncs is None:
         overall_mean = np.average(means, weights=counts)
 
-        N = np.nansum(counts)
+        N = np.sum(counts)
+        if N <= 1:
+            return ufloat(np.nan, np.nan)
         numerator = np.nansum(counts * (means - overall_mean) ** 2)
         pooled_var = numerator / (N - 1)
         overall_sem = np.sqrt(pooled_var / N)
         return ufloat(overall_mean, overall_sem)
 
     # Case 3: Counts and SEMs both provided
-    sems = np.array(series_uncs.loc[mask], dtype=float)  # group SEMs
     overall_mean = np.average(means, weights=counts)
 
-    N = np.nansum(counts)
+    N = np.sum(counts)
+    if N <= 1:
+        return ufloat(np.nan, np.nan)
     s_i = sems * np.sqrt(counts)   # convert SEMs back to SDs
     numerator = np.nansum((counts - 1) * (s_i ** 2) + counts * (means - overall_mean) ** 2)
     pooled_var = numerator / (N - 1)
     overall_sem = np.sqrt(pooled_var / N)
     return ufloat(overall_mean, overall_sem)
 
+
+def circular_average_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+    """
+    Level 2
+    Average of circular data with counts and/or uncertainties
+    """
+    if mask is None:
+        mask = np.ones(len(series), dtype=bool)
+
+    for data in (series, series_uncs, series_counts):
+        if data is not None:
+            mask &= ~data.isna()
+
+    if series_counts is not None:
+        mask &= series_counts > 0
+
+    # Extract masked arrays
+    angles = np.array(series.loc[mask], dtype=float)
+    counts = np.array(series_counts.loc[mask], dtype=float) if series_counts is not None else None
+    sems   = np.array(series_uncs.loc[mask], dtype=float) if series_uncs is not None else None
+
+    # Case 1: No counts provided → simple circular mean/error
+    if counts is None or np.nansum(counts) == 0:
+        ufloats = unp.uarray(angles, sems if sems is not None else np.zeros_like(angles))
+        return calc_circular_mean_error(ufloats)
+
+    # Case 2: Counts provided, no SEMs
+    if sems is None:
+        mean = circular_avg(angles, weights=counts)
+        sem  = circular_sem(angles, weights=counts)
+        return ufloat(mean, sem)
+
+    # Case 3: Counts and SEMs both provided
+    stds = sems * np.sqrt(counts)
+    eps = 1e-8
+    weights = 1.0 / (stds**2 + eps)
+    weights = np.where(np.isfinite(weights), weights, 0.0)
+
+    mean = circular_avg(angles, weights=weights)
+    sem  = circular_sem(angles, weights=weights)
+    return ufloat(mean, sem)
+
+# %% Mean_error
 
 def calc_mean_error(series, start=None, end=None, unit=None):
     """
@@ -105,26 +200,36 @@ def calc_simple_mean_error(data):
     Mean and sem of non-angular data
     Decides if with or without uncertainties
     """
-    try: # check if data has errors
-        errors  = unp.std_devs(data)
+    data = np.asarray(data)
+    if data.size == 0:
+        return ufloat(np.nan, np.nan)
+
+    try:  # check if data has errors
+        errors = unp.std_devs(data)
 
         if np.all(errors == 0):
             data = unp.nominal_values(data)
             raise Exception
 
     except:
-        mean    = np.mean(data)
-        err     = sem(data)
+        mean = np.mean(data)
+        err  = sem(data) if data.size > 0 else np.nan
         return ufloat(mean, err)
 
-    data    = unp.nominal_values(data)
-    weights = 1 / errors**2
+    data = unp.nominal_values(data)
+    eps = 1e-8
+    weights = 1.0 / (errors**2 + eps)
     weights = np.where(np.isfinite(weights), weights, 0.0)  # handle inf/nan
 
-    mean    = np.average(data, weights=weights)
-    err     = np.sqrt(1 / np.sum(weights))
+    if np.sum(weights) == 0:
+        return ufloat(np.nan, np.nan)
+
+    mean = np.average(data, weights=weights)
+    err  = np.sqrt(1 / np.sum(weights))
 
     return ufloat(mean, err)
+
+# %% Standard_deviation
 
 def sem(series, nu=1):
     """
@@ -138,50 +243,6 @@ def sem(series, nu=1):
     std = np.std(series, ddof=nu)
     sqrt_count = np.sqrt(np.size(series))
     return std / sqrt_count
-
-# %% Standard_deviation
-
-def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
-    """
-    Level 1
-    Sample standard deviation of data with counts
-    """
-    if mask is None:
-        mask = np.ones(len(series), dtype=bool)
-
-    for data in (series,series_uncs,series_counts):
-        if data is not None:
-            mask &= ~np.isnan(data)
-
-    # Case 1: No counts provided (or all zero) - fall back to simple mean/error
-    if series_counts is None or np.nansum(series_counts.loc[mask]) == 0:
-        if series_uncs is not None:
-            ufloats = series.loc[mask].combine(series_uncs.loc[mask], lambda v, u: ufloat(v, u))
-            return calc_sample_std(ufloats)
-        return calc_sample_std(series.loc[mask])
-
-    # Extract arrays
-    means  = np.array(series.loc[mask], dtype=float)
-    counts = np.array(series_counts.loc[mask], dtype=float)
-
-    # Case 2: Counts provided, SEMs missing
-    if series_uncs is None:
-        overall_mean = np.average(means, weights=counts)
-
-        N = np.nansum(counts)
-        numerator = np.nansum(counts * (means - overall_mean) ** 2)
-        pooled_var = numerator / (N - 1)
-        return np.sqrt(pooled_var)
-
-    # Case 3: Counts and SEMs both provided
-    sems = np.array(series_uncs.loc[mask], dtype=float)  # group SEMs
-    overall_mean = np.average(means, weights=counts)
-
-    N = np.nansum(counts)
-    s_i = sems * np.sqrt(counts)   # convert SEMs back to SDs
-    numerator = np.nansum((counts - 1) * (s_i ** 2) + counts * (means - overall_mean) ** 2)
-    pooled_var = numerator / (N - 1)
-    return np.sqrt(pooled_var)
 
 def calc_sample_std(series, start=None, end=None, unit=None):
     """
@@ -244,6 +305,39 @@ def calc_weighted_std(data):
     var = var_b * N_eff / (N_eff - 1)
 
     return np.sqrt(var)
+
+def std_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+    """
+    Level 1
+    Sample standard deviation of data with counts
+    """
+    if mask is None:
+        mask = np.ones(len(series), dtype=bool)
+
+    for data in (series, series_uncs, series_counts):
+        if data is not None:
+            mask &= ~np.isnan(data)
+
+    # Extract arrays
+    values = np.array(series.loc[mask], dtype=float)
+    counts = np.array(series_counts.loc[mask], dtype=float) if series_counts is not None else None
+    sems   = np.array(series_uncs.loc[mask], dtype=float) if series_uncs is not None else None
+
+    # Case 1: No counts → simple standard deviation
+    if counts is None or np.nansum(counts) == 0:
+        if sems is not None:
+            ufloats = unp.uarray(values, sems)
+            return calc_weighted_std(ufloats)
+        return calc_sample_std(values)
+
+    # Case 2: Counts provided, SEMs missing → weighted std
+    if sems is None:
+        return calc_weighted_std(unp.uarray(values, 1/np.sqrt(counts)))  # treat counts as inverse-variance weights
+
+    # Case 3: Counts and SEMs both provided → combine uncertainties
+    s_i = sems * np.sqrt(counts)   # convert SEMs to SDs
+    ufloats = unp.uarray(values, s_i)
+    return calc_weighted_std(ufloats)
 
 # %% Circular statistics
 
@@ -312,12 +406,7 @@ def circular_sem(angles, weights=None):
     """
     Weighted sem of circular data
     """
-    if weights is None:
-        weights = np.ones_like(angles)
-
-    R = np.sqrt((np.sum(weights*np.cos(angles)))**2 + (np.sum(weights*np.sin(angles)))**2) / np.sum(weights)
-
-    std = np.sqrt(-2 * np.log(R))
+    std = circular_std(angles, weights=weights)
 
     n_eff = (np.sum(weights)**2) / np.sum(weights**2)
 
@@ -424,6 +513,63 @@ def calc_angle_between_vecs(df, vec1, vec2):
     vec2_norm = np.linalg.norm(vec2_arr, axis=1)
 
     return np.arccos(np.clip(dot / (vec1_norm * vec2_norm), -1.0, 1.0))
+
+def vector_average_of_averages(series, series_uncs=None, series_counts=None, mask=None):
+    """
+    Level 2
+    Average of vector data with counts and/or uncertainties
+    """
+    if mask is None:
+        mask = np.ones(len(series), dtype=bool)
+
+    # Mask invalid rows
+    for data in (series, series_uncs, series_counts):
+        if data is not None:
+            mask &= ~series.isna().any(axis=1) if isinstance(series, pd.DataFrame) else ~data.isna()
+
+    if series_counts is not None:
+        mask &= series_counts > 0
+
+    filtered_series = series.loc[mask]
+    filtered_uncs = series_uncs.loc[mask] if series_uncs is not None else None
+    filtered_counts = series_counts.loc[mask] if series_counts is not None else None
+
+    if len(filtered_series) == 0:
+        return unp.uarray([], [])
+
+    # Convert to ufloats element-wise
+    if filtered_uncs is not None:
+        uarrays = [unp.uarray(filtered_series.iloc[:, i].values, filtered_uncs.iloc[:, i].values) for i in range(filtered_series.shape[1])]
+    else:
+        uarrays = [unp.uarray(filtered_series.iloc[:, i].values, np.zeros(filtered_series.shape[0])) for i in range(filtered_series.shape[1])]
+
+    x_data, y_data, z_data = uarrays
+
+    # Single vector → return as-is
+    if len(x_data) == 1:
+        return np.array([x_data[0], y_data[0], z_data[0]], dtype=object)
+
+    # Convert to spherical coordinates (lists of ufloats)
+    r = unp.sqrt(x_data**2 + y_data**2 + z_data**2)
+    theta = unp.arccos(z_data / r)
+    phi = unp.arctan2(y_data, x_data)
+
+    r_nom, r_std            = unp.nominal_values(r), unp.std_devs(r)
+    theta_nom, theta_std    = unp.nominal_values(theta), unp.std_devs(theta)
+    phi_nom, phi_std        = unp.nominal_values(phi), unp.std_devs(phi)
+
+    # Average with counts and uncertainties
+    r_avg     = standard_average_of_averages(pd.Series(r_nom, index=filtered_series.index), series_uncs=pd.Series(r_std, index=filtered_series.index), series_counts=filtered_counts)
+    theta_avg = circular_average_of_averages(pd.Series(theta_nom, index=filtered_series.index), series_uncs=pd.Series(theta_std, index=filtered_series.index), series_counts=filtered_counts)
+    phi_avg   = circular_average_of_averages(pd.Series(phi_nom, index=filtered_series.index), series_uncs=pd.Series(phi_std, index=filtered_series.index), series_counts=filtered_counts)
+
+    # Convert back to Cartesian with propagated uncertainties
+    x_avg = r_avg * unp.sin(theta_avg) * unp.cos(phi_avg)
+    y_avg = r_avg * unp.sin(theta_avg) * unp.sin(phi_avg)
+    z_avg = r_avg * unp.cos(theta_avg)
+
+    return unp.uarray([x_avg.n, y_avg.n, z_avg.n],
+                      [x_avg.s, y_avg.s, z_avg.s])
 
 # %% Statistics
 

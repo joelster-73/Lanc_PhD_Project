@@ -210,6 +210,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
                 aggregated_columns[f'{column}_count'] = non_nan_counts[column].to_numpy()
 
     resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
+    resampled_df.index.name = 'epoch'
     resampled_df.rename_axis('epoch', inplace=True)
 
     if time_col != 'index':
@@ -252,42 +253,97 @@ def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns
 
     for column in df.columns:
 
-        if column in ('utc',time_col) or column in columns_to_skip:
+        if column in ('sc_sw','sc_msh'):
+            print(f'{column} combined.')
+            aggregated_columns[column] = grouped[column].apply(lambda x: x.iloc[0] if x.nunique() == 1 else ','.join(x.unique()))
+            continue
 
+        elif column in ('utc', time_col) or column in columns_to_skip:
             print(f'Skipping {column}.')
-            # columns that are meaningless to average, e.g. quality, mode
             continue
 
         elif column in aggregated_columns:
+            print(f'    {column} processed.')
             continue
 
-        print(column)
-
-        if column=='sc_sw':
-            aggregated_columns[column] = grouped[column].first()
-
-        unc_column = f'{column}_unc'
-        count_column = f'{column}_count'
-
-        ### Consider using circular averaging instead for angles and vectors, currently simple mean
-
+        ###----------Circular Averaging----------###
         if '_GS' in column:
-            parts = column.split('_')
-            count_column = '_'.join([parts[0], parts[2]]) + '_count'
-        elif column=='r_mag':
-            count_column = 'r_GSE_count'
 
-        ufloat_series = grouped.apply(lambda g: average_of_averages(g[column], series_uncs=(g[unc_column] if unc_column in g else None), series_counts=(g[count_column] if count_column in g else None)), include_groups=False).to_numpy()
+            print(f'Processing {column} (vector).')
 
-        aggregated_columns[column]       = unp.nominal_values(ufloat_series)
-        aggregated_columns[unc_column]   = unp.std_devs(ufloat_series)
-        if count_column in grouped:
-            aggregated_columns[count_column] = grouped[count_column].sum().to_numpy()
+            field, _, coords = column.split('_')
+
+            vector_columns = [f'{field}_{c}_{coords}' for c in ('x', 'y', 'z')]
+            unc_columns = [f'{field}_{c}_{coords}_unc' for c in ('x', 'y', 'z')]
+            count_column = f'{field}_{coords}_count'
+
+            skip_x = False
+            if vector_columns[0] not in df.columns:
+                skip_x = True
+                vector_columns[0] = vector_columns[0].replace('_GSM', '_GSE')
+                unc_columns[0] = unc_columns[0].replace('_GSM', '_GSE')
+
+            ufloat_series = grouped.apply(
+                lambda g: average_of_averages(
+                    g[vector_columns],
+                    series_uncs=g[unc_columns],
+                    series_counts=(g[count_column])
+                ),
+                include_groups=False
+            )
+
+            nom_vals = np.array(ufloat_series.apply(safe_nominals).to_list())
+            std_vals = np.array(ufloat_series.apply(safe_stddevs).to_list())
+
+            for i, comp in enumerate(('x', 'y', 'z')):
+                if comp == 'x' and skip_x:
+                    continue
+
+                aggregated_columns[f'{field}_{comp}_{coords}'] = nom_vals[:, i]
+                aggregated_columns[f'{field}_{comp}_{coords}_unc'] = std_vals[:, i]
+
+            aggregated_columns[f'{field}_{coords}_count'] = (
+                grouped[count_column].sum().to_numpy()
+                if count_column in df.columns
+                else grouped.size().to_numpy()
+            )
+
         else:
-            aggregated_columns[count_column] = grouped.size().to_numpy()
+
+            ###----------Scalar Averaging----------###
+            print(f'Processing {column}.')
+
+            if column == 'sc_sw':
+                aggregated_columns[column] = grouped[column].first()
+                continue
+
+            unc_column = f'{column}_unc'
+            count_column = f'{column}_count'
+
+            if column == 'r_mag':
+                count_column = 'r_GSE_count'
+
+            ufloat_series = grouped.apply(
+                lambda g: average_of_averages(
+                    g[column],
+                    series_uncs=(g[unc_column] if unc_column in g else None),
+                    series_counts=(g[count_column] if count_column in g else None)
+                ),
+                include_groups=False
+            ).to_numpy()
+
+            aggregated_columns[column]     = unp.nominal_values(ufloat_series)
+            aggregated_columns[unc_column] = unp.std_devs(ufloat_series)
+
+            if count_column in grouped:
+                aggregated_columns[count_column] = grouped[count_column].sum().to_numpy()
+            else:
+                aggregated_columns[count_column] = grouped.size().to_numpy()
+
 
     resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
     resampled_df.rename_axis('epoch', inplace=True)
+    resampled_df.index.name = 'epoch'
 
     if time_col != 'index':
         resampled_df.reset_index(inplace=True)

@@ -44,7 +44,9 @@ def fit_series(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_cou
 
 # %% Routines
 
-def fit_function(xs, ys, print_text=False, **kwargs):
+def fit_function(xs, ys, **kwargs):
+
+    print_text = kwargs.get('print_text',False)
 
     if len(xs)==0:
         print('xs is empty')
@@ -125,11 +127,13 @@ def fit_function(xs, ys, print_text=False, **kwargs):
 
     # Add save_text behaviour but put into function
     if print_text:
-        print('Best fit params for {fit_type} fit:')
-        for key, value in params.items:
-            print(f'{key}: ${value:L}$')
-        print(f'$R^2$; {fit_dict["R2"]:.3g}')
-        print(f'$\\chi^2_\\nu$; {fit_dict["chi2"]:.5g}')
+        print(f'Best fit params for {fit_type} fit:')
+        for key, value in params.items():
+            unit = units[key]
+            print(f'{key}: {value:P} [{unit}]')
+        print(f'R²: {fit_dict["R2"]:.3g}')
+        print(f'χ²ν: {fit_dict["chi2"]:.5g}')
+        print()
 
     return fit_dict
 

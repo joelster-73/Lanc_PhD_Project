@@ -9,10 +9,11 @@ import pandas as pd
 import warnings
 
 
-from ...config import R_E
+from ...config import R_E, get_proc_directory
 from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles
 from ...processing.mag.config import lagged_indices
 
+from ...processing.writing import write_to_cdf
 from ...processing.reading import import_processed_data
 from ...processing.dataframes import resample_data_weighted
 from ...plotting.distributions import plot_freq_hist
@@ -40,7 +41,7 @@ def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
 
     df[f'prop_time_s_{sc_key}'] = t
 
-def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60):
+def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60, write_to_file=False):
     """
     Shifts the time index of the spacecraft data based on propagation to OMNI BSN.
     So comparing df_omni[t] with df_sc[t] is valid.
@@ -66,7 +67,7 @@ def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60):
     df_sc        = df_sc.infer_objects(copy=False)
 
     df_sc.index = df_sc.index.floor(sample_interval)
-    dup_mask = df_sc.index.duplicated(keep=False)
+    dup_mask    = df_sc.index.duplicated(keep=False)
 
     if np.sum(dup_mask)==0:
         print('No duplicate indices.')
@@ -80,7 +81,20 @@ def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60):
         df_sc = pd.concat([df_sc, df_resampled], axis=0)
         df_sc = df_sc.sort_index()
 
+    df_sc.rename_axis('epoch', inplace=True)
+    df_sc.index.name = 'epoch'
+
     df_sc.attrs = attrs
+    df_sc.attrs['units'][f'sc_{region}'] = 'STRING'
+    df_sc.attrs['units']['prop_time_s_unc'] = 's'
+    df_sc.attrs['units']['prop_time_s_count'] = 'NUM'
+    df_sc.attrs['units']['Delta B_z_unc'] = 'nT'
+    df_sc.attrs['units']['Delta B_z_count'] = 'NUM'
+
+    if write_to_file:
+        print('Writing shifted to file...')
+        DIR = get_proc_directory(region, dtype='plasma', resolution=sample_interval) # output directory
+        write_to_cdf(df_sc, directory=DIR, file_name=f'{region}_times_shifted', reset_index=True)
 
     return df_sc
 

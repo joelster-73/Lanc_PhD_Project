@@ -12,7 +12,7 @@ import os
 
 from src.config import MSH_DIR, OMNI_DIR
 from src.processing.reading import import_processed_data
-from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses, plot_driver_response
+from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses
 
 sample_interval = '5min'
 data_pop = 'with_plasma'

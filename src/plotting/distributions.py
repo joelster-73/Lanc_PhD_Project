@@ -7,7 +7,7 @@ Created on Fri May 16 10:38:41 2025
 import numpy as np
 import pandas as pd
 
-from uncertainties import UFloat
+from uncertainties import UFloat, unumpy as unp
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -34,6 +34,7 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
     ls          = kwargs.get('fit_style','-')
     lw          = kwargs.get('fit_width',2)
 
+    show_error  = kwargs.get('show_error',False)
     as_text     = kwargs.get('as_text',False)
     orientation = kwargs.get('orientation','vertical')
 
@@ -90,6 +91,13 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
             x_vals, y_vals = y_vals, x_vals
 
         ax.plot(x_vals, y_vals, c=colour, ls=ls, lw=lw)
+
+        if show_error:
+            popt_u = [v for v in fit_dict['params'].values()]  # for error region
+            y_vals_u = func(x_range, *popt_u)
+            y_std = unp.std_devs(y_vals_u)
+            ax.fill_between(x_range, y_vals - y_std, y_vals + y_std, color=colour, alpha=0.3)
+
 
     label = get_plot_label(fit_type)
 
