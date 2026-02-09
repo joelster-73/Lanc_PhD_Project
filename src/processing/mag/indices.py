@@ -212,23 +212,23 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
         print(ind,lags)
 
         for lag in lags:
-            dt_lag = pd.Timedelta(minutes=lag)
+            dt_lag = -pd.Timedelta(minutes=lag)
 
             # Lagged index (estimated response from BSN to PC/AE)
             if (dt_lag % pd.Timedelta(sample_interval)) == pd.Timedelta(0):
                 new_data = df_pc[ind].shift(freq=dt_lag)
             else:
-
-                # Perhaps instead don't include?
-
-
                 print('Interpolating lag.')
-                target_index = df_pc.index + dt_lag
+                target_index = df_pc.index - dt_lag
                 full_index = df_pc.index.union(target_index)
                 temp = df_pc[ind].reindex(full_index).interpolate(method='time')
                 new_data = temp.loc[target_index].values
 
-            df_pc.insert(df_pc.columns.get_loc(ind) + 1, f'{ind}_{lag}m', new_data)
+            new_col = f'{ind}_{lag}m'
+            if ind.endswith('_unc'):
+                new_col = '_'.join(ind.split('_')[:-1]) + f'_{lag}m' + 'unc'
+
+            df_pc.insert(df_pc.columns.get_loc(ind) + 1, new_col, new_data)
 
     # Writes OMNI with lag to file
     output_file = os.path.join(get_proc_directory('indices'), f'combined_{sample_interval}')

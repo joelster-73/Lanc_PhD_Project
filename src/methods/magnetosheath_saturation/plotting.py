@@ -277,6 +277,7 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
     kwargs['display']   = kwargs.get('display','heat')
     kwargs['fit_type']  = kwargs.get('fit_type','saturation')
+    kwargs['save_dir']  = kwargs.get('save_dir','Driver_Response')
     kwargs['print_text'] = True
     kwargs['show_error'] = True
     if kwargs['display']=='rolling':
@@ -290,15 +291,15 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
     else:
         shift_centre = False
 
-    dep_lags = {'PCN': 17, 'PCC': 17, 'AE': 53}
+    dep_lags = {'PCN': 17, 'PCC': 17, 'AE': 53, 'PCNC': 17}
     lag = kwargs.get('lag',dep_lags.get(dep,0))
 
-    dep_cols = {0: {#'PCN': ['PCN','SMC_y_GSM'],
-                    'PCN': ['PCN','SMC'], # temporary
+    dep_cols = {0: {'PCN': ['PCN','SMC_y_GSM'],
+                    'PCNC': ['PCN','SMC'],
                     'PCC': ['PCC','SMC'],
                     'AE':  ['AE', 'SME']},
-                1: {#'PCN': [f'PCN_{lag}m',f'SMC_y_GSM_{lag}m'],
-                    'PCN': [f'PCN_{lag}m',f'SMC_{lag}m'],
+                1: {'PCN': [f'PCN_{lag}m',f'SMC_y_GSM_{lag}m'],
+                    'PCNC': [f'PCN_{lag}m',f'SMC_{lag}m'],
                     'PCC': [f'PCC_{lag}m',f'SMC_{lag}m'],
                     'AE':  [f'AE_{lag}m', f'SME_{lag}m']}}
 
@@ -320,7 +321,7 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
         ax = axs[row][col]
 
         if df is df_omni:
-            print('OMNI',dep_var)
+            fit_name = f'{dep_var} against OMNI {ind_var}'
             if contemp_omni:
                 overlap = df.index.intersection(df_sc.index)
                 df = df.loc[overlap]
@@ -328,8 +329,10 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
             else:
                 colour = omni_colour
         else:
-            print('SC',dep_var)
+            fit_name = f'{dep_var} against SC {ind_var}'
             colour = sc_colour
+
+        #print(fit_name)
 
         ind_err, ind_count = def_param_names(df, ind_var)
         dep_err, dep_count = def_param_names(df_pc, dep_var)
@@ -359,11 +362,15 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
             kwargs['data_colour']  = colour
             kwargs['error_colour'] = colour
         kwargs['as_text'] = True
+        kwargs['inc_errs'] = False
+        kwargs['show_error'] = False
+        kwargs['fit_name'] = fit_name
+        kwargs['save_text'] = True
 
         if 'data_name_map' in kwargs:
             kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
 
-        if df.attrs.get('units',{}).get(ind_var,'i')==df_pc.attrs.get('units',{}).get(dep_var,'d'):
+        if df.attrs.get('units',{}).get(ind_var,'i')==df_pc.attrs.get('units',{}).get(dep_var,'d') and kwargs.get('show_reference',False):
             kwargs['reference_line'] = 'x'
         else:
             kwargs['reference_line'] = None
@@ -412,7 +419,7 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
     file_name = f'Comparing_{ind_var}_{dep}_fit_{kwargs["fit_type"]}_{lag}m'
 
     plt.tight_layout()
-    save_figure(fig, file_name=file_name, sub_directory='Driver_Response')
+    save_figure(fig, file_name=file_name, sub_directory=kwargs['save_dir'])
     plt.show()
     plt.close()
 

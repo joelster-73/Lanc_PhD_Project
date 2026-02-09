@@ -7,13 +7,13 @@ Created on Thu May  8 17:17:23 2025
 import os
 from datetime import datetime
 
-save_stats = False
+from ..config import FIGURES_DIR
 
 def array_to_string(arr, fmt='.2f'):
     if fmt == '.2f':
         return f'[{", ".join(f"{value:.2f}" for value in arr)}]'
 
-def save_statistics(text, directory='Figures'):
+def save_statistics(text, directory=None, sub_directory=None):
     """
     Appends a string with a timestamp to a text file in the 'figures' folder,
     creating the appropriate date folder if it does not exist.
@@ -26,28 +26,31 @@ def save_statistics(text, directory='Figures'):
     The text file is saved in the 'figures' folder, under a subfolder named with the current date
     in the format 'yyMMdd', and the file is always named 'statistics.txt'.
     """
-    if save_stats:
-        # Get current timestamp and format it
-        now = datetime.now()
-        timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Define the folder and file paths
-        folder_name = now.strftime('%y%m%d')  # Folder based on the current date
-        file_name = 'statistics.txt'  # The file is always named 'statistics.txt'
+    now = datetime.now()
+    folder_name = now.strftime('%y%m%d')
+    if directory is None:
+        directory = FIGURES_DIR
+    if sub_directory is not None:
+        if '/' in sub_directory:
+            sub_directory = sub_directory.split('/')
+            full_directory = os.path.join(directory, folder_name, *sub_directory)
+        else:
+            full_directory = os.path.join(directory, folder_name, sub_directory)
 
-        # Determine the full path for the directory
+    else:
         full_directory = os.path.join(directory, folder_name)
 
-        # Ensure the directory exists
-        os.makedirs(full_directory, exist_ok=True)
+    os.makedirs(full_directory, exist_ok=True)
 
-        # Create the full file path
-        file_path = os.path.join(full_directory, file_name)
+    # Define the folder and file paths
+    file_name = 'statistics.txt'
+    timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+    file_path = os.path.join(full_directory, file_name)
 
-        # Open the file in append mode, adding timestamp and the text
-        with open(file_path, 'a') as file:
-            file.write(f'{timestamp}\n')  # Write the timestamp on the first line
-            file.write(f'{text}\n')  # Write the provided text (may include \n)
-            file.write('\n')  # Add a blank line after
+    with open(file_path, 'a') as file:
+        file.write(f'{timestamp}\n')
+        file.write(f'{text}\n')
+        file.write('\n')
 
-        print(f'Statistics saved to {file_path}\n\n')
+    print(f'Statistics saved to {file_path}\n\n')

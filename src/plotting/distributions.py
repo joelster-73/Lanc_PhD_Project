@@ -66,7 +66,7 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
     param_dict = fit_dict['params']
 
     if fit_dict['R2'] < 0:
-        print(f'Fitting failed; popt: {popt}.')
+        print(f'Fitting failed. popt: {popt}.')
         return fit_dict
 
     if x_range is None and func.__name__ == 'straight_line':
@@ -672,48 +672,54 @@ def get_plot_label(fit_type):
 
 def straight_equation():
     # y = a + bx
-    return r"$y = {c} + {m} \cdot x\ \mathrm{{{unit}}}$"
+    return r'$y = {c} + {m} \cdot x\ \mathrm{{{unit}}}$'
 
 def straight_params():
     # y = a + bx
     return (
-        r"$a = {c}\ \mathrm{{{unit}}}$"
-        "\n"
-        r"$b = {m}$"
+        r'$a = {c}\ \mathrm{{{unit}}}$'
+        '\n'
+        r'$b = {m}$'
     )
 
 def saturation_equation():
     # Vmax * x / (K + x)
-    return r"$y = ({V_max} \cdot x) / ({K} + x)\ \mathrm{{{unit}}}$"
+    return r'$y = ({V_max} \cdot x) / (x + {K})\ \mathrm{{{unit}}}$'
 
 def linear_flat_equation():
     # y = (y_b / x_b) * x     for x <= x_b
     # y = y_b                 for x >  x_b
+
+    # return (
+    #     r'$y = ({y_b} / {x_b}) \cdot x\ \mathrm{{{unit}}}'
+    #     r'\quad x \leq {x_b}$'
+    #     '\n'
+    #     r'$y = {y_b}\ \mathrm{{{unit}}}'
+    #     r'\quad x > {x_b}$'
+    # )
     return (
-        r"$y = ({y_b} / {x_b}) \cdot x\ \mathrm{{{unit}}}"
-        r"\quad x \leq {x_b}$"
-        "\n"
-        r"$y = {y_b}\ \mathrm{{{unit}}}"
-        r"\quad x > {x_b}$"
+        r'$y = {y_b}\ \mathrm{{{unit}}}'
+        r'\quad x \geq {x_b}$'
     )
 
 def gaussian_params():
     return (
-        r"$\mu = {mu}\ \mathrm{{{unit}}}$"
-        "\n"
-        r"$\sigma = {sigma}\ \mathrm{{{unit}}}$"
+        r'$\mu = {mu}\ \mathrm{{{unit}}}$'
+        '\n'
+        r'$\sigma = {sigma}\ \mathrm{{{unit}}}$'
     )
 
 def bimodal_params():
     return (
         (
-            r"$\mu_1 = {mu1:L}\ \mathrm{{{unit}}}$"
-            "\n"
-            r"$\sigma_1 = {std1:L}\ \mathrm{{{unit}}}$"
+            r'$\mu_1 = {mu1:L}\ \mathrm{{{unit}}}$'
+            '\n'
+            r'$\sigma_1 = {std1:L}\ \mathrm{{{unit}}}$'
         ),
         (
-            r"$\mu_2 = {mu2:L}\ \mathrm{{{unit}}}$"
-            "\n"
-            r"$\sigma_2 = {std2:L}\ \mathrm{{{unit}}}$"
+            r'$\mu_2 = {mu2:L}\ \mathrm{{{unit}}}$'
+            '\n'
+            r'$\sigma_2 = {std2:L}\ \mathrm{{{unit}}}$'
         )
     )
+

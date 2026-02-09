@@ -214,7 +214,7 @@ def rotate_uncertainties(df, df_data, vec_cols, matrix):
     df: dataframe to insert uncertainties into
     df_data: contains uncertainties
     vec_cols: the columns with uncertainties being rotated
-    R: rotation matrix
+    matrix: rotation matrix
     """
 
     # Covariance matrix
@@ -253,26 +253,36 @@ def convert_GEO_to_GSE(df_field, glat, glon, param='H', inplace=True):
         B_top = np.column_stack([Bn, Be, -Bz])
 
     def topocentric_to_ecef(B_topo, lat, lon):
+        """
+        Earth-centred, Earth-fixed (ECEF)
+        """
         lat = np.radians(float(lat))
         lon = np.radians(float(lon))
 
-        # rotation matrix from topocentric GEO (N,E,Z) to ECEF
+        # rotation matrix from topocentric GEO (N,E,Z)
 
         R = np.array([
             [-np.sin(lat)*np.cos(lon), -np.sin(lat)*np.sin(lon),  np.cos(lat)],
-            [-np.sin(lon),              np.cos(lon),              0        ],
+            [-np.sin(lon),              np.cos(lon),              0          ],
             [-np.cos(lat)*np.cos(lon), -np.cos(lat)*np.sin(lon), -np.sin(lat)]
         ])
 
-        return B_topo @ R.T
+        return B_topo @ R.T, R
 
-    B_geo = topocentric_to_ecef(B_top, glat, glon)
+    B_geo, R_rot = topocentric_to_ecef(B_top, glat, glon)
 
     # UTC times for conversion
     ticks = Ticktock(df_field.index.to_pydatetime(), 'UTC')
     B_gse = convert_multitime(B_geo, ticks, 'GEO', 'GSE', itol=1.0)
 
     columns = [f'{param}_x_GSE', f'{param}_y_GSE', f'{param}_z_GSE']
+
+    if 'B_n_GEO_unc' in df_field:
+        sigma_gse = convert_uncertainties(df_field, R_rot, param=param)
+
+        B_gse = np.hstack([B_gse, sigma_gse.T])
+
+        columns += [f'{param}_x_GSE_unc', f'{param}_y_GSE_unc', f'{param}_z_GSE_unc']
 
     if inplace:
         df_field.loc[:, columns] = pd.DataFrame(B_gse, index=df_field.index, columns=columns)
@@ -281,6 +291,24 @@ def convert_GEO_to_GSE(df_field, glat, glon, param='H', inplace=True):
         return None
 
     return pd.DataFrame(B_gse, index=df_field.index, columns=columns)
+
+def convert_uncertainties(df, R_rot, param='H'):
+
+    Bn_unc = df['B_n_GEO_unc'].to_numpy()
+    Be_unc = df['B_e_GEO_unc'].to_numpy()
+    Bz_unc = df['B_z_GEO_unc'].to_numpy()
+
+    if param == 'H':
+        sigma_top = np.array([Bn_unc, Be_unc, np.zeros(len(Bz_unc))])
+
+    else:
+        sigma_top = np.column_stack([Bn_unc, Be_unc, Bz_unc])
+
+    # propagate uncertainties through rotation
+    sigma_geo = np.einsum('ij,jk...->ik...', R_rot, sigma_top**2)
+    sigma_gse = np.sqrt(sigma_geo)
+
+    return sigma_gse
 
 
 # %% aGSE

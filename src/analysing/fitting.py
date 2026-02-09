@@ -13,9 +13,10 @@ from scipy.signal import find_peaks
 
 from uncertainties import ufloat, umath
 
+from .utils import save_statistics
+
 
 # %% Wrapper
-
 
 def fit_series(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
 
@@ -46,7 +47,10 @@ def fit_series(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_cou
 
 def fit_function(xs, ys, **kwargs):
 
+    fit_name   = kwargs.get('fit_name','')
     print_text = kwargs.get('print_text',False)
+    save_text  = kwargs.get('save_text',False)
+    save_dir   = kwargs.get('save_dir',None)
 
     if len(xs)==0:
         print('xs is empty')
@@ -104,7 +108,7 @@ def fit_function(xs, ys, **kwargs):
     fit_dict['func'] = func
 
     y_fit = func(xs, *popt)
-    fit_dict['R2'] = r2_score(ys, y_fit)
+    fit_dict['R2']   = calculate_R2(ys, y_fit, kwargs.get('ys_unc',None))
     fit_dict['chi2'] = reduced_chi2(ys, y_fit, len(popt), kwargs.get('ys_unc',None))
 
     if fit_type == 'gaussian':
@@ -126,18 +130,46 @@ def fit_function(xs, ys, **kwargs):
         fit_dict['peaks'] = peaks
 
     # Add save_text behaviour but put into function
+    lines = []
+    if fit_name!='':
+        lines.append(fit_name)
+    lines.append(f'Best fit params for {fit_type} fit:')
+
+    for key, value in params.items():
+        unit = units[key]
+        lines.append(f'{key}: {value:P} [{unit}]')
+
+    if kwargs.get('ys_unc',None) is not None:
+        lines.append('Errors included.')
+    else:
+        lines.append('Errors not included.')
+
+    lines.append(f'N:   {len(xs):,}')
+    lines.append(f'R²:  {fit_dict["R2"]:.3g}')
+    lines.append(f'χ²ν: {fit_dict["chi2"]:.5g}')
+    lines.append('')
+
+    output = '\n'.join(lines)
+
     if print_text:
-        print(f'Best fit params for {fit_type} fit:')
-        for key, value in params.items():
-            unit = units[key]
-            print(f'{key}: {value:P} [{unit}]')
-        print(f'R²: {fit_dict["R2"]:.3g}')
-        print(f'χ²ν: {fit_dict["chi2"]:.5g}')
-        print()
+        print(output)
+
+    if save_text:
+        save_statistics(output, sub_directory=save_dir)
 
     return fit_dict
 
 # %% Functions
+
+def calculate_R2(y, yfit, yerr=None):
+    if yerr is None: # Unweighted
+        return r2_score(y, yfit)
+
+    w = 1 / yerr**2
+    ybar = np.sum(w * y) / np.sum(w)
+    ss_res = np.sum(w * (y - yfit)**2)
+    ss_tot = np.sum(w * (y - ybar)**2)
+    return 1 - ss_res / ss_tot
 
 def reduced_chi2(y_obs, y_model, n_params, y_err=None):
 
@@ -152,6 +184,10 @@ def reduced_chi2(y_obs, y_model, n_params, y_err=None):
     return chi2_red
 
 def fit_with_errors(model_func, x, y, p0=None, bounds=(-np.inf, np.inf), yerr=None):
+
+    if yerr is not None:
+        eps = 1e-12 * np.median(yerr)
+        yerr += eps
 
     try:
         popt, pcov = curve_fit(
@@ -247,16 +283,13 @@ def saturation_fit(x, y, **kwargs):
 
     yerr = kwargs.get('ys_unc', None)
 
-    def func(xt, V_max, K):
-        return V_max * xt / (K + xt)
-
     # Initial guesses
-    V_max0 = np.max(y)
+    V_max0 = np.percentile(y,90)
     K0     = np.median(x)
 
     p0 = (V_max0, K0)
 
-    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
+    popt, perr = fit_with_errors(saturation, x, y, p0=p0, yerr=yerr)
     return popt, perr, ('V_max', 'K'), ('{yunit}', '{xunit}')
 
 
@@ -275,17 +308,13 @@ def linear_flat_fit(x, y, **kwargs):
 
     yerr = kwargs.get('ys_unc', None)
 
-    def func(xt, y_b, x_b):
-        slope = y_b / x_b
-        return np.where(xt <= x_b, slope * xt, y_b)
-
     # Initial guesses
     x_b0 = np.median(x)
     y_b0 = np.interp(x_b0, x, y)
 
     p0 = (y_b0, x_b0)
 
-    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
+    popt, perr = fit_with_errors(linear_flat, x, y, p0=p0, yerr=yerr)
     return popt, perr, ('y_b', 'x_b'), ('{yunit}', '{xunit}')
 
 

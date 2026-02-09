@@ -8,6 +8,7 @@ import os
 import glob
 import numpy as np
 import pandas as pd
+import warnings
 
 from netCDF4 import Dataset
 
@@ -108,10 +109,102 @@ def process_supermag_data(*stations):
         df_station.insert(2, 'H_mag', (df_station[[f'B_{c}_NEZ' for c in ('n','e')]].pow(2).sum(axis=1)) ** 0.5) # Horizontal intensity, not H-field
         df_station.attrs['units']['H_mag'] = 'nT'
 
+        print('Uncertainties.')
+        if False: # excluding for now
+            for coords in ('GEO','NEZ'):
+                sigma_nez = calc_supermag_uncertainty(df_station, coords=coords)
+                for comp in ('n','e','z'):
+                    print(coords,comp)
+                    idx = df_station.columns.get_loc(f'B_{comp}_{coords}')
+                    df_station.insert(idx+1, f'B_{comp}_{coords}_unc', sigma_nez)
+                    df_station.attrs['units'][f'B_{comp}_{coords}_unc'] = 'nT'
+
+            for quantity in ('B','H'):
+                print(f'Propagating {quantity}')
+                sigma = prop_supermag_uncertainty(df_station, quantity)
+                idx = df_station.columns.get_loc(f'{quantity}_mag')
+                df_station.insert(idx+1, f'{quantity}_mag_unc', sigma)
+                df_station.attrs['units'][f'{quantity}_mag_unc'] = 'nT'
+
         print(f'Writing {station}....')
         direc = get_proc_directory('supermag', dtype=station, resolution='raw', create=True)
         attributes = {'sample_interval': '1min', 'time_col': 'epoch'}
         write_to_cdf(df_station, directory=direc, file_name=f'{station}_raw', attributes=attributes, reset_index=True)
+
+
+def calc_supermag_uncertainty(df, coords='NEZ', comp='n', window_minutes=1440):
+    """
+    Taken from Gjerloev (2012) 10.1029/2012JA017683
+    """
+
+    # Select components
+    Bx = df[f'B_n_{coords}']
+    By = df[f'B_e_{coords}']
+    Bz = df[f'B_z_{coords}']
+
+    # Rolling 24h mean
+    B = pd.concat([Bx, By, Bz], axis=1)
+    Bbar = B.rolling(window_minutes, center=True, min_periods=1).mean()
+
+    # Instantaneous variance v(t)
+    k = 1 / (3 * window_minutes)
+    v = k * ((B - Bbar) ** 2).sum(axis=1)
+
+    mcolat = df['mcolat']
+    mlat = np.pi/2 - mcolat
+    mlat_deg = np.degrees(mlat)
+
+    if np.sum(mlat_deg<=60)>0:
+        warnings.warn('Memory term d(t) is not implemented (correctly).')
+
+        # Memory term d(t)
+
+        tau_max = 8 * window_minutes  # 8 days in minutes
+        k = 1 / (tau_max)
+        w = np.cos(np.pi * np.arange(tau_max) / (2 * tau_max))
+        v_pad = np.pad(v.values, (tau_max, 0), mode='edge')
+        d = np.zeros_like(v)
+
+        f = 0
+        if comp=='n':
+            f = np.abs(np.cos(mlat))
+        elif comp=='z':
+            f = np.abs(np.sin(mlat))
+
+        for i in range(len(v)):
+            # Only for |magnetic latitude| <= 60 deg
+            if abs(mlat_deg.iloc[i]) <= 60:
+                d[i] = np.sum(w * v_pad[i:i + tau_max]) # I don't think this is correct
+            # else d[i] remains 0
+
+        d *= f
+
+        # Total uncertainty
+        U = v + d
+
+        return np.sqrt(U)
+
+    return np.sqrt(v)
+
+
+def prop_supermag_uncertainty(df, quantity='H', coords='NEZ'):
+
+    Bx = df[f'B_n_{coords}']
+    By = df[f'B_e_{coords}']
+    Bz = df[f'B_z_{coords}']
+
+    sx = df[f'B_n_{coords}_unc']
+    sy = df[f'B_e_{coords}_unc']
+    sz = df[f'B_z_{coords}_unc']
+
+    mag = df[f'{quantity}_mag']
+
+    sigma_sum = (Bx*sx)**2 + (By*sy)**2
+
+    if quantity=='B':
+        sigma_sum += (Bz*sz)**2
+
+    return sigma_sum**(0.5)/mag
 
 
 def convert_supermag_gse(*stations):
@@ -157,7 +250,7 @@ def convert_supermag_gsm(*stations):
 
             df_omni = import_processed_data('omni', resolution='1min', year=year)
 
-            df_year = convert_GSE_to_GSM_with_angles(mag_year, vectors=[[f'H_{c}_GSE' for c in ('x','y','z')]], df_coords=df_omni)
+            df_year = convert_GSE_to_GSM_with_angles(mag_year, vectors=[[f'H_{c}_GSE' for c in ('x','y','z')]], df_coords=df_omni, include_unc=('B_x_GSE_unc' in mag_year))
 
             new_cols = ['H_y_GSM','H_z_GSM']
             mag_year[new_cols] = df_year[new_cols]

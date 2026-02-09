@@ -126,6 +126,7 @@ def plot_compare_sources_with_lags(df_omni, df_sc, df_pc, ind_var, dep='PC', omn
 
 
     dep_cols = {'PCN': ['PCN','SMC_y_GSM'],
+                'PCNC': ['PCN','SMC'],
                 'PCC': ['PCC','SMC'],
                 'AE':  ['AE', 'SME']}
 
@@ -188,6 +189,6 @@ def plot_compare_sources_with_lags(df_omni, df_sc, df_pc, ind_var, dep='PC', omn
     file_name = f'Comparing_{ind_var}_{dep}_fit_{kwargs["fit_type"]}'
 
     plt.tight_layout()
-    save_figure(fig, file_name=file_name, sub_directory='Driver_Response')
+    save_figure(fig, file_name=file_name, sub_directory='Driver_Response/Lags')
     plt.show()
     plt.close()

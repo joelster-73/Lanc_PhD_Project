@@ -12,7 +12,7 @@ from src.methods.magnetosheath_saturation.plotting import plot_compare_sources
 from src.methods.magnetosheath_saturation.plotting_lags import plot_compare_sources_with_lags
 from src.methods.magnetosheath_saturation.merge_region_sc import update_omni
 
-sample_interval = '1min'
+sample_interval = '5min'
 data_pop        = 'with_plasma'
 region          = 'sw'
 spacecraft      = 'shifted'
@@ -24,21 +24,20 @@ df_sc   = import_processed_data(region, dtype=data_pop, resolution=sample_interv
 df_pc   = import_processed_data('indices', file_name=f'combined_{sample_interval}')
 
 
+
 # %% Comparison_Grid
 import itertools as it
-for ind, dep in it.product(('E_R','E_y_GSM'),('PCC','PCN','AE')):
+for ind, dep in it.product(('E_R','E_y_GSM'),('PCNC','PCN','PCC','AE')):
 
     for fit in ('saturation','linear_flat','straight'):
         plot_compare_sources(df_omni, df_sc, df_pc, ind, dep, fit_type=fit)
         plot_compare_sources_with_lags(df_omni, df_sc, df_pc, ind, dep, fit_type=fit)
 
 
-## odd behaviour with the 5-min data and lags that divide perfectly - interpolation introducing odd behaviour?
-
 # %%
 
 plot_compare_sources(df_omni, df_sc, df_pc, 'E_R', 'PCC', fit_type='saturation')
-plot_compare_sources(df_omni, df_sc, df_pc, 'E_R', 'PCN', fit_type='saturation')
+plot_compare_sources(df_omni, df_sc, df_pc, 'E_R', 'PCNC', fit_type='saturation')
 plot_compare_sources(df_omni, df_sc, df_pc, 'E_y_GSM', 'PCN', fit_type='saturation')
 
 

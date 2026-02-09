@@ -31,16 +31,6 @@ def save_figure(figure, directory=None, sub_directory=None, file_name=None):
     Saves the file in a folder named YYMMDD within the specified directory.
     Creates the folder if it does not exist.
 
-    Parameters:
-    -----------
-    figure : matplotlib.figure.Figure
-        The figure object to be saved.
-    directory : str, optional
-        The parent directory to save the file in. Defaults to "Figures" in the current working directory.
-
-    Returns:
-    --------
-    None
     """
     if save_fig:
         now = datetime.now()
@@ -48,9 +38,15 @@ def save_figure(figure, directory=None, sub_directory=None, file_name=None):
         if directory is None:
             directory = FIGURES_DIR
         if sub_directory is not None:
-            full_directory = os.path.join(directory, folder_name, sub_directory)
+            if '/' in sub_directory:
+                sub_directory = sub_directory.split('/')
+                full_directory = os.path.join(directory, folder_name, *sub_directory)
+            else:
+                full_directory = os.path.join(directory, folder_name, sub_directory)
+
         else:
             full_directory = os.path.join(directory, folder_name)
+
         os.makedirs(full_directory, exist_ok=True)
 
         if file_name is None:
