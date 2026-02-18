@@ -274,12 +274,19 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
         sample_interval = df_omni.attrs.get('sample_interval','5min')
     data_type = 'mins' if sample_interval == '1min' else 'counts'
 
-    kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
-    kwargs['display']   = kwargs.get('display','heat')
-    kwargs['fit_type']  = kwargs.get('fit_type','saturation')
-    kwargs['save_dir']  = kwargs.get('save_dir','Driver_Response')
+    kwargs['min_count']  = kwargs.get('min_count',minimum_counts[data_type])
+    kwargs['display']    = kwargs.get('display','heat')
+    kwargs['fit_type']   = kwargs.get('fit_type','saturation')
+    kwargs['save_dir']   = kwargs.get('save_dir','Driver_Response')
     kwargs['print_text'] = True
     kwargs['show_error'] = True
+
+    kwargs['as_text']    = True
+    kwargs['inc_errs']   = False
+    kwargs['fit_style']  = '-'
+    kwargs['show_error'] = False
+    kwargs['save_text']  = True
+
     if kwargs['display']=='rolling':
         kwargs['region'] = kwargs.get('region','sem')
 
@@ -351,6 +358,7 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
 
         # Kwargs
 
+        kwargs['fit_name'] = fit_name
         if kwargs['display']=='heat':
             dep_bin_width = get_var_bin_width(dep_var, restrict)
             kwargs['bin_width'] = (bin_width,dep_bin_width)
@@ -361,11 +369,6 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
         elif kwargs['display']=='scatter':
             kwargs['data_colour']  = colour
             kwargs['error_colour'] = colour
-        kwargs['as_text'] = True
-        kwargs['inc_errs'] = False
-        kwargs['show_error'] = False
-        kwargs['fit_name'] = fit_name
-        kwargs['save_text'] = True
 
         if 'data_name_map' in kwargs:
             kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))

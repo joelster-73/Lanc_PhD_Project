@@ -180,7 +180,7 @@ def compare_series(series1, series2, **kwargs):
 
     fit_kwargs = kwargs.copy()
     fit_kwargs['fit_colour'] = kwargs.get('fit_colour',black)
-    fit_kwargs['fit_style'] = '--'
+    fit_kwargs['fit_style'] = kwargs.get('fit_style','--')
     fit_kwargs['fit_width'] = 1.25
     fit_kwargs['xunit'] = unit1
     fit_kwargs['yunit'] = unit2

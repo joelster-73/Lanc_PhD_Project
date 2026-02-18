@@ -46,7 +46,7 @@ LUNA_MAG_DIR    = 'Y:/Processed_Data/GROUND/SuperMAG/NetCDF/'
 
 
 
-def get_luna_directory(source, instrument=None, info=None):
+def get_luna_directory(source, instrument=None, info=None, create=False):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -145,7 +145,12 @@ def get_luna_directory(source, instrument=None, info=None):
         raise ValueError(f'Spacecraft "{source} does not have processed directory.')
 
     if not os.path.isdir(path):
-        raise ValueError(f'Directory does not exist on LUNA: {path}.')
+        if create:
+            warnings.warn(f'Directory does not exist on LUNA: {path}. Creating directory...')
+            create_directory(path)
+        else:
+            raise ValueError(f'Directory does not exist on LUNA: {path}.')
+
 
 
     return path

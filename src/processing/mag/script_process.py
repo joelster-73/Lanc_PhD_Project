@@ -5,24 +5,35 @@ Created on Thu Dec  4 13:42:09 2025
 @author: richarj2
 """
 
+PC_STATIONS = ('THL','SVS','ALE','NRD','DMH','RES')
+
+PC_STATIONS = ('SVS','ALE','NRD','DMH','RES')
+
+# %% Use_API
+
+from src.processing.mag.supermag import download_supermag_data
+
+for station in PC_STATIONS:
+    download_supermag_data(station)
+
 # %% NetCDF_Files
 from src.processing.mag.supermag import process_supermag_data
 
-station = 'THL'
-process_supermag_data(station)
+for station in PC_STATIONS:
+    process_supermag_data(station)
 
 # %% Convert_to_GSE
 from src.processing.mag.supermag import convert_supermag_gse
 
-station = 'THL'
-convert_supermag_gse(station)
+for station in PC_STATIONS:
+    convert_supermag_gse(station)
 
 
 # %% Convert_to_GSM
 from src.processing.mag.supermag import convert_supermag_gsm
 
-station = 'THL'
-convert_supermag_gsm(station)
+for station in PC_STATIONS:
+    convert_supermag_gsm(station)
 
 
 # %% aGSE

@@ -6,8 +6,10 @@ Created on Thu Dec  4 12:50:42 2025
 """
 import os
 import glob
+import ast
 import numpy as np
 import pandas as pd
+import itertools as it
 import warnings
 
 from netCDF4 import Dataset
@@ -17,6 +19,110 @@ from ..writing import write_to_cdf
 from ...config import get_luna_directory, get_proc_directory
 from ...coordinates.magnetic import convert_GEO_to_GSE, convert_GSE_to_GSM_with_angles
 
+from ..dataframes import print_head
+
+import xarray as xr
+from .supermag_api import SuperMAGGetData
+
+
+def download_supermag_data(station, start_year=2001, end_year=2025, userid='joelster73', cadence='1min', ignore_errors=True):
+    """
+    Download SuperMAG station data in monthly batches and save yearly NetCDF files.
+    """
+
+    mag_dir = get_luna_directory('supermag', station, create=True)
+
+    for year in range(start_year, end_year + 1):
+
+        dfs = []
+
+        for month in range(1, 13):
+
+            start = f'{year}-{month:02d}-01T00:00:00'
+
+            if month == 12:
+                end = f'{year+1}-01-01T00:00:00'
+            else:
+                end = f'{year}-{month+1:02d}-01T00:00:00'
+
+            t0 = pd.to_datetime(start)
+            t1 = pd.to_datetime(end)
+
+            extent = int((t1 - t0).total_seconds())
+
+            status, df = SuperMAGGetData(userid, start, extent, 'all', station )
+
+            if status != 1: # not 1 = not good
+                if ignore_errors:
+                    print(f'Failed fetch for {station} {start[:-12]}')
+                else:
+                    raise RuntimeError(f'SuperMAG fetch failed for {station} {start[:-12]}')
+
+            elif not df.empty:
+                dfs.append(df)
+                print(f'Retrieved {station} {start[:-12]}')
+
+        if len(dfs)==0:
+            print(f'No data for {year}.')
+            continue
+
+        df = pd.concat(dfs, ignore_index=True)
+        df = convert_downloaded_data(df)
+
+        print_head(df)
+
+        ds = xr.Dataset.from_dataframe(df)
+
+        outfile = os.path.join(mag_dir, f'{station}_{year}_{cadence}.netcdf')
+
+        ds.to_netcdf(outfile)
+        print(f'Saved {outfile}.\n')
+
+
+def convert_downloaded_data(df):
+    """
+    Convert raw SuperMAG API dataframe into format expected by process_supermag_data.
+    Returns a new DataFrame ready to save as yearly NetCDF.
+    """
+
+    if df.empty:
+        return df
+
+    new_df = pd.DataFrame()
+
+    # Convert tval to datetime
+    epoch = pd.to_datetime(df['tval'], unit='s')
+
+    new_df['time_yr'] = epoch.dt.year
+    new_df['time_mo'] = epoch.dt.month
+    new_df['time_dy'] = epoch.dt.day
+    new_df['time_hr'] = epoch.dt.hour
+    new_df['time_mt'] = epoch.dt.minute
+    new_df['time_sc'] = epoch.dt.second
+
+    # Duration
+    new_df['extent'] = df['ext']
+
+    #---Expand NEZ/GEO components from N,E,Z---#
+    for coords, comp in it.product(('geo','nez'),('N','E','Z')):
+        if comp in df:
+            new_df[f'db{comp.lower()}_{coords}'] = df[comp].str.get(coords)
+        else:
+            new_df[f'db{comp.lower()}_{coords}'] = np.nan
+
+    for col in ['mlt', 'glat', 'glon', 'mcolat', 'decl', 'sza']:
+        if col in df.columns:
+            new_df[col] = df[col]
+
+    if 'iaga' in df.columns:
+        new_df['id'] = df['iaga']
+
+    new_df['count'] = 1 # 1 min data
+
+    return new_df
+
+
+# %% Process
 
 # All nT
 bfield_cols = {'dbn_geo': 'B_n_GEO', # Magnetic field north component, geographic coordinates
@@ -25,7 +131,7 @@ bfield_cols = {'dbn_geo': 'B_n_GEO', # Magnetic field north component, geographi
                'dbn_nez': 'B_n_NEZ', # Magnetic field north component, NEZ coordinates
                'dbe_nez': 'B_e_NEZ', # Magnetic field east component, NEZ coordinates
                'dbz_nez': 'B_z_NEZ', # Magnetic field vertical component, NEZ coordinates
-}
+               }
 
 # all degrees
 position_cols = {'decl'  : 'mdecl',    # Magnetic Declination, (D_m)
@@ -33,7 +139,7 @@ position_cols = {'decl'  : 'mdecl',    # Magnetic Declination, (D_m)
                  'glat'  : 'glat',     # Geographic Latitude,  (phi_g)
                  'glon'  : 'glon',     # Geographic Longtiude, (lambda_g)
                  'sza'   : 'chi_s',    # Solar Zenith Angle,
-}
+                 }
 
 other_cols = {'extent': 'duration', # Extent of Record [seconds]
               'id'    : 'id',       # Station Identifier
@@ -68,7 +174,6 @@ def process_supermag_data(*stations):
             df_years.append(df_year)
             print(os.path.basename(file),'done')
 
-
         ###----------PROCESSING----------###
         df_station = pd.concat(df_years)
         df_station['epoch'] = pd.to_datetime({ #Time in UTC, I believe
@@ -101,7 +206,7 @@ def process_supermag_data(*stations):
         df_station.attrs['glon']     = np.degrees(df_station['glon'].iloc[0])
         df_station.attrs['id']       = df_station['id'].iloc[0]
         df_station.attrs['duration'] = df_station['duration'].iloc[0]
-        df_station.attrs['count']    = df_station['count'].iloc[0]
+        df_station.attrs['count']    = df_station['count'].iloc[0] # value = 1
 
         df_station = df_station[['MLT', 'B_n_GEO', 'B_e_GEO', 'B_z_GEO', 'B_n_NEZ', 'B_e_NEZ', 'B_z_NEZ', 'mdecl', 'mcolat', 'chi_s']]
 
@@ -109,28 +214,29 @@ def process_supermag_data(*stations):
         df_station.insert(2, 'H_mag', (df_station[[f'B_{c}_NEZ' for c in ('n','e')]].pow(2).sum(axis=1)) ** 0.5) # Horizontal intensity, not H-field
         df_station.attrs['units']['H_mag'] = 'nT'
 
-        print('Uncertainties.')
-        if False: # excluding for now
-            for coords in ('GEO','NEZ'):
-                sigma_nez = calc_supermag_uncertainty(df_station, coords=coords)
-                for comp in ('n','e','z'):
-                    print(coords,comp)
-                    idx = df_station.columns.get_loc(f'B_{comp}_{coords}')
-                    df_station.insert(idx+1, f'B_{comp}_{coords}_unc', sigma_nez)
-                    df_station.attrs['units'][f'B_{comp}_{coords}_unc'] = 'nT'
-
-            for quantity in ('B','H'):
-                print(f'Propagating {quantity}')
-                sigma = prop_supermag_uncertainty(df_station, quantity)
-                idx = df_station.columns.get_loc(f'{quantity}_mag')
-                df_station.insert(idx+1, f'{quantity}_mag_unc', sigma)
-                df_station.attrs['units'][f'{quantity}_mag_unc'] = 'nT'
+        direc      = get_proc_directory('supermag', dtype=station, resolution='raw', create=True)
+        attributes = {'sample_interval': '1min', 'time_col': 'epoch'}
 
         print(f'Writing {station}....')
-        direc = get_proc_directory('supermag', dtype=station, resolution='raw', create=True)
-        attributes = {'sample_interval': '1min', 'time_col': 'epoch'}
         write_to_cdf(df_station, directory=direc, file_name=f'{station}_raw', attributes=attributes, reset_index=True)
 
+
+# print('Uncertainties.')
+# if False: # excluding for now
+#     for coords in ('GEO','NEZ'):
+#         sigma_nez = calc_supermag_uncertainty(df_station, coords=coords)
+#         for comp in ('n','e','z'):
+#             print(coords,comp)
+#             idx = df_station.columns.get_loc(f'B_{comp}_{coords}')
+#             df_station.insert(idx+1, f'B_{comp}_{coords}_unc', sigma_nez)
+#             df_station.attrs['units'][f'B_{comp}_{coords}_unc'] = 'nT'
+
+#     for quantity in ('B','H'):
+#         print(f'Propagating {quantity}')
+#         sigma = prop_supermag_uncertainty(df_station, quantity)
+#         idx = df_station.columns.get_loc(f'{quantity}_mag')
+#         df_station.insert(idx+1, f'{quantity}_mag_unc', sigma)
+#         df_station.attrs['units'][f'{quantity}_mag_unc'] = 'nT'
 
 def calc_supermag_uncertainty(df, coords='NEZ', comp='n', window_minutes=1440):
     """

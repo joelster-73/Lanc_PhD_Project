@@ -387,3 +387,9 @@ def previous_index(df, index):
 
     return None
 
+
+
+def print_head(df, nrows=5):
+
+    with pd.option_context('display.max_columns', None,'display.width', None,'display.max_colwidth', None,'display.max_rows', None):
+        print(df.head(nrows))
