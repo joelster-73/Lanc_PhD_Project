@@ -5,9 +5,7 @@ Created on Thu Dec  4 13:42:09 2025
 @author: richarj2
 """
 
-PC_STATIONS = ('THL','SVS','ALE','NRD','DMH','RES')
-
-PC_STATIONS = ('SVS','ALE','NRD','DMH','RES')
+from src.processing.mag.config import PC_STATIONS
 
 # %% Use_API
 
@@ -36,20 +34,9 @@ for station in PC_STATIONS:
     convert_supermag_gsm(station)
 
 
-# %% aGSE
-
-# instead of OMNI use a fixed average DP2 angle, around 30 degrees
-# then include this with the aberration - whichever is larger (so during quiet times, aberration larger, during active times, DP2 more angled)
-
-###
-    # convert_supermag_agse(station)
-    # add convert_GSE_to_aGSE() method to the build_lagged_indices
-
-###
-
 
 # %% Lagged_indices
 from src.processing.mag.indices import build_lagged_indices
 
 for sample_interval in ('1min','5min'): # for OMNI's indices
-    build_lagged_indices(sample_interval)
+    build_lagged_indices(sample_interval, PC_stations=PC_STATIONS)

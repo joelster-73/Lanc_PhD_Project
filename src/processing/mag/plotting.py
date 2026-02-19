@@ -17,10 +17,17 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
 from matplotlib import pyplot as plt
 
+
 from ...plotting.utils import save_figure
-from ...plotting.formatting import custom_date_formatter, add_legend
-from ...plotting.config import blue, dark_mode, black, white
+
+from .config import PC_STATIONS
+from ...plotting.formatting import custom_date_formatter, add_legend, create_label, shifted_angle_ticks
+from ...plotting.config import blue, dark_mode, black, white, grey
+from ...plotting.comparing.parameter import compare_dataframes
 from ...coordinates.spatial import convert_GEO_position
+
+from ...methods.magnetosheath_saturation.plotting_utils import minimum_counts, def_param_names, get_var_bin_width, get_variable_range, shift_angular_data, mask_df
+
 
 # %% mag
 
@@ -371,3 +378,148 @@ def daily_ap(date_str):
 
     raise RuntimeError('Ap column not found')
 
+
+# %% Compare
+
+def plot_compare_magnetometers(df_sw, df_pc, ind_var, dep='mag', restrict=True, shift_centre=True, **kwargs):
+    """
+    2x2 grid comparing OMNI & in-situ as input and Index & Mag. as output
+    Dep_var is either 'PC' for comparing PC and THL or 'AE' for comparing AE and SME
+    """
+
+    if df_pc is None:
+        raise ValueError('Polar cap dataframe is none.')
+
+    if df_sw is not None:
+        sample_interval = df_sw.attrs.get('sample_interval','5min')
+    data_type = 'mins' if sample_interval == '1min' else 'counts'
+
+    kwargs['min_count']  = kwargs.get('min_count',minimum_counts[data_type])
+    kwargs['display']    = kwargs.get('display','heat')
+    kwargs['fit_type']   = kwargs.get('fit_type','saturation')
+    kwargs['save_dir']   = kwargs.get('save_dir','Driver_Response')
+    kwargs['print_text'] = True
+    kwargs['show_error'] = True
+
+    kwargs['as_text']    = True
+    kwargs['inc_errs']   = False
+    kwargs['fit_style']  = '-'
+    kwargs['show_error'] = False
+    kwargs['save_text']  = True
+
+    if kwargs['display']=='rolling':
+        kwargs['region'] = kwargs.get('region','sem')
+
+    #if 'data1_name' in kwargs:
+        #kwargs['data1_name'] = create_label(kwargs['data1_name'])
+
+    if ind_var=='B_clock':
+        shift_centre = True and shift_centre
+    else:
+        shift_centre = False
+
+    dep_lags = {'PCN': 17, 'PCC': 17, 'AE': 53, 'PCNC': 17}
+
+    if dep=='mag':
+        dep_string = '{station}'
+    elif dep=='gse':
+        dep_string = '{station}_y_GSE'
+    elif dep=='gsm':
+        dep_string = '{station}_y_GSM'
+    else:
+        raise Exception('No')
+
+    lag = kwargs.get('lag',dep_lags.get(dep,0))
+    if lag>0:
+        dep_string += f'_{lag}m'
+
+    ###----------PLOT GRIDS----------###
+    n_rows, n_cols = 2, len(PC_STATIONS) // 2
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=200, sharex=True, sharey=True)
+
+    for i, station in enumerate(PC_STATIONS):
+
+        dep_var = dep_string.format(station=station)
+
+        # Setup
+
+        row, col = i % n_rows, i // n_rows
+        ax = axs[row][col]
+
+        #print(fit_name)
+
+        fit_name = f'{dep_var} against OMNI {ind_var}'
+
+        ind_err, ind_count = def_param_names(df_sw, ind_var)
+        dep_err, dep_count = def_param_names(df_pc, dep_var)
+
+        bin_width, limits, invert = get_variable_range(ind_var, 'sw', dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
+
+        if shift_centre:
+            df_sw = shift_angular_data(df_sw, ind_var)
+
+        df_ind = mask_df(df_sw, ind_var, limits)
+        df_dep = mask_df(df_pc, dep_var)
+
+        intersect = df_ind.index.intersection(df_dep.index)
+        df_ind = df_ind.loc[intersect]
+        df_dep = df_dep.loc[intersect]
+
+        # Kwargs
+
+        kwargs['fit_name'] = fit_name
+        kwargs['display']  = 'heat'
+        dep_bin_width      = get_var_bin_width(dep_var, restrict)
+
+        kwargs['bin_width']  = (bin_width,dep_bin_width)
+        kwargs['fit_colour'] = 'cyan'
+
+        if 'data_name_map' in kwargs:
+            kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
+
+        if df_sw.attrs.get('units',{}).get(ind_var,'i')==df_pc.attrs.get('units',{}).get(dep_var,'d') and kwargs.get('show_reference',False):
+            kwargs['reference_line'] = 'x'
+        else:
+            kwargs['reference_line'] = None
+
+        objs = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        if len(objs)==3: # indicates cbar present
+            cbar = objs[-1]
+            if col!=n_cols-1:
+                cbar.set_label(None)
+            else:
+                cbar.set_label(data_type.capitalize())
+
+        ###----------FORMATTING----------###
+        title = f'N={len(df_ind):,}'
+
+        # Formatting
+        if shift_centre:
+            ax.axvline(x=np.pi, c=grey, ls=':')
+            if row==n_rows-1:
+                shifted_angle_ticks(ax, 'x')
+
+        if invert:
+            ax.invert_xaxis()
+
+        ax.set_title(title)
+        if row==n_rows-1:
+            ax.tick_params(labelbottom=True)
+        else:
+            ax.tick_params(labelbottom=False)
+            ax.set_xlabel(None)
+
+    if n_cols>1:
+        fig.align_ylabels(axs[:,0])
+    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
+
+    file_name = f'Comparing_{ind_var}_{dep}_fit_{kwargs["fit_type"]}_{lag}m'
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, sub_directory=kwargs['save_dir'])
+    plt.show()
+    plt.close()
+
+
+    plt.close()

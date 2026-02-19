@@ -5,10 +5,15 @@ Created on Sun Dec  7 12:52:37 2025
 @author: richarj2
 """
 
-PC_times = (10,15,16,17,18,19,20,30)
-AE_times = (45,50,51,52,53,54,55,60)
+PC_times = (15,16,17,18,19)
+AE_times = (50,51,52,53,54,55)
+
+PC_STATIONS = ('THL','SVS','ALE','NRD','DMH','RES')
 
 lagged_indices = {'AE':  AE_times, 'AEc': AE_times,     'SME': AE_times,
                   'PCN': PC_times, 'PCC': PC_times,
-                  'SMC': PC_times, 'SMC_unc': PC_times, 'SMC_y_GSE': PC_times, 'SMC_y_GSM': PC_times,
                   'AA': (60,)}
+
+for station in PC_STATIONS:
+    for col in (station,f'{station}_unc',f'{station}_y_GSE',f'{station}_y_GSM'):
+        lagged_indices[col] = PC_times

@@ -171,7 +171,7 @@ def correction_AE(df):
 # %% OMNI_with_lag
 
 
-def build_lagged_indices(sample_interval, indices=lagged_indices):
+def build_lagged_indices(sample_interval, indices=lagged_indices, PC_stations=('THL',), to_include=('mag','gse','gsm')):
 
     # lagged_indices = ('AE','PCN',...)
     # omni_lags = (10,17,20,30,...)
@@ -182,13 +182,6 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_aa  = process_AA_data()
     df_sme = process_SME_data()
 
-    # SuperMAG PolarCap
-    # Currently using magnitude of horizontal field and y-component as "index"
-    # Will change eventually to field proected onto optimum direction
-    df_THL = import_processed_data('supermag', dtype='THL', resolution='gsm')
-    THL_columns = ['H_mag','H_y_GSE','H_y_GSM']
-    THL_columns_new = ['SMC','SMC_y_GSE','SMC_y_GSM']
-
     # Extracts indices contained in OMNI - doesn't use any of the SW data
     df_pc  = import_processed_data('omni', resolution=sample_interval)
     df_pc = df_pc[indices_columns] # drops other columns
@@ -198,37 +191,71 @@ def build_lagged_indices(sample_interval, indices=lagged_indices):
     df_pc['PCN'] = df_pcn['PCN'].reindex(df_pc.index)
     df_pc['PCC'] = df_pcc['PCC'].reindex(df_pc.index)
     df_pc['AA']  = df_aa['aa'].reindex(df_pc.index, method='ffill') # 3 hourly
-    df_pc[THL_columns_new] = df_THL[THL_columns].reindex(df_pc.index)
+
+    for col in ('PCN','PCC'):
+        df_pc.attrs['units'][col] = 'mV/m'
+    for col in ('AA','SME'):
+        df_pc.attrs['units'][col] = 'nT'
+
+    for station in PC_stations:
+        # SuperMAG PolarCap
+        # Currently using magnitude of horizontal field and y-component as "index"
+        # Will change eventually to field proected onto optimum direction
+        df_mag = import_processed_data('supermag', dtype=station, resolution='gsm')
+        mag_columns = []
+        mag_columns_new = []
+        for to_inc in to_include:
+            if to_inc=='mag':
+                mag_columns.append('H_mag')
+                mag_columns_new.append(station)
+            elif to_inc=='gse':
+                mag_columns.append('H_y_GSE')
+                mag_columns_new.append(f'{station}_y_GSE')
+            elif to_inc=='gsm':
+                mag_columns.append('H_y_GSM')
+                mag_columns_new.append(f'{station}_y_GSM')
+
+        df_pc[mag_columns_new] = df_mag[mag_columns].reindex(df_pc.index)
+        for col in mag_columns_new:
+            df_pc.attrs['units'][col] = 'nT'
 
     print(df_pc.columns)
 
     print('Lagging...')
 
+    new_cols = {}
+
     for ind in df_pc.columns:
-        lags = indices.get(ind,None)
+        lags = indices.get(ind, None)
         if lags is None:
-            print(f'{ind} has no lag times.')
             continue
-        print(ind,lags)
 
         for lag in lags:
             dt_lag = -pd.Timedelta(minutes=lag)
 
-            # Lagged index (estimated response from BSN to PC/AE)
             if (dt_lag % pd.Timedelta(sample_interval)) == pd.Timedelta(0):
                 new_data = df_pc[ind].shift(freq=dt_lag)
             else:
-                print('Interpolating lag.')
                 target_index = df_pc.index - dt_lag
                 full_index = df_pc.index.union(target_index)
                 temp = df_pc[ind].reindex(full_index).interpolate(method='time')
-                new_data = temp.loc[target_index].values
+                new_data = pd.Series(
+                    temp.loc[target_index].values,
+                    index=df_pc.index,
+                    name=ind
+                )
 
             new_col = f'{ind}_{lag}m'
             if ind.endswith('_unc'):
                 new_col = '_'.join(ind.split('_')[:-1]) + f'_{lag}m' + 'unc'
 
-            df_pc.insert(df_pc.columns.get_loc(ind) + 1, new_col, new_data)
+            new_cols[new_col] = new_data
+            df_pc.attrs['units'][new_col] = df_pc.attrs['units'].get(ind)
+
+    # Concatenate once
+    df_pc_attrs = df_pc.attrs
+    df_pc = pd.concat([df_pc, pd.DataFrame(new_cols, index=df_pc.index)], axis=1)
+    df_pc.attrs = df_pc_attrs
 
     # Writes OMNI with lag to file
     output_file = os.path.join(get_proc_directory('indices'), f'combined_{sample_interval}')

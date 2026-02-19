@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 
 from ...plotting.formatting import create_label, data_string
+from ...processing.mag.config import PC_STATIONS
 
 minimum_counts = {'mins': 100, 'counts': 50}
 
@@ -103,7 +104,7 @@ def get_var_bin_width(var, restrict):
     elif var.startswith(('PCN','PCC')):
         bin_width = 0.5
 
-    elif var.startswith(('SME','AE','SMC')):
+    elif var.startswith(('SME','AE')) or var.startswith(PC_STATIONS):
         bin_width = 50
 
     elif var.startswith('B_'):
