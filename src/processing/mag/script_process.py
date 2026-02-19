@@ -39,4 +39,4 @@ for station in PC_STATIONS:
 from src.processing.mag.indices import build_lagged_indices
 
 for sample_interval in ('1min','5min'): # for OMNI's indices
-    build_lagged_indices(sample_interval, PC_stations=PC_STATIONS)
+    build_lagged_indices(sample_interval, PC_stations=PC_STATIONS, to_include=('mag','gsm'))

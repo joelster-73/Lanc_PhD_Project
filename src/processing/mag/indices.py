@@ -198,6 +198,7 @@ def build_lagged_indices(sample_interval, indices=lagged_indices, PC_stations=('
         df_pc.attrs['units'][col] = 'nT'
 
     for station in PC_stations:
+        print(station)
         # SuperMAG PolarCap
         # Currently using magnitude of horizontal field and y-component as "index"
         # Will change eventually to field proected onto optimum direction
