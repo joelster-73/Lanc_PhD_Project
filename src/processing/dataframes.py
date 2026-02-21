@@ -389,7 +389,10 @@ def previous_index(df, index):
 
 
 
-def print_head(df, nrows=5):
+def print_dataframe(df, nrows=5, location='head'):
 
     with pd.option_context('display.max_columns', None,'display.width', None,'display.max_colwidth', None,'display.max_rows', None):
-        print(df.head(nrows))
+        if location in ('head','both'):
+            print(df.head(nrows))
+        if location in ('tail','both'):
+            print(df.tail(nrows))

@@ -224,7 +224,8 @@ def build_lagged_indices(sample_interval, indices=lagged_indices, PC_stations=('
 
     print('Lagging...')
 
-    new_cols = {}
+    new_cols  = {}
+    dt_sample = pd.Timedelta(sample_interval)
 
     for ind in df_pc.columns:
         lags = indices.get(ind, None)
@@ -234,17 +235,16 @@ def build_lagged_indices(sample_interval, indices=lagged_indices, PC_stations=('
         for lag in lags:
             dt_lag = -pd.Timedelta(minutes=lag)
 
-            if (dt_lag % pd.Timedelta(sample_interval)) == pd.Timedelta(0):
+            if (dt_lag % dt_sample) == pd.Timedelta(0):
                 new_data = df_pc[ind].shift(freq=dt_lag)
             else:
                 target_index = df_pc.index - dt_lag
-                full_index = df_pc.index.union(target_index)
-                temp = df_pc[ind].reindex(full_index).interpolate(method='time')
-                new_data = pd.Series(
-                    temp.loc[target_index].values,
-                    index=df_pc.index,
-                    name=ind
-                )
+                full_index   = df_pc.index.union(target_index)
+
+                tolerance = (abs(dt_lag)/2).ceil(dt_sample) # max interpolation range
+                temp      = df_pc[ind].reindex(full_index, method='nearest', tolerance=tolerance)
+
+                new_data  = pd.Series(temp.loc[target_index].values, index=df_pc.index, name=ind)
 
             new_col = f'{ind}_{lag}m'
             if ind.endswith('_unc'):

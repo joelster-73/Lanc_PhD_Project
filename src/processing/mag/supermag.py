@@ -148,7 +148,7 @@ other_cols = {'extent': 'duration', # Extent of Record [seconds]
 
 all_mappings = bfield_cols | position_cols | other_cols
 
-def process_supermag_data(*stations):
+def process_supermag_data(*stations, dropna=True):
 
     for station in stations:
         try:
@@ -207,11 +207,23 @@ def process_supermag_data(*stations):
         df_station.attrs['duration'] = df_station['duration'].iloc[0]
         df_station.attrs['count']    = df_station['count'].iloc[0] # value = 1
 
-        df_station = df_station[['MLT', 'B_n_GEO', 'B_e_GEO', 'B_z_GEO', 'B_n_NEZ', 'B_e_NEZ', 'B_z_NEZ', 'mdecl', 'mcolat', 'chi_s']]
+        # Define component column groups
+        geo_cols = [f'B_{c}_GEO' for c in ('n', 'e', 'z')]
+        nez_cols = [f'B_{c}_NEZ' for c in ('n', 'e', 'z')]
+        all_B_cols = geo_cols + nez_cols
 
-        df_station.insert(1, 'B_mag', (df_station[[f'B_{c}_NEZ' for c in ('n','e','z')]].pow(2).sum(axis=1)) ** 0.5)
-        df_station.insert(2, 'H_mag', (df_station[[f'B_{c}_NEZ' for c in ('n','e')]].pow(2).sum(axis=1)) ** 0.5) # Horizontal intensity, not H-field
+        # Keep only required columns
+        df_station = df_station[['MLT', *geo_cols, *nez_cols, 'mdecl', 'mcolat', 'chi_s']]
+
+        # Drop rows where ANY of the six B components are NaN
+        df_station = df_station.dropna(subset=all_B_cols)
+
+        # Compute magnitudes
+        df_station.insert(1, 'B_mag', (df_station[geo_cols].pow(2).sum(axis=1)) ** 0.5)
+        df_station.insert(2, 'H_mag', (df_station[[f'B_{c}_GEO' for c in ('n','e')]].pow(2).sum(axis=1)) ** 0.5)
+
         df_station.attrs['units']['H_mag'] = 'nT'
+        df_station.attrs['units']['B_mag'] = 'nT'
 
         direc      = get_proc_directory('supermag', dtype=station, resolution='raw', create=True)
         attributes = {'sample_interval': '1min', 'time_col': 'epoch'}
@@ -220,27 +232,28 @@ def process_supermag_data(*stations):
         write_to_cdf(df_station, directory=direc, file_name=f'{station}_raw', attributes=attributes, reset_index=True)
 
 
-# print('Uncertainties.')
-# if False: # excluding for now
-#     for coords in ('GEO','NEZ'):
-#         sigma_nez = calc_supermag_uncertainty(df_station, coords=coords)
-#         for comp in ('n','e','z'):
-#             print(coords,comp)
-#             idx = df_station.columns.get_loc(f'B_{comp}_{coords}')
-#             df_station.insert(idx+1, f'B_{comp}_{coords}_unc', sigma_nez)
-#             df_station.attrs['units'][f'B_{comp}_{coords}_unc'] = 'nT'
 
-#     for quantity in ('B','H'):
-#         print(f'Propagating {quantity}')
-#         sigma = prop_supermag_uncertainty(df_station, quantity)
-#         idx = df_station.columns.get_loc(f'{quantity}_mag')
-#         df_station.insert(idx+1, f'{quantity}_mag_unc', sigma)
-#         df_station.attrs['units'][f'{quantity}_mag_unc'] = 'nT'
 
 def calc_supermag_uncertainty(df, coords='NEZ', comp='n', window_minutes=1440):
     """
     Taken from Gjerloev (2012) 10.1029/2012JA017683
     """
+    # print('Uncertainties.')
+    # if False: # excluding for now
+    #     for coords in ('GEO','NEZ'):
+    #         sigma_nez = calc_supermag_uncertainty(df_station, coords=coords)
+    #         for comp in ('n','e','z'):
+    #             print(coords,comp)
+    #             idx = df_station.columns.get_loc(f'B_{comp}_{coords}')
+    #             df_station.insert(idx+1, f'B_{comp}_{coords}_unc', sigma_nez)
+    #             df_station.attrs['units'][f'B_{comp}_{coords}_unc'] = 'nT'
+
+    #     for quantity in ('B','H'):
+    #         print(f'Propagating {quantity}')
+    #         sigma = prop_supermag_uncertainty(df_station, quantity)
+    #         idx = df_station.columns.get_loc(f'{quantity}_mag')
+    #         df_station.insert(idx+1, f'{quantity}_mag_unc', sigma)
+    #         df_station.attrs['units'][f'{quantity}_mag_unc'] = 'nT'
 
     # Select components
     Bx = df[f'B_n_{coords}']
@@ -311,6 +324,7 @@ def prop_supermag_uncertainty(df, quantity='H', coords='NEZ'):
 
     return sigma_sum**(0.5)/mag
 
+# %% convert
 
 def convert_supermag_gse(*stations):
 
