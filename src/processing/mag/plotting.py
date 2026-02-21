@@ -431,14 +431,9 @@ def plot_compare_magnetometers(df_sw, df_pc, ind_var, dep='mag', restrict=True, 
     else:
         raise Exception('No')
 
-    if kwargs['display'] == 'lags':
-
-        dep_lagged = get_lagged_columns(df_pc, dep_string)
-
-    else:
-        lag = kwargs.get('lag',dep_lags.get(dep,0))
-        if lag>0:
-            dep_string += f'_{lag}m'
+    lag = kwargs.get('lag',dep_lags.get(dep,0))
+    if lag>0:
+        dep_string += f'_{lag}m'
 
     ###----------PLOT GRIDS----------###
     n_rows, n_cols = 2, len(PC_STATIONS) // 2
@@ -448,18 +443,18 @@ def plot_compare_magnetometers(df_sw, df_pc, ind_var, dep='mag', restrict=True, 
     for i, station in enumerate(PC_STATIONS):
 
         dep_var = dep_string.format(station=station)
+        ind_err, ind_count = def_param_names(df_sw, ind_var)
+        dep_err, dep_count = def_param_names(df_pc, dep_var)
 
         # Setup
-
         row, col = i % n_rows, i // n_rows
         ax = axs[row][col]
 
         #print(fit_name)
 
+        # Kwargs
         fit_name = f'{dep_var} against OMNI {ind_var}'
-
-        ind_err, ind_count = def_param_names(df_sw, ind_var)
-        dep_err, dep_count = def_param_names(df_pc, dep_var)
+        kwargs['fit_name'] = fit_name
 
         bin_width, limits, invert = get_variable_range(ind_var, 'sw', dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
 
@@ -474,33 +469,25 @@ def plot_compare_magnetometers(df_sw, df_pc, ind_var, dep='mag', restrict=True, 
         df_dep = df_dep.loc[intersect]
 
         # Kwargs
+        dep_bin_width        = get_var_bin_width(dep_var, restrict)
+        kwargs['bin_width']  = (bin_width,dep_bin_width)
+        kwargs['fit_colour'] = 'cyan'
 
-        kwargs['fit_name'] = fit_name
+        if 'data_name_map' in kwargs:
+            kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
 
-        if kwargs['display']=='lags':
-            _, (ax, ax2) = plot_fit_params_against_z(df_ind, ind_var, dep_lagged, df_dep=df_pc, col1_err=ind_err, col2_err=dep_err, col1_counts=ind_count, col2_counts=dep_count, ax=ax, **kwargs)
-
+        if df_sw.attrs.get('units',{}).get(ind_var,'i')==df_pc.attrs.get('units',{}).get(dep_var,'d') and kwargs.get('show_reference',False):
+            kwargs['reference_line'] = 'x'
         else:
+            kwargs['reference_line'] = None
 
-            dep_bin_width        = get_var_bin_width(dep_var, restrict)
-            kwargs['bin_width']  = (bin_width,dep_bin_width)
-            kwargs['fit_colour'] = 'cyan'
-
-            if 'data_name_map' in kwargs:
-                kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
-
-            if df_sw.attrs.get('units',{}).get(ind_var,'i')==df_pc.attrs.get('units',{}).get(dep_var,'d') and kwargs.get('show_reference',False):
-                kwargs['reference_line'] = 'x'
+        objs = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        if len(objs)==3: # indicates cbar present
+            cbar = objs[-1]
+            if col!=n_cols-1:
+                cbar.set_label(None)
             else:
-                kwargs['reference_line'] = None
-
-            objs = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
-            if len(objs)==3: # indicates cbar present
-                cbar = objs[-1]
-                if col!=n_cols-1:
-                    cbar.set_label(None)
-                else:
-                    cbar.set_label(data_type.capitalize())
+                cbar.set_label(data_type.capitalize())
 
         ###----------FORMATTING----------###
         title = f'N={len(df_ind):,}'

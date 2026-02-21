@@ -26,3 +26,5 @@ df_pc   = import_processed_data('indices', file_name=f'combined_{sample_interval
 plot_compare_magnetometers(df_omni, df_pc, 'E_R', 'mag', lag=17)
 plot_compare_magnetometers(df_omni, df_pc, 'E_y_GSM', 'gsm', lag=17)
 
+plot_compare_magnetometers(df_omni, df_pc, 'E_R', 'mag', lag=17, display='lags')
+

@@ -39,6 +39,6 @@ from src.processing.mag.indices import build_lagged_indices
 
 # for OMNI's indices
 for sample_interval in ('1min','5min'):
-    if sample_interval=='1min':
-        continue
+    # if sample_interval=='1min':
+    #     continue
     build_lagged_indices(sample_interval, PC_stations=PC_STATIONS, to_include=('mag','gsm'))

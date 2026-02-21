@@ -155,10 +155,8 @@ def plot_compare_sources_with_lags(df_omni, df_sc, df_pc, ind_var, dep='PC', omn
         dep_err, dep_count = def_param_names(df_pc, dep_var)
 
         _, limits, _ = get_variable_range(ind_var, ind_src, restrict=restrict)
-
-        df_ind = mask_df(df, ind_var, limits)
-
-        dep_lagged = get_lagged_columns(df_pc, dep_var)
+        df_ind       = mask_df(df, ind_var, limits)
+        dep_lagged   = get_lagged_columns(df_pc, dep_var)
 
         _, (ax, ax2) = plot_fit_params_against_z(df_ind, ind_var, dep_lagged, df_dep=df_pc, col1_err=ind_err, col2_err=dep_err, col1_counts=ind_count, col2_counts=dep_count, ax=ax, **kwargs)
 
