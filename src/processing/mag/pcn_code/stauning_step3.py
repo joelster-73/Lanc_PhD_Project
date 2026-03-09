@@ -9,13 +9,16 @@ import os
 import numpy as np
 
 import scipy.io
-import matplotlib.pyplot as plt
 
 from scipy.ndimage import gaussian_filter, uniform_filter
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from scipy.interpolate import RectBivariateSpline
+from scipy.signal import resample_poly
 
-from config import DATA_DIR, AB_DIR, DIRECTORIES, PLOT_LABELS_SHORT
+from stauning_imports import import_phi, import_ab
+from stauning_plots import plot_ab
+
+from config import DIRECTORIES
 
 
 # %% step1
@@ -41,17 +44,17 @@ def ab_regress(year, source='staun_phi'):
     """
     # Load Ekl file
     if source in ('staun_proj', 'staun_phi', 'recreated_phi'):
-        ekl = scipy.io.loadmat(os.path.join(DATA_DIR, f'ekls_{year}.mat'))[f'ekls_{year}']
+        ekl = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'ekls_{year}.mat'))[f'ekls_{year}']
 
-        yeartime = scipy.io.loadmat(os.path.join(DATA_DIR, 'yeartime.mat'))['yeartime']
+        yeartime = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
         time_a = yeartime.T # transpose to match MATLAB's yeartime'
 
         if source=='staun_proj':
-            in_dir = DATA_DIR
-            hproj_data = scipy.io.loadmat(os.path.join(in_dir,f'Hproj_{year}.mat'))
+            in_dir = DIRECTORIES.get('data')
+            hproj_data = scipy.io.loadmat(os.path.join(in_dir, f'Hproj_{year}.mat'))
         else:
             in_dir = DIRECTORIES.get(source)
-            hproj_data = np.load(os.path.join(in_dir, f'Hproj_{year}.npz'))
+            hproj_data = np.load(os.path.join(in_dir, 'hprojs', f'Hproj_{year}.npz'))
 
         H_proj = hproj_data[f'Hproj_{year}'].flatten()
 
@@ -101,7 +104,7 @@ def ab_regress(year, source='staun_phi'):
                     ab_a[mn - 1, col] = R[0]  # slope
                     ab_b[mn - 1, col] = R[1]  # intercept
 
-    np.savez_compressed(os.path.join(DIRECTORIES.get(source),f'ab_{year}.npz'), a=ab_a, b=ab_b)
+    np.savez_compressed(os.path.join(DIRECTORIES.get(source), 'abs', f'ab_{year}.npz'), a=ab_a, b=ab_b)
     print(f'Saved ab_{year}.npz')
 
 # %% step2
@@ -119,7 +122,7 @@ def ab_step2(source='original', show_plot=False):
     b_years = []
 
     for year in range(1997, 2010):
-        data = ab_import(year, source)
+        data = import_ab(year, source)
         a_years.append(data['a'])
         b_years.append(data['b'])
 
@@ -130,48 +133,15 @@ def ab_step2(source='original', show_plot=False):
     a_avr = np.nanmean(a_years, axis=2)  # shape: (12, 288)
     b_avr = np.nanmean(b_years, axis=2)
 
-    def smooth_coeff(c_avr, gaussian_size, gaussian_sigma, box_size):
-        # Tile 3x3 in 2D, then stack 5 times in 3rd dim
-        c_e = np.tile(c_avr, (3, 3))                      # (36, 864)
-        c_ex = np.stack([c_e] * 5, axis=2)                # (36, 864, 5)
-
-        # smooth3 gaussian: scipy's gaussian_filter applies per-axis sigma
-        c_s = gaussian_filter(c_ex.astype(float),
-                              sigma=[gaussian_sigma, gaussian_sigma, 0],
-                              truncate=gaussian_sigma)
-        # smooth3 box: uniform_filter equivalent
-        c_n = uniform_filter(c_s, size=[box_size, box_size, 1])
-
-        # Extract centre tile: MATLAB c_n(13:12*2, 289:288*2, 3) — 1-indexed
-        c_2d = c_n[12:24, 288:576, 2]                     # (12, 288)
-        return c_2d
-
     ab_2d_a = smooth_coeff(a_avr, gaussian_size=7, gaussian_sigma=0.8, box_size=5)
     ab_2d_b = smooth_coeff(b_avr, gaussian_size=9, gaussian_sigma=0.1, box_size=7)
-
-    if show_plot:
-        # Plot
-        fig, (ax1, ax2) = plt.subplots(2, 1)
-        ax1.contourf(ab_2d_b, 12)
-        ax1.set_title('b coefficients')
-        ax2.contourf(ab_2d_a, 12)
-        ax2.set_title('a coefficients')
-        plt.tight_layout()
-        plt.show()
-
-    def smooth_lowess_year(data, span=24):
-        extended = np.tile(data, 3)
-        n = len(data)
-        smoothed = lowess(extended, np.arange(len(extended)),
-                          frac=span / len(extended), it=0, return_sorted=False)
-        return smoothed[n:2*n]
 
     ab_year_a = smooth_lowess_year(coeff_for_year(ab_2d_a))
     ab_year_b = smooth_lowess_year(coeff_for_year(ab_2d_b))
 
     # Save
     if source=='original':
-        save_dir = AB_DIR
+        save_dir = DIRECTORIES.get('ab')
     else:
         save_dir = DIRECTORIES.get(source)
 
@@ -179,6 +149,35 @@ def ab_step2(source='original', show_plot=False):
     np.savez_compressed(os.path.join(save_dir,'ab_year.npz'), a=ab_year_a, b=ab_year_b)
     print('Saved ab_2d.npz and ab_year.npz')
 
+def smooth_coeff(c_avr, gaussian_sigma, box_size):
+    """
+    Called by ab_step2()
+    """
+    # Tile 3x3 in 2D, then stack 5 times in 3rd dim
+    c_e = np.tile(c_avr, (3, 3))                      # (36, 864)
+    c_ex = np.stack([c_e] * 5, axis=2)                # (36, 864, 5)
+
+    # smooth3 gaussian: scipy's gaussian_filter applies per-axis sigma
+    c_s = gaussian_filter(c_ex.astype(float),
+                          sigma=[gaussian_sigma, gaussian_sigma, 0],
+                          truncate=gaussian_sigma)
+    # smooth3 box: uniform_filter equivalent
+    c_n = uniform_filter(c_s, size=[box_size, box_size, 1])
+
+    # Extract centre tile: MATLAB c_n(13:12*2, 289:288*2, 3) — 1-indexed
+
+    return c_n[12:24, 288:576, 2]
+
+def smooth_lowess_year(data, span=24):
+    """
+    Called by ab_step2()
+    """
+
+    extended = np.tile(data, 3)
+    n = len(data)
+    smoothed = lowess(extended, np.arange(len(extended)),
+                      frac=span / len(extended), it=0, return_sorted=False)
+    return smoothed[n:2*n]
 
 def coeff_for_year(f_avr):
     """
@@ -214,108 +213,35 @@ def coeff_for_year(f_avr):
     return fi_year
 
 
-
-
-# %% manual
-
-def ab_import(var, source='original'):
+def make_coeff_1min(source='original'):
     """
+    --- MATLAB: Make 1-min file of coefficients from 5-min averaged files. ---
 
+    Phi, a and b are interpolated to 1-minute resolution and combined in one file.
     """
-    #print(f'\nImporting {var} for {source}.\n')
+    # load coefficient files
+    phi = import_phi('year', source)
+    ab  = import_ab('year', source)
 
-    if source == 'original':
-        path = os.path.join(AB_DIR, f'ab_{var}.mat')
-        mat = scipy.io.loadmat(path)
-        var = f'ab_{var}'
+    # interpolate coefficients to 1-minute resolution (factor 5)
+    coeff = {
+        'phi': resample_poly(phi, 5, 1),
+        'a': resample_poly(ab['a'], 5, 1),
+        'b': resample_poly(ab['b'], 1, 1),
+    }
 
-        struc = mat[var]
-        struc = {'a': struc[0][0][0], 'b': struc[0][0][1]}
-
-    else:
-        path = os.path.join(DIRECTORIES.get(source), f'ab_{var}.npz')
-        data = np.load(path)
-
-        struc = {'a': data['a'], 'b': data['b']}
-
-    return struc
-
-def ab_plot(var, source='npz', coeff_data=None):
-    """
-    Load ab data (.npz or .mat) and generate a contour plot.
-    """
-    if coeff_data is None:
-        coeff_data = ab_import(var, source=source)
-
-
-    nrows = len(coeff_data)
-
-    fig, axs = plt.subplots(nrows=nrows, figsize=(10,4), sharex=True, sharey=True, dpi=300)
-
-    if nrows>1:
-
-        for r, ax in enumerate(axs):
-
-            coeff  = list(coeff_data.keys())[r]
-            data   = coeff_data[coeff]
-
-            # For Phi_year, reshape to 12x288 for plotting
-            if var == 'year':
-                data = data.reshape(-1, 288)
-
-            print(data.shape)
-
-            cb = ax.contourf(data, 12, cmap='rainbow')
-            _ = ax.contour(data, 12, colors='black', linewidths=0.5)
-
-            # Time ticks every three months
-            time_ticks = np.arange(0, data.shape[0]+1, data.shape[0]//4)
-            ax.set_yticks(time_ticks)
-            if data.shape[0]>12:
-                ax.set_yticklabels([str(t//30) for t in time_ticks])
-            ax.set_ylabel('Month')
-            ax.set_ylim(0, data.shape[0] - 1)
-
-            cbar = plt.colorbar(cb)
-            cbar.ax.set_ylabel(PLOT_LABELS_SHORT[coeff])
-            cbar.ax.yaxis.set_ticks_position('left')
-
-        # Time ticks every hour
-        time_ticks = np.arange(0, data.shape[1]+1, 12)
-        axs[-1].set_xticks(time_ticks)
-        axs[-1].set_xticklabels([str(t//12) for t in time_ticks])
-        axs[-1].set_xlabel('UT hour')
-        axs[-1].set_xlim(0, data.shape[1] - 1)
-
-        axs[0].set_title(f'{var.capitalize()} distribution ({source})')
-
+    # save all coeff to file
     if source=='original':
-        save_dir = AB_DIR
+        save_dir = DIRECTORIES.get('coeff')
     else:
         save_dir = DIRECTORIES.get(source)
-    plt.savefig(os.path.join(save_dir, f'ab_{var}_{source}.png'), dpi=300, bbox_inches='tight')
 
-    plt.tight_layout()
-    plt.show()
+    out_path = os.path.join(save_dir, 'coeff.npz')
+    np.savez_compressed(out_path, **coeff)
+    print(f'Saved 1-min coefficients to {out_path}')
 
-def compare_ab(year, source='staun_proj'):
-    ab_mat = ab_import(year)
-    ab_np  = ab_import(year, source)
-    for key, unit in zip(('a','b'),('mV/m/nT','nT')):
-        key_mat = ab_mat[key]
-        key_np  = ab_np[key]
-        diff     = np.abs(key_mat - key_np)
-        print(f'Year {year} vs MATLAB for {key}:')
-        print(f'  mean | max abs diff = {diff.mean():.4f} | {diff.max():.4f} {unit}')
-        print(f'  within 0.1 {unit:<9} = {(diff < 0.1).mean()*100:.1f}%')
-        print(f'  within 0.5 {unit:<9} = {(diff < 0.5).mean()*100:.1f}%')
-        print(f'  > 0.5 count        = {(diff > 0.5).sum()} / {diff.size}')
-        if (diff > 0.5).any():
-            idx = np.argwhere(diff > 0.5)
-            print('  Large diff locations (month, time):')
-            for i, j in idx[:5]:
-                print(f'    [{i:02d},{j:03d}] MATLAB={key_mat[i,j]:.4f}  Python={key_np[i,j]:.4f}  diff={diff[i,j]:.4f}')
-        print()
+    return coeff
+
 # %% main
 
 
@@ -331,6 +257,8 @@ def main(source='staun_proj'):
     if source != 'original':
         ab_step1(source)
     ab_step2(source)
+
+    make_coeff_1min(source)
 
 
 if __name__ == '__main__':
@@ -351,16 +279,11 @@ if __name__ == '__main__':
     #main('updated_phi')
 
 
-
-    ### NEXT STEP - ADD A CALCULATION OF UNCERTAINTY ON FITTED PARAMS
-    ### IDEALLY SHOULD ALSO INCLUDE PHI ERROR
-    ### THEN CREATE STEP4 FILE I.E CALCULATE PCN AND THEN ALSO INCLUDE ERRORS
-
     for struc in ('2d','year'):
-        ab_plot(struc, source='original') # original mat data
-        ab_plot(struc, source='staun_proj')
-        ab_plot(struc, source='staun_phi') # using mat angles to create best
-        ab_plot(struc, source='recreated_phi') # best directions from recreated phi
+        plot_ab(struc, source='original') # original mat data
+        plot_ab(struc, source='staun_proj')
+        plot_ab(struc, source='staun_phi') # using mat angles to create best
+        plot_ab(struc, source='recreated_phi') # best directions from recreated phi
         #phi_plot(struc, source='updated_phi') # using updated omni
 
     for source in ('staun_proj', 'staun_phi', 'recreated_phi'):

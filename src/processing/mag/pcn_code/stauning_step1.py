@@ -9,11 +9,12 @@ import os
 import numpy as np
 
 import scipy.io
-import matplotlib.pyplot as plt
 
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-from config import DATA_DIR, FI_DIR, DIRECTORIES
+from config import DIRECTORIES
+from stauning_plots import monthly_phi_plot
+from stauning_compares import compare_phi
 
 
 # %% step1
@@ -41,8 +42,8 @@ def phi_arr(year, source):
     source='mat' replicates this bug; source='npz' uses the full year.
     """
     print('Loading mag files.')
-    dist = scipy.io.loadmat(os.path.join(DATA_DIR, f'dist_{year}.mat'))[f'dist_{year}']
-    yeartime = scipy.io.loadmat(os.path.join(DATA_DIR, 'yeartime.mat'))['yeartime']
+    dist = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'dist_{year}.mat'))[f'dist_{year}']
+    yeartime = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
 
     hour   = yeartime[0].astype(np.float32)
     minute = yeartime[1].astype(np.float32)
@@ -80,14 +81,16 @@ def phi_corr(year, Hproj_arr, source, show_plot=False):
     # Load Ekl data and the time array for the year
 
     if source=='staun_omni':
-        ekl = scipy.io.loadmat(os.path.join(DATA_DIR, f'ekls_{year}.mat'))[f'ekls_{year}'][0]
-        yeartime = scipy.io.loadmat(os.path.join(DATA_DIR, 'yeartime.mat'))['yeartime']
+        ekl = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'ekls_{year}.mat'))[f'ekls_{year}'][0]
+        yeartime = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
     elif source=='updated_omni':
         raise ValueError(f'"{source}" not implemented.')
 
-    out_dir = DIRECTORIES.get(source)
+    out_dir  = DIRECTORIES.get(source)
+    save_dir = os.path.join(out_dir, 'phis')
+    os.makedirs(save_dir, exist_ok=True)
 
-    fig_dir = os.path.join(out_dir, 'contours')
+    fig_dir  = os.path.join(out_dir, 'contours')
     os.makedirs(fig_dir, exist_ok=True)
 
 
@@ -134,12 +137,12 @@ def phi_corr(year, Hproj_arr, source, show_plot=False):
         # Smooth correlations and get best phi per time bin
         best_indices, smooth_R = compute_best_phi(R)
         if show_plot:
-            plot_phi(smooth_R, best_indices, year, month+1, fig_dir)  # optional plotting
+            monthly_phi_plot(smooth_R, best_indices, year, month+1, fig_dir)  # optional plotting
         Phi[month] = best_indices*5 - 180  # convert index to degrees
         print(f'  Month {month+1:02d}')
 
 
-    np.savez_compressed(os.path.join(out_dir,f'Phi_{year}.npz'), Phi=Phi)
+    np.savez_compressed(os.path.join(save_dir,f'Phi_{year}.npz'), Phi=Phi)
     # np.savetxt(os.path.join(OUT_DIR,f'Phi_{year}.csv'), Phi, delimiter=',')  # optional CSV
 
 
@@ -177,63 +180,13 @@ def compute_best_phi(R, smooth_level=90):
     return best_indices_smoothed, smooth_R
 
 
-def plot_phi(smooth_R, best_indices, year, month, save_dir):
-    """
-    In MATLAB, this is done by makerr directly.
 
-    Plot smoothed correlation R and best phi direction ff.
-    """
-    fig, ax = plt.subplots(figsize=(10,8), dpi=300)
-
-    # Contour plot
-    c = ax.contourf(smooth_R, 10, cmap='bwr_r', vmin=-1, vmax=1)
-
-    # Overlay best direction
-    ax.plot(best_indices, np.arange(288), c='green', linewidth=2.5)
-
-    # Time ticks every hour
-    time_ticks = np.arange(0, 288+1, 12)
-    ax.set_yticks(time_ticks)
-    ax.set_yticklabels([str(t//12) for t in time_ticks])
-
-    # Phi ticks every 30 degrees
-    ax.set_xticks(np.arange(0, 72, 6))  # every 6 indices → 30 degrees
-    ax.set_xticklabels([str(i*5 - 180) for i in np.arange(0, 72, 6)])
-
-    ax.set_title(f'Correlation contour ({year}-{month:02d})')
-    ax.set_xlabel('Phi (degrees)')
-    ax.set_ylabel('Time (hours)')
-
-    plt.colorbar(c, ax=ax, label='R')
-    plt.savefig(os.path.join(save_dir, f'{year}_{month:02d}.png'), dpi=300, bbox_inches='tight')
-    plt.tight_layout()
-    plt.show()
-
-
-# %% manual
-
-def compare_phi(year, source='staun_omni'):
-
-    if source.lower() == 'updated_omni':
-        raise ValueError ('Cannot compare npz as it fixes bug.')
-    in_dir = DIRECTORIES.get(source)
-    phi_np = np.load(os.path.join(in_dir, f'Phi_{year}.npz'))['Phi'].astype(np.float32)
-
-    phi_mat = scipy.io.loadmat(os.path.join(FI_DIR, f'F_{year}.mat'))[f'F_{year}'].astype(np.float32)
-
-    diff     = np.abs(phi_mat - phi_np)
-    rel_diff = (diff / (np.abs(phi_mat) + 1e-10)) * 100  # avoid div by zero
-
-    print(f'Year {year} vs MATLAB:\n'
-          f'  mean abs diff = {diff.mean():.4f}°\n'
-          f'  max abs diff = {diff.max():.4f}°\n'
-          f'  mean rel diff = {rel_diff.mean():.4f}%\n'
-          f'  within 0.1° = {(diff < 0.1).mean()*100:.1f}%\n'
-          f'  [numerical precision only — LOWESS interpolation differences]\n')
 
 # %%
 
 def main(source='staun_omni', show_plot=True):
+    print()
+    print('-----------------------------------')
     print('Calculates the best phi for every month over 1999 to 2009')
     print('Using the magnetometer disturbances from Stauning (I.e. their QDC corrected data)')
     print('A fixed 15-minute time lag between BSN and PC is assumed')
@@ -250,7 +203,7 @@ def main(source='staun_omni', show_plot=True):
 
 
 if __name__ == '__main__':
-    main('staun_omni', True)
+    main('staun_omni', False)
 
     #main('update_omni') # not implemented
 

@@ -9,6 +9,8 @@ import calendar
 
 BASE_DIR    = 'Y:/Processed_Data/GROUND/STAUNING/'
 
+PRELIM_DIR  = os.path.join(BASE_DIR, 'prelim')
+IAGA_DIR    = os.path.join(BASE_DIR, 'iaga')
 DATA_DIR    = os.path.join(BASE_DIR, 'data')
 DIST_DIR    = os.path.join(BASE_DIR, 'STEP1_getdist')
 FI_DIR      = os.path.join(BASE_DIR, 'STEP2_fi')
@@ -29,7 +31,7 @@ STAUN_PROJ_DIR = os.path.join(STAUN_OMNI_DIR, '2_use_stauning_proj')
 UPDATED_PHI_DIR = os.path.join(UPDATED_OMNI_DIR, '2_use_updated_phi')
 
 
-DIRECTORIES = {'out': OUT_DIR, 'staun_omni': STAUN_OMNI_DIR, 'updated_omni': UPDATED_OMNI_DIR, 'staun_phi': STAUN_PHI_DIR, 'recreated_phi': RECREATED_PHI_DIR, 'updated_phi': UPDATED_PHI_DIR, 'staun_proj': STAUN_PROJ_DIR}
+DIRECTORIES = {'prelim': PRELIM_DIR, 'data': DATA_DIR, 'iaga': IAGA_DIR, 'dist': DIST_DIR, 'phi': FI_DIR, 'ab': AB_DIR, 'coeff': COEFF_DIR, 'out': OUT_DIR, 'staun_omni': STAUN_OMNI_DIR, 'updated_omni': UPDATED_OMNI_DIR, 'staun_phi': STAUN_PHI_DIR, 'recreated_phi': RECREATED_PHI_DIR, 'updated_phi': UPDATED_PHI_DIR, 'staun_proj': STAUN_PROJ_DIR}
 
 for _, path in DIRECTORIES.items():
 

@@ -9,14 +9,15 @@ import os
 import numpy as np
 
 import scipy.io
-import matplotlib.pyplot as plt
 
 from scipy.ndimage import uniform_filter, gaussian_filter
 from scipy.interpolate import RectBivariateSpline
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-from config import DATA_DIR, FI_DIR, DIRECTORIES
-
+from config import DIRECTORIES
+from stauning_imports import import_phi
+from stauning_plots import plot_phi
+from stauning_compares import compare_hproj
 
 # %% step2
 
@@ -33,7 +34,7 @@ def phi_step2(source='original'):
 
     fa = []
     for year in range(1997, 2010):
-        fa.append(phi_import(year, source=source))  # shape: (rows, cols)
+        fa.append(import_phi(year, source=source))  # shape: (rows, cols)
 
     fa = np.stack(fa, axis=2)  # shape: (rows, cols, 13)
 
@@ -113,72 +114,6 @@ def coeff_for_year(f_avr):
 
     return fi_year
 
-def phi_import(var, source='original'):
-
-    print(f'\nImporting {var} for data using {source} input.')
-
-    if source == 'original':
-        if isinstance(var,int):
-            var = f'F_{var}'
-        else:
-            var = f'Fi_{var}'
-        path = os.path.join(FI_DIR, f'{var}.mat')
-        mat = scipy.io.loadmat(path)
-        struc = mat[var]
-
-    else:
-        in_dir = DIRECTORIES.get(source)
-
-        path = os.path.join(in_dir, f'Phi_{var}.npz')
-        data = np.load(path)
-        var = 'Phi'
-        struc = data[var]
-
-    return struc
-
-
-def phi_plot(var='2d', source='original', phi_data=None):
-    """
-    Load Phi data (.npz or .mat) and generate a contour plot.
-    var: 'Phi_2d' or 'Phi_year'
-    """
-    if phi_data is None:
-        phi_data = phi_import(var=var, source=source)
-
-    # For Phi_year, reshape to 12x288 for plotting
-    if var == 'year':
-        phi_data = phi_data.reshape(-1, 288)
-
-    fig, ax = plt.subplots(figsize=(10,6), dpi=300)
-    cb = plt.contourf(phi_data, 12, cmap='rainbow')
-    _ = plt.contour(phi_data, 12, colors='black', linewidths=0.5)
-    cbar = plt.colorbar(cb)
-    cbar.ax.set_ylabel('Phi')
-
-    ax.set_title(f'{var.capitalize()} distribution ({source})')
-    ax.set_xlabel('UT hour')
-    ax.set_ylabel('Month')
-
-    # Time ticks every hour
-    time_ticks = np.arange(0, phi_data.shape[1]+1, 12)
-    ax.set_xticks(time_ticks)
-    ax.set_xticklabels([str(t//12) for t in time_ticks])
-
-    # Time ticks every hour
-    if var == 'year':
-        time_ticks = np.arange(0, phi_data.shape[0]+1, phi_data.shape[0]//12)
-        ax.set_yticks(time_ticks)
-        ax.set_yticklabels([str(t//30) for t in time_ticks])
-
-    if source=='original':
-        save_dir = FI_DIR
-    else:
-        save_dir = DIRECTORIES.get(source)
-    plt.savefig(os.path.join(save_dir, f'phi_{var}_{source}.png'), dpi=300, bbox_inches='tight')
-    plt.tight_layout()
-    plt.show()
-
-    return phi_data
 
 def make_hproj(source='staun_phi'):
     """
@@ -188,17 +123,18 @@ def make_hproj(source='staun_phi'):
     NOTE: MATLAB hardcodes 1:105120 (365 days), dropping Dec 31st for leap years.
     source='mat' replicates this bug; source='npz' uses the full year.
     """
-    phi_year = phi_import('year', source)
+    phi_year = import_phi('year', source)
     out_dir  = DIRECTORIES.get(source)
 
-    yeartime = scipy.io.loadmat(os.path.join(DATA_DIR, 'yeartime.mat'))['yeartime']
+
+    yeartime = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
     hour   = yeartime[0].astype(np.float32)
     minute = yeartime[1].astype(np.float32)
     UT = hour * 15.0 + minute * 0.25
 
     for year in range(1997, 2010):
         print(year)
-        dist = scipy.io.loadmat(os.path.join(DATA_DIR, f'dist_{year}.mat'))[f'dist_{year}']
+        dist = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'dist_{year}.mat'))[f'dist_{year}']
 
         if source in ('staun_phi', 'recreated_phi'):
             # Replicate MATLAB bug: hardcode 365 days, drops Dec 31st on leap years
@@ -215,27 +151,13 @@ def make_hproj(source='staun_phi'):
         y = ut + phi + 291.0
         H_proj = dist_x * np.sin(np.deg2rad(y)) - dist_y * np.cos(np.deg2rad(y))
 
-        np.savez_compressed(os.path.join(out_dir, f'Hproj_{year}.npz'), **{f'Hproj_{year}': H_proj})
-# %% manual
-
-def compare_hproj(year, source='staun_phi'):
-    hproj_mat = scipy.io.loadmat(os.path.join(DATA_DIR, f'Hproj_{year}.mat'))[f'Hproj_{year}'].astype(np.float32).ravel()
-
-    compare_dir = DIRECTORIES.get(source)
-    hproj_np  = np.load(os.path.join(compare_dir, f'Hproj_{year}.npz'))[f'Hproj_{year}'].astype(np.float32).ravel()
-
-    diff     = np.abs(hproj_mat - hproj_np)
-    rel_diff = (diff / (np.abs(hproj_mat) + 1e-10)) * 100
-
-    print(f'Year {year} vs MATLAB:\n'
-          f'  mean abs diff = {diff.mean():.4f} nT\n'
-          f'  max abs diff = {diff.max():.4f} nT\n'
-          f'  mean rel diff = {rel_diff.mean():.4f}%\n'
-          f'  within 1 nT = {(diff < 1).mean()*100:.1f}%\n')
+        np.savez_compressed(os.path.join(out_dir, 'hprojs', f'Hproj_{year}.npz'), **{f'Hproj_{year}': H_proj})
 
 # %%
 
 def main(source='original'):
+    print()
+    print('-----------------------------------')
     print('Calculates the best phi for each UT of every month to use for any year')
     print(f'Uses the {source.upper()} best monthly phi every 5-minutes of every year')
     if source=='original':
@@ -264,10 +186,10 @@ if __name__ == '__main__':
 
 
     for struc in ('2d','year'):
-        phi_plot(struc, source='original') # original mat data
-        phi_plot(struc, source='staun_phi') # using mat angles to create best
-        phi_plot(struc, source='recreated_phi') # best directions from recreated phi
-        #phi_plot(struc, source='updated_phi') # using updated omni
+        plot_phi(struc, source='original') # original mat data
+        plot_phi(struc, source='staun_phi') # using mat angles to create best
+        plot_phi(struc, source='recreated_phi') # best directions from recreated phi
+        #plot_phi(struc, source='updated_phi') # using updated omni
 
     print('Using the stauning phi data files to construct projections.')
     for year in range(1997, 2010):
