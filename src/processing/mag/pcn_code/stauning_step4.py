@@ -13,7 +13,7 @@ from statsmodels.nonparametric.smoothers_lowess import lowess
 
 import calendar
 from datetime import datetime, timedelta
-from config import DIRECTORIES, IAGA_DIR, COEFF_DIR, PRELIM_DIR
+from config import DIRECTORIES
 
 from stauning_imports import import_coeff
 
@@ -27,12 +27,14 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
     --- MATLAB: Definitive_PC_Index.m (SS and QDC sections) ---
     Precompute SS and QDC from IAGA data for each year.
     Run once — independent of coefficients.
-    Saves SS and QDC to PRELIM_DIR/ss/ and PRELIM_DIR/qdc/
+    Saves SS and QDC to DIRECTORIES.get('prelim')/ss/ and DIRECTORIES.get('prelim')/qdc/
     """
-    ss_dir  = os.path.join(PRELIM_DIR, 'ss')
-    qdc_dir = os.path.join(PRELIM_DIR, 'qdc')
+    ss_dir  = os.path.join(DIRECTORIES.get('prelim'), 'ss')
+    qdc_dir = os.path.join(DIRECTORIES.get('prelim'), 'qdc')
+    dist_dir = os.path.join(DIRECTORIES.get('prelim'), 'dist')
     os.makedirs(ss_dir,  exist_ok=True)
     os.makedirs(qdc_dir, exist_ok=True)
+    os.makedirs(dist_dir, exist_ok=True)
 
     for year in range(t1, t2 + 1):
         print(f'\nProcessing mag data for {year}')
@@ -46,14 +48,14 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             'y': np.full(ndays * 1440, np.nan),
         }
 
-        # ---- read IAGA files ----
-        df = read_iaga(station, year, IAGA_DIR, overlap)
+        # read IAGA files
+        df = read_iaga(station, year, DIRECTORIES.get('iaga'), overlap)
         for col in ('x', 'y'):
             idx   = np.searchsorted(dt_arr, df.index)
             valid = (idx >= 0) & (idx < len(dt_arr))
             data[col][idx[valid]] = df[col].values[valid]
 
-        # ---- calculate SS ----
+        # calculate SS
         ss = {}
         for col in ('x', 'y'):
             arr     = data[col].reshape(ndays, 1440)
@@ -69,12 +71,12 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             min_idx = np.linspace(0, ndays - 1, ndays * 1440)
             ss[f'ss_{col}'] = np.interp(min_idx, day_idx, w)
 
-        np.savez(os.path.join(ss_dir, f'ss_{year}.npz'),
+        np.savez_compressed(os.path.join(ss_dir, f'ss_{year}.npz'),
                  time=np.array(dt_arr),
                  **ss)
         print(f'Saved SS for {year}')
 
-        # ---- calculate QDC ----
+        # calculate QDC
         year_start_idx = overlap * 1440
         year_end_idx   = (ndays - overlap) * 1440
         qdc = {
@@ -121,10 +123,21 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             qdc[qdc_col] = lowess(l_arr, np.arange(len(l_arr)),
                                   frac=120/len(l_arr), it=1, return_sorted=False)
 
-        np.savez(os.path.join(qdc_dir, f'qdc_{year}.npz'),
+        np.savez_compressed(os.path.join(qdc_dir, f'qdc_{year}.npz'),
                  time=np.array(dt_arr),
                  **qdc)
         print(f'Saved QDC for {year}')
+
+        # disturbance data
+
+        dist = {}
+        for col in ('x', 'y'):
+            dist[f'dist_{col}'] = data[col] - qdc[f'qdc_{col}'] - ss[f'ss_{col}']
+
+        np.savez(os.path.join(dist_dir, f'dist_{year}.npz'),
+                 time=np.array(dt_arr),
+                 **dist)
+        print(f'Saved disturbance for {year}')
 
 # %% q_day
 
@@ -226,7 +239,7 @@ def read_iaga(station, year, iaga_dir, overlap=31):
     records = []
     for d in range(ndays):
         actual = start + timedelta(days=d)
-        fname  = os.path.join(iaga_dir, str(actual.year),
+        fname  = os.path.join(DIRECTORIES.get('iaga'), str(actual.year),
                               f'{station}{actual.strftime("%Y%m%d")}dmin.min')
         if not os.path.exists(fname):
             print(f'Warning: No file {os.path.basename(fname)}. Skipping.')
@@ -265,12 +278,11 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
     Run multiple times with different coeff realisations for uncertainty quantification.
     Saves PC index to pcn/ folder.
     """
-    ss_dir  = os.path.join(PRELIM_DIR, 'ss')
-    qdc_dir = os.path.join(PRELIM_DIR, 'qdc')
+    dist_dir = os.path.join(DIRECTORIES.get('prelim'), 'dist')
 
     # output path
     if source == 'original':
-        path = COEFF_DIR
+        path = DIRECTORIES.get('coeff')
     else:
         path = DIRECTORIES.get(source)
 
@@ -289,22 +301,10 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
     t_start = datetime(year, 1, 1) - timedelta(days=overlap)
     dt_arr  = pd.date_range(start=t_start, periods=ndays * 1440, freq='1min')
 
-    # load precomputed SS and QDC
-    ss  = np.load(os.path.join(ss_dir,  f'ss_{year}.npz'))
-    qdc = np.load(os.path.join(qdc_dir, f'qdc_{year}.npz'))
-
-    # load raw x, y from IAGA
-    df = read_iaga(station, year, IAGA_DIR, overlap)
-    x  = np.full(ndays * 1440, np.nan)
-    y  = np.full(ndays * 1440, np.nan)
-    for col, arr in (('x', x), ('y', y)):
-        idx   = np.searchsorted(dt_arr, df.index)
-        valid = (idx >= 0) & (idx < len(dt_arr))
-        arr[idx[valid]] = df[col].values[valid]
-
-    # disturbed components
-    dist_x = x - ss['ss_x'] - qdc['qdc_x']
-    dist_y = y - ss['ss_y'] - qdc['qdc_y']
+    # load precomputed SS, QDC, and disturbance
+    dist = np.load(os.path.join(dist_dir, f'dist_{year}.npz'))
+    dist_x = dist['dist_x']
+    dist_y = dist['dist_y']
 
     # year slice only (no overlap)
     i           = np.arange(overlap * 1440, (ndays - overlap) * 1440)
@@ -314,24 +314,19 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
     index       = min_in_year - 1
 
     UT        = hours * 15.0 + minutes * 0.25
-    angle     = lon + coeff['phi'][index] + UT
-    angle_rad = np.deg2rad(angle)
-    H_proj    = dist_x[i] * np.sin(angle_rad) - dist_y[i] * np.cos(angle_rad)
+    angle     = np.deg2rad(lon + coeff['phi'][index] + UT)
+    H_proj    = dist_x[i] * np.sin(angle) - dist_y[i] * np.cos(angle)
 
     pc     = (H_proj - coeff['b'][index]) / coeff['a'][index]
     pc     = np.round(pc, 2)
-    pc_unc = calc_pc_unc(i, index, dist_x, dist_y, angle_rad, H_proj, coeff)
+    pc_unc = calc_pc_unc(index, dist_x[i], dist_y[i], angle, H_proj, coeff)
 
     # save
     out_path = os.path.join(pcn_dir, f'pc_{year}.npz')
-    np.savez(out_path,
+    np.savez_compressed(out_path,
              time    = np.array(dt_arr[i]),
-             x       = x[i],
-             y       = y[i],
-             ss_x    = ss['ss_x'][i],
-             ss_y    = ss['ss_y'][i],
-             qdc_x   = qdc['qdc_x'][i],
-             qdc_y   = qdc['qdc_y'][i],
+             dist_x  = dist_x[i],
+             dist_y  = dist_y[i],
              pcn     = pc,
              pcn_unc = pc_unc)
 
@@ -339,7 +334,7 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
 
     print_pc(pc, pc_unc)
 
-def calc_pc_unc(i, index, dist_x, dist_y, angle_rad, H_proj, coeff):
+def calc_pc_unc(index, dist_x, dist_y, angle_rad, H_proj, coeff):
 
     a = coeff['a'][index]
 
@@ -355,7 +350,7 @@ def calc_pc_unc(i, index, dist_x, dist_y, angle_rad, H_proj, coeff):
     if not any(k in coeff for k in ('a_var', 'b_var', 'cov_ab', 'phi_var')):
         return zeros
 
-    dH_dphi  = dist_x[i] * np.cos(angle_rad) + dist_y[i] * np.sin(angle_rad)
+    dH_dphi  = dist_x * np.cos(angle_rad) + dist_y * np.sin(angle_rad)
     dPC_dphi = dH_dphi / a
     dPC_db   = -1.0 / a
     dPC_da   = -H_proj / a**2
@@ -372,8 +367,8 @@ def print_pc(pc, pc_unc):
     df = pd.DataFrame({'pcn': pc, 'unc': pc_unc, 'rel': pc_unc/np.abs(pc)*100})
     rows = [df.iloc[(df['pcn'] - q).abs().argmin()] for q in df['pcn'].quantile([0, 0.25, 0.5, 0.75, 1])]
     print(pd.DataFrame(rows, index=['min','Q25','med','Q75','max']))
-    print(f'Median relative uncertainty:\n    {df["rel"].median():.3g}%')
-    print(f'Maximum absolute uncertainty:\n    {df["unc"].max():.3g} mV/m')
+    print(f'Median relative uncertainty:    {df["rel"].median():.3g} %')
+    print(f'Maximum absolute uncertainty:   {df["unc"].max():.3g} mV/m')
 
 # %% main
 
@@ -388,7 +383,7 @@ def main(year=None, source='staun_proj'):
         print('    I.e. a/b/phi calculated by me')
     print()
 
-    coeff = import_coeff(source)
+    coeff = import_coeff(None, source)
 
     print(pd.DataFrame(coeff))
 
@@ -404,11 +399,18 @@ def main(year=None, source='staun_proj'):
 
 if __name__ == '__main__':
 
-    if False:
+    if True:
         process_mag_data(station='thl', t1=1997, t2=2021, overlap=31)
 
     # # uses MATLAB a/b/phi for every year to calculate pcn
-    main(source='original')
+    if True:
+        main(source='original')
+
+    # uses MATLAB H projections to calculate a/b for every year then stack
+    main(source='staun_proj')
+
+    # use MATLAB phi to calculate H projections and thus a/b
+    main(source='staun_phi')
 
     # use recreated phi to calculated a/b/phi and thus pcn and thus a/b
     main(source='recreated_phi')

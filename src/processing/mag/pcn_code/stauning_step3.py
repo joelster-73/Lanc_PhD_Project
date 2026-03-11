@@ -17,6 +17,7 @@ from scipy.signal import resample_poly
 
 from stauning_imports import import_phi, import_ab
 from stauning_plots import plot_ab
+from stauning_compares import compare_ab
 
 from config import DIRECTORIES
 
