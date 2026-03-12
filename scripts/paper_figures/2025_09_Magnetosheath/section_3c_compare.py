@@ -36,6 +36,7 @@ for ind, dep in it.product(('E_R','E_y_GSM'),('PCNC','PCN','PCC','AE')):
 
 # %%
 
+plot_compare_sources(df_omni, df_sc, df_pc, 'E_R', 'PCN', fit_type='saturation')
 plot_compare_sources(df_omni, df_sc, df_pc, 'E_R', 'PCC', fit_type='saturation')
 plot_compare_sources(df_omni, df_sc, df_pc, 'E_R', 'PCNC', fit_type='saturation')
 plot_compare_sources(df_omni, df_sc, df_pc, 'E_y_GSM', 'PCN', fit_type='saturation')

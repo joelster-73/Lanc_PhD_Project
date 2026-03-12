@@ -7,6 +7,7 @@ Created on Mon Mar  9 13:44:28 2026
 
 import os
 import numpy as np
+import pandas as pd
 
 import scipy.io
 
@@ -69,3 +70,32 @@ def compare_hproj(year, source='staun_phi'):
           f'  max abs diff = {diff.max():.4f} nT\n'
           f'  mean rel diff = {rel_diff.mean():.4f}%\n'
           f'  within 1 nT = {(diff < 1).mean()*100:.1f}%\n')
+
+def counts_above_levels(df_pcn, df_stats=None):
+
+    #     PC < 2 => Quiet
+    # 2 < PC < 5 => Moderate
+    # 5 < PC     => Strong
+    # PC > 10 for 1 hour => threat to power grids
+
+    #       unc < 0.1 => insig.
+    # 0.2 < unc < 1.0 => troublesome/minor
+    # 2.0 < unc       => significant
+
+    if df_stats is None:
+        df_stats = pd.DataFrame(columns=['Quiet','Moderate','Strong','Severe','Small','Trouble','Large'])
+
+    quiet    = (df_pcn['pcn']<2)
+    moderate = (df_pcn['pcn']>=2) & (df_pcn['pcn']<5)
+    strong   = (df_pcn['pcn']>=5) & (df_pcn['pcn']<10)
+    severe   = (df_pcn['pcn']>=10)
+
+    small    = (df_pcn['pcn_unc']<0.15)
+    minor    = (df_pcn['pcn_unc']>=0.15) & (df_pcn['pcn_unc']<1.5)
+    large    = (df_pcn['pcn_unc']>=1.5)
+
+    index = df_pcn.index.year[0]
+
+    df_stats.loc[index] = [np.sum(mask)/1440 for mask in (quiet,moderate,strong,severe,small,minor,large)]
+
+    return df_stats

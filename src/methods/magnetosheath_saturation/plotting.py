@@ -301,13 +301,13 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
     dep_lags = {'PCN': 17, 'PCC': 17, 'AE': 53, 'PCNC': 17}
     lag = kwargs.get('lag',dep_lags.get(dep,0))
 
-    dep_cols = {0: {'PCN': ['PCN','SMC_y_GSM'],
-                    'PCNC': ['PCN','SMC'],
-                    'PCC': ['PCC','SMC'],
+    dep_cols = {0: {'PCN': ['PCN','THL_y_GSM'],
+                    'PCNC': ['PCN','THL'],
+                    'PCC': ['PCC','THL'],
                     'AE':  ['AE', 'SME']},
-                1: {'PCN': [f'PCN_{lag}m',f'SMC_y_GSM_{lag}m'],
-                    'PCNC': [f'PCN_{lag}m',f'SMC_{lag}m'],
-                    'PCC': [f'PCC_{lag}m',f'SMC_{lag}m'],
+                1: {'PCN': [f'PCN_{lag}m',f'THL_y_GSM_{lag}m'],
+                    'PCNC': [f'PCN_{lag}m',f'THL_{lag}m'],
+                    'PCC': [f'PCC_{lag}m',f'THL_{lag}m'],
                     'AE':  [f'AE_{lag}m', f'SME_{lag}m']}}
 
     dep_cols = dep_cols.get(lag,dep_cols[1]) # Uses 1 for all implemented lags

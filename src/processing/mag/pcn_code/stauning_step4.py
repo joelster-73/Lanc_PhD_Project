@@ -71,10 +71,8 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             min_idx = np.linspace(0, ndays - 1, ndays * 1440)
             ss[f'ss_{col}'] = np.interp(min_idx, day_idx, w)
 
-        np.savez_compressed(os.path.join(ss_dir, f'ss_{year}.npz'),
-                 time=np.array(dt_arr),
-                 **ss)
-        print(f'Saved SS for {year}')
+        np.savez_compressed(os.path.join(ss_dir, f'ss_{year}.npz'), time=np.array(dt_arr), **ss)
+        print('Saved SS.')
 
         # calculate QDC
         year_start_idx = overlap * 1440
@@ -123,10 +121,8 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             qdc[qdc_col] = lowess(l_arr, np.arange(len(l_arr)),
                                   frac=120/len(l_arr), it=1, return_sorted=False)
 
-        np.savez_compressed(os.path.join(qdc_dir, f'qdc_{year}.npz'),
-                 time=np.array(dt_arr),
-                 **qdc)
-        print(f'Saved QDC for {year}')
+        np.savez_compressed(os.path.join(qdc_dir, f'qdc_{year}.npz'), time=np.array(dt_arr), **qdc)
+        print('Saved QDC.')
 
         # disturbance data
 
@@ -134,10 +130,8 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
         for col in ('x', 'y'):
             dist[f'dist_{col}'] = data[col] - qdc[f'qdc_{col}'] - ss[f'ss_{col}']
 
-        np.savez(os.path.join(dist_dir, f'dist_{year}.npz'),
-                 time=np.array(dt_arr),
-                 **dist)
-        print(f'Saved disturbance for {year}')
+        np.savez(os.path.join(dist_dir, f'dist_{year}.npz'), time=np.array(dt_arr), **dist)
+        print('Saved disturbance.')
 
 # %% q_day
 
@@ -313,7 +307,7 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
     min_in_year = np.arange(1, len(i) + 1)
     index       = min_in_year - 1
 
-    UT        = hours * 15.0 + minutes * 0.25
+    UT        = hours * 15.0 + minutes * 0.25 # decimal hour
     angle     = np.deg2rad(lon + coeff['phi'][index] + UT)
     H_proj    = dist_x[i] * np.sin(angle) - dist_y[i] * np.cos(angle)
 
