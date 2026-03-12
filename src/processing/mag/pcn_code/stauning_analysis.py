@@ -70,6 +70,10 @@ def coefficients_overview(source):
 
 def total_uncertainty(source):
 
+    source_dir = DIRECTORIES.get('analysis')
+    source_dir = os.path.join(source_dir, source)
+    os.makedirs(source_dir, exist_ok=True)
+
     print(f'\n----------{source}----------\n')
 
     df_stats = None
@@ -115,7 +119,10 @@ def total_uncertainty(source):
         ax.set_ylabel(f'{name} # Days')
 
     plt.show()
+    fig.savefig(os.path.join(source_dir,'Uncertainties.png'), dpi=200, bbox_inches='tight')
+    plt.close()
 
+# %%
 
 if __name__ == '__main__':
 
