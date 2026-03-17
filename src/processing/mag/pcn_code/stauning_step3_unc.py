@@ -9,13 +9,11 @@ import os
 import numpy as np
 
 from scipy.ndimage import gaussian_filter, uniform_filter
-
 from scipy.signal import resample_poly
 
-from stauning_imports import import_phi, import_ab, import_er, import_hproj
-from stauning_step3 import coeff_for_year, smooth_coeff, smooth_lowess_year
-
-from config import DIRECTORIES
+from src.processing.mag.pcn_code.config import DIRECTORIES
+from src.processing.mag.pcn_code.stauning_imports import import_phi, import_ab, import_er, import_hproj
+from src.processing.mag.pcn_code.stauning_step3 import coeff_for_year, smooth_coeff, smooth_lowess_year
 
 # %% step1
 
@@ -42,6 +40,13 @@ def ab_regress(year, source='staun_phi'):
 
     ekl    = field_dict['E_R']
     time_a = field_dict['t']
+
+    if source=='updated_phi':
+        times  = time_a.flatten().astype('datetime64[ms]').astype('O')  # convert to Python datetimes
+        time_a = np.array([[dt.hour, dt.minute] for dt in times])
+
+    if time_a.shape[0] == 2 and time_a.shape[1] != 2:
+        time_a = time_a.T  # (2, n) -> (n, 2)
 
     hproj      = h_proj_dict['hproj']
     hproj_var  = h_proj_dict.get('var',None)
@@ -72,44 +77,45 @@ def ab_regress(year, source='staun_phi'):
                 min5_min = day_min * 288
                 min5_max = day_max * 288
 
-                # Slice arrays (MATLAB is 1-indexed, Python is 0-indexed)
+                # Slice arrays
                 temp1    = hproj[min5_min:min5_max + 1]
-                temp_dt  = time_a[min5_min:min5_max + 1, :]
-                temp_ace = ekl[0, min5_min:min5_max + 1]
+                temp_dt  = time_a[min5_min:min5_max + 1]
+                ekl_window = ekl[min5_min:min5_max + 1]       # MATLAB: temp_ace
 
                 # Slice var alongside hproj if it exists
                 temp_var = hproj_var[min5_min:min5_max + 1] if hproj_var is not None else None
 
                 # Find indices where hour and minute match
-                temp_pos    = np.where((temp_dt[:, 0] == hr) & (temp_dt[:, 1] == minute))[0]
-                tcorr_Esw   = temp_ace[temp_pos].astype(float)
-                tcorr_Hproj = temp1[temp_pos].astype(float)
+                temp_pos      = np.where((temp_dt[:, 0] == hr) & (temp_dt[:, 1] == minute))[0]
+                ekl_matched   = ekl_window[temp_pos].astype(float)   # MATLAB: tcorr_Esw   = temp_ace(temp_pos)
+                hproj_matched = temp1[temp_pos].astype(float)        # MATLAB: tcorr_Hproj = temp1(temp_pos)
 
                 # Remove NaNs from either array (mutual masking)
-                valid = ~np.isnan(tcorr_Esw) & ~np.isnan(tcorr_Hproj)
+                valid = ~np.isnan(ekl_matched) & ~np.isnan(hproj_matched)
 
                 if inc_var:
-                    tcorr_Hvar = temp_var[temp_pos].astype(float)
-                    valid &= ~np.isnan(tcorr_Hvar) & (tcorr_Hvar > 0) & np.isfinite(tcorr_Hvar)
+                    hproj_var_matched = temp_var[temp_pos].astype(float)
 
-                tcorr_Esw   = tcorr_Esw[valid]
-                tcorr_Hproj = tcorr_Hproj[valid]
+                    valid &= ~np.isnan(hproj_var_matched) & (hproj_var_matched > 0) & np.isfinite(hproj_var_matched)
+
+                ekl_matched   = ekl_matched[valid]
+                hproj_matched = hproj_matched[valid]
 
                 # Linear regression (equivalent to polyfit degree 1)
-                if len(tcorr_Esw) >= 2:
+                if len(ekl_matched) >= 2:
                     #---JER manual addition, changed cov=True---#
                     #---if include weights as 1/std, using cov=True as not all variance captured by uncertainty---#
                     if inc_var:
-                        tcorr_Hvar = tcorr_Hvar[valid]
+                        hproj_var_matched = hproj_var_matched[valid]
                         try:
-                            popt, pcov = np.polyfit(tcorr_Esw, tcorr_Hproj, 1, w=1/np.sqrt(tcorr_Hvar), cov=True)
+                            popt, pcov = np.polyfit(ekl_matched, hproj_matched, 1, w=1/np.sqrt(hproj_var_matched), cov=True)
                         except np.linalg.LinAlgError:
                             print(f'  SVD failed: mn={mn} hr={hr} min={minute} | '
-                                  f'  var range=[{tcorr_Hvar.min():.3e}, {tcorr_Hvar.max():.3e}] '
-                                  f'  n={len(tcorr_Esw)}')
-                            popt, pcov = np.polyfit(tcorr_Esw, tcorr_Hproj, 1, cov=True)
+                                  f'  var range=[{hproj_var_matched.min():.3e}, {hproj_var_matched.max():.3e}] '
+                                  f'  n={len(ekl_matched)}')
+                            popt, pcov = np.polyfit(ekl_matched, hproj_matched, 1, cov=True)
                     else:
-                        popt, pcov = np.polyfit(tcorr_Esw, tcorr_Hproj, 1, cov=True)
+                        popt, pcov = np.polyfit(ekl_matched, hproj_matched, 1, cov=True)
 
                     # MATLAB col index: (hr*12) + (min+5)/5, 1-indexed → subtract 1
                     col = hr * 12 + (minute + 5) // 5 - 1
@@ -130,14 +136,16 @@ def ab_regress(year, source='staun_phi'):
     print(f'Saved ab_{year}.npz')
 
 # %% step2
-def ab_step2(source='original'):
+def ab_step2(source='original', exc2003=True):
     """
     --- MATLAB: Stacks for all years matrix with a and b coefficients for all months and all UT-times
         and smoothes this matrix such that hour 23 and hour 00 (and month 12 and month 1) have smooth boundary.
         Saves matrix in ab_2d.mat and plots matrix. Calls function to calculate a and b every 5 minutes
         for the year and saves that as ab_year.mat.---
 
-    Average a and b coefficients
+    Average a and b coefficients.
+
+    In 120-page documentation, they say they exclude 2003 data as there's no Vostok data (even for Thule coefficients). This is not in their code, but implemented as such below if the flag is true.
     """
 
     #---JER manual additions---#
@@ -149,7 +157,8 @@ def ab_step2(source='original'):
     b_var_years = []
     covar_years = []
 
-    for year in range(1997, 2010):
+    loop_years = [y for y in range(1997, 2010) if not (exc2003 and y == 2003)]
+    for year in loop_years:
         data = import_ab(year, source)
         a_years.append(data['a'])
         b_years.append(data['b'])
@@ -202,9 +211,6 @@ def ab_step2(source='original'):
         ab_2d_save.update(  a_var=ab_2d_a_var,    b_var=ab_2d_b_var,   covar=ab_2d_covar)
         ab_year_save.update(a_var=ab_year_a_var,  b_var=ab_year_b_var, covar=ab_year_covar)
 
-    for key, val in ab_year_save.items():
-        print(val)
-
     np.savez_compressed(os.path.join(save_dir, 'ab_2d.npz'),   **ab_2d_save)
     np.savez_compressed(os.path.join(save_dir, 'ab_year.npz'), **ab_year_save)
     print(f'Saved ab_2d.npz and ab_year.npz (uncertainty{"" if has_unc else " not"} included)')
@@ -214,7 +220,6 @@ def smooth_unc(c_var, gaussian_sigma, box_size):
     """
     Called by ab_step2()
     """
-
     ones = np.ones_like(c_var)
     def _filter(x):
         x_e  = np.tile(x, (3, 3))
@@ -278,7 +283,7 @@ def main(source='staun_proj', full=True):
     if full:
         if source != 'original':
             ab_step1(source)
-        ab_step2(source)
+        ab_step2(source, True)
 
     _ = make_coeff_1min(source)
 
@@ -298,5 +303,4 @@ if __name__ == '__main__':
     main('recreated_phi')
 
     # use updated phi to calcuate H projections and this a/b
-    #main('updated_phi')
-
+    main('updated_phi')

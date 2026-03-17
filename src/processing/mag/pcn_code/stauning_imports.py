@@ -9,18 +9,20 @@ import os
 import numpy as np
 import pandas as pd
 import calendar
-
 import glob
+
 from spacepy import pycdf
 import scipy.io
 
-from config import DIRECTORIES
+from .config import DIRECTORIES
+from ...omni.handling import extract_omni_data
+from ...omni.config import omni_columns
 
 def import_data(coeff, var, source='original'):
 
     units_dict = {'a': 'mV/m/nT', 'b': 'nT', 'phi': 'deg', 'H_x': 'nT', 'H_y': 'nT', 'Hproj': 'nT', 'E_r': 'mV/m'}
 
-    import_functions = {'phi': import_phi, 'ab': import_ab, 'coeff': import_coeff, 'pcn': import_pcn, 'hproj': import_hproj}
+    import_functions = {'phi': import_phi, 'ab': import_ab, 'coeff': import_coeff, 'pcn': import_pcn, 'hproj': import_hproj, 'dist': import_dist}
 
     import_function = import_functions.get(coeff)
     data_dict = import_function(var, source)
@@ -129,31 +131,34 @@ def import_true_pcn():
 
 def import_er(year, source):
 
-    if source in ('staun_proj', 'staun_phi', 'recreated_phi'):
+    if source=='updated_phi':
 
-        ekl = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'ekls_{year}.mat'))[f'ekls_{year}']
+        field = np.load(os.path.join(DIRECTORIES.get('in'), f'ekls_{year}.npz'))
 
-        yeartime   = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
-        timestamps = yeartime.T # transpose to match MATLAB's yeartime'
+        ekl = field['E_R'].flatten()
+        timestamps = field['times'].flatten()
 
-    elif source=='updated_phi':
-        raise ValueError('Not implemented.')
+    else:
+
+        ekl = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'ekls_{year}.mat'))[f'ekls_{year}'][0]
+
+        timestamps  = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
+        #timestamps = yeartime.T # tran\spose to match MATLAB's yeartime'
 
     return {'E_R': ekl, 't': timestamps}
 
 def import_hproj(year, source):
 
-
-    if source=='staun_proj':
+    if source in ('original','staun_proj'):
         in_dir = DIRECTORIES.get('data')
         hproj_data = scipy.io.loadmat(os.path.join(in_dir, f'Hproj_{year}.mat'))
 
-    elif source in ('staun_phi', 'recreated_phi'):
+    elif source in ('staun_phi', 'recreated_phi', 'updated_phi'):
         in_dir = DIRECTORIES.get(source)
         hproj_data = np.load(os.path.join(in_dir, 'hprojs', f'Hproj_{year}.npz'))
 
-    elif source=='updated_phi':
-        raise ValueError('Not implemented.')
+    else:
+        raise ValueError(f'{source} not implemented.')
 
     H_proj = {'hproj': hproj_data[f'Hproj_{year}'].flatten()}
     if f'Hproj_{year}_var' in hproj_data:
@@ -161,7 +166,39 @@ def import_hproj(year, source):
 
     return H_proj
 
-def import_phi(var, source='original'):
+def import_dist(year, source):
+
+    if source=='original':
+        in_dir = DIRECTORIES.get('data')
+        dist_data = scipy.io.loadmat(os.path.join(in_dir, f'dist_{year}.mat'))
+
+        data  = dist_data[f'dist_{year}']
+        struc = {'dist_x': data[0][0][0].squeeze(), 'dist_y': data[0][0][1].squeeze()}
+
+    elif source=='input': # data for coefficients
+
+        in_dir = DIRECTORIES.get('in')
+        dist_data = np.load(os.path.join(in_dir, f'dist_{year}.npz'))
+
+        struc = {'dist_x': dist_data['x'].ravel(), 'dist_y': dist_data['y'].ravel()}
+
+    else: # data for PCN construction
+        in_dir = DIRECTORIES.get('prelim')
+        dist_data = np.load(os.path.join(in_dir, 'dist', f'dist_{year}.npz'))
+
+        times = pd.to_datetime(dist_data['time'])
+        valid_times = times.year == int(year)
+
+        struc = {'dist_x': dist_data['dist_x'][valid_times].flatten(), 'dist_y': dist_data['dist_y'][valid_times].flatten()}
+
+    return struc
+
+
+
+
+# %% Coeffs
+
+def import_phi(var, source='original', return_dir=False):
     """
     Imports direction angles 'phi'
     If source = original, loads in the matlab file, else laods in the pickle
@@ -169,11 +206,14 @@ def import_phi(var, source='original'):
     """
 
     if source in ('original','staun_proj'):
+
+        in_dir = DIRECTORIES.get('phi')
+
         if isinstance(var,int) or var.isdigit():
-            path = os.path.join(DIRECTORIES.get('phi'), 'phis', f'F_{var}.mat')
+            path = os.path.join(in_dir, 'phis', f'F_{var}.mat')
             var = f'F_{var}'
         else:
-            path = os.path.join(DIRECTORIES.get('phi'), f'Fi_{var}.mat')
+            path = os.path.join(in_dir, f'Fi_{var}.mat')
             var = f'Fi_{var}'
 
         mat = scipy.io.loadmat(path)
@@ -193,6 +233,8 @@ def import_phi(var, source='original'):
         if 'Phi_var' in data:
             struc['phi_var'] = data['Phi_var']
 
+    if return_dir:
+        return struc, os.path.dirname(path)
     return struc
 
 
@@ -266,3 +308,15 @@ def import_coeff(var=None, source='original'):
                 struc[key] = data[key]
 
     return struc
+
+
+def import_def_omni(year):
+    """
+    Imports definitive OMNI data from LUNA.
+    """
+    lst_file = os.path.join(DIRECTORIES.get('omni'),f'omni_min_def_{year}.lst')
+
+    return extract_omni_data(lst_file, omni_columns)
+
+
+

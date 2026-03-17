@@ -9,17 +9,15 @@ import os
 import numpy as np
 
 import scipy.io
-
 from scipy.ndimage import gaussian_filter, uniform_filter
-from statsmodels.nonparametric.smoothers_lowess import lowess
 from scipy.interpolate import RectBivariateSpline
 from scipy.signal import resample_poly
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
-from stauning_imports import import_phi, import_ab
-from stauning_plots import plot_ab
-from stauning_compares import compare_ab
-
-from config import DIRECTORIES
+from src.processing.mag.pcn_code.config import DIRECTORIES
+from src.processing.mag.pcn_code.stauning_imports import import_phi, import_ab
+from src.processing.mag.pcn_code.stauning_plots import plot_ab
+from src.processing.mag.pcn_code.stauning_compares import compare_ab
 
 
 # %% step1
@@ -109,20 +107,23 @@ def ab_regress(year, source='staun_phi'):
     print(f'Saved ab_{year}.npz')
 
 # %% step2
-def ab_step2(source='original', show_plot=False):
+def ab_step2(source='original', show_plot=False, exc2003=True):
     """
     --- MATLAB: Stacks for all years matrix with a and b coefficients for all months and all UT-times
         and smoothes this matrix such that hour 23 and hour 00 (and month 12 and month 1) have smooth boundary.
         Saves matrix in ab_2d.mat and plots matrix. Calls function to calculate a and b every 5 minutes
         for the year and saves that as ab_year.mat.---
 
-    Average a and b coefficients
+    Average a and b coefficients.
+
+    In 120-page documentation, they say they exclude 2003 data as there's no Vostok data (even for Thule coefficients). This is not in their code, but implemented as such below if the flag is true.
     """
     # Load all ab files from 1997 to 2009
     a_years = []
     b_years = []
 
-    for year in range(1997, 2010):
+    loop_years = [y for y in range(1997, 2010) if not (exc2003 and y == 2003)]
+    for year in loop_years:
         data = import_ab(year, source)
         a_years.append(data['a'])
         b_years.append(data['b'])

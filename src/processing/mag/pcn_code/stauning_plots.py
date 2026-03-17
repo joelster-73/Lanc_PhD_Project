@@ -11,8 +11,8 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
-from config import DIRECTORIES, PLOT_LABELS_SHORT, LIST_OF_MONTHS, PLOT_LABELS_LONG
-from stauning_imports import import_phi, import_ab, import_coeff
+from .config import DIRECTORIES, PLOT_LABELS_SHORT, LIST_OF_MONTHS, PLOT_LABELS_LONG
+from .stauning_imports import import_phi, import_ab, import_coeff
 
 def monthly_phi_plot(smooth_R, best_indices, year, month, save_dir):
     """
@@ -56,7 +56,7 @@ def plot_phi(var='2d', source='original', phi_data=None):
     var: 'Phi_2d' or 'Phi_year'
     """
     if phi_data is None:
-        phi_data = import_phi(var=var, source=source)
+        phi_data = import_phi(var=var, source=source)['phi']
 
     # For Phi_year, reshape to 12x288 for plotting
     if var == 'year':
@@ -64,7 +64,7 @@ def plot_phi(var='2d', source='original', phi_data=None):
 
     fig, ax = plt.subplots(figsize=(10,6), dpi=300)
     cb = plt.contourf(phi_data, 12, cmap='rainbow')
-    _ = plt.contour(phi_data, 12, cs='black', linewidths=0.5)
+    _ = plt.contour(phi_data, 12, colors='black', linewidths=0.5)
     cbar = plt.colorbar(cb)
     cbar.ax.set_ylabel('Phi')
 

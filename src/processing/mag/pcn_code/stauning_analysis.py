@@ -11,10 +11,10 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
-from config import DIRECTORIES
-from stauning_imports import import_data, import_true_pcn
-from stauning_plots import print_coeffs_monthly_ut, plot_coeff, plot_pcn_uncertainty
-from stauning_compares import counts_above_levels
+from src.processing.mag.pcn_code.config import DIRECTORIES
+from src.processing.mag.pcn_code.stauning_imports import import_data, import_true_pcn
+from src.processing.mag.pcn_code.stauning_plots import print_coeffs_monthly_ut, plot_coeff, plot_pcn_uncertainty
+from src.processing.mag.pcn_code.stauning_compares import counts_above_levels
 
 def coefficients_overview(source):
 
@@ -122,18 +122,20 @@ def total_uncertainty(source):
     fig.savefig(os.path.join(source_dir,'Uncertainties.png'), dpi=200, bbox_inches='tight')
     plt.close()
 
-# %%
+# %% main
 
 if __name__ == '__main__':
 
 
-    if False:
+    if True:
         coefficients_overview('original')
         coefficients_overview('staun_proj')
         coefficients_overview('staun_phi')
         coefficients_overview('recreated_phi')
+        coefficients_overview('updated_phi')
 
     total_uncertainty('staun_phi')
     total_uncertainty('recreated_phi')
+    total_uncertainty('updated_phi')
 
 

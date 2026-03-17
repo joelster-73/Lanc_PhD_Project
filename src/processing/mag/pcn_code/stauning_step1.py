@@ -5,209 +5,376 @@ Created on Sat Feb 28 14:22:13 2026
 @author: richarj2
 '''
 
+
 import os
 import numpy as np
+import pandas as pd
 
-import scipy.io
+from datetime import datetime, timedelta
 
+from scipy.interpolate import CubicSpline
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-from config import DIRECTORIES
-from stauning_plots import monthly_phi_plot
-from stauning_compares import compare_phi
+from src.processing.mag.pcn_code.config import DIRECTORIES
+from src.processing.mag.pcn_code.stauning_compares import compare_dist, compare_ekl
+from src.processing.mag.pcn_code.stauning_imports import import_def_omni
 
+# %% disturbances
 
-# %% step1
-
-
-def phi_step1(source='staun_omni', show_plot=True):
+def _robust_loess(y, span, it=3):
     """
-    ---MATLAB: Function manually called to call functions below:---
-
-    Compute monthly Phi arrays for 1997-2009.
+    Robust local quadratic smoother matching MATLAB's smooth(..., span, 'rloess').
+    span : number of points in the smoothing window (odd; incremented if even)
+    it   : number of robust iterations
     """
-    for year in range(1997, 2010):
-        print(f'\nProcessing year {year}')
-        Hproj_arr = phi_arr(year, source)
-        phi_corr(year, Hproj_arr, source, show_plot)
+    from scipy.signal import savgol_filter
+    y = np.array(y, dtype=np.float64)
+    n = len(y)
+    w = span if span % 2 == 1 else span + 1
+    w = min(w, n if n % 2 == 1 else n - 1)  # must not exceed array length
 
-def phi_arr(year, source):
+    result = savgol_filter(y, window_length=w, polyorder=2)
+
+    for _ in range(it):
+        residuals = y - result
+        mad = np.median(np.abs(residuals))
+        if mad < 1e-10:
+            break
+        u = np.clip(residuals / (6.0 * mad), -1.0, 1.0)
+        robust_w = (1.0 - u ** 2) ** 2   # bisquare weights
+
+        # weighted savgol: apply weights by scaling y then normalising
+        denom = savgol_filter(robust_w, window_length=w, polyorder=2)
+        denom = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
+        result = savgol_filter(y * robust_w, window_length=w, polyorder=2) / denom
+
+    return result
+
+
+def ss_interp(var):
     """
-    --- MATLAB: Function calls function to calculate projections (5 degree steps)
-        of disturbance every 5 minutes (fi stands for angle phi) ---
-    --- Combined with `hproj` function ---
-    Compute H_proj for all phi for a given year.
+    --- MATLAB: Function to calculate sector structure and explanation of Matlab function 'smooth': ss_interp.m ---
 
-    NOTE: MATLAB hardcodes 1:105120 (365 days), dropping Dec 31st for leap years.
-    source='mat' replicates this bug; source='npz' uses the full year.
+    Compute sector structure (SS) for a 1-minute array covering exactly one year.
     """
-    print('Loading mag files.')
-    dist = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'dist_{year}.mat'))[f'dist_{year}']
-    yeartime = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
+    var = np.array(var, dtype=np.float64)
+    day_points = 1440
+    ndays = len(var) // day_points
 
-    hour   = yeartime[0].astype(np.float32)
-    minute = yeartime[1].astype(np.float32)
+    # daily median
+    day_med = np.array([
+        np.nanmedian(var[i * day_points:(i + 1) * day_points])
+        for i in range(ndays)
+    ])
 
-    if source == 'staun_omni':
-        # Replicate MATLAB bug: hardcode 365 days, drops Dec 31st on leap years
-        n = 105120
+    # smooth medians: 7-day moving average then 7-day robust loess (quadratic, matches 'rloess')
+    w = pd.Series(day_med).rolling(7, center=True, min_periods=1).mean().values
+    w = _robust_loess(w, span=7, it=3)
+
+    # spline interpolation to 1-minute resolution (matches interp1 'spline')
+    day_idx = np.arange(1, ndays + 1)           # 1-based, matches MATLAB
+    min_idx = np.linspace(1, ndays, ndays * day_points)
+    cs  = CubicSpline(day_idx, w, extrapolate=True)
+    out = cs(min_idx)
+
+    return out
+
+
+def q_day(arr):
+    """
+    --- MATLAB: Function to calculate actual QDC for a 30 days period: PC_DB_init/q_day.m ---
+
+    Calculate Quiet Day Curve (QDC) and Actual Quiet Day for a 30-day period (older DB-init version).
+    """
+    arr  = np.array(arr, dtype=np.float64)
+    n    = len(arr)
+    step = 2
+    a    = n // 1440   # number of days
+
+    # 120-point moving average trend (matches smooth(arr, 120) - 'moving')
+    arr_s = pd.Series(arr).rolling(120, center=True, min_periods=1).mean().values
+
+    # gradient
+    arr_g = np.gradient(arr)
+
+    divq  = 0
+    day   = None          # 2-D quiet day matrix, shape (1440, accumulating)
+    act   = np.full(50000, np.nan)
+    ac    = 0
+    p     = np.zeros(1)
+    flag  = True
+
+    while np.min(p) < 120:
+        divq += step
+        p = np.zeros(1320)
+
+        q = np.full(n, np.nan)
+
+        # older inline loop (matches original for i=31:len-31)
+        for i in range(30, n - 30):
+            if (np.max(np.abs(arr[i - 30:i + 31] - arr_s[i - 30:i + 31])) < divq and
+                    np.max(np.abs(arr_g[i - 30:i + 31])) < divq):
+                q[i] = arr[i]
+                if ac < len(act):
+                    act[ac] = i
+                    ac += 1
+
+        # append quiet data to day matrix (1440 x days)
+        q_mat = q.reshape(a, 1440).T   # (1440, a)
+        day   = q_mat if day is None else np.hstack([day, q_mat])
+
+        # number of quiet points within each 2-hour window
+        for i in range(1320):
+            p[i] = np.sum(~np.isnan(day[i:i + 121, :]))
+
+        # original escape condition
+        actual = step / divq
+        if actual <= 0.05:
+            flag = False
+            break
+
+    if flag:
+        # MATLAB: qqq=[day;day;day] → (3*1440, ncols), nanmean(qqq') → (3*1440,)
+        triple = np.vstack([day, day, day])           # (3*1440, ncols)
+        qqq    = np.nanmean(triple, axis=1)           # (3*1440,)
+
+        qqq_s = pd.Series(qqq).rolling(240, center=True, min_periods=1).mean().values
+        qqq_s = lowess(qqq_s, np.arange(len(qqq_s)),
+                       frac=240 / len(qqq_s), it=3, return_sorted=False)
+
+        qday   = qqq_s[1439:2879]
+
+        ActDay = int(np.round(np.nanmedian(act[:ac]) / 1440))
     else:
-        # Fix: use full year length (105120 for 365 days, 105408 for 366 days)
-        n = dist['x'][0,0].ravel().shape[0]
+        qday   = np.full(1440, np.nan)
+        ActDay = np.nan
 
-    dist_x = dist['x'][0,0].ravel()[:n].astype(np.float32)
-    dist_y = dist['y'][0,0].ravel()[:n].astype(np.float32)
-    UT = (hour * 15.0 + minute * 0.25)[:n]
+    return qday, ActDay
 
-    Hproj_arr = np.empty((72, n), dtype=np.float32)
-    print('Projecting every phi.')
-    for k, phi in enumerate(range(0, 360, 5)):
-        y = UT + phi + 291.0
-        Hproj_arr[k] = dist_x * np.sin(np.deg2rad(y)) - dist_y * np.cos(np.deg2rad(y))
 
-    return Hproj_arr
-
-def phi_corr(year, Hproj_arr, source, show_plot=False):
+def qdc_interp(in_arr):
     """
-    --- MATLAB: Function to determine optimal correlation between projection of disturbance
-        and EKL and saves optimal phi-angel in yearly files F_YYYY.m, calling for this function makerr.m: ---
+    --- MATLAB: Function to interpolation/extrapolation of QDC for all days from actual QDC: PC_DB_init/qdc_interp.m ---
 
-    Compute correlations between H_proj and Ekl, save Phi_YEAR arrays.
-
-    NOTE: The electric field in ekls is already time-shifted by 15-mins.
+    Interpolate / extrapolate QDC for every day from the sparse Actual Day array.
     """
-    print('Loading sw files.')
+    in_arr = np.array(in_arr, dtype=np.float64)
+    ndays  = len(in_arr) // 1440
 
-    # Load Ekl data and the time array for the year
+    # STEP 1 - build 2-D array of Actual Days
+    qDay = []
+    da   = []
+    for i in range(ndays):
+        arr_day = in_arr[i * 1440:(i + 1) * 1440]
+        if not np.all(np.isnan(arr_day)):
+            qDay.append(arr_day)
+            da.append(i + 1)   # 1-based day number, matches MATLAB
 
-    if source=='staun_omni':
-        ekl = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), f'ekls_{year}.mat'))[f'ekls_{year}'][0]
-        yeartime = scipy.io.loadmat(os.path.join(DIRECTORIES.get('data'), 'yeartime.mat'))['yeartime']
-    elif source=='updated_omni':
-        raise ValueError(f'"{source}" not implemented.')
+    if len(da) == 0:
+        return in_arr   # nothing to interpolate
 
-    out_dir  = DIRECTORIES.get(source)
-    save_dir = os.path.join(out_dir, 'phis')
-    os.makedirs(save_dir, exist_ok=True)
+    qDay = np.array(qDay).T   # (1440, n_actual)
+    da   = np.array(da)
+    all_days = np.arange(1, ndays + 1)
 
-    fig_dir  = os.path.join(out_dir, 'contours')
-    os.makedirs(fig_dir, exist_ok=True)
+    # STEP 2 - nearest-neighbour interpolation + lowess(60) per minute
+    from scipy.interpolate import interp1d
+    interp_arr = np.full((1440, ndays), np.nan)
+    for i in range(1440):
+        nn = interp1d(da, qDay[i, :], kind='nearest',
+                      fill_value='extrapolate')(all_days)
+        interp_arr[i, :] = lowess(nn, all_days,
+                                  frac=60 / ndays, it=1, return_sorted=False)
 
+    # STEP 3 - flatten to 1-D then smooth with loess(120)
+    l_arr  = interp_arr.T.flatten()   # column-major to match MATLAB reshape
+    out    = lowess(l_arr, np.arange(len(l_arr)),
+                    frac=120 / len(l_arr), it=1, return_sorted=False)
 
-    # Transpose for time along rows, variables along columns
-    H_proj = Hproj_arr.T
-    time_a = yeartime.T
-    Phi = np.empty((12, 288), dtype=np.float32)  # store monthly phi results every 5 mins
-
-    print('Looping months.')
-    for month in range(12):
-        # Initialise correlation array for 288 time steps and 72 phi bins
-        R = np.full((288, 72), np.nan, dtype=np.float32)
-
-        # Compute central day of the month and 30-day window around it
-        day = 16 + 30 * month
-        dmin, dmax = day - 15, day + 15
-        imin, imax = dmin * 288, dmax * 288  # convert to 5-minute time bins
-
-        # Slice H_proj, time, and Ekl for the month window
-        temp1 = H_proj[imin:imax]
-        temp_date = time_a[imin:imax]
-        temp_ace = ekl[imin:imax]
-
-        # Loop over hours and 5-minute intervals
-        for hr in range(24):
-            for minute in range(0, 60, 5):
-                # Mask for current hour and 5-minute slot
-                mask = ((temp_date[:,0]==hr) & (temp_date[:,1]==minute))
-                E = temp_ace[mask]  # Ekl values
-                H = temp1[mask]     # H_proj values
-                ok = ~np.isnan(E) & ~np.isnan(H[:,0])  # valid points
-                E, H = E[ok], H[ok]
-
-                idx = hr*12 + minute//5  # index in 288-bin day
-                if E.size > 3:
-                    # Remove mean for correlation
-                    Ec = E - E.mean()
-                    Hc = H - H.mean(axis=0)
-                    # Compute correlation numerator and denominator
-                    num = np.sum(Ec[:,None]*Hc, axis=0)
-                    den = np.sqrt(np.sum(Ec**2)*np.sum(Hc**2, axis=0))
-                    R[idx] = num / den  # store correlations
-
-        # Smooth correlations and get best phi per time bin
-        best_indices, smooth_R = compute_best_phi(R)
-        if show_plot:
-            monthly_phi_plot(smooth_R, best_indices, year, month+1, fig_dir)  # optional plotting
-        Phi[month] = best_indices*5 - 180  # convert index to degrees
-        print(f'  Month {month+1:02d}')
+    return out
 
 
-    np.savez_compressed(os.path.join(save_dir,f'Phi_{year}.npz'), Phi=Phi)
-    # np.savetxt(os.path.join(OUT_DIR,f'Phi_{year}.csv'), Phi, delimiter=',')  # optional CSV
-
-
-def compute_best_phi(R, smooth_level=90):
+def avr5min(arr):
     """
-    --- MATLAB: Function (called fi_corr.m) to find optimum correlation:---
-    --- named `makerr` in MATLAB ---
+    --- MATLAB: The function avarages 1-minute data to 5 minute: avr5min.m ---
 
-    Smooth correlations with 5th-degree polynomial and return smoothed best phi indices.
-    NOTE: Has been vectorised
-    Fully replicates MATLAB 'makerr' function.
+    5-minute block average of a 1-minute array.
     """
-    x = np.arange(1, 73, dtype=np.float32)
-
-    def fit_row(row):
-        coeffs = np.polyfit(x, row, 5)
-        return np.polyval(coeffs, x)
-
-    smooth_R = np.apply_along_axis(fit_row, 1, R)
-
-    # MATLAB find() is 1-based, so +1 to match
-    best_indices = np.nanargmin(smooth_R, axis=1).astype(np.float32) + 1
-
-    # Replicate MATLAB: smooth([ff ff ff], 90, 'lowess') then take middle third
-    extended = np.tile(best_indices, 3)
-    smoothed = lowess(
-        extended,
-        np.arange(len(extended)),
-        frac=smooth_level / len(extended),  # 90 / (288*3) — span in points
-        it=0,                                # MATLAB lowess does 0 robustness iterations
-        return_sorted=False
-    )
-    best_indices_smoothed = smoothed[288:288*2]
-
-    return best_indices_smoothed, smooth_R
+    arr   = np.array(arr, dtype=np.float64)
+    n5    = len(arr) // 5
+    out   = np.array([np.nanmean(arr[i * 5:(i + 1) * 5]) for i in range(n5)])
+    return out
 
 
+def dist_5m(year, station, iaga_dir):
+    """
+    --- MATLAB: Function to calcuate disturbances in observatory data and 5 minute averaging: STEP1_getdist/dist_5m.m ---
+
+    Compute 5-minute averaged X/Y disturbances for a single year (no overlap).
+    """
+    start = datetime(year, 1, 1)
+    end   = datetime(year, 12, 31)
+    ndays = (end - start).days + 1
+    n_min = ndays * 1440
+
+    x = np.full(n_min, np.nan)
+    y = np.full(n_min, np.nan)
+
+    # read IAGA files (no overlap)
+    for d in range(ndays):
+        actual = start + timedelta(days=d)
+        fname  = os.path.join(iaga_dir, str(actual.year),
+                              f'{station}{actual.strftime("%Y%m%d")}dmin.min')
+        if not os.path.exists(fname):
+            print(f'Warning: No file {os.path.basename(fname)}. Skipping.')
+            continue
+
+        with open(fname, 'r') as f:
+            for line in f:
+                if line.startswith('DATE'):
+                    break
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    dt  = datetime.strptime(line[:19], '%Y-%m-%d %H:%M:%S')
+                    xv  = float(line[30:40])
+                    yv  = float(line[40:50])
+                    idx = int((dt - start).total_seconds() // 60)
+                    if 0 <= idx < n_min:
+                        x[idx] = np.nan if xv >= 88888 else float(round(xv))
+                        y[idx] = np.nan if yv >= 88888 else float(round(yv))
+                except (ValueError, IndexError):
+                    continue
+
+    # SS - rounded immediately to match DB write rounding in ss_bd_interp / dbset
+    ss_x = np.round(ss_interp(x)).astype(np.float64)
+    ss_y = np.round(ss_interp(y)).astype(np.float64)
+
+    # QDC (Actual Days)
+    # step through year in 10-day steps, 30-day windows (matches year_actual_qdc / qday_db)
+    qdc_x_1min = np.full(n_min, np.nan)
+    qdc_y_1min = np.full(n_min, np.nan)
+
+    for s_day in range(0, ndays + 1, 10):
+        s_idx = s_day * 1440
+        e_idx = min(s_idx + 31 * 1440, n_min)
+
+        by_x = x[s_idx:e_idx] - ss_x[s_idx:e_idx]
+        by_y = y[s_idx:e_idx] - ss_y[s_idx:e_idx]
+
+        if len(by_x) < 1440:
+            continue
+
+        qday_x, ActDay_x = q_day(by_x)
+        qday_y, ActDay_y = q_day(by_y)
+
+        if not np.isnan(ActDay_x):
+            j = s_idx + int(ActDay_x - 1) * 1440
+            if j + 1440 <= n_min:
+                qdc_x_1min[j:j + 1440] = np.round(qday_x)
+
+        if not np.isnan(ActDay_y):
+            j = s_idx + int(ActDay_y - 1) * 1440
+            if j + 1440 <= n_min:
+                qdc_y_1min[j:j + 1440] = np.round(qday_y)
+
+    # QDC interpolation - rounded to match DB write rounding in qdc_db_interp / dbset
+    qdc_x = np.round(qdc_interp(qdc_x_1min)).astype(np.float64)
+    qdc_y = np.round(qdc_interp(qdc_y_1min)).astype(np.float64)
+
+    # disturbances
+    dist_x = x - ss_x - qdc_x
+    dist_y = y - ss_y - qdc_y
+
+    # 5-minute averaging
+    dist_x_5m = avr5min(dist_x)
+    dist_y_5m = avr5min(dist_y)
+
+    dt_5min = pd.date_range(start=start, periods=len(dist_x_5m), freq='5min')
+
+    return {
+        'time': np.array(dt_5min),
+        'x':    dist_x_5m,
+        'y':    dist_y_5m,
+    }
 
 
-# %%
+def make_dist_5min(years, station, iaga_dir, out_dir, compare=False):
+    """
+    --- MATLAB: Script to call function for averaging disturbances in observatory data: STEP1_getdist/make_dist_5min.m ---
 
-def main(source='staun_omni', show_plot=True):
-    print()
-    print('-----------------------------------')
-    print('Calculates the best phi for every month over 1999 to 2009')
-    print('Using the magnetometer disturbances from Stauning (I.e. their QDC corrected data)')
-    print('A fixed 15-minute time lag between BSN and PC is assumed')
-    print('Projected along various phi angles (from 0 to 360)')
-    print(f'Uses the {source.upper()} OMNI electric fields')
-    if source=='staun_omni':
-        print('    I.e. E_R calculated by Stauning using old OMNI')
-    elif source=='updated_omni':
-        print('    I.e. E_R calculated by me using new OMNI')
-    print('A smoothing is then applied to determine the best phi for every five minutes of a day for each month')
+    Generate and save 5-minute disturbance files for a list of years.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    for year in years:
+        print(f'\n{year}')
+        dist = dist_5m(year, station, iaga_dir)
+        out_path = os.path.join(out_dir, f'dist_{year}.npz')
+        np.savez_compressed(out_path, **dist)
+        print(f'Saved {out_path}')
 
-    phi_step1(source, show_plot)
+        compare_dist(year)
 
 
+# %% field
 
-if __name__ == '__main__':
-    main('staun_omni', False)
+def make_ekl_5min(years, compare=True):
 
-    #main('update_omni') # not implemented
+    df_next = pd.DataFrame({'E_R': [np.nan, np.nan, np.nan]},
+                       index=pd.date_range(end=f'{years[0]}-01-01 00:00', periods=3, freq='5min'))
 
-    for year in range(1997,2010):
-        compare_phi(year, 'staun_omni')
+    out_dir = DIRECTORIES.get('in')
+
+    for year in years:
+
+        df = import_def_omni(year)
+        df.set_index('epoch', inplace=True)
+
+        # Mask fill values before using E_R
+        mask = (df['B_y_GSM'] < 100) & (df['B_z_GSM'] < 100) & (df['V_flow'] < 5000)
+        df.loc[~mask, 'E_R'] = np.nan
+
+        full_index = pd.date_range(start=f'{year}-01-01 00:00', end=f'{year}-12-31 23:55', freq='5min')
+
+        df = df[['E_R']].resample('5min').mean().reindex(full_index)
+
+        # Shift timestamps forward 15 min
+        df.index = df.index + pd.Timedelta(minutes=15)
+
+        in_year = df.index.year == year
+        df_year = df.loc[in_year]
+
+        # Prepend the last 15 min of previous year
+        df_year = pd.concat([df_next, df_year])
+
+        # Carry forward the 3 bins that shifted into next year
+        df_next = df.loc[~in_year]
+
+        out_path = os.path.join(out_dir, f'ekls_{year}.npz')
+        np.savez_compressed(out_path, times= df_year.index, E_R=df_year['E_R'].values)
+
+        if compare:
+            compare_ekl(year)
 
 
+
+# %% main
+
+def main(compare=False):
+
+    if False:
+
+        iaga_dir = DIRECTORIES.get('iaga')
+        out_dir  = DIRECTORIES.get('in')
+
+        make_dist_5min(range(1997,2010), 'thl', iaga_dir, out_dir, compare)
+
+    make_ekl_5min(range(1997,2010), compare)
+
+    return
+
+if __name__=='__main__':
+
+    main(True)

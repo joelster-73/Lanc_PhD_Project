@@ -8,14 +8,14 @@ Created on Mon Mar  9 09:21:59 2026
 import os
 import numpy as np
 import pandas as pd
-
-from statsmodels.nonparametric.smoothers_lowess import lowess
-
 import calendar
 from datetime import datetime, timedelta
-from config import DIRECTORIES
 
-from stauning_imports import import_coeff
+from statsmodels.nonparametric.smoothers_lowess import lowess
+from scipy.interpolate import CubicSpline, interp1d
+
+from src.processing.mag.pcn_code.config import DIRECTORIES
+from src.processing.mag.pcn_code.stauning_imports import import_coeff
 
 import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
@@ -69,7 +69,7 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             # interpolate to 1-minute resolution
             day_idx = np.arange(ndays)
             min_idx = np.linspace(0, ndays - 1, ndays * 1440)
-            ss[f'ss_{col}'] = np.interp(min_idx, day_idx, w)
+            ss[f'ss_{col}'] = CubicSpline(day_idx, w)(min_idx)
 
         np.savez_compressed(os.path.join(ss_dir, f'ss_{year}.npz'), time=np.array(dt_arr), **ss)
         print('Saved SS.')
@@ -113,7 +113,8 @@ def process_mag_data(station='thl', t1=1997, t2=2009, overlap=31):
             all_days   = np.arange(ndays)
 
             for i in range(1440):
-                interp_arr[:, i] = np.interp(all_days, ActDays, qdays_mat[:, i])
+                interp_arr[:, i] = interp1d(ActDays, qdays_mat[:, i], kind='nearest',
+                             fill_value='extrapolate')(all_days)
                 interp_arr[:, i] = lowess(interp_arr[:, i], all_days,
                                           frac=60/ndays, it=1, return_sorted=False)
 
@@ -393,10 +394,11 @@ def main(year=None, source='staun_proj'):
 
 if __name__ == '__main__':
 
-    if True:
+    if False:
         process_mag_data(station='thl', t1=1997, t2=2021, overlap=31)
 
-    # # uses MATLAB a/b/phi for every year to calculate pcn
+
+    # uses MATLAB a/b/phi for every year to calculate pcn
     if True:
         main(source='original')
 
@@ -410,6 +412,6 @@ if __name__ == '__main__':
     main(source='recreated_phi')
 
     # use updated phi to calculated a/b/phi and thus pcn and thus a/b
-    #main('updated_phi')
+    main(source='updated_phi')
 
 
