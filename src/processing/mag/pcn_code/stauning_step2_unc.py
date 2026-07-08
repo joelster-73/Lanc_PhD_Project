@@ -195,7 +195,7 @@ def compute_best_phi(R, R_se, smooth_level=90):
 
 # %% step2
 
-def phi_step2(source='original', exc2003=True):
+def phi_step2(source='original', exc2003=False):
     """
     --- MATLAB: Stacks for all years matrix with phi-angles for all months and all UT-times
        and smoothes this matrix such that hour 23 and hour 00 (and month 12 and month 1) have smooth boundary.
@@ -375,7 +375,7 @@ def main_step2(source='original'):
     print('A smoothing is then applied to determine the best direction at every UT for each month')
 
 
-    phi_step2(source, True)
+    phi_step2(source, False)
 
 # %% main
 

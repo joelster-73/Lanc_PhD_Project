@@ -12,6 +12,8 @@ from scipy.ndimage import gaussian_filter, uniform_filter
 from scipy.signal import resample_poly
 
 from src.processing.mag.pcn_code.config import DIRECTORIES
+from src.processing.mag.pcn_code.stauning_plots import plot_ab
+from src.processing.mag.pcn_code.stauning_compares import compare_ab
 from src.processing.mag.pcn_code.stauning_imports import import_phi, import_ab, import_er, import_hproj
 from src.processing.mag.pcn_code.stauning_step3 import coeff_for_year, smooth_coeff, smooth_lowess_year
 
@@ -136,7 +138,7 @@ def ab_regress(year, source='staun_phi'):
     print(f'Saved ab_{year}.npz')
 
 # %% step2
-def ab_step2(source='original', exc2003=True):
+def ab_step2(source='original', exc2003=False):
     """
     --- MATLAB: Stacks for all years matrix with a and b coefficients for all months and all UT-times
         and smoothes this matrix such that hour 23 and hour 00 (and month 12 and month 1) have smooth boundary.
@@ -176,26 +178,25 @@ def ab_step2(source='original', exc2003=True):
     a_avr   = np.nanmean(a_years, axis=2)
     b_avr   = np.nanmean(b_years, axis=2)
 
-    if has_unc:
-        a_var_years = np.stack(a_var_years, axis=2)
-        b_var_years = np.stack(b_var_years, axis=2)
-        covar_years = np.stack(covar_years, axis=2)
-        a_var_avr   = np.nansum(a_var_years, axis=2) / n_valid**2
-        b_var_avr   = np.nansum(b_var_years, axis=2) / n_valid**2
-        covar_avr   = np.nansum(covar_years, axis=2) / n_valid**2
-
     ab_2d_a = smooth_coeff(a_avr, gaussian_sigma=0.8, box_size=5)
     ab_2d_b = smooth_coeff(b_avr, gaussian_sigma=0.1, box_size=7)
-
-    if has_unc:
-        ab_2d_a_var  = smooth_unc(a_var_avr,  gaussian_sigma=0.8, box_size=5)
-        ab_2d_b_var  = smooth_unc(b_var_avr,  gaussian_sigma=0.1, box_size=7)
-        ab_2d_covar = smooth_unc(covar_avr, gaussian_sigma=0.8, box_size=5)
 
     ab_year_a = smooth_lowess_year(coeff_for_year(ab_2d_a))
     ab_year_b = smooth_lowess_year(coeff_for_year(ab_2d_b))
 
     if has_unc:
+        a_var_years = np.stack(a_var_years, axis=2)
+        b_var_years = np.stack(b_var_years, axis=2)
+        covar_years = np.stack(covar_years, axis=2)
+
+        a_var_avr   = np.nansum(a_var_years, axis=2) / n_valid**2
+        b_var_avr   = np.nansum(b_var_years, axis=2) / n_valid**2
+        covar_avr   = np.nansum(covar_years, axis=2) / n_valid**2
+
+        ab_2d_a_var  = smooth_unc(a_var_avr,  gaussian_sigma=0.8, box_size=5)
+        ab_2d_b_var  = smooth_unc(b_var_avr,  gaussian_sigma=0.1, box_size=7)
+        ab_2d_covar = smooth_unc(covar_avr, gaussian_sigma=0.8, box_size=5)
+
         ab_year_a_var  = smooth_lowess_year(coeff_for_year(ab_2d_a_var))
         ab_year_b_var  = smooth_lowess_year(coeff_for_year(ab_2d_b_var))
         ab_year_covar = smooth_lowess_year(coeff_for_year(ab_2d_covar))
@@ -283,7 +284,11 @@ def main(source='staun_proj', full=True):
     if full:
         if source != 'original':
             ab_step1(source)
-        ab_step2(source, True)
+        ab_step2(source)
+
+        for struc in ('2d','year'):
+            plot_ab(struc, source=source)
+            compare_ab(struc, source)
 
     _ = make_coeff_1min(source)
 

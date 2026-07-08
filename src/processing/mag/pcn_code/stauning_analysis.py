@@ -7,15 +7,14 @@ Created on Sat Feb 28 14:22:13 2026
 
 import os
 import numpy as np
-import pandas as pd
 
-import matplotlib.pyplot as plt
 
 from src.processing.mag.pcn_code.config import DIRECTORIES
 from src.processing.mag.pcn_code.stauning_imports import import_data, import_true_pcn
-from src.processing.mag.pcn_code.stauning_plots import print_coeffs_monthly_ut, plot_coeff, plot_pcn_uncertainty
-from src.processing.mag.pcn_code.stauning_compares import counts_above_levels
+from src.processing.mag.pcn_code.stauning_plots import plot_coeff, plot_pcn_uncertainty, plot_yearly_uncertainty, plot_unc_vs_pcn
+from src.processing.mag.pcn_code.stauning_compares import print_coeffs_monthly_ut, compare_coeff
 
+# %%
 def coefficients_overview(source):
 
     print(f'----------{source}----------\n')
@@ -28,9 +27,6 @@ def coefficients_overview(source):
     df = import_data('coeff', '', source=source)
 
     for column in df:
-
-        if column.endswith('covar'):
-            continue
 
         print(f'-----{column}-----')
 
@@ -46,7 +42,36 @@ def coefficients_overview(source):
         df_2d.to_csv(os.path.join(source_dir,f'{column}.txt'), sep='\t', index=True, float_format='%.3g')
 
         fig = plot_coeff(coeff_data=df_column)
-        fig.savefig(os.path.join(source_dir,f'{column}.png'), dpi=300, bbox_inches='tight')
+        fig.savefig(os.path.join(source_dir,f'{column}.png'), dpi=600, bbox_inches='tight')
+
+    # All coefficients
+    coeffs = ['phi','a','b']
+    fig = plot_coeff(coeff_data=df[coeffs])
+    fig.savefig(os.path.join(source_dir,'coeff.png'), dpi=600, bbox_inches='tight')
+
+    coeffs = ['phi_unc','a_unc','b_unc','covar']
+
+    if source not in ('original','staun_proj'):
+        fig = plot_coeff(coeff_data=df[coeffs])
+        fig.savefig(os.path.join(source_dir,'coeff_var.png'), dpi=600, bbox_inches='tight')
+
+        scale_data = {
+            'phi_unc': 1,
+            'a_unc':   df['a'].to_numpy(),
+            'b_unc':   df['b'].to_numpy(),
+            'covar':   df['a'].to_numpy() * df['b'].to_numpy()
+        }
+        fig = plot_coeff(coeff_data=df[coeffs], scale_data=scale_data)
+        fig.savefig(os.path.join(source_dir,'coeff_var_scaled.png'), dpi=300, bbox_inches='tight')
+
+
+    if source not in ('original','staun_proj'):
+        compare_coeff(source)
+
+        plot_yearly_uncertainty(source)
+
+        plot_unc_vs_pcn(source, deg=2)
+
 
 
     source2='Original'
@@ -55,7 +80,9 @@ def coefficients_overview(source):
         source2 = 'true'
         pcn = import_true_pcn()
 
-    for year in range(1997,2022):
+    for year in range(1997,2024):
+        # need to increase to include 2024 and 2025
+        # 2025 not available to download
         year = str(year)
 
         df_pcn = import_data('pcn', year, source)
@@ -66,76 +93,22 @@ def coefficients_overview(source):
             df_original = import_data('pcn', year, 'original')
 
         fig, _ = plot_pcn_uncertainty(df_pcn, df_original, source=source, source2=source2)
-        fig.savefig(os.path.join(source_dir,'years',f'{year}.png'), dpi=300, bbox_inches='tight')
+        fig.savefig(os.path.join(source_dir,'years',f'{year}.png'), dpi=600, bbox_inches='tight')
 
-def total_uncertainty(source):
-
-    source_dir = DIRECTORIES.get('analysis')
-    source_dir = os.path.join(source_dir, source)
-    os.makedirs(source_dir, exist_ok=True)
-
-    print(f'\n----------{source}----------\n')
-
-    df_stats = None
-    for year in range(1997, 2022):
-        df_pcn = import_data('pcn', str(year), source)
-        df_stats = counts_above_levels(df_pcn, df_stats)
-
-    # totals row
-    totals = df_stats.sum(numeric_only=True).to_frame().T
-    totals.index = ['Total']
-    df_stats = pd.concat([df_stats, totals])
-
-    # percentage row (excludes the totals row from denominator)
-    n_years = len(df_stats) - 1
-    pct = (100 * df_stats.loc['Total'] / (n_years * 365.25)).to_frame().T
-    pct.index = ['%']
-    df_stats = pd.concat([df_stats, pct])
-
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(df_stats.round(1))
-
-    df_plot = df_stats.iloc[:-2]
-
-    top_cols = ['Quiet', 'Moderate', 'Strong', 'Severe']
-    bot_cols = ['Small', 'Trouble', 'Large']
-
-    markers = ['+','s','x','o']
-    cmap = plt.colormaps['Reds'].resampled(max(len(bot_cols),len(top_cols)) + 1)
-
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), dpi=200, sharex=True)
-    fig.subplots_adjust(hspace=0)
-    ax1.tick_params(labelbottom=False)
-
-    for ax, cols, name in zip((ax1,ax2),(top_cols,bot_cols), ('PCN','Unc')):
-
-        for i, col in enumerate(cols):
-            colour = cmap(i)
-            ax.plot(df_plot[col], color=colour, marker=markers[i], label=col)
-            if i!=3:
-                ax.annotate(f'{df_stats[col].iloc[-1]:.1f}%', xy=(df_plot.index[-1], df_plot[col].iloc[-1]), xytext=(0, 5), textcoords='offset points', color=colour, va='bottom')
-
-        ax.legend(loc='upper left',ncols=len(cols))
-        ax.set_ylabel(f'{name} # Days')
-
-    plt.show()
-    fig.savefig(os.path.join(source_dir,'Uncertainties.png'), dpi=200, bbox_inches='tight')
-    plt.close()
 
 # %% main
 
 if __name__ == '__main__':
 
-
     if True:
         coefficients_overview('original')
         coefficients_overview('staun_proj')
-        coefficients_overview('staun_phi')
-        coefficients_overview('recreated_phi')
-        coefficients_overview('updated_phi')
 
-    total_uncertainty('staun_phi')
-    total_uncertainty('recreated_phi')
-    total_uncertainty('updated_phi')
+    coefficients_overview('staun_phi')
+    coefficients_overview('recreated_phi')
+    coefficients_overview('updated_phi')
 
 
+plot_yearly_uncertainty('staun_phi')
+plot_yearly_uncertainty('recreated_phi')
+plot_yearly_uncertainty('updated_phi')

@@ -106,10 +106,10 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
 
         if as_text and orientation=='vertical':
             text = label1.replace('\n',', ') + '\n' + label2.replace('\n',', ')
-            ax.text(0.5, 0.975, text, ha='center', va='top', transform=ax.transAxes)
+            ax.text(0.5, 0.975, text, ha='center', va='top', transform=ax.transAxes, family='monospace')
         elif as_text and orientation=='horizontal':
             text = label1 + '\n' + label2
-            ax.text(0.5, 0.975, text, ha='center', va='top', transform=ax.transAxes)
+            ax.text(0.5, 0.975, text, ha='center', va='top', transform=ax.transAxes, family='monospace')
         else:
             ax.plot([],[],' ',label=label1)
             ax.plot([],[],' ',label=label2)
@@ -122,7 +122,7 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
         label = format_label(label, param_dict, inc_errs, unit, **statistics)
 
         if as_text:
-            ax.text(0.5, 0.975, label, color=colour, ha='center', va='top', transform=ax.transAxes)
+            ax.text(0.5, 0.975, label, color=colour, ha='center', va='top', transform=ax.transAxes, family='monospace')
         else:
             ax.plot([],[],' ',label=label)
 
@@ -217,17 +217,17 @@ def plot_freq_hist(series, **kwargs):
             else:
                 position = peak.n if isinstance(peak, UFloat) else peak
                 label = f'$x\\simeq{position:.3g}$ {unit}'
-            ax.text(position+0.75, 0.9*ax.get_ylim()[1], s=label)
+            ax.text(position+0.75, 0.9*ax.get_ylim()[1], s=label, family='monospace')
 
     perc_range = [None, None]
     if np.min(series)>=0: # If all positive data
         perc_range[0] = 0
     if perc_low>0:
         perc_range[0] = np.percentile(series, perc_low)
-        ax.text(0.025, 0.075, f'$\\longleftarrow$\n{np.min(series):.1f}', transform=ax.transAxes)
+        ax.text(0.025, 0.075, f'$\\longleftarrow$\n{np.min(series):.1f}', transform=ax.transAxes, family='monospace')
     if perc_high<100:
         perc_range[1] = np.percentile(series, perc_high)
-        ax.text(0.865, 0.075, f'$\\longrightarrow$\n{np.max(series):.1f}', transform=ax.transAxes)
+        ax.text(0.865, 0.075, f'$\\longrightarrow$\n{np.max(series):.1f}', transform=ax.transAxes, family='monospace')
 
     ###-------------------SET LABELS AND TITLE-------------------###
     if fit_type=='bimodal_offset':

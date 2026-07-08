@@ -12,8 +12,64 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from .stauning_imports import import_phi, import_ab, import_hproj, import_dist, import_data, import_er
-from .stauning_plots import print_coeffs_monthly_ut
+from scipy.stats import circmean
+
+from .config import LIST_OF_MONTHS
+from .stauning_imports import import_er, import_data, DIRECTORIES
+
+def compare_coeff(source='staun_omni'):
+
+    coeff_np = import_data('coeff', var=None, source=source)
+    coeff_mat = import_data('coeff', var=None, source='original')
+
+    save_dir = os.path.join(DIRECTORIES.get('analysis'), source)
+
+    print(f'---{source}---')
+
+    col_stats = {}
+
+    for col in coeff_mat:
+        mat_series = coeff_mat[col]
+        np_series  = coeff_np[col]
+
+        col_label = f'-{col}' if col == 'b' else col
+        if col == 'b':
+            mat_series = mat_series * -1
+            np_series  = np_series  * -1
+
+        if col == 'phi':
+            avg_np   = np.degrees(circmean(np.radians(np_series)))
+            avg_mat  = np.degrees(circmean(np.radians(mat_series)))
+            avg_diff = np.degrees(circmean(np.radians(mat_series) - np.radians(np_series)))
+            avg_diff = (avg_diff + 180) % 360 - 180
+        else:
+            avg_np   = np.mean(np_series)
+            avg_mat  = np.mean(mat_series)
+            avg_diff = np.mean(mat_series - np_series)
+
+        col_stats[col_label] = {
+            'Original':   [mat_series.min(), np.median(mat_series), mat_series.max(), avg_mat],
+            'Recreated':  [np_series.min(),  np.median(np_series),  np_series.max(),  avg_np],
+            'Difference': [mat_series.min() - np_series.min(),
+                                                  np.median(mat_series) - np.median(np_series),
+                                                  mat_series.max() - np_series.max(),
+                                                  avg_diff],
+        }
+
+    index = ['Minimum', 'Median', 'Maximum', 'Average']
+
+    all_data = {}
+    for col_label, stats in col_stats.items():
+        for stat_name, values in stats.items():
+            all_data[f'{col_label} {stat_name}'] = values
+
+    df = pd.DataFrame(all_data, index=index)
+    df.index.name = 'Stat'
+
+    filepath = os.path.join(save_dir, 'coeff_compare.txt')
+    df.to_csv(filepath, sep='\t', index=True, float_format='%.1f')
+    print(f'Saved to {filepath}')
+
 
 def compare_phi(year, source='staun_omni'):
 
@@ -21,8 +77,8 @@ def compare_phi(year, source='staun_omni'):
         warnings.warn('Cannot compare npz as it fixes bug.')
         return
 
-    phi_np  = import_phi(year, source=source)['phi'].ravel()
-    phi_mat = import_phi(year, source='original')['phi'].ravel()
+    phi_np  = import_data('phi', year, source=source)['phi'].ravel()
+    phi_mat = import_data('phi', year, source='original')['phi'].ravel()
 
     if phi_np.shape!=phi_mat.shape:
         print(f'Shapes do not match\n   np: {phi_np.shape}\n  mat: {phi_mat.shape}')
@@ -50,14 +106,14 @@ def compare_phi(year, source='staun_omni'):
             df = import_data('phi', year, source)
             df_2d = print_coeffs_monthly_ut(df)
 
-            save_dir = import_phi(year, source, True)[1]
+            save_dir = import_data('phi', year, source, True)[1]
             df_2d.to_csv(os.path.join(save_dir,f'phi_{year}.txt'), sep='\t', index=True, float_format='%.3g')
 
 
 def compare_ab(year, source='staun_proj'):
 
-    ab_mat = import_ab(year)
-    ab_np  = import_ab(year, source)
+    ab_mat = import_data('ab', year)
+    ab_np  = import_data('ab', year, source)
 
     for key, unit in zip(('a','b'),('mV/m/nT','nT')):
         key_mat = ab_mat[key]
@@ -74,14 +130,14 @@ def compare_ab(year, source='staun_proj'):
         if (diff > 0.5).any():
             idx = np.argwhere(diff > 0.5)
             print('  Large diff locations (month, time):')
-            for i, j in idx[:5]:
-                print(f'    [{i:02d},{j:03d}] MATLAB={key_mat[i,j]:.4f}  Python={key_np[i,j]:.4f}  diff={diff[i,j]:.4f}')
+            for (i,) in idx[:5]:
+                print(f'    flat index {i}  diff={diff[i]:.4f}')
         print()
 
 def compare_hproj(year, source='staun_phi'):
 
-    hproj_mat = import_hproj(year, source='original')['hproj'].ravel()
-    hproj_np  = import_hproj(year, source=source)['hproj'].ravel()
+    hproj_mat = import_data('hproj', year, source='original')['hproj'].ravel()
+    hproj_np  = import_data('hproj', year, source=source)['hproj'].ravel()
 
     if hproj_np.shape!=hproj_mat.shape:
         print(f'Shapes do not match\n   np: {hproj_np.shape}\n  mat: {hproj_mat.shape}')
@@ -124,8 +180,8 @@ def compare_ekl(year, source='updated_phi'):
 
 def compare_dist(year):
 
-    mat = import_dist(year, 'original')
-    npz = import_dist(year, 'input')
+    mat = import_data('dist', year, 'original')
+    npz = import_data('dist', year, 'input')
 
     dist_mat_x = mat['dist_x']
     dist_mat_y = mat['dist_y']
@@ -161,6 +217,35 @@ def compare_dist(year):
               f'  med rel diff  = {np.median(rel_diff):.3g}%\n'
               f'  within 1 nT   = {(diff < 1).mean()*100:.1f}%\n'
               f'  within 5 nT   = {(diff < 5).mean()*100:.1f}%\n')
+
+def print_coeffs_monthly_ut(df):
+
+    df_2d = df.copy()
+
+    index_names = df.index.names
+
+    time_vals = df.index.get_level_values('time')
+    hours = time_vals.map(lambda t: t.hour)
+
+    if 'month' in index_names:
+        months = df.index.get_level_values('month')
+
+    elif 'doy' in index_names:
+        doy = df.index.get_level_values('doy')
+        months = doy.map(lambda d: pd.Timestamp('2000-01-01') + pd.Timedelta(days=int(d)-1)).month
+
+    df_2d = df.iloc[:, 0].groupby([months, hours]).mean().unstack(level=0)
+    df_2d.index.name   = 'hour'
+    df_2d.columns.name = 'month'
+
+
+    df_2d.columns = LIST_OF_MONTHS
+
+
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(df_2d)
+
+    return df_2d
 
 def counts_above_levels(df_pcn, df_stats=None):
 

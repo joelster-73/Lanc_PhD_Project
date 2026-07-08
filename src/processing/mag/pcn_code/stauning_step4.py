@@ -314,7 +314,10 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
 
     pc     = (H_proj - coeff['b'][index]) / coeff['a'][index]
     pc     = np.round(pc, 2)
-    pc_unc = calc_pc_unc(index, dist_x[i], dist_y[i], angle, H_proj, coeff)
+
+    var_terms = calc_pc_unc(index, dist_x[i], dist_y[i], angle, H_proj, coeff)
+
+    pc_unc = np.sqrt(np.abs(var_terms['total']))
 
     # save
     out_path = os.path.join(pcn_dir, f'pc_{year}.npz')
@@ -324,6 +327,14 @@ def calc_def_PC(station='thl', year=1997, coeff=None, overlap=31, source='origin
              dist_y  = dist_y[i],
              pcn     = pc,
              pcn_unc = pc_unc)
+
+    out_path = os.path.join(pcn_dir, f'pc_{year}_detailed.npz')
+    np.savez_compressed(out_path,
+             time    = np.array(dt_arr[i]),
+             dist_x  = dist_x[i],
+             dist_y  = dist_y[i],
+             pcn     = pc,
+             **var_terms)
 
     print(f'Saved PC index to {out_path}')
 
@@ -343,19 +354,21 @@ def calc_pc_unc(index, dist_x, dist_y, angle_rad, H_proj, coeff):
 
     # if no uncertainty fields at all, return zeros rather than running formula
     if not any(k in coeff for k in ('a_var', 'b_var', 'cov_ab', 'phi_var')):
-        return zeros
+        return {key: zeros for key in ('phi_term', 'a_term', 'b_term', 'c_term', 'total')}
 
     dH_dphi  = dist_x * np.cos(angle_rad) + dist_y * np.sin(angle_rad)
     dPC_dphi = dH_dphi / a
     dPC_db   = -1.0 / a
     dPC_da   = -H_proj / a**2
 
-    var_pc = (dPC_dphi**2 * p_var * (np.pi / 180)**2
-            + dPC_db**2   * b_var
-            + dPC_da**2   * a_var
-            + 2 * dPC_da  * dPC_db * covar)
+    phi_term = dPC_dphi**2 * p_var * (np.pi / 180)**2
+    a_term = dPC_da**2   * a_var
+    b_term = dPC_db**2   * b_var
+    c_term = 2 * dPC_da  * dPC_db * covar
 
-    return np.sqrt(np.abs(var_pc))
+    var_pc = phi_term + a_term + b_term + c_term
+
+    return {'phi_term': phi_term, 'a_term': a_term, 'b_term': b_term, 'c_term': c_term, 'total': var_pc}
 
 def print_pc(pc, pc_unc):
 
@@ -383,7 +396,7 @@ def main(year=None, source='staun_proj'):
     print(pd.DataFrame(coeff))
 
     if year is None:
-        year_range = range(1997,2022)
+        year_range = range(1997,2024)
     else:
         year_range = range(year,year+1)
 
@@ -395,8 +408,10 @@ def main(year=None, source='staun_proj'):
 if __name__ == '__main__':
 
     if False:
-        process_mag_data(station='thl', t1=1997, t2=2021, overlap=31)
+        process_mag_data(station='thl', t1=1997, t2=2023, overlap=31)
 
+        # need to increase to include 2024 and 2025
+        # 2025 not available to download
 
     # uses MATLAB a/b/phi for every year to calculate pcn
     if True:

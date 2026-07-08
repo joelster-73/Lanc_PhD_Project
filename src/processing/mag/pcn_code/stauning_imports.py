@@ -20,9 +20,9 @@ from ...omni.config import omni_columns
 
 def import_data(coeff, var, source='original'):
 
-    units_dict = {'a': 'mV/m/nT', 'b': 'nT', 'phi': 'deg', 'H_x': 'nT', 'H_y': 'nT', 'Hproj': 'nT', 'E_r': 'mV/m'}
+    units_dict = {'a': 'nT/(mV/m)', 'b': 'nT', 'phi': 'deg', 'H_x': 'nT', 'H_y': 'nT', 'Hproj': 'nT', 'E_r': 'mV/m'}
 
-    import_functions = {'phi': import_phi, 'ab': import_ab, 'coeff': import_coeff, 'pcn': import_pcn, 'hproj': import_hproj, 'dist': import_dist}
+    import_functions = {'phi': import_phi, 'ab': import_ab, 'coeff': import_coeff, 'pcn': import_pcn, 'hproj': import_hproj, 'dist': import_dist, 'pcn_full': import_pcn_detailed}
 
     import_function = import_functions.get(coeff)
     data_dict = import_function(var, source)
@@ -64,10 +64,26 @@ def import_pcn(year, source):
 
     return data_dict
 
+def import_pcn_detailed(year, source):
+
+    # output path
+    if source == 'original':
+        path = DIRECTORIES.get('coeff')
+    else:
+        path = DIRECTORIES.get(source)
+
+    pcn_dir = os.path.join(path, 'pcn')
+
+    pcn = np.load(os.path.join(pcn_dir, f'pc_{year}_detailed.npz'))
+
+    data_dict = {key: pcn[key] for key in pcn}
+
+    return data_dict
+
 def get_timestamps(arr, var=None):
     n = len(arr.ravel())
 
-    if isinstance(var, int) or var.isdigit():
+    if var is not None and (isinstance(var, int) or var.isdigit()):
         num_days = 366 if calendar.isleap(int(var)) else 365
         start = pd.Timestamp(f'{var}-01-01')
 
