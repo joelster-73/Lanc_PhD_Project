@@ -297,14 +297,14 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             print(f'"{resolution}" not valid.')
 
     # index
-    elif source in ('pcn','pcc','aa','sme','indices'):
+    elif source in ('pcn','pcc','aa','sme','dst','smr','indices'):
 
-        if source=='indices':
-            path = INDEX_DIR
-        elif source=='pcc':
-            path = f'{INDEX_DIR}/PCN_PCS'
-        else:
-            path = f'{INDEX_DIR}/{source.upper()}/'
+        path = f'{INDEX_DIR}/'
+
+        if resolution != ' ':
+            path += f'{resolution}/'
+        elif source != 'indices':
+            path += f'{source.upper()}/'
 
     # supermag
     elif source=='supermag':
@@ -319,7 +319,6 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         elif resolution != ' ':
             print(f'"{resolution}" not valid.')
 
-    # index
     elif source=='crossings':
         path = CROSSINGS_DIR
 

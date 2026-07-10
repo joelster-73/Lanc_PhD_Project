@@ -10,13 +10,15 @@ import os
 import glob
 import numpy as np
 import pandas as pd
-from spacepy import pycdf
 
-from .config import lagged_indices
+from spacepy import pycdf
+from datetime import datetime, timedelta
+
+from .config import PC_STATIONS
 
 from ..reading import import_processed_data
 from ..writing import write_to_cdf
-from ..omni.config import indices_columns
+from ..dataframes import resample_data, rename_columns
 
 from ...config import get_luna_directory, get_proc_directory
 
@@ -45,6 +47,8 @@ def process_PCN_data():
     df_pcn.set_index('epoch',inplace=True)
 
     df_pcn.loc[df_pcn['PCN']>=999] = np.nan
+
+    df_pcn.attrs = {'units': {'PCN': 'mV/m'}, 'time_col': 'epoch'}
 
     return df_pcn
 
@@ -115,13 +119,66 @@ def process_PCC_data(include_prelim=True):
     return df_main
 
 
+def process_Dst_data():
+
+    dst_dir = get_proc_directory('dst')
+
+    records = []
+
+    for file_name in sorted(os.listdir(dst_dir)):
+
+        file_path = os.path.join(dst_dir, file_name)
+        if not os.path.isfile(file_path) or file_name.lower() == 'readme.txt':
+            continue
+
+        with open(file_path, 'r') as file:
+            days = file.readlines()
+
+        for line in days:
+
+            if len(line.strip()) < 120:
+                continue
+
+            yr      = line[3:5]
+            century = line[14:16].strip()
+            century = int(century) if century else 19  # blank = 19XX
+
+            year    = century * 100 + int(yr)
+            month   = int(line[5:7])
+            day     = int(line[8:10])
+
+            date    = datetime(year, month, day)
+
+            version = line[13] # 0 - quicklook, 1 - provisional, 2 - final
+
+            base_value = int(line[16:20])
+
+            # 24 hourly values, 4 digits each
+            hourly_str = line[20:116]
+            hourly_values = [int(hourly_str[i:i+4]) for i in range(0, 96, 4)]
+
+            for hour, value in enumerate(hourly_values):
+                records.append({
+                    'epoch': date + timedelta(hours=hour),
+                    'Dst': value + base_value,
+                    'version': version
+                })
+
+    df_dst = pd.DataFrame(records)
+    df_dst.set_index('epoch',inplace=True)
+
+    df_dst['Dst'] = df_dst['Dst'].replace(9999, np.nan)
+
+    df_dst.attrs = {'units': {'Dst': 'nT'}, 'time_col': 'epoch'}
+    return df_dst
+
+
 def process_SME_data():
 
-    sme_dir = get_proc_directory('sme')
-    file_path = os.path.join(sme_dir, 'SME_indices.txt')
+    file_path = os.path.join(get_proc_directory('sme'), 'SME_indices.txt')
 
     df_sme = pd.read_csv(file_path, skiprows=104, sep='\t')
-    df_sme = df_sme.loc[df_sme['<year>']>2000]
+    df_sme = df_sme.loc[df_sme['<year>']>1995]
 
     df_sme.rename(columns={'<year>': 'year', '<month>': 'month', '<day>': 'day', '<hour>': 'hour', '<min>': 'minute', '<SME (nT)>': 'SME'},inplace=True)
 
@@ -132,7 +189,29 @@ def process_SME_data():
 
     df_sme.loc[df_sme['SME']>=3000] = np.nan
 
+    df_sme.attrs = {'units': {'SME': 'nT'}, 'time_col': 'epoch'}
+
     return df_sme
+
+def process_SMR_data():
+
+    file_path = os.path.join(get_proc_directory('smr'), 'SMR_indices.txt')
+
+    df_smr = pd.read_csv(file_path, skiprows=104, sep='\t')
+    df_smr = df_smr.loc[df_smr['<year>'] > 1995]
+
+    df_smr.rename(columns={'<year>': 'year', '<month>': 'month', '<day>': 'day', '<hour>': 'hour', '<min>': 'minute', '<SMR (nT)>': 'SMR'},inplace=True)
+
+    df_smr['epoch'] = pd.to_datetime(df_smr[['year','month','day','hour','minute']])
+
+    df_smr.set_index('epoch',inplace=True)
+    df_smr.drop(columns=['year','month','day','hour','minute','<sec>'],inplace=True)
+
+    df_smr.loc[df_smr['SMR']>=3000] = np.nan
+
+    df_smr.attrs = {'units': {'SMR': 'nT'}, 'time_col': 'epoch'}
+
+    return df_smr
 
 def process_AA_data():
 
@@ -147,117 +226,81 @@ def process_AA_data():
 
     df_aa.loc[df_aa['aa']>=999] = np.nan
 
+    df_aa.attrs = {'units': {'aa': 'nT'}, 'time_col': 'epoch'}
+
     return df_aa
 
-def correction_AE(df):
 
-    """
-    Weimer et al. (1990) use a correction to AE data to make comparison over a year consistent
 
-    AE_c = AE_m (1 + 0.5.sin^2((d-172).pi/365))
-    AE_c = AE_m (1 + 0.5.sin^2((f-0.5).pi))
-    where f is year fraction
-
-    AE indices near the summer solstice are about 1.5 times the AE indices ohstained near the winder solstice (Northern hemisphere)
-    """
-
-    doy = df.index.dayofyear
-    frac_day = (df.index.hour + df.index.minute/60) / 24.0
-
-    year_frac = (doy + frac_day) / np.where(df.index.is_leap_year, 366, 365)
-
-    return df['AE'] * (1 + 0.5*np.sin((year_frac-0.5)*np.pi)**2)
 
 # %% OMNI_with_lag
 
+resolutions = ['1min','5min','15min','1hour','3hour']
 
-def build_lagged_indices(sample_interval, indices=lagged_indices, PC_stations=('THL',), to_include=('mag','gse','gsm')):
+def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')):
 
-    # lagged_indices = ('AE','PCN',...)
-    # omni_lags = (10,17,20,30,...)
+    """
+    Procedure will take in one specific index, process the raw data files, then average and save to a file.
+    Unlike the other functions, this will not do any time lagging, as interpolation isn't going to be allowed in the future studies.
+    Ensure that the time stamps are continuous.
+    """
 
-    print('Importing...')
-    df_pcn = process_PCN_data()
-    df_pcc = process_PCC_data()
-    df_aa  = process_AA_data()
-    df_sme = process_SME_data()
+    print(f'\nImporting {index}...')
 
-    # Extracts indices contained in OMNI - doesn't use any of the SW data
-    df_pc  = import_processed_data('omni', resolution=sample_interval)
-    df_pc = df_pc[indices_columns] # drops other columns
 
-    #df_sw['AEc'] = correction_AE(df_sw) # using Weimer (1990) correction
-    df_pc['SME'] = df_sme['SME'].reindex(df_pc.index)
-    df_pc['PCN'] = df_pcn['PCN'].reindex(df_pc.index)
-    df_pc['PCC'] = df_pcc['PCC'].reindex(df_pc.index)
-    df_pc['AA']  = df_aa['aa'].reindex(df_pc.index, method='ffill') # 3 hourly
+    index_cols = {'AE': ['AE','AL','AU'], 'SYM': ['SYM_D','SYM_H'], 'ASY': ['ASY_D','ASY_H']}
 
-    for col in ('PCN','PCC'):
-        df_pc.attrs['units'][col] = 'mV/m'
-    for col in ('AA','SME'):
-        df_pc.attrs['units'][col] = 'nT'
+    procedures = {'PCN':  process_PCN_data,'PCC': process_PCC_data, 'AA': process_AA_data, 'SME': process_SME_data, 'Dst': process_Dst_data, 'SMR': process_SMR_data}
 
-    for station in PC_stations:
-        print(station)
-        # SuperMAG PolarCap
-        # Currently using magnitude of horizontal field and y-component as "index"
-        # Will change eventually to field proected onto optimum direction
-        df_mag = import_processed_data('supermag', dtype=station, resolution='gsm')
-        mag_columns = []
-        mag_columns_new = []
-        for to_inc in to_include:
-            if to_inc=='mag':
-                mag_columns.append('H_mag')
-                mag_columns_new.append(station)
-            elif to_inc=='gse':
-                mag_columns.append('H_y_GSE')
-                mag_columns_new.append(f'{station}_y_GSE')
-            elif to_inc=='gsm':
-                mag_columns.append('H_y_GSM')
-                mag_columns_new.append(f'{station}_y_GSM')
+    native_resolutions = {'AA': '3hour', 'Dst': '1hour'}
 
-        df_pc[mag_columns_new] = df_mag[mag_columns].reindex(df_pc.index)
-        for col in mag_columns_new:
-            df_pc.attrs['units'][col] = 'nT'
+    if index in index_cols.keys():
+        # indices_columns = ['AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H']
+        # for consistency, averaging 1min omni data rather than 5min
+        df_index = import_processed_data('omni', resolution='1min')[index_cols.get(index)]
 
-    print(df_pc.columns)
+        df_index.attrs = {'units': {col: 'nT' for col in index_cols.get(index)}, 'time_col': 'epoch'}
 
-    print('Lagging...')
+    elif index=='PC':
+        df_pcc = procedures['PCC']()
+        df_pcn = procedures['PCN']()
+        df_index = pd.concat([df_pcn, df_pcc], axis=1)
+        df_index.attrs = {'units': {'PCN': 'mV/m', 'PCC': 'mV/m'}, 'time_col': 'epoch'}
 
-    new_cols  = {}
-    dt_sample = pd.Timedelta(sample_interval)
+    elif index in PC_STATIONS:
 
-    for ind in df_pc.columns:
-        lags = indices.get(ind, None)
-        if lags is None:
-            continue
+        # SuperMAG PolarCap - magnitude of horizontal field and y-component as "index"
+        # need X and Z components for averaging
+        df_index = import_processed_data('supermag', dtype=index, resolution='gsm')[['H_mag', 'H_x_GSE', 'H_y_GSE', 'H_z_GSE', 'H_y_GSM', 'H_z_GSM']]
 
-        for lag in lags:
-            dt_lag = -pd.Timedelta(minutes=lag)
+    else:
+        df_index = procedures[index]()
+        df_index.attrs['units'][index] = 'nT'
 
-            if (dt_lag % dt_sample) == pd.Timedelta(0):
-                new_data = df_pc[ind].shift(freq=dt_lag)
-            else:
-                target_index = df_pc.index - dt_lag
-                full_index   = df_pc.index.union(target_index)
+    for sample_interval in sample_intervals:
 
-                tolerance = (abs(dt_lag)/2).ceil(dt_sample) # max interpolation range
-                temp      = df_pc[ind].reindex(full_index, method='nearest', tolerance=tolerance)
+        print(f'Writing {sample_interval} data.')
 
-                new_data  = pd.Series(temp.loc[target_index].values, index=df_pc.index, name=ind)
+        output_file = os.path.join(get_proc_directory('indices', resolution=sample_interval, create=True), index)
+        native_res  = native_resolutions.get(index,'1min')
 
-            new_col = f'{ind}_{lag}m'
-            if ind.endswith('_unc'):
-                new_col = '_'.join(ind.split('_')[:-1]) + f'_{lag}m' + 'unc'
+        if native_res == sample_interval:
 
-            new_cols[new_col] = new_data
-            df_pc.attrs['units'][new_col] = df_pc.attrs['units'].get(ind)
+            write_to_cdf(df_index, output_file, reset_index=True)
 
-    # Concatenate once
-    df_pc_attrs = df_pc.attrs
-    df_pc = pd.concat([df_pc, pd.DataFrame(new_cols, index=df_pc.index)], axis=1)
-    df_pc.attrs = df_pc_attrs
+        elif resolutions.index(sample_interval) > resolutions.index(native_res):
 
-    # Writes OMNI with lag to file
-    output_file = os.path.join(get_proc_directory('indices'), f'combined_{sample_interval}')
-    write_to_cdf(df_pc, output_file, reset_index=True)
+            # resample and write to file
+            df_sampled = resample_data(df_index, 'index', sample_interval.replace('hour','h'))
+
+            if index in PC_STATIONS: # need to drop after resampling
+
+                df_sampled.drop(columns=[col for col in df_sampled if col.startswith(('H_x','H_z'))]+['H_GSE_count','H_GSM_count'], inplace=True)
+                df_sampled.attrs['units'] = {col: df_sampled.attrs.get('units',{}).get(col,'') for col in df_sampled} # removes extra columns
+                rename_columns(df_sampled, {'H_mag': index, 'H_y_GSE': f'{index}_y_GSE', 'H_y_GSM': f'{index}_y_GSM'})
+
+
+            write_to_cdf(df_sampled, output_file, reset_index=True)
+
+    print(f'{index} processed.')
+

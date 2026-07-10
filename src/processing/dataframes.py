@@ -59,6 +59,11 @@ def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False):
 
 def rename_columns(df, column_map):
 
+    """
+    Renames columns and the units in the attributes
+    Works inplace
+    """
+
     rename_map = {col: column_map[key] + col[len(key):] for col in df.columns for key in column_map if col.startswith(key)}
     df.rename(columns=rename_map, inplace=True)
 
@@ -121,6 +126,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     print(f'Reprocessing to {sample_interval} resolution...\n')
 
     attributes = df.attrs
+    units = attributes.get('units', {})
 
     df = df.copy()
     df.attrs = attributes
@@ -158,6 +164,10 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             aggregated_columns[f'{column}_unc']   = np.nan
             aggregated_columns[f'{column}_count'] = 0
 
+            units[f'{column}_unc']   = units.get(column)
+            units[f'{column}_count'] = 'NUM'
+
+
         elif '_GS' in column:
 
             print(f'Processing {column} (vector).')
@@ -192,22 +202,26 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
                 aggregated_columns[f'{field}_{comp}_{coords}'] = nom_vals[:, i]
                 if inc_info:
                     aggregated_columns[f'{field}_{comp}_{coords}_unc'] = std_vals[:, i]
+                    units[f'{field}_{comp}_{coords}_unc'] = units.get(f'{field}_{comp}_{coords}')
 
             if inc_info:
                 aggregated_columns[f'{field}_{coords}_count'] = non_nan_counts[vector_columns].min(axis=1)
+                units[f'{field}_{coords}_count'] = 'NUM'
 
         else:
 
             print(f'Processing {column}.')
 
             # Use standard mean for other columns
-            unit = df.attrs.get('units',{}).get(column,None)
+            unit = df.attrs.get('units',{}).get(column)
             ufloat_series = grouped[column].apply(lambda x: calc_mean_error(x.dropna(), unit=unit))
 
             aggregated_columns[column] = unp.nominal_values(ufloat_series.to_numpy())
             if inc_info:
                 aggregated_columns[f'{column}_unc']   = unp.std_devs(ufloat_series.to_numpy())
                 aggregated_columns[f'{column}_count'] = non_nan_counts[column].to_numpy()
+                units[f'{column}_unc']   = unit
+                units[f'{column}_count'] = 'NUM'
 
     resampled_df = pd.DataFrame(aggregated_columns, index=grouped.groups.keys())
     resampled_df.index.name = 'epoch'
@@ -220,8 +234,10 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     if 'utc' in resampled_df:
         resampled_df.drop(columns=['utc'], inplace=True)
 
-    print(f'{sample_interval} done.')
+    resampled_df.attrs = dict(attributes)
+    resampled_df.attrs['units'] = units
 
+    print(f'{sample_interval} done.')
     return resampled_df
 
 
