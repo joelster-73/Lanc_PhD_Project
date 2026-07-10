@@ -18,44 +18,17 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib import pyplot as plt
 
 
-from .config import PC_STATIONS
-from .indices import import_processed_index
-from ..filtering import filter_select_day
+from ...plotting.utils import save_figure
 
+from .config import PC_STATIONS
 from ...plotting.formatting import custom_date_formatter, add_legend, create_label, shifted_angle_ticks
 from ...plotting.config import blue, dark_mode, black, white, grey
 from ...plotting.comparing.parameter import compare_dataframes
-from ...plotting.utils import get_grid_shape, save_figure
+from ...plotting.relationships import plot_fit_params_against_z
 
 from ...coordinates.spatial import convert_GEO_position
 
-from ...methods.magnetosheath_saturation.plotting_utils import minimum_counts, def_param_names, get_var_bin_width, get_variable_range, shift_angular_data, mask_df
-
-
-# %% quicklook
-
-def plot_quicklook(day, indices=('THL',), resolution='1min'):
-    """
-    A quicklook plot function of different indices on a certain day
-    """
-    nrows, ncols = get_grid_shape(len(indices))
-
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*8,nrows*4), dpi=400, sharex=True)
-
-    for ax, index in zip(axs.ravel(),indices):
-
-        index_series = import_processed_index(index, resolution=resolution)
-
-        print(index_series)
-
-        index_series = filter_select_day(index_series, day)
-
-        ax.plot(index_series)
-        ax.set_ylabel(f'{index}')
-
-    plt.tight_layout()
-    plt.show()
-    plt.close()
+from ...methods.magnetosheath_saturation.plotting_utils import minimum_counts, def_param_names, get_var_bin_width, get_variable_range, shift_angular_data, mask_df, get_lagged_columns
 
 
 # %% mag
@@ -140,7 +113,7 @@ def plot_mag_data(station, sw, pc, param='H', ind='ER', show_sw=True, folder=Non
     plt.show()
     plt.close()
 
-def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag', ind='ER', show_sw=True, folder=None):
+def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag', ind='ER', show_sw=True, phi=None, folder=None):
 
     # add argument to account for shift but probably will be taken care off when using full data
 
@@ -187,11 +160,25 @@ def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag',
     for i, c in enumerate(components):
         ax.plot(station.index,station[f'B_{c}_NEZ'],lw=0.7,alpha=alpha,color=colours[i],label=f'{c.upper()}')
 
-    if quantity=='y':
+    if quantity=='phi':
         colour = 'magenta'
 
-        column = f'{param}_y_{coords}'
-        label = r'$H_y$'
+        if coords=='aGSE':
+            column = f'{param}_y_{coords}'
+            label  = r'$H_\phi$'
+
+        elif phi:
+            degs = int(np.degrees(phi))
+            column = f'H_{degs}'
+            label  = f'$H_{{{degs}^\\circ}}$'
+            x_col  = f'{param}_x_{coords}'
+            if coords=='GSM':
+                x_col = f'{param}_x_GSE'
+            station.loc[:, column] = (station.loc[:, x_col]*np.sin(phi) + station.loc[:, f'{param}_y_{coords}']*np.cos(phi)).astype(np.float32)
+
+        else:
+            column = f'{param}_y_{coords}'
+            label = r'$H_y$'
 
     elif quantity=='tr':
         colour = 'green'
@@ -251,6 +238,62 @@ def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag',
     plt.close()
 
 
+def plot_find_optimum(station, sw, param='H', coords='GSM', ind='Ey', folder=None):
+
+    if ind=='Ey':
+        ind_col = f'E_y_{coords}'
+    elif ind=='ER':
+        ind_col = 'E_R'
+
+    if ind_col not in sw:
+        print(f'"{ind_col}" not in df.')
+        ind_col = 'E_y'
+
+    x_col  = f'{param}_x_{coords}'
+    if coords=='GSM':
+        x_col = f'{param}_x_GSE'
+
+    phi_range = np.arange(-np.pi, np.pi, np.pi/200)
+    corrs     = np.empty(len(phi_range))
+    rmse_norm = np.empty(len(phi_range))
+
+    y = sw[ind_col].values
+
+    for i, phi in enumerate(phi_range):
+        projected = station.loc[:, x_col].values * np.sin(phi) + station.loc[:, f'{param}_y_{coords}'].values * np.cos(phi)
+
+        mask = ~np.isnan(projected) & ~np.isnan(y)
+        p = projected[mask]
+        s = y[mask]
+
+        # z-score both series
+        pz = (p - p.mean()) / p.std()
+        sz = (s - s.mean()) / s.std()
+
+        corrs[i] = np.corrcoef(pz, sz)[0, 1]
+        rmse_norm[i] = np.sqrt(np.mean((pz - sz) ** 2))
+
+    fig, (ax1,ax2) = plt.subplots(2, 1, sharex=True, dpi=400, figsize=(10,8))
+    plt.subplots_adjust(hspace=0)
+
+    ax1.plot(np.degrees(phi_range), corrs, c='b', lw=0.8)
+    ax1.set_ylabel('Correlation')
+
+    ax2.plot(np.degrees(phi_range), rmse_norm, c='r', lw=0.8)
+    ax2.set_ylabel('RMSE (z-scored)')
+    ax2.set_xlabel(r'Phi [$^\circ$]')
+
+    maximum = np.argmax(corrs)
+    best_phi = np.degrees(phi_range)[maximum]
+    ax1.axvline(best_phi,c='k',ls=':',label=f'{int(best_phi)} $^\\circ$')
+    ax2.axvline(best_phi,c='k',ls=':')
+    add_legend(fig, ax1)
+
+    save_figure(fig, sub_directory=folder)
+    plt.show()
+    plt.close()
+
+    return phi_range[maximum]
 
 # %% map
 
@@ -310,6 +353,8 @@ def plot_magnetometer_overview(df_station, df_omni, df_pc, start_time, end_time=
 
 
     plot_mag_data(station_sub, omni_sub, indices_sub, ind='Ey', folder=folder)
+    phi = plot_find_optimum(station_sub, omni_sub, folder=folder)
+
     plot_combos = it.product(('ER','Ey'), ('GSE','GSM'), ('mag','phi','tr'))
 
     for (ind, coords, quantity) in plot_combos:
@@ -317,7 +362,7 @@ def plot_magnetometer_overview(df_station, df_omni, df_pc, start_time, end_time=
         if (ind, coords, quantity) == ('ER', 'GSM', 'mag'):
             continue
 
-        plot_mag_data_corr(station_sub, omni_sub, indices_sub, coords=coords, quantity=quantity, ind=ind, folder=folder)
+        plot_mag_data_corr(station_sub, omni_sub, indices_sub, coords=coords, quantity=quantity, ind=ind, phi=phi, folder=folder)
 
     plot_magnetometer_map(station_sub, coords='GSE', folder=folder)
 

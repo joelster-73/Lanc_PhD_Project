@@ -297,7 +297,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             print(f'"{resolution}" not valid.')
 
     # index
-    elif source in ('pcn','pcc','aa','sme','dst','smr','indices'):
+    elif source in ('PCN','PCC','AA','SME','DST','SMR','indices'):
 
         path = f'{INDEX_DIR}/'
 
@@ -305,6 +305,8 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             path += f'{resolution}/'
         elif source != 'indices':
             path += f'{source.upper()}/'
+        else:
+            raise ValueError('No files in this directory.')
 
     # supermag
     elif source=='supermag':
@@ -323,7 +325,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         path = CROSSINGS_DIR
 
     else:
-        raise ValueError(f'Spacecraft "{source} does not have processed directory.')
+        raise ValueError(f'Spacecraft "{source}" does not have processed directory.')
 
     if not os.path.isdir(path):
         if create:

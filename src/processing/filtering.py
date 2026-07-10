@@ -77,6 +77,14 @@ def filter_sw(df, method, **kwargs):
         return mask
     return df.loc[mask]
 
+def filter_select_day(df, day):
+    """
+    Filters dataframe to return data from a certain day.
+    """
+    date = pd.Timestamp(day).normalize()  # midnight of that day
+    return df.loc[date : date + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)]
+
+
 def filter_data(df, *args):
     """
     Filters the DataFrame based on a specified column and value range.

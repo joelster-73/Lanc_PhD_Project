@@ -11,6 +11,8 @@ import glob
 import numpy as np
 import pandas as pd
 
+import warnings
+
 from spacepy import pycdf
 from datetime import datetime, timedelta
 
@@ -233,9 +235,10 @@ def process_AA_data():
 
 
 
-# %% OMNI_with_lag
+# %% averaged_indices
 
 resolutions = ['1min','5min','15min','1hour','3hour']
+native_resolutions = {'AA': '3hour', 'Dst': '1hour'}
 
 def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')):
 
@@ -251,8 +254,6 @@ def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')
     index_cols = {'AE': ['AE','AL','AU'], 'SYM': ['SYM_D','SYM_H'], 'ASY': ['ASY_D','ASY_H']}
 
     procedures = {'PCN':  process_PCN_data,'PCC': process_PCC_data, 'AA': process_AA_data, 'SME': process_SME_data, 'Dst': process_Dst_data, 'SMR': process_SMR_data}
-
-    native_resolutions = {'AA': '3hour', 'Dst': '1hour'}
 
     if index in index_cols.keys():
         # indices_columns = ['AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H']
@@ -286,21 +287,59 @@ def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')
 
         if native_res == sample_interval:
 
-            write_to_cdf(df_index, output_file, reset_index=True)
+            if index in PC_STATIONS:
+                df_clean = df_index.copy()
+                df_clean.attrs = df_index.attrs
+                clean_mag_data(df_clean, index)
+
+                write_to_cdf(df_clean, output_file, reset_index=True)
+
+            else:
+                write_to_cdf(df_index, output_file, reset_index=True)
 
         elif resolutions.index(sample_interval) > resolutions.index(native_res):
 
-            # resample and write to file
+            # resample to a lower resolution (i.e. average)
+
             df_sampled = resample_data(df_index, 'index', sample_interval.replace('hour','h'))
 
-            if index in PC_STATIONS: # need to drop after resampling
-
-                df_sampled.drop(columns=[col for col in df_sampled if col.startswith(('H_x','H_z'))]+['H_GSE_count','H_GSM_count'], inplace=True)
-                df_sampled.attrs['units'] = {col: df_sampled.attrs.get('units',{}).get(col,'') for col in df_sampled} # removes extra columns
-                rename_columns(df_sampled, {'H_mag': index, 'H_y_GSE': f'{index}_y_GSE', 'H_y_GSM': f'{index}_y_GSM'})
-
+            # need to drop after resampling
+            if index in PC_STATIONS:
+                clean_mag_data(df_sampled, index)
 
             write_to_cdf(df_sampled, output_file, reset_index=True)
 
     print(f'{index} processed.')
+
+def clean_mag_data(df, index):
+
+    columns_to_drop = [col for col in df if col.startswith(('H_x','H_z'))]
+    for col in ('H_GSE_count','H_GSM_count'):
+        if col in df:
+            columns_to_drop.append(col)
+
+    df.drop(columns=columns_to_drop, inplace=True)
+    df.attrs['units'] = {col: df.attrs.get('units',{}).get(col,'') for col in df} # removes extra columns
+
+    columns_to_rename = {'H_mag': index} | {col: col.replace('H_',f'{index}_') for col in df if col!='H_mag'}
+    rename_columns(df, columns_to_rename)
+
+
+def import_processed_index(index, resolution='1min'):
+    """
+    Wrapper function to import a processed index as the structure depends on the index
+    """
+    native_res  = native_resolutions.get(index,'1min')
+    if resolutions.index(resolution) < resolutions.index(native_res):
+        warnings.warn(f'Resolution {resolution} is not available as the native resolution is {native_res}.')
+        resolution = native_res
+
+    index_parents = {'SYM_D': 'SYM', 'SYM_H': 'SYM', 'ASY_D': 'ASY', 'ASY_H': 'ASY', 'PCC': 'PC', 'PCN': 'PC', 'AL': 'AE', 'AU': 'AE'}
+    index_parents |= {f'{station}_mag': station for station in PC_STATIONS} | {f'{station}_y_GSE': station for station in PC_STATIONS} | {f'{station}_y_GSM': station for station in PC_STATIONS}
+
+    df = import_processed_data('indices', resolution=resolution, file_name=index_parents.get(index,index))
+
+    print(df)
+
+    return df.loc[:,index]
 

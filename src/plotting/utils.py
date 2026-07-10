@@ -130,6 +130,18 @@ def segment_dataframe(df, delta=Timedelta(minutes=1)):
 
     return df
 
+def get_grid_shape(n):
+    """
+    Given a number of items, return a sensible (rows, cols) grid layout
+    that's as close to square as possible, favoring slightly wider than tall.
+    """
+    if n <= 0:
+        return (0, 0)
+
+    cols = np.ceil(np.sqrt(n))
+    rows = np.ceil(n / cols)
+    return int(rows), int(cols)
+
 
 def datetime_to_decimal_year_vectorised(date_index):
     day_of_year = date_index.day_of_year

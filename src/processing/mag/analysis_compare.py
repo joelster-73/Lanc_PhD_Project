@@ -28,3 +28,11 @@ plot_compare_magnetometers(df_omni, df_pc, 'E_y_GSM', 'gsm', lag=17)
 
 plot_compare_magnetometers(df_omni, df_pc, 'E_R', 'mag', lag=17, display='lags')
 
+# %%
+
+from src.processing.mag.plotting import plot_quicklook
+
+plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'))
+
+plot_quicklook('2003-10-29', indices=('SMR','AE','SME','SYM_D','SYM_H','ASY_D','SYM_H','PCN','THL','SVS','ALE','NRD','DMH','RES'))
+
