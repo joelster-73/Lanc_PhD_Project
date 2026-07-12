@@ -10,7 +10,4 @@ from src.processing.mag.indices import build_averaged_index
 
 for index in ('Dst','SMR','AE','SME','SYM','ASY','PC','THL','SVS','ALE','NRD','DMH','RES'):
 
-    if index in ('Dst','SMR','AE','SME','SYM','ASY','PC'):
-        continue # skips already processed ones
-
     build_averaged_index(index)

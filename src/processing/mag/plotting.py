@@ -14,7 +14,6 @@ import pandas as pd
 import spaceweather as sw
 
 import matplotlib.dates as mdates
-from matplotlib.ticker import FuncFormatter
 from matplotlib import pyplot as plt
 
 
@@ -22,7 +21,7 @@ from .config import PC_STATIONS
 from .indices import import_processed_index
 from ..filtering import filter_select_day
 
-from ...plotting.formatting import custom_date_formatter, add_legend, create_label, shifted_angle_ticks
+from ...plotting.formatting import format_datetime_axis, add_legend, create_label, shifted_angle_ticks
 from ...plotting.config import blue, dark_mode, black, white, grey
 from ...plotting.comparing.parameter import compare_dataframes
 from ...plotting.utils import get_grid_shape, save_figure
@@ -46,16 +45,19 @@ def plot_quicklook(day, indices=('THL',), resolution='1min'):
 
         index_series = import_processed_index(index, resolution=resolution)
 
-        print(index_series)
-
         index_series = filter_select_day(index_series, day)
 
-        ax.plot(index_series)
-        ax.set_ylabel(f'{index}')
+        ax.plot(index_series, c=black)
+        format_datetime_axis(ax)
+        ax.set_ylabel(create_label(index, units=index_series.attrs.get('units',{})))
+
+    fig.align_ylabels()
 
     plt.tight_layout()
+    save_figure(fig)
     plt.show()
     plt.close()
+
 
 
 # %% mag
@@ -117,7 +119,7 @@ def plot_mag_data(station, sw, pc, param='H', ind='ER', show_sw=True, folder=Non
     ax.set_ylabel(f'{station_name} [nT]')
     ax2.set_ylabel('PCN [mV/m]')
 
-    ax2.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: int(mdates.num2date(x).day)))
+    format_datetime_axis(ax2, 'day')
 
     if (station.index[-1] - station.index[0]).total_seconds()<86400:
         ax_MLT = ax0.twiny()
@@ -133,8 +135,7 @@ def plot_mag_data(station, sw, pc, param='H', ind='ER', show_sw=True, folder=Non
 
     fig.align_ylabels()
 
-    formatter = FuncFormatter(custom_date_formatter)
-    ax2.xaxis.set_major_formatter(formatter)
+    format_datetime_axis(ax2)
 
     save_figure(fig, sub_directory=folder)
     plt.show()
@@ -220,7 +221,7 @@ def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag',
     ax.set_ylabel(f'{station_name} [nT]')
     ax2.set_ylabel('PCN [mV/m]')
 
-    ax2.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: int(mdates.num2date(x).day)))
+    format_datetime_axis(ax2, 'day')
 
     corr_pcn = pc['PCN'].corr(sw[ind_col])
 
@@ -243,8 +244,7 @@ def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag',
 
     fig.align_ylabels()
 
-    formatter = FuncFormatter(custom_date_formatter)
-    ax2.xaxis.set_major_formatter(formatter)
+    format_datetime_axis(ax2)
 
     save_figure(fig, sub_directory=folder)
     plt.show()

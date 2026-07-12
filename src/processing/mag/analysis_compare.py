@@ -32,7 +32,14 @@ plot_compare_magnetometers(df_omni, df_pc, 'E_R', 'mag', lag=17, display='lags')
 
 from src.processing.mag.plotting import plot_quicklook
 
-plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'))
+plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'), resolution='1min')
+plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'), resolution='5min')
+plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'), resolution='15min')
+plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'), resolution='1hour')
 
 plot_quicklook('2003-10-29', indices=('SMR','AE','SME','SYM_D','SYM_H','ASY_D','SYM_H','PCN','THL','SVS','ALE','NRD','DMH','RES'))
 
+
+
+# clean up script files
+# average spacecraft region data to 15 minutes as well (curr have 1 and 5 min)

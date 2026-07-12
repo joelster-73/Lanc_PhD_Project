@@ -181,6 +181,15 @@ def common_prefix(x, y):
 def array_to_string(arr, fmt='.1f'):
     return f'[{", ".join(f"{value:{fmt}}" for value in arr)}]'
 
+def format_datetime_axis(ax, style='time'):
+
+    if style=='time':
+        formatter = FuncFormatter(custom_date_formatter)
+    elif style=='day':
+        formatter = FuncFormatter(lambda x, pos: int(mdates.num2date(x).day))
+
+    ax.xaxis.set_major_formatter(formatter)
+
 def custom_date_formatter(x, pos):
     timestamp = mdates.num2date(x)
     if pos == 0 or (timestamp.hour == 0 and timestamp.minute == 0 and timestamp.second == 0):
