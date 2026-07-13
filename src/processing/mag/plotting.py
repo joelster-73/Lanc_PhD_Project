@@ -13,7 +13,6 @@ import pandas as pd
 
 import spaceweather as sw
 
-import matplotlib.dates as mdates
 from matplotlib import pyplot as plt
 
 

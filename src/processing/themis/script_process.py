@@ -12,7 +12,7 @@ from src.processing.updating import update_plasma_data
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    process_themis_files(spacecraft, 'STATE', sample_intervals=('raw','1min','5min'))
+    process_themis_files(spacecraft, 'STATE', sample_intervals=('raw','1min','5min','15min'))
 
 
 # %% Field
@@ -20,9 +20,9 @@ for spacecraft in THEMIS_SPACECRAFT:
 for spacecraft in THEMIS_SPACECRAFT:
 
     if spacecraft in THEMIS_PLASMA_SPACECRAFT:
-        sample_intervals = ('raw','1min','5min')
+        sample_intervals = ('raw','1min','5min','15min')
     else:
-        sample_intervals = ('1min','5min')
+        sample_intervals = ('1min','5min','15min')
 
     process_themis_files(spacecraft, 'FGM', sample_intervals=sample_intervals)
 
@@ -46,9 +46,21 @@ for spacecraft in THEMIS_PLASMA_SPACECRAFT:
 
     update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', regions, field_res='raw')
 
-resample_themis_files('thb', 'sw', 'spin', sample_intervals=('1min','5min'))
-resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min'))
+resample_themis_files('thb', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
+resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min','15min'))
 
 
 
 
+# %% TEMP
+
+for spacecraft in THEMIS_SPACECRAFT:
+
+    process_themis_files(spacecraft, 'STATE', sample_intervals=('15min',))
+
+    process_themis_files(spacecraft, 'FGM', sample_intervals=('15min',))
+
+
+
+resample_themis_files('thb', 'sw', 'spin', sample_intervals=('15min',))
+resample_themis_files('the', 'msh', 'spin', sample_intervals=('15min',))

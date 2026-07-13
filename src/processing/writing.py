@@ -165,15 +165,6 @@ def resample_cdf_files(spacecraft, data, raw_res='spin', sample_intervals=('1min
     ###----------PROCESS----------###
     for key, files in files_by_keys.items():
 
-        ############ TEMPORARY ##########
-        year, month = key.split('-')
-        if int(year)<2018:
-            print(f'Skipping {key} - REMOVE TEMP')
-            continue
-        elif int(year)==2018 and int(month)<7:
-            print(f'Skipping {key} - REMOVE TEMP')
-            continue
-
         print(f'Updating {key}.')
         yearly_list = []
 

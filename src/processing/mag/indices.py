@@ -120,6 +120,7 @@ def process_PCC_data(include_prelim=True):
 
     return df_main
 
+# %% Ring Current
 
 def process_Dst_data():
 
@@ -175,26 +176,7 @@ def process_Dst_data():
     return df_dst
 
 
-def process_SME_data():
-
-    file_path = os.path.join(get_proc_directory('sme'), 'SME_indices.txt')
-
-    df_sme = pd.read_csv(file_path, skiprows=104, sep='\t')
-    df_sme = df_sme.loc[df_sme['<year>']>1995]
-
-    df_sme.rename(columns={'<year>': 'year', '<month>': 'month', '<day>': 'day', '<hour>': 'hour', '<min>': 'minute', '<SME (nT)>': 'SME'},inplace=True)
-
-    df_sme['epoch'] = pd.to_datetime(df_sme[['year','month','day','hour','minute']])
-
-    df_sme.set_index('epoch',inplace=True)
-    df_sme.drop(columns=['year','month','day','hour','minute','<sec>'],inplace=True)
-
-    df_sme.loc[df_sme['SME']>=3000] = np.nan
-
-    df_sme.attrs = {'units': {'SME': 'nT'}, 'time_col': 'epoch'}
-
-    return df_sme
-
+# %% SuperMAG
 def process_SMR_data():
 
     file_path = os.path.join(get_proc_directory('smr'), 'SMR_indices.txt')
@@ -215,6 +197,30 @@ def process_SMR_data():
 
     return df_smr
 
+
+def process_SME_data():
+
+    file_path = os.path.join(get_proc_directory('sme'), 'SME_indices.txt')
+
+    df_sme = pd.read_csv(file_path, skiprows=104, sep='\t')
+    df_sme = df_sme.loc[df_sme['<year>']>1995]
+
+    df_sme.rename(columns={'<year>': 'year', '<month>': 'month', '<day>': 'day', '<hour>': 'hour', '<min>': 'minute', '<SME (nT)>': 'SME'},inplace=True)
+
+    df_sme['epoch'] = pd.to_datetime(df_sme[['year','month','day','hour','minute']])
+
+    df_sme.set_index('epoch',inplace=True)
+    df_sme.drop(columns=['year','month','day','hour','minute','<sec>'],inplace=True)
+
+    df_sme.loc[df_sme['SME']>=3000] = np.nan
+
+    df_sme.attrs = {'units': {'SME': 'nT'}, 'time_col': 'epoch'}
+
+    return df_sme
+
+
+# %% Misc
+
 def process_AA_data():
 
     aa_dir = get_proc_directory('aa')
@@ -231,8 +237,6 @@ def process_AA_data():
     df_aa.attrs = {'units': {'aa': 'nT'}, 'time_col': 'epoch'}
 
     return df_aa
-
-
 
 
 # %% averaged_indices

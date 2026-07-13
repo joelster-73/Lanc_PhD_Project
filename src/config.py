@@ -205,12 +205,12 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             elif dtype != ' ':
                 print(f'"{dtype}" not valid.')
 
-            if resolution in ('raw','5vps','spin','1min','5min','spin_raw'):
+            if resolution in ('raw','5vps','spin','1min','5min','15min','spin_raw'):
                 path += f'{resolution}/'
             elif resolution != ' ':
                 print(f'"{resolution}" not valid.')
 
-        # themis
+    # themis
     elif source in THEMIS_SPACECRAFT:
 
         if dtype == 'base':
@@ -229,7 +229,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             elif dtype != ' ':
                 print(f'"{dtype}" not valid.')
 
-            if resolution in ('raw','1min','5min','spin'):
+            if resolution in ('raw','spin','1min','5min','15min'):
                 path += f'{resolution}/'
             elif resolution != ' ':
                 print(f'"{resolution}" not valid.')
@@ -253,7 +253,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             elif dtype != ' ':
                 print(f'"{dtype}" not valid.')
 
-            if resolution in ('fast','spin','raw','1min','5min'):
+            if resolution in ('fast','spin','raw','1min','5min','15min'):
                 path += f'{resolution}/'
             elif resolution != ' ':
                 print(f'"{resolution}" not valid.')

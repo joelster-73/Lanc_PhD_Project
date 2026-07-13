@@ -28,7 +28,7 @@ plot_compare_magnetometers(df_omni, df_pc, 'E_y_GSM', 'gsm', lag=17)
 
 plot_compare_magnetometers(df_omni, df_pc, 'E_R', 'mag', lag=17, display='lags')
 
-# %%
+# %% Quicklook
 
 from src.processing.mag.plotting import plot_quicklook
 
@@ -40,6 +40,3 @@ plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'), resolution
 plot_quicklook('2003-10-29', indices=('SMR','AE','SME','SYM_D','SYM_H','ASY_D','SYM_H','PCN','THL','SVS','ALE','NRD','DMH','RES'))
 
 
-
-# clean up script files
-# average spacecraft region data to 15 minutes as well (curr have 1 and 5 min)

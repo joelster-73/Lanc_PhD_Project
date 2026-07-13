@@ -10,16 +10,16 @@ from src.processing.updating import update_plasma_data
 
 # %% Field
 
-process_mms_files('mms1', 'state', sample_intervals=('raw','1min','5min'))
+process_mms_files('mms1', 'state', sample_intervals=('raw','1min','5min','15min'))
 
-process_mms_files('mms1', 'fgm', sample_intervals=('raw','1min','5min')) # resample to 1min, 5min
+process_mms_files('mms1', 'fgm', sample_intervals=('raw','1min','5min','15min')) # resample to 1min, 5min
 
 
 # %% HPCA
 
 process_mms_files('mms1', 'hpca', sample_intervals=('raw',)) # Keeps separate ion quantities
 
-process_mms_files('mms1', 'hpca', sample_intervals=('spin','1min','5min'))
+process_mms_files('mms1', 'hpca', sample_intervals=('spin','1min','5min','15min'))
 
 # %% FPI
 
@@ -30,4 +30,11 @@ process_mms_files('mms1', 'fpi', sample_intervals=('none',))
 # Using HPCA heavy ion densities
 update_plasma_data('mms1', 'fgm', 'fpi', 'hpca', (), convert_fields=('V',))
 
-resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min'))
+resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min','15min'))
+
+# %% TEMP - delete
+
+process_mms_files('mms1', 'state', sample_intervals=('15min',))
+process_mms_files('mms1', 'fgm', sample_intervals=('15min',))
+process_mms_files('mms1', 'hpca', sample_intervals=('15min',))
+resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('15min',))

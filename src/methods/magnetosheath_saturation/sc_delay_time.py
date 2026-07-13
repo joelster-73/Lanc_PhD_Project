@@ -47,6 +47,7 @@ def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60, write_to_f
     So comparing df_omni[t] with df_sc[t] is valid.
     Due to possible matching indices, weighted average of duplicate rows is done.
     Delays greater than 60 mins are set to-nan, and msh delays cannot be positive.
+    TL;DR this just shifts data to the BSN to create essentially a new OMNI but using Cluster, THEMIS, MMS.
     """
 
     if 'prop_time_s' not in df_sc:
@@ -70,7 +71,7 @@ def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60, write_to_f
     dup_mask    = df_sc.index.duplicated(keep=False)
 
     if np.sum(dup_mask)==0:
-        print('No duplicate indices.')
+        print('No duplicate times.')
 
     else:
         df_duplicates = df_sc.loc[dup_mask]
