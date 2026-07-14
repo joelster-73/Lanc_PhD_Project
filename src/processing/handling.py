@@ -70,7 +70,7 @@ def get_cdf_file(directory, filename=None):
 
     return cdf_files[0]
 
-def get_file_keys(spacecraft, data, raw_res='raw'):
+def get_file_keys(spacecraft, data=' ', raw_res='raw'):
     file_keys = {}
     data_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
     pattern = os.path.join(data_dir, '*.cdf')

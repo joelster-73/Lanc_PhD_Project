@@ -10,7 +10,7 @@ import pandas as pd
 
 from datetime import datetime, timedelta
 
-from ...coordinates.magnetic import calc_B_GSM_angles
+from ..coordinates.magnetic import calc_B_GSM_angles
 
 def extract_omni_data_old(asc_file, variables):
     """

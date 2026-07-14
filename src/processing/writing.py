@@ -150,7 +150,8 @@ def update_cdf_attributes(directory, new_values, add=True):
     print('Attribute update complete.')
 
 # %% resample
-def resample_cdf_files(spacecraft, data, raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, qual_func=None, files_by_keys={}):
+
+def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, qual_func=None, files_by_keys={}):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """

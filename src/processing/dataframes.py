@@ -93,30 +93,7 @@ def relabel_columns(df, label):
         return new_df
     return df
 
-def replace_inf(df, replace_large=False, threshold=1e28):
-    # Replace infinities with NaN, without using inplace=True
-    df = df.replace([np.inf, -np.inf], np.nan)
-
-    if replace_large:
-        numeric_cols = df.select_dtypes(include=[np.number])
-
-        mask = np.abs(numeric_cols) > threshold
-        df.loc[mask.index, mask.columns] = numeric_cols.where(~mask)
-
-    return df
-
-def safe_nominals(arr):
-    if len(arr) == 0:  # empty list
-        return [np.nan, np.nan, np.nan]
-    else:
-        return unp.nominal_values(arr)
-
-def safe_stddevs(arr):
-    if len(arr) == 0:  # empty list
-        return [np.nan, np.nan, np.nan]
-    else:
-        return unp.std_devs(arr)
-
+# %% resampling
 def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=SKIP_COLUMNS, drop_nans=True):
 
     if sample_interval in ('none','NONE'):
@@ -372,6 +349,31 @@ def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns
 
     return resampled_df
 
+# %% utils
+
+def replace_inf(df, replace_large=False, threshold=1e28):
+    # Replace infinities with NaN, without using inplace=True
+    df = df.replace([np.inf, -np.inf], np.nan)
+
+    if replace_large:
+        numeric_cols = df.select_dtypes(include=[np.number])
+
+        mask = np.abs(numeric_cols) > threshold
+        df.loc[mask.index, mask.columns] = numeric_cols.where(~mask)
+
+    return df
+
+def safe_nominals(arr):
+    if len(arr) == 0:  # empty list
+        return [np.nan, np.nan, np.nan]
+    else:
+        return unp.nominal_values(arr)
+
+def safe_stddevs(arr):
+    if len(arr) == 0:  # empty list
+        return [np.nan, np.nan, np.nan]
+    else:
+        return unp.std_devs(arr)
 
 def set_df_indices(df, time_col):
 
@@ -402,8 +404,6 @@ def previous_index(df, index):
             return df.index[idx_position - 1]
 
     return None
-
-
 
 def print_dataframe(df, nrows=5, location='head'):
 

@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 
 from .config import imf_bad_cols, plasma_bad_cols, column_units, omni_columns, omni_columns_5min
 
-from ..handling import create_log_file, log_missing_file
+from ..handling import create_log_file, log_missing_file, get_file_keys
 from ..writing import write_to_cdf
-from ..dataframes import add_df_units
+from ..reading import import_processed_data
+from ..dataframes import add_df_units, resample_data
 from ..utils import create_directory
 from ..speasy.calculations import cross_product, gse_to_gsm_with_angle
 
@@ -174,4 +175,44 @@ def extract_omni_data(lst_file, omni_columns):
             df.loc[df[flux_param]==99999.99,flux_param] = np.nan
 
     return df
+
+
+
+# %% resample
+
+def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='epoch'):
+    """
+    Resample omni files to lower resolutions.
+    The 5-min OMNI is built from the 1-min files via a simple mean and interpolation, rather than averaging the time-shifted daya in a 5-min window.
+    So, for consistency, the 15-min data is averaged using a simple mean, with the choice of 1-min and 5-min resolution.
+    Some columns are handled separately.
+    """
+
+    ###----------SET UP----------###
+    print('Resampling.')
+
+    files_by_year = get_file_keys('omni', raw_res=raw_res)
+
+    save_directories = {}
+
+    for sample_interval in sample_intervals:
+        save_directory = get_proc_directory('omni', resolution=sample_interval, create=True)
+        create_directory(save_directory)
+        save_directories[sample_interval] = save_directory
+
+    ###----------PROCESS----------###
+    for year, file in files_by_year.items():
+
+        print(f'Updating {year}.')
+
+        df = import_processed_data('omni', resolution=raw_res, file_name=file)
+
+        dir_name = '_'.join(file.split('_')[:-1])
+
+        for sample_interval, samp_dir in save_directories.items():
+
+            sampled_df = resample_data(df, time_col='index', sample_interval=sample_interval, drop_nans=False)
+
+            attributes = {'sample_interval': sample_interval}
+            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{year}', attributes=attributes, reset_index=True)
 

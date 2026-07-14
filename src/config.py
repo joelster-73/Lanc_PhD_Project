@@ -203,12 +203,12 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             if dtype in ('crossings','fgm','hia','hiaq','state','combined','sw','msh'):
                 path += f'{dtype}/'
             elif dtype != ' ':
-                print(f'"{dtype}" not valid.')
+                print(f'"{dtype}" not a valid datatype (get_proc_directory).')
 
             if resolution in ('raw','5vps','spin','1min','5min','15min','spin_raw'):
                 path += f'{resolution}/'
             elif resolution != ' ':
-                print(f'"{resolution}" not valid.')
+                print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
     # themis
     elif source in THEMIS_SPACECRAFT:
@@ -227,12 +227,12 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             if dtype in ('sw', 'msh', 'combined', 'FGM', 'MOM', 'STATE'):
                 path += f'{dtype}/'
             elif dtype != ' ':
-                print(f'"{dtype}" not valid.')
+                print(f'"{dtype}" not a valid datatype (get_proc_directory).')
 
             if resolution in ('raw','spin','1min','5min','15min'):
                 path += f'{resolution}/'
             elif resolution != ' ':
-                print(f'"{resolution}" not valid.')
+                print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
     # mms
     elif source in MMS_SPACECRAFT:
@@ -251,12 +251,12 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             if dtype in ('fgm','hpca','fpi','state','sw','msh'):
                 path += f'{dtype}/'
             elif dtype != ' ':
-                print(f'"{dtype}" not valid.')
+                print(f'"{dtype}" not a valid datatype (get_proc_directory).')
 
             if resolution in ('fast','spin','raw','1min','5min','15min'):
                 path += f'{resolution}/'
             elif resolution != ' ':
-                print(f'"{resolution}" not valid.')
+                print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
     # omni
     elif source=='omni':
@@ -265,10 +265,10 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         if resolution == ' ':
             resolution = '1min'
 
-        if resolution in ('1min','5min'):
+        if resolution in ('1min','5min','15min'):
             path += f'{resolution}/'
         elif resolution != ' ':
-            print(f'"{resolution}" not valid.')
+            print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
 
     # wind
@@ -294,7 +294,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         if resolution in ('1min','5min'):
             path += f'{resolution}/'
         elif resolution != ' ':
-            print(f'"{resolution}" not valid.')
+            print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
     # index
     elif source in ('PCN','PCC','AA','SME','DST','SMR','indices'):
@@ -319,7 +319,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         if resolution in ('raw','gse','agse','gsm'):
             path += f'{resolution}/'
         elif resolution != ' ':
-            print(f'"{resolution}" not valid.')
+            print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
     elif source=='crossings':
         path = CROSSINGS_DIR

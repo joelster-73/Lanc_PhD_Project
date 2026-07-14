@@ -21,7 +21,7 @@ from .writing import resample_cdf_files
 from .handling import get_file_keys, refactor_keys
 
 
-def resample_files(spacecraft, data, raw_res='spin', new_grouping='yearly', **kwargs):
+def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', **kwargs):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
