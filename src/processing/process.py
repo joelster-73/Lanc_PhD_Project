@@ -125,11 +125,11 @@ def format_extracted_vector(dictionary, data, var_name, coords='GSE', suffix='',
     if suffix != '': # ion or unc
         suffix = f'_{suffix}'
 
-    if f'{var_name}_mag' not in dictionary:
-        dictionary[f'{var_name}_mag']   = np.sqrt(data[:,0]**2+data[:,1]**2+data[:,2]**2)
+    if f'{var_name}_mag{suffix}' not in dictionary:
+        dictionary[f'{var_name}_mag{suffix}']   = np.sqrt(data[:,0]**2+data[:,1]**2+data[:,2]**2)
 
     if fourD:
-        dictionary[f'{var_name}_avg'] = data[:, 3]
+        dictionary[f'{var_name}_avg{suffix}'] = data[:, 3]
 
     if coords=='GSE' or f'{var_name}_x_GSE{suffix}' not in dictionary: # doesn't add X_GSM
         dictionary[f'{var_name}_x_{coords}{suffix}'] = data[:, 0]

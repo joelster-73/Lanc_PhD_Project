@@ -26,10 +26,13 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
     # Process function
     if data=='STATE':
         process = process_themis_state
+        quality = None
     elif data=='FGM':
         process = process_themis_fgm
+        quality = filter_quality
     elif data=='MOM':
         process = process_themis_mom
+        quality = filter_quality
     else:
         raise ValueError(f'"{data}" not valid data to sample.')
 
@@ -47,7 +50,7 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
 
     kwargs['resolutions'] = {'spin' : '3s'}
 
-    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filter_quality, **kwargs)
+    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=quality, **kwargs)
 
 
 def is_int(s):
@@ -94,7 +97,6 @@ def get_themis_files(directory=None, year=None):
     return files_by_year
 
 
-
 def extract_themis_data(cdf_file, variables):
 
     info_dict = {}
@@ -129,9 +131,9 @@ def extract_themis_data(cdf_file, variables):
 
                 field  = var_name.split('_')[0]
 
-                if '_gse' in var_name:
+                if '_GSE' in var_name:
                     coords = 'GSE'
-                elif '_gsm' in var_name:
+                elif '_GSM' in var_name:
                     coords = 'GSM'
                 else:
                     raise Exception(f'Coord system of variable not implemented: {var_name}.')
@@ -236,6 +238,9 @@ def process_themis_fgm(variables, files, directory_name, log_file_path, time_col
     return fgm_df
 
 def process_themis_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
+    """
+    STATE data has a 1-min resolution.
+    """
 
     pos_list = []
 

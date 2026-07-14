@@ -9,7 +9,7 @@ import glob
 
 import numpy as np
 import pandas as pd
-from scipy.constants import k as kB, e
+from scipy.constants import k as kB, e, mu_0
 from scipy.constants import physical_constants
 m_a = physical_constants['alpha particle mass'][0]
 
@@ -35,10 +35,12 @@ def process_mms_files(spacecraft, data, sample_intervals=('raw',), year=None, **
         process = process_mms_fgm
         def filtering(df):
             return filter_quality(df, column='B_flag')
+
     elif data=='state':
         files_dict = get_mms_files_year(directory, year)
         process = process_mms_state
         filtering = None
+
     elif data=='hpca':
         files_dict = get_mms_files_year(directory, year)
         process = process_mms_hpca
@@ -46,11 +48,13 @@ def process_mms_files(spacecraft, data, sample_intervals=('raw',), year=None, **
             kwargs['keep_ions'] = True
             sample_intervals = ('raw',) # prevents resampling
         filtering = None
+
     elif data=='fpi':
         files_dict = get_mms_files_month(directory, year)
         process = process_mms_fpi
         def filtering(df):
             return filter_quality(df, column='flag')
+
     else:
         raise ValueError(f'"{data}" not valid data to sample')
 
@@ -302,6 +306,7 @@ def process_mms_hpca(variables, files, directory_name, log_file_path, time_col='
 
     # Loop through each daily file in the year
     for cdf_file in files:
+
         file_date = os.path.basename(cdf_file).split('_')[5][:8]
 
         try:  # Bad data check
@@ -330,7 +335,7 @@ def process_mms_hpca(variables, files, directory_name, log_file_path, time_col='
     if kwargs.get('keep_ions',False):
         return plasma_df
 
-    plasma_df = process_hpca_data(plasma_df, time_col)
+    plasma_df = process_hpca_data(plasma_df, time_col=time_col)
     add_df_units(plasma_df)
 
     return plasma_df
@@ -376,7 +381,7 @@ def process_mms_fpi(variables, files, directory_name, log_file_path, time_col='e
 
 # %% Plasma
 
-def process_hpca_data(field_df, plasma_df):
+def process_hpca_data(plasma_df, time_col='index'):
     """
     Once the plasma data has been extracted from the raw moments files
     This function will combine into total flow pressure and velocity etc
@@ -384,7 +389,10 @@ def process_hpca_data(field_df, plasma_df):
 
     ###----------CLEAN UP RAW DATA----------###
 
-    combined_df = pd.concat([field_df, plasma_df], axis=1)
+    combined_df = pd.DataFrame(index=plasma_df.index)
+
+    if time_col != 'index':
+        combined_df[time_col] = plasma_df[time_col]
 
 
     columns = ['rho_tot','P_flow','P_th','N_tot','T_tot','V_flow','V_x_GSE','V_y_GSE','V_z_GSE','V_y_GSM','V_z_GSM','beta']
@@ -433,6 +441,10 @@ def process_hpca_data(field_df, plasma_df):
                 denominator_V += rho_ion
 
             combined_df[f'V_{comp}_{coords}'] = numerator_V / denominator_V
+
+    # Total beta depends on total pressure
+    # beta = p_th / p_mag
+    combined_df['beta'] = combined_df['P_th'] / (plasma_df['B_mag']**2 / (2*mu_0))  * 1e9
 
     return combined_df
 

@@ -37,10 +37,3 @@ update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V'
 resample_cluster_files('c1', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
 
 
-
-# %% TEMP - delete
-resample_cluster_files('c1', 'state', 'spin', sample_intervals=('15min',))
-resample_cluster_files('c1', 'fgm', 'spin', sample_intervals=('15min',))
-resample_cluster_files('c1', 'msh', 'spin', sample_intervals=('15min',))
-
-

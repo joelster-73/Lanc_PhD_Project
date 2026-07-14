@@ -62,13 +62,14 @@ HPCA_VARIABLES_TEMPLATE = {
 
 ION_SPECIES = ('hplus','heplus','heplusplus','oplus')
 
+prefix = '{sc}_hpca_'
 for ion in ION_SPECIES:
     # Plasma data are 3 columns or 3x3 tensors
-    HPCA_VARIABLES_TEMPLATE[f'V_gse_{ion}'] = '{sc}_hpca_' + f'{ion}_ion_bulk_velocity'        # km/s
-    HPCA_VARIABLES_TEMPLATE[f'V_gsm_{ion}'] = '{sc}_hpca_' + f'{ion}_ion_bulk_velocity_GSM'
-    HPCA_VARIABLES_TEMPLATE[f'P_{ion}']     = '{sc}_hpca_' + f'{ion}_ion_pressure'             # Thermal pressure tensor, approximate p = 1/3 . Tr(P)
-    HPCA_VARIABLES_TEMPLATE[f'N_{ion}']     = '{sc}_hpca_' + f'{ion}_number_density'           # n/cc
-    HPCA_VARIABLES_TEMPLATE[f'T_{ion}']     = '{sc}_hpca_' + f'{ion}_scalar_temperature'       # eV
+    HPCA_VARIABLES_TEMPLATE[f'V_gse_{ion}'] = prefix + f'{ion}_ion_bulk_velocity'        # km/s
+    HPCA_VARIABLES_TEMPLATE[f'V_gsm_{ion}'] = prefix + f'{ion}_ion_bulk_velocity_GSM'
+    HPCA_VARIABLES_TEMPLATE[f'P_{ion}']     = prefix + f'{ion}_ion_pressure'             # Thermal pressure tensor, approximate p = 1/3 . Tr(P), nPa
+    HPCA_VARIABLES_TEMPLATE[f'N_{ion}']     = prefix + f'{ion}_number_density'           # n/cc
+    HPCA_VARIABLES_TEMPLATE[f'T_{ion}']     = prefix + f'{ion}_scalar_temperature'       # eV
 
 MMS_VARIABLES_HPCA = {
     sc: {key: value.format(sc=sc) for key, value in HPCA_VARIABLES_TEMPLATE.items()}
