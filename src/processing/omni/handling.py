@@ -175,22 +175,3 @@ def extract_omni_data(lst_file, omni_columns):
 
     return df
 
-
-
-
-# %% Resample
-
-def resample_omni_files(spacecraft, data, raw_res='spin', new_grouping='yearly', **kwargs):
-    """
-    Resample definitive omni files to a lower resolution, e.g. 15-min
-    """
-
-    def filter_mms_fgm(df):
-        return filter_quality(df, column='B_flag')
-    def filter_mms_fpi(df):
-        return filter_quality(df, column='flag')
-
-    QUAL_FUNCTIONS = {'fgm': filter_mms_fgm, 'fpi': filter_mms_fpi}
-    kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
-
-    resample_files(spacecraft, data, raw_res=raw_res, new_grouping=new_grouping, **kwargs)
