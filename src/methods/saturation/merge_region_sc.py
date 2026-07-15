@@ -54,7 +54,7 @@ spacecraft     = {'sw': {'field': all_spacecraft, 'plasma': ('c1','mms1','thb')}
                   'msh': {'field': all_spacecraft, 'plasma': ('c1','mms1','the')}}
 
 
-# %%% Merge_OMNI_sc
+# %%% Merge_sc
 
 def data_populations(sc, data, region):
 

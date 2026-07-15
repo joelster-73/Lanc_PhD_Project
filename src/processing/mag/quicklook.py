@@ -32,3 +32,13 @@ for start_time in times:
 
 
 plot_magnetometer_overview(THL, omni, indices, datetime(2024, 5, 10), datetime(2024, 5, 12))
+
+# %% Quicklook
+
+from src.processing.mag.plotting import plot_quicklook
+
+# indices=('SMR','AE','SME','SYM_D','SYM_H','ASY_D','SYM_H','PCN','THL','SVS','ALE','NRD','DMH','RES')
+
+plot_quicklook('2003-10-29', indices=('SME','SMR','THL','THL_y_GSM'), resolution='15min')
+plot_quicklook('2003-10-30', indices=('SME','SMR','THL','THL_y_GSM'), resolution='15min')
+

@@ -425,6 +425,3 @@ def plot_compare_sources(df_omni, df_sc, df_pc, ind_var, dep='PC', omni_colour=b
     save_figure(fig, file_name=file_name, sub_directory=kwargs['save_dir'])
     plt.show()
     plt.close()
-
-
-    plt.close()

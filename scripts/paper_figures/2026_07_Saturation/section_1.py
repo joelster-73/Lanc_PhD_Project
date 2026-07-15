@@ -9,9 +9,9 @@ Created on Thu Aug 28 12:29:26 2025
 # %% Import
 
 from src.processing.reading import import_processed_data
-from src.methods.magnetosheath_saturation.plotting import plot_driver_multi_responses
+from src.methods.saturation.plotting import plot_driver_multi_responses
 
-sample_interval = '1min'
+sample_interval = '15min'
 data_pop = 'with_plasma'
 
 df_omni = import_processed_data('omni', resolution=sample_interval)

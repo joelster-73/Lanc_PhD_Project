@@ -69,6 +69,9 @@ def plot_quicklook(day, indices=('THL',), resolution='1min'):
 # %% mag
 
 def plot_mag_data(station, sw, pc, param='H', ind='ER', show_sw=True, folder=None):
+    """
+    Components of magnetometer magnetic field. Also shows the solar wind driver.
+    """
 
     # add argument to account for shift but probably will be taken care off when using full data
 
@@ -487,5 +490,3 @@ def plot_compare_magnetometers(df_sw, df_pc, ind_var, dep='mag', restrict=True, 
     plt.show()
     plt.close()
 
-
-    plt.close()

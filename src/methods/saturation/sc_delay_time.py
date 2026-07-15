@@ -6,12 +6,10 @@ Created on Thu Nov  6 17:19:46 2025
 """
 import numpy as np
 import pandas as pd
-import warnings
 
 
 from ...config import R_E, get_proc_directory
 from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles
-from ...processing.mag.config import lagged_indices
 
 from ...processing.writing import write_to_cdf
 from ...processing.reading import import_processed_data
@@ -99,55 +97,10 @@ def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60, write_to_f
 
     return df_sc
 
-def add_dynamic_index_lag(df_sc, df_pc, indices=lagged_indices):
-    """
-    Shifts the time index of the polar cap response based on BS to PC/AE time.
-    And also accounts for the position of the spacecraft relative to the bow shock.
-    So comparing df_sc[t] and df_pc[t] is the appropriate driver-response.
-    """
-
-    warnings.warn(
-        'add_dynamic_index_lag() is deprecated and will be removed in v2.0. '
-        'Use shift_sc_to_bs() instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    overlap = df_sc.index.intersection(df_pc.index)
-    dt_variable = pd.to_timedelta(df_sc.loc[overlap, 'prop_time_s'], unit='s')
-
-    for ind, lags in indices.items():
-        if ind not in df_pc:
-            print(ind, 'not in dataframe.')
-            continue
-
-        print('lagging', ind)
-
-        for lag in lags:
-            print(lag)
-
-            dt_lag = pd.to_timedelta(lag, unit='m') + dt_variable
-
-            target_index = overlap + dt_lag.values
-            full_index = df_pc.index.union(target_index).sort_values()
-
-            temp = df_pc[ind].reindex(full_index).interpolate(method='time')
-            last_valid_time = df_pc[ind].last_valid_index()
-            temp.loc[temp.index > last_valid_time] = np.nan
-            aligned_values = temp.reindex(target_index).values
-
-            column_name = f'{ind}_{lag}m_adj'
-            if column_name not in df_pc:
-                df_pc.insert(df_pc.columns.get_loc(f'{ind}_{lag}m') + 1, column_name, np.nan)
-                df_pc.attrs.get('units',{}).update({column_name: df_pc.attrs.get('units',{}).get(ind)})
-
-            df_pc.loc[overlap, column_name] = aligned_values
-
 
 # %%% Delay Histograms
 
 def plot_delay_hists(sc, region, data_pop='plasma', sample_interval='5min'):
-
 
     df = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc}')
 

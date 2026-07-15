@@ -13,6 +13,7 @@ from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices, merge_dataframes
 from ..config import get_proc_directory
 
+spacecraft_populations = {'c'}
 
 def import_processed_spacecraft(spacecraft, populations=['state'], resolution='1min', year=None):
 
