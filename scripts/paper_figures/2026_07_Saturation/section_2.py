@@ -6,9 +6,7 @@ Created on Thu Aug 28 12:29:26 2025
 """
 
 
-# %% Import
-
-from src.methods.magnetosheath_saturation.plot_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
+from src.methods.saturation.plot_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
 
 sample_interval = '1min'
 data_pop = 'plasma'
@@ -29,3 +27,15 @@ plot_sc_orbits(sample_interval, data_pop, 'msh', msh_keys)
 
 # Both
 plot_sc_sw_msh(sample_interval, data_pop, sw_keys, msh_keys)
+
+# %% sources
+
+# plots comparing omni and spacecraft as q-q plot for example
+# similar plot for Thule and Resolute Bay magnetometers
+# pulkinnen figures
+#
+
+# %% uncertainties
+
+# create plots for what the uncertainties/errors are on the independent variables
+# and so a significant regression to the mean effect will not be observed

@@ -6,6 +6,7 @@ Created on Mon Oct  6 10:55:08 2025
 """
 
 import numpy as np
+import pandas as pd
 import itertools as it
 
 import matplotlib as mpl
@@ -18,21 +19,26 @@ from ...plotting.formatting import create_label, shifted_angle_ticks
 from ...plotting.comparing.parameter import compare_dataframes
 from ...plotting.config import black, blue, grey, pink, green
 
+from ...processing.mag.indices import import_processed_index
 
-def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_src='sw', dep_src='pc', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
+from ...processing.reading import import_processed_data
+
+
+def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, spacecraft=None, resolution='5min', region='sw', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
     """
     Look at OMNI and in-situ data in driver-response
     The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
     """
 
-    if df_pc is None:
-        raise ValueError('Polar cap dataframe is none.')
+    df_omni = None
+    if show_omni:
+        df_omni = import_processed_data('omni', resolution=resolution)
 
-    if df_sc is not None:
-        sample_interval = df_sc.attrs.get('sample_interval','5min')
-    elif df_omni is not None:
-        sample_interval = df_omni.attrs.get('sample_interval','5min')
-    data_type = 'mins' if sample_interval == '1min' else 'counts'
+    df_sc = None
+    if spacecraft is not None:
+        df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
+    data_type = 'mins' if resolution == '1min' else 'counts'
 
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts[data_type])
     kwargs['display']   = kwargs.get('display','rolling')
@@ -48,43 +54,43 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
         shift_centre = False
 
     ###----------PLOT GRIDS----------###
-    ind = ind_var
-
     n_rows, n_cols = 2, len(dep_vars)
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=200, height_ratios=[3,2], sharex='col')
 
     for i, dep_var in enumerate(dep_vars):
 
+        df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
+        if lags is not None and lags[i]!=0:
+            td = pd.Timedelta(f'-{lags[i]}min').round(resolution)
+            df_pc = df_pc.shift(freq=td) # this "adds" the td to the index, which is -ve here
+
         ax0 = axs[0][i]
         ax1 = axs[1][i]
 
-        if ind_src=='msh' or df_omni is None:
-            omni_j = -1
-            enumerator = ((df_sc,dep_var,sc_colour),)
-        elif df_sc is None:
+        if df_sc is None:
             omni_j = 0
-            enumerator = ((df_omni,dep_var,omni_colour),)
+            enumerator = ((df_omni,omni_colour),)
         else:
             omni_j = 0
             overlap = df_omni.index.intersection(df_sc.index)
-            enumerator = zip((df_omni,df_omni.loc[overlap],df_sc),(dep_var,dep_var,dep_var),(omni_colour,contemp_colour,sc_colour))
+            enumerator = zip((df_omni,df_omni.loc[overlap],df_sc),(omni_colour,contemp_colour,sc_colour))
 
-        for j, (df, dep, colour) in enumerate(enumerator):
-            print(dep)
+        for j, (df, colour) in enumerate(enumerator):
+
             if len(df)==0:
                 print('df is empty')
 
             ind_err, ind_count = def_param_names(df, ind_var)
             dep_err, dep_count = def_param_names(df, dep_var)
 
-            bin_width, limits, invert = get_variable_range(ind_var, ind_src, dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+            bin_width, limits, invert = get_variable_range(ind_var, 'sw', dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
             if shift_centre:
                 df = shift_angular_data(df, ind_var)
 
-            df_ind = mask_df(df, ind, limits)
-            df_dep = mask_df(df_pc, dep)
+            df_ind = mask_df(df, ind_var, limits)
+            df_dep = mask_df(df_pc, dep_var)
 
             intersect = df_ind.index.intersection(df_dep.index)
             df_ind = df_ind.loc[intersect]
@@ -99,20 +105,20 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
                 kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
 
             # Rolling window
-            _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax0, return_objs=True, **kwargs)
+            _ = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax0, return_objs=True, **kwargs)
 
             if bottom_axis=='heat' and j==0:
-                bins_x = calculate_bins(df_ind[ind], bin_width)
-                bins_y = calculate_bins(df_dep[dep], bin_width)
+                bins_x = calculate_bins(df_ind[ind_var], bin_width)
+                bins_y = calculate_bins(df_dep[dep_var], bin_width)
 
-                ax1.hist2d(df_ind[ind], df_dep[dep], bins=[bins_x, bins_y], cmap='hot', norm=mpl.colors.LogNorm())
+                ax1.hist2d(df_ind[ind_var], df_dep[dep_var], bins=[bins_x, bins_y], cmap='hot', norm=mpl.colors.LogNorm())
                 ax1.set_facecolor('k')
 
                 ax1.axline((limits[0],limits[0]), slope=1, c='w', ls=':')
 
             elif bottom_axis=='hist':
                 hist_type = 'bar' if j==omni_j else 'step'
-                ax1.hist(df_ind[ind], bins=calculate_bins(df_ind[ind],bin_width), color=colour, histtype=hist_type)
+                ax1.hist(df_ind[ind_var], bins=calculate_bins(df_ind[ind_var],bin_width), color=colour, histtype=hist_type)
 
                 ax1.axhline(kwargs['min_count'], c='k', ls='-')
                 ax1.axhline(kwargs['min_count'], c='w', ls=':')
@@ -125,7 +131,7 @@ def plot_driver_multi_responses(df_omni, df_sc, df_pc, ind_var, *dep_vars, ind_s
                 ind_err = None
                 dep_err = None
 
-                _ = compare_dataframes(df_ind, df_dep, ind, dep, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
+                _ = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax1, return_objs=True, **kwargs_copy)
 
         # Formatting
         ax0.grid(ls=':', c=grey, lw=0.5)

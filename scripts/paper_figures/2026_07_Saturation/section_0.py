@@ -5,8 +5,8 @@ Created on Sun Oct 26 15:37:29 2025
 @author: richarj2
 """
 
-from src.methods.saturation.merge_region_sc import merge_sc_in_region
 import itertools as it
+from src.methods.saturation.merge_region_sc import merge_sc_in_region
 from src.processing.reading import import_processed_data
 from src.methods.saturation.sc_delay_time import shift_sc_to_bs
 
@@ -35,3 +35,5 @@ for region, sample_interval in it.product(('sw','msh'),('1min','5min','15min')):
 # - one driver and response, different averages
 # - one driver and multiple responses
 # - one response and multiple drivers
+
+# make proper list and then change functions to reflect this

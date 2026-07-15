@@ -6,6 +6,7 @@ Created on Mon Oct  6 10:55:08 2025
 """
 
 import itertools as it
+import pandas as pd
 
 import matplotlib.pyplot as plt
 
@@ -17,13 +18,22 @@ from ...plotting.comparing.parameter import compare_dataframes
 from ...plotting.relationships import plot_fit_params_against_z
 from ...plotting.config import black, blue, pink
 
+from ...processing.reading import import_processed_data
+from ...processing.mag.indices import import_processed_index
 
 
-def plot_different_lags_saturation(df, df_pc, ind_var, dep_var, ind_src='sw', bounds=None, restrict=True, skip_zero=False, **kwargs):
+def plot_different_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw', resolution='1min', bounds=None, restrict=True, skip_zero=False, **kwargs):
     """
     Plots driver-response on one set of axes for many lag times
     To see if a particular lag time shows stronger saturation than others
     """
+
+    if spacecraft=='omni':
+        df = import_processed_data('omni', resolution=resolution)
+    else:
+        df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
+    df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
 
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts['counts'])
     kwargs['display']   = kwargs.get('display','rolling')
@@ -32,7 +42,7 @@ def plot_different_lags_saturation(df, df_pc, ind_var, dep_var, ind_src='sw', bo
 
     ind_err, ind_count = def_param_names(df, ind_var)
 
-    bin_width, limits, invert = get_variable_range(ind_var, ind_src, restrict=restrict, bounds=bounds)
+    bin_width, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
     kwargs['window_width'] = bin_width
 
     df_ind = mask_df(df, ind_var, limits)
@@ -43,22 +53,16 @@ def plot_different_lags_saturation(df, df_pc, ind_var, dep_var, ind_src='sw', bo
         dep_cols.remove(dep_var)
 
     cmap = plt.get_cmap('autumn_r')
-    norm = plt.Normalize(vmin=0, vmax=len(dep_cols)-1)
+    norm = plt.Normalize(vmin=0, vmax=len(lags)-1)
 
     fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
 
-    for i, col in enumerate(dep_cols):
+    for i, lag in enumerate(lags):
 
-        dep = col
-        num_parts = len(col.split('_'))
-        if num_parts==3:
-            lag = col.split('_')[1] + r' + $\delta t$'
-        elif num_parts==2:
-            lag = col.split('_')[1]
-        else:
-            lag = '0m'
+        td = pd.Timedelta(f'-{lag}min').round(resolution)
+        df_dep = df_pc.shift(freq=td) # this "adds" the td to the index, which is -ve here
 
-        df_dep = mask_df(df_pc, dep_var)
+        df_dep = mask_df(df_dep, dep_var)
         intersect = df_ind.index.intersection(df_dep.index)
         df_ind_masked = df_ind.loc[intersect]
         df_dep_masked = df_dep.loc[intersect]
@@ -67,7 +71,7 @@ def plot_different_lags_saturation(df, df_pc, ind_var, dep_var, ind_src='sw', bo
         kwargs['data_colour'] = colour
         kwargs['error_colour'] = colour
 
-        _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
 
         ax.plot([], [], ls='-', color=colour, label=lag)
 

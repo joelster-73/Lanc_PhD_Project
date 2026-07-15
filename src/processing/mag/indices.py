@@ -329,7 +329,7 @@ def clean_mag_data(df, index):
     rename_columns(df, columns_to_rename)
 
 
-def import_processed_index(index, resolution='1min'):
+def import_processed_index(index, resolution='1min', return_series=True):
     """
     Wrapper function to import a processed index as the structure depends on the index
     """
@@ -343,5 +343,7 @@ def import_processed_index(index, resolution='1min'):
 
     df = import_processed_data('indices', resolution=resolution, file_name=index_parents.get(index,index))
 
-    return df.loc[:,index]
+    if return_series:
+        return df.loc[:,index]
+    return df.loc[:,[index]]
 
