@@ -8,6 +8,135 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 
+# %% time
+
+def filter_select_day(df, day):
+    """
+    Filters dataframe to return data from a certain day.
+    """
+    date = pd.Timestamp(day).normalize()  # midnight of that day
+    return df.loc[date : date + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)]
+
+def exclude_days(df, bad_data):
+    """
+    Excludes rows in a DataFrame where the index falls on any of the specified bad days.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The DataFrame to be filtered. The DataFrame's index is expected to contain datetime values.
+    bad_data : list or tuple of datetime or tuple
+        A list or tuple specifying the dates to be excluded. Can contain:
+        - Single datetime values for exact dates to exclude.
+        - Tuples specifying date ranges or conditions for exclusion.
+            - A tuple of length 2: (start_date, end_date) for a date range.
+            - A tuple of length 3: (day, df_column, condition_value) to exclude a specific day based on a condition.
+            - A tuple of length 4: (start_date, end_date, df_column, condition_value) to exclude rows based on a condition within a date range.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A DataFrame with rows on the specified bad days removed.
+    """
+    df.index = pd.to_datetime(df.index, errors='coerce')
+    mask = pd.Series(True, index=df.index)
+
+    for bad in bad_data:
+        if isinstance(bad, (pd.Timestamp, dt.datetime, dt.date)):  # Single date
+            bad_day = pd.Timestamp(bad)  # Convert to pd.Timestamp for consistency
+            mask &= ~(df.index.normalize() == bad_day)
+
+        elif isinstance(bad, tuple):
+            if len(bad) == 2:  # Date range
+                start_date, end_date = map(pd.Timestamp, bad)  # Convert to pd.Timestamp
+                mask &= ~((df.index >= start_date) & (df.index <= end_date))
+
+            elif len(bad) == 3:  # Single day with condition
+                day, df_col, cond_val = bad
+                day = pd.Timestamp(day)  # Convert to pd.Timestamp
+                mask &= ~((df.index.normalize() == day) & (df[df_col] == cond_val))
+
+            elif len(bad) == 4:  # Date range with condition
+                start_date, end_date, df_col, cond_val = bad
+                start_date, end_date = map(pd.Timestamp, (start_date, end_date))  # Convert
+                mask &= ~((df.index >= start_date) & (df.index <= end_date) & (df[df_col] == cond_val))
+
+            else:
+                raise ValueError(f'Invalid tuple length in bad_data: {bad}')
+
+        else:
+            raise ValueError(f'Invalid entry in bad_data: {bad}')
+
+    df.drop(df.loc[~mask].index, inplace=True)
+
+# %% value
+
+def filter_sign(df, col, sign='Positive'):
+    if sign == 'Positive':
+        return df[df[col]>0]
+    elif sign == 'Negative':
+        return df[df[col]<0]
+    elif sign == 'Both':
+        return df
+    else:
+        raise ValueError(f'{sign} not a valid filtering range.')
+
+def filter_percentile(df, y_col, bins, p, filtering='Above'):
+    """
+    Filters a DataFrame to include only rows where the `y_col` values are above or below
+    a specified percentile for each bin.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame containing the data to be filtered.
+
+    y_col : str
+        The name of the column on which the percentile filtering is applied.
+
+    bins : pd.Series
+        The bin assignments for each row in the DataFrame (e.g., from pd.cut).
+
+    p : int or float
+        The percentile to use as the cutoff for filtering.
+
+    filtering : str, optional (default='Above')
+        Whether to filter values "Above" or "Below" the percentile cutoff.
+
+    Returns
+    -------
+    pd.DataFrame
+        A filtered DataFrame containing only rows where the `y_col` values satisfy
+        the filtering condition within each bin. The resulting DataFrame includes
+        the bin assignment and an attribute 'bin_percentiles' storing the cutoff values
+        for each bin.
+    """
+    # Group the DataFrame by bins
+    grouped = df.groupby(bins, observed=True)
+
+    # Store percentile cutoffs for each bin
+    bin_percentiles = {}
+
+    # Apply the filtering to each bin
+    def filter_group(group):
+        cutoff = np.percentile(group[y_col], p)
+        bin_percentiles[group.name] = cutoff  # Store the percentile for this bin
+        if filtering == 'Below':
+            return group[group[y_col] <= cutoff]
+        elif filtering == 'Above':
+            return group[group[y_col] > cutoff]
+        else:
+            raise ValueError(f"{filtering} is not a valid filtering range.")
+
+    # Apply filtering to all groups and combine results
+    filt_df = grouped.apply(filter_group).reset_index(drop=True)
+
+    # Attach percentile cutoffs as an attribute
+    filt_df.attrs['bin_limits'] = bin_percentiles
+
+    return filt_df
+
+# %% data
 
 def filter_sw(df, method, **kwargs):
     """
@@ -77,14 +206,6 @@ def filter_sw(df, method, **kwargs):
         return mask
     return df.loc[mask]
 
-def filter_select_day(df, day):
-    """
-    Filters dataframe to return data from a certain day.
-    """
-    date = pd.Timestamp(day).normalize()  # midnight of that day
-    return df.loc[date : date + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)]
-
-
 def filter_data(df, *args):
     """
     Filters the DataFrame based on a specified column and value range.
@@ -150,122 +271,5 @@ def filter_by_spacecraft(df, sc_col, sc_id, include=True):
     df.drop(df.loc[~mask].index, inplace=True)
 
 
-def exclude_days(df, bad_data):
-    """
-    Excludes rows in a DataFrame where the index falls on any of the specified bad days.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame to be filtered. The DataFrame's index is expected to contain datetime values.
-    bad_data : list or tuple of datetime or tuple
-        A list or tuple specifying the dates to be excluded. Can contain:
-        - Single datetime values for exact dates to exclude.
-        - Tuples specifying date ranges or conditions for exclusion.
-            - A tuple of length 2: (start_date, end_date) for a date range.
-            - A tuple of length 3: (day, df_column, condition_value) to exclude a specific day based on a condition.
-            - A tuple of length 4: (start_date, end_date, df_column, condition_value) to exclude rows based on a condition within a date range.
-
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame with rows on the specified bad days removed.
-    """
-    df.index = pd.to_datetime(df.index, errors='coerce')
-    mask = pd.Series(True, index=df.index)
-
-    for bad in bad_data:
-        if isinstance(bad, (pd.Timestamp, dt.datetime, dt.date)):  # Single date
-            bad_day = pd.Timestamp(bad)  # Convert to pd.Timestamp for consistency
-            mask &= ~(df.index.normalize() == bad_day)
-
-        elif isinstance(bad, tuple):
-            if len(bad) == 2:  # Date range
-                start_date, end_date = map(pd.Timestamp, bad)  # Convert to pd.Timestamp
-                mask &= ~((df.index >= start_date) & (df.index <= end_date))
-
-            elif len(bad) == 3:  # Single day with condition
-                day, df_col, cond_val = bad
-                day = pd.Timestamp(day)  # Convert to pd.Timestamp
-                mask &= ~((df.index.normalize() == day) & (df[df_col] == cond_val))
-
-            elif len(bad) == 4:  # Date range with condition
-                start_date, end_date, df_col, cond_val = bad
-                start_date, end_date = map(pd.Timestamp, (start_date, end_date))  # Convert
-                mask &= ~((df.index >= start_date) & (df.index <= end_date) & (df[df_col] == cond_val))
-
-            else:
-                raise ValueError(f'Invalid tuple length in bad_data: {bad}')
-
-        else:
-            raise ValueError(f'Invalid entry in bad_data: {bad}')
-
-    df.drop(df.loc[~mask].index, inplace=True)
 
 
-
-def filter_percentile(df, y_col, bins, p, filtering='Above'):
-    """
-    Filters a DataFrame to include only rows where the `y_col` values are above or below
-    a specified percentile for each bin.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The DataFrame containing the data to be filtered.
-
-    y_col : str
-        The name of the column on which the percentile filtering is applied.
-
-    bins : pd.Series
-        The bin assignments for each row in the DataFrame (e.g., from pd.cut).
-
-    p : int or float
-        The percentile to use as the cutoff for filtering.
-
-    filtering : str, optional (default='Above')
-        Whether to filter values "Above" or "Below" the percentile cutoff.
-
-    Returns
-    -------
-    pd.DataFrame
-        A filtered DataFrame containing only rows where the `y_col` values satisfy
-        the filtering condition within each bin. The resulting DataFrame includes
-        the bin assignment and an attribute 'bin_percentiles' storing the cutoff values
-        for each bin.
-    """
-    # Group the DataFrame by bins
-    grouped = df.groupby(bins, observed=True)
-
-    # Store percentile cutoffs for each bin
-    bin_percentiles = {}
-
-    # Apply the filtering to each bin
-    def filter_group(group):
-        cutoff = np.percentile(group[y_col], p)
-        bin_percentiles[group.name] = cutoff  # Store the percentile for this bin
-        if filtering == 'Below':
-            return group[group[y_col] <= cutoff]
-        elif filtering == 'Above':
-            return group[group[y_col] > cutoff]
-        else:
-            raise ValueError(f"{filtering} is not a valid filtering range.")
-
-    # Apply filtering to all groups and combine results
-    filt_df = grouped.apply(filter_group).reset_index(drop=True)
-
-    # Attach percentile cutoffs as an attribute
-    filt_df.attrs['bin_limits'] = bin_percentiles
-
-    return filt_df
-
-
-def filter_sign(df, col, sign='Positive'):
-    if sign == 'Positive':
-        return df[df[col]>0]
-    elif sign == 'Negative':
-        return df[df[col]<0]
-    elif sign == 'Both':
-        return df
-    else:
-        raise ValueError(f'{sign} not a valid filtering range.')

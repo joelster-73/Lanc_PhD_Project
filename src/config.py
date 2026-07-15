@@ -200,7 +200,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
             elif dtype=='field':
                 raise ValueError('"field" has been replaced by "fgm".')
 
-            if dtype in ('crossings','fgm','hia','hiaq','state','combined','sw','msh'):
+            if dtype in ('crossings','fgm','hia','state','combined','sw','msh'):
                 path += f'{dtype}/'
             elif dtype != ' ':
                 print(f'"{dtype}" not a valid datatype (get_proc_directory).')
@@ -291,7 +291,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         elif dtype != ' ':
             print(f'"{dtype}" not valid.')
 
-        if resolution in ('1min','5min'):
+        if resolution in ('1min','5min','15min'):
             path += f'{resolution}/'
         elif resolution != ' ':
             print(f'"{resolution}" not a valid resolution (get_proc_directory).')

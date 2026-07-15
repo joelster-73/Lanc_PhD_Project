@@ -40,14 +40,21 @@ def plot_quicklook(day, indices=('THL',), resolution='1min'):
 
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*8,nrows*4), dpi=400, sharex=True)
 
-    for ax, index in zip(axs.ravel(),indices):
+    for ax, index in zip(axs.flat, indices):
 
         index_series = import_processed_index(index, resolution=resolution)
 
         index_series = filter_select_day(index_series, day)
 
-        ax.plot(index_series, c=black)
+        if np.max(index_series)>0 and np.min(index_series)<0:
+            ax.axhline(0, c=black, lw=0.8, ls=':')
+
+        ax.plot(index_series, c=blue)
+
         format_datetime_axis(ax)
+        if ax in axs[-1]:
+            ax.set_xlabel(pd.Timestamp(day).year)
+
         ax.set_ylabel(create_label(index, units=index_series.attrs.get('units',{})))
 
     fig.align_ylabels()
@@ -254,6 +261,9 @@ def plot_mag_data_corr(station, sw, pc, param='H', coords='GSE', quantity='mag',
 # %% map
 
 def plot_magnetometer_map(df_field, coords='GSE', param='H', invert=True, show_dp2=False, show_mag_pole=False, folder=None):
+    """
+    Shows locations of magnetometers.
+    """
 
     colours = np.where(df_field['H_y_GSE'] > 0, 'red', 'orange')
 

@@ -30,20 +30,12 @@ for region, sample_interval in it.product(('sw','msh'),('1min','5min','15min')):
     df_sc = import_processed_data(region, dtype='plasma', resolution=sample_interval, file_name=f'{region}_times_combined')
     _ = shift_sc_to_bs(df_sc, sample_interval, region, write_to_file=True)
 
+# %% test
 
-# %% TEMP
+from src.processing.reading import import_processed_spacecraft
 
-for region in ('sw','msh'):
+for population in ('fgm','state','msh','sw'):
+    df = import_processed_spacecraft('c1', populations=[population],resolution='15min')
 
-    merge_sc_in_region(region, data_pop='plasma', sample_interval='15min')
-
-
-    # this just shifts to the BSN to create essentially OMNI but using Cluster, THEMIS, MMS
-    # the old code had the time lag built into the indices files
-    # that's been replaced, so instead the functions in section 1 onwards need to instead compare data with a number of rows later
-    # check how to update this and then say this in the github push
-    # also check the timestamps on all spacecraft files incase a bug was encountered
-
-
-    df_sc = import_processed_data(region, dtype='plasma', resolution='15min', file_name=f'{region}_times_combined')
-    _ = shift_sc_to_bs(df_sc, sample_interval, region, write_to_file=True)
+    print(population)
+    print(df.columns)

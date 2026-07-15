@@ -16,6 +16,9 @@ from ..config import get_proc_directory
 
 def import_processed_spacecraft(spacecraft, populations=['state'], resolution='1min', year=None):
 
+    if len(populations)==1:
+        return import_processed_data(spacecraft, dtype=populations[0], resolution=resolution, year=year)
+
     all_data = []
     for data in populations:
         df_sc = import_processed_data(spacecraft, dtype=data, resolution=resolution, year=year)
