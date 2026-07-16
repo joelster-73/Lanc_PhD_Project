@@ -17,3 +17,13 @@ param     = 'E_R'
 
 for bottom_axis in ('heat','scatter','hist'):
     plot_driver_multi_responses(param, *responses, lags=(17,53,60), restrict=True, bottom_axis=bottom_axis, data1_name=param_names.get(param,param), data_name_map=param_names)
+
+
+# %% Columns
+from src.processing.reading import import_processed_data
+from src.methods.saturation.sc_delay_time import calc_bs_sc_delay
+
+df_sc = import_processed_data('sw', dtype='plasma', resolution='5min', file_name='sw_times_combined')
+
+
+#calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw')

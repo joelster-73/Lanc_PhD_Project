@@ -152,7 +152,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
             condition = (df_merged['r_F'] > 0.1) & (df_merged['r_F'] < 1)
 
         elif region=='sw':
-            condition = (df_merged['r_F'] > 1.5) # position further than empirial BS
+            condition = (df_merged['r_F'] > 1.5) # position further than empirical BS
             #condition &= (df_merged[f'r_mag{suffix}']<35) # exclude ARTEMIS
 
         mask |= outside_interval & condition
@@ -212,6 +212,8 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
     print('Merging')
     df_combined.attrs['units'][f'sc_{region}'] = 'STRING'
+
+    df_combined.drop(columns=['no_np_ratio', 'no_np_ratio_unc', 'no_np_ratio_count', 'nhe_np_ratio', 'nhe_np_ratio_unc', 'nhe_np_ratio_count'], inplace=True) # columns don't care about when combined
 
     # Write
     print('Writing combined to file...')

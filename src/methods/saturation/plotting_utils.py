@@ -216,7 +216,7 @@ def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, s
         elif ind_var.startswith('E_'):
             limits[1] = 20
             if ind_src=='msh':
-                limits[1] = 20
+                limits[1] = 40
             elif ind_var.startswith('E_para'):
                 limits[1] = 15
             elif (dep_var is not None) and ((ind_var==dep_var) or (dep_var.startswith('E_para'))):

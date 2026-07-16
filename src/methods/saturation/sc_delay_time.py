@@ -106,3 +106,17 @@ def plot_delay_hists(sc, region, data_pop='plasma', sample_interval='5min'):
 
     plot_freq_hist(df['prop_time_s'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
 
+# %% OMNI
+
+def calc_omni_uncertainty(df_omni, column, dt_err_col='rms_timeshift'):
+    """
+    Estimate the uncertainty on a column in df_omni due to uncertainty in the applied time shift:
+        sigma_X = |dX/dt| * sigma_dt
+    """
+    X = df_omni[column].values
+    t_sec = df_omni.index.astype('int64')/1e9 # seconds since epoch
+
+    dX_dt = np.gradient(X, t_sec)
+    sigma_dt = df_omni[dt_err_col].values
+
+    return np.abs(dX_dt) * sigma_dt

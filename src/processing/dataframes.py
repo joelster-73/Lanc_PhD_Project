@@ -96,6 +96,8 @@ def relabel_columns(df, label):
 # %% resampling
 def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=SKIP_COLUMNS, drop_nans=True):
 
+    #### THERE IS A BUG where the count columns for some of the derived vectors is not 0 even if the values themselves are NaN
+
     if sample_interval in ('none','NONE'):
         print('No valid sampling interval provided.')
         return df
@@ -160,7 +162,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
                 skip_x = True
                 vector_columns[0] = vector_columns[0].replace('_GSM','_GSE')
 
-            ufloat_series = grouped[vector_columns].apply(lambda x: calc_average_vector(x.dropna(), param=f'{field}_{coords}'))
+            ufloat_series = grouped[vector_columns].apply(lambda g: calc_average_vector(g.dropna(), param=f'{field}_{coords}'))
 
             try:
                 nom_vals = unp.nominal_values(ufloat_series.to_list())

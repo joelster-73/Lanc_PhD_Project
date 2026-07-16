@@ -37,3 +37,6 @@ for region, sample_interval in it.product(('sw','msh'),('1min','5min','15min')):
 # - one response and multiple drivers
 
 # make proper list and then change functions to reflect this
+
+# why do some propagation times come out as nan - is this just because of my threshold of 60 mins or is one of the params NaN. How can I decouple it from OMNI.
+# could store as column then slice the indepdnent dataframe by the different shift values?

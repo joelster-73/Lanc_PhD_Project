@@ -37,5 +37,8 @@ plot_sc_sw_msh(sample_interval, data_pop, sw_keys, msh_keys)
 
 # %% uncertainties
 
-# create plots for what the uncertainties/errors are on the independent variables
-# and so a significant regression to the mean effect will not be observed
+from src.methods.saturation.plotting_uncertainties import plot_independent_uncertainties
+
+plot_independent_uncertainties('B_z_GSM', 'E_y_GSM', 'E_R', resolution='5min', spacecraft='omni')
+plot_independent_uncertainties('B_z_GSM', 'E_y_GSM', 'E_R', resolution='5min', spacecraft='combined', region='sw')
+plot_independent_uncertainties('B_z_GSM', 'E_y_GSM', 'E_R', resolution='5min', spacecraft='combined', region='msh')

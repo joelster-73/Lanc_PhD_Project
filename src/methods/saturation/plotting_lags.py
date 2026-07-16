@@ -22,7 +22,7 @@ from ...processing.reading import import_processed_data
 from ...processing.mag.indices import import_processed_index
 
 
-def plot_different_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw', resolution='1min', bounds=None, restrict=True, skip_zero=False, **kwargs):
+def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw', resolution='1min', bounds=None, restrict=True, skip_zero=False, **kwargs):
     """
     Plots driver-response on one set of axes for many lag times
     To see if a particular lag time shows stronger saturation than others
@@ -38,7 +38,7 @@ def plot_different_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', re
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts['counts'])
     kwargs['display']   = kwargs.get('display','rolling')
     if kwargs['display']=='rolling':
-        kwargs['region'] = kwargs.get('region','sem')
+        kwargs['region'] = ''
 
     ind_err, ind_count = def_param_names(df, ind_var)
 
@@ -46,11 +46,6 @@ def plot_different_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', re
     kwargs['window_width'] = bin_width
 
     df_ind = mask_df(df, ind_var, limits)
-
-    dep_cols = [col for col in df_pc.columns if col.startswith(dep_var)]
-
-    if skip_zero and dep_var in dep_cols:
-        dep_cols.remove(dep_var)
 
     cmap = plt.get_cmap('autumn_r')
     norm = plt.Normalize(vmin=0, vmax=len(lags)-1)
@@ -74,6 +69,9 @@ def plot_different_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', re
         _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
 
         ax.plot([], [], ls='-', color=colour, label=lag)
+
+        if invert:
+            ax.invert_xaxis()
 
     ax.set_ylabel(create_label(dep_var,units=df_pc.attrs['units']))
 

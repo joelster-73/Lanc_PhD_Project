@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jul 16 08:55:41 2026
+
+@author: richarj2
+"""
+
+import pandas as pd
+
+import matplotlib.pyplot as plt
+
+from .plotting_utils import minimum_counts, def_param_names, get_variable_range, mask_df
+
+from ...plotting.utils import save_figure
+from ...plotting.formatting import create_label, add_legend
+from ...plotting.comparing.parameter import compare_dataframes
+
+from ...processing.reading import import_processed_data
+from ...processing.mag.indices import import_processed_index
+
+
+def plot_resolutions_saturation(ind_var, dep_var, resolutions, spacecraft='omni', region='sw', lag=17, bounds=None, restrict=True, skip_zero=False, **kwargs):
+    """
+    Plots driver-response on one set of axes for many lag times
+    To see if a particular lag time shows stronger saturation than others
+    """
+    kwargs['min_count'] = kwargs.get('min_count',minimum_counts['counts'])
+    kwargs['display']   = kwargs.get('display','rolling')
+    if kwargs['display']=='rolling':
+        kwargs['region'] = ''
+
+    cmap = plt.get_cmap('autumn_r')
+    norm = plt.Normalize(vmin=0, vmax=len(resolutions)-1)
+
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
+
+    for i, resolution in enumerate(resolutions):
+
+        if spacecraft=='omni':
+            df = import_processed_data('omni', resolution=resolution)
+        else:
+            df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
+        ind_err, ind_count = def_param_names(df, ind_var)
+
+        bin_width, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
+        kwargs['window_width'] = bin_width
+
+        df_ind = mask_df(df, ind_var, limits)
+
+        df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
+
+        td = pd.Timedelta(f'-{lag}min').round(resolution)
+        df_dep = df_pc.shift(freq=td) # this "adds" the td to the index, which is -ve here
+
+        df_dep = mask_df(df_dep, dep_var)
+        intersect = df_ind.index.intersection(df_dep.index)
+        df_ind_masked = df_ind.loc[intersect]
+        df_dep_masked = df_dep.loc[intersect]
+
+        colour = cmap(norm(i))
+        kwargs['data_colour'] = colour
+        kwargs['error_colour'] = colour
+
+        _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+
+        ax.plot([], [], ls='-', color=colour, label=resolution)
+
+        if invert:
+            ax.invert_xaxis()
+
+    ax.set_ylabel(create_label(dep_var,units=df_pc.attrs['units']))
+
+    add_legend(fig, ax)
+    plt.tight_layout()
+    save_figure(fig)
+    plt.show()
+    plt.close()
