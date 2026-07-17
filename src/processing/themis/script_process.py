@@ -53,7 +53,7 @@ resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min','15m
 
 for spacecraft in THEMIS_PLASMA_SPACECRAFT:
 
-    resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('1min','5min','15min'))
+    resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('5min','15min'))
     resample_themis_files(spacecraft, 'FGM', 'raw', sample_intervals=('1min','5min','15min'))
 
 

@@ -19,7 +19,10 @@ from ...plotting.distributions import plot_freq_hist
 
 ### So for this function, add the redundancy checks for missing data and simple flat approximation
 ### then re-run the merge_sc function
-
+### similarly consider if the region filtering can be simplified in merge_region_sc
+### use jelinek for the bow shock nose location (assume no aberration) and solar wind pressure from spacecraft or fixed 2.056 nPa. Check my pressure/density calculations asmine are likely more correct than those used in parameterising the model.
+### then just use the x components
+### if there is no speed data then use typical speeds in their place, find source for these
 
 def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
     """

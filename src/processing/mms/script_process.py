@@ -30,12 +30,5 @@ process_mms_files('mms1', 'fpi', sample_intervals=('none',))
 
 # Using HPCA heavy ion densities
 update_plasma_data('mms1', 'fgm', 'fpi', 'hpca', (), convert_fields=('V',))
-
 resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min','15min'))
 
-# %% temp
-
-resample_mms_files('mms1', 'state', 'raw', sample_intervals=('1min','5min','15min'))
-resample_mms_files('mms1', 'fgm', 'raw', 'monthly', sample_intervals=('1min','5min','15min'))
-resample_mms_files('mms1', 'hpca', 'spin', sample_intervals=('1min','5min','15min'))
-resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min','15min'))

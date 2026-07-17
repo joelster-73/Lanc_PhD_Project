@@ -114,6 +114,12 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             df.rename(columns={time_col: 'epoch'},inplace=True)
         df['utc'] = df[time_col].dt.floor(sample_interval)
 
+    columns_to_drop = ['utc']
+
+    if df['utc'].is_unique:
+        df.drop(columns=columns_to_drop, inplace=True)
+        return
+
     #---Sorting columns---#
 
     column_counts = df.count()
@@ -122,18 +128,14 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     angular_columns = []
     vector_groups   = {}
 
-    columns_to_drop = ['utc']
-
     for column in df.columns:
 
         if column in ('utc',time_col) or column in columns_to_skip or column.endswith(('_unc','_count')):
             # columns that are meaningless to average, e.g. quality, mode
-
             print(f'Skipping {column}.')
             continue
 
         elif column_counts[column]==0:
-
             print(f'Skipping {column} (all NaN).')
             continue
 
@@ -164,14 +166,25 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
         columns_to_drop.extend([f'{column}__sin',f'{column}__cos'])
 
+    skip_vectors = []
+
     for (field, coords), components in vector_groups.items():
 
-        if not all(comp in components for comp in ('x', 'y', 'z')):
-            continue
+        if 'x' not in components:
+            if coords == 'GSM' and (field, 'GSE') in vector_groups:
+                components['x'] = vector_groups[(field, 'GSE')]['x']
+            else:
+                skip_vectors.append((field, coords))
+                continue
 
         vector_columns = [components['x'], components['y'], components['z']]
 
         vec = df[vector_columns].to_numpy()
+
+        mag_col = f'{field}_mag'
+        if mag_col not in df.columns:
+            df[mag_col] = np.linalg.norm(vec, axis=1)
+            scalar_columns.append(mag_col)
 
         valid = np.isfinite(vec).all(axis=1)
 
@@ -206,68 +219,71 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
     grouped = df.groupby('utc')
 
-    if len(grouped) == len(df):
-        df.drop(columns=columns_to_drop,inplace=True)
-        return
-
     aggregated_columns = {}
 
     #---Simple scalar columns---#
 
-    print('Processing scalar columns:',scalar_columns)
+    if len(scalar_columns)>0:
 
-    means, sems, counts = grouped_mean(grouped[scalar_columns])
+        print('Processing scalar columns:',scalar_columns)
 
-    for column in scalar_columns:
+        means, sems, counts = grouped_mean(grouped[scalar_columns])
 
-        aggregated_columns[column] = means[column].to_numpy()
+        for column in scalar_columns:
 
-        if inc_info:
-            aggregated_columns[f'{column}_unc']   = sems[column].to_numpy()
-            aggregated_columns[f'{column}_count'] = counts[column].to_numpy()
+            aggregated_columns[column] = means[column].to_numpy()
 
-            units[f'{column}_unc']   = units.get(column)
-            units[f'{column}_count'] = 'NUM'
+            if inc_info:
+                aggregated_columns[f'{column}_unc']   = sems[column].to_numpy()
+                aggregated_columns[f'{column}_count'] = counts[column].to_numpy()
+
+                units[f'{column}_unc']   = units.get(column)
+                units[f'{column}_count'] = 'NUM'
 
     #---Angular columns---#
 
-    print('Processing angular columns:',angular_columns)
+    if len(angular_columns)>0:
 
-    sin_cols = [f'{col}__sin' for col in angular_columns]
-    cos_cols = [f'{col}__cos' for col in angular_columns]
+        print('Processing angular columns:',angular_columns)
 
-    sin_mean = grouped[sin_cols].mean()
-    cos_mean = grouped[cos_cols].mean()
-    counts = grouped[angular_columns].count()
+        sin_cols = [f'{col}__sin' for col in angular_columns]
+        cos_cols = [f'{col}__cos' for col in angular_columns]
 
-    for column in angular_columns:
+        sin_mean = grouped[sin_cols].mean()
+        cos_mean = grouped[cos_cols].mean()
+        counts = grouped[angular_columns].count()
 
-        sin_col = f'{column}__sin'
-        cos_col = f'{column}__cos'
+        for column in angular_columns:
 
-        R = np.sqrt(sin_mean[sin_col]**2 + cos_mean[cos_col]**2)
+            sin_col = f'{column}__sin'
+            cos_col = f'{column}__cos'
 
-        mean = np.arctan2(sin_mean[sin_col],cos_mean[cos_col])
+            R = np.sqrt(sin_mean[sin_col]**2 + cos_mean[cos_col]**2)
 
-        std = np.sqrt(-2 * np.log(R))
-        sem = std / np.sqrt(counts[column])
+            mean = np.arctan2(sin_mean[sin_col],cos_mean[cos_col])
 
-        sem = sem.mask(counts[column] <= 1, 0)
+            std = np.sqrt(-2 * np.log(R))
+            sem = std / np.sqrt(counts[column])
 
-        if units.get(column) in ('deg', '°'):
-            mean = np.degrees(mean)
-            sem  = np.degrees(sem)
+            sem = sem.mask(counts[column] <= 1, 0)
 
-        aggregated_columns[column] = mean.to_numpy()
+            if units.get(column) in ('deg', '°'):
+                mean = np.degrees(mean)
+                sem  = np.degrees(sem)
 
-        if inc_info:
-            aggregated_columns[f'{column}_unc'] = sem.to_numpy()
-            aggregated_columns[f'{column}_count'] = counts[column].to_numpy()
+            aggregated_columns[column] = mean.to_numpy()
+
+            if inc_info:
+                aggregated_columns[f'{column}_unc'] = sem.to_numpy()
+                aggregated_columns[f'{column}_count'] = counts[column].to_numpy()
 
     #---Vector columns---#
 
 
     for (field, coords), components in vector_groups.items():
+
+        if (field,coords) in skip_vectors:
+            continue
 
         print(f'Processing {field}_{coords} (vector).')
 
@@ -309,6 +325,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
         for comp, values in vector_results.items():
 
             if all((comp=='x', coords=='GSM', vector_groups.get((field,'GSE'),{}).get('x') in aggregated_columns)):
+                print(f'Not adding {field}_{comp}_{coords}.')
                 continue # skips x_GSM if x_GSE already in the new df
 
             column = components[comp]
@@ -324,7 +341,6 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             aggregated_columns[f'{field}_{coords}_count'] = (grouped[vector_columns].count().min(axis=1).to_numpy())
 
             units[f'{field}_{coords}_count'] = 'NUM'
-
 
     #---Combining the data---#
 

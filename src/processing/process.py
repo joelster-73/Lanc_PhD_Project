@@ -21,13 +21,19 @@ from .writing import resample_cdf_files
 from .handling import get_file_keys, refactor_keys
 
 
-def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', **kwargs):
+def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', year=None, **kwargs):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
 
     files_by_keys = get_file_keys(spacecraft, data, raw_res)
     files_by_year = refactor_keys(files_by_keys, new_grouping)
+
+    if year is not None:
+        if new_grouping=='yearly':
+            files_by_year = {year: files_by_year.get(year,[])}
+        else:
+            files_by_year = {k: v for k, v in files_by_year.items() if year in k}
 
     kwargs['files_by_keys'] = files_by_year
 
