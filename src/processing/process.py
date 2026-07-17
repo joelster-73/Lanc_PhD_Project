@@ -116,7 +116,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
                 # resample and write to file
                 sampled_df = resample_data(sampled_df, time_col, sample_interval, drop_nans=False)
 
-            attributes['sample_interval'] = res
+            attributes['resolution'] = res
             write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)
 
 

@@ -7,8 +7,7 @@ Created on Thu May  8 17:11:13 2025
 import numpy as np
 import pandas as pd
 
-from uncertainties import unumpy as unp
-from uncertainties import ufloat
+from uncertainties import unumpy as unp, ufloat
 
 import scipy.stats as stats
 

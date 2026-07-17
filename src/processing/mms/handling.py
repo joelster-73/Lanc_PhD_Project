@@ -25,6 +25,8 @@ from ..process import process_overlapping_files, format_extracted_vector, resamp
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_luna_directory
 
+MMS_RESOLUTIONS = {'spin': '10s', 'raw': '1s'}
+
 def process_mms_files(spacecraft, data, sample_intervals=('raw',), year=None, **kwargs):
 
     directory = get_luna_directory(spacecraft, data)
@@ -69,7 +71,7 @@ def process_mms_files(spacecraft, data, sample_intervals=('raw',), year=None, **
 
         samples.append(sample_interval)
 
-    kwargs['resolutions'] = {'spin' : '3s', '5vps': '0.2s'}
+    kwargs['resolutions'] = MMS_RESOLUTIONS
 
     process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filtering, **kwargs)
 
@@ -512,5 +514,11 @@ def resample_mms_files(spacecraft, data, raw_res='spin', new_grouping='yearly', 
 
     QUAL_FUNCTIONS = {'fgm': filter_mms_fgm, 'fpi': filter_mms_fpi}
     kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
+
+    resolutions = {'spin' : '10s', 'raw': {'state': '30s', 'fgm': '0.125s', 'hpca': '10s', 'fpi': '10s'}}
+
+    kwargs['resolution'] = resolutions.get('spin')
+    if raw_res=='raw':
+        kwargs['resolution'] = resolutions.get('raw').get(data)
 
     resample_files(spacecraft, data, raw_res=raw_res, new_grouping=new_grouping, **kwargs)

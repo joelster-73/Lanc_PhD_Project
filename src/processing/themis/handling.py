@@ -19,6 +19,8 @@ from ..process import process_overlapping_files, format_extracted_vector, resamp
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_luna_directory
 
+THEMIS_RESOLUTIONS = {'spin': '3s', 'STATE': '1min'}
+
 def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='epoch', year=None, overwrite=True, **kwargs):
 
     directory = get_luna_directory(spacecraft, instrument=data)
@@ -48,7 +50,7 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
 
         samples.append(sample_interval)
 
-    kwargs['resolutions'] = {'spin' : '3s'}
+    kwargs['resolutions'] = THEMIS_RESOLUTIONS
 
     process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=quality, **kwargs)
 
@@ -397,5 +399,12 @@ def resample_themis_files(spacecraft, data, raw_res='spin', new_grouping='yearly
 
     QUAL_FUNCTIONS = {'fgm': filter_thm_fgm, 'esa': filter_thm_esa}
     kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
+
+    if data=='STATE':
+        key = data
+    else:
+        key = raw_res
+
+    kwargs['resolution'] = THEMIS_RESOLUTIONS.get(key,'3s')
 
     resample_files(spacecraft, data, raw_res=raw_res, new_grouping=new_grouping, **kwargs)

@@ -8,6 +8,7 @@ Created on Thu May  8 15:58:08 2025
 from src.processing.mms.handling import process_mms_files, resample_mms_files
 from src.processing.updating import update_plasma_data
 
+
 # %% Field
 
 process_mms_files('mms1', 'state', sample_intervals=('raw','1min','5min','15min'))
@@ -32,3 +33,9 @@ update_plasma_data('mms1', 'fgm', 'fpi', 'hpca', (), convert_fields=('V',))
 
 resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min','15min'))
 
+# %% temp
+
+resample_mms_files('mms1', 'state', 'raw', sample_intervals=('1min','5min','15min'))
+resample_mms_files('mms1', 'fgm', 'raw', 'monthly', sample_intervals=('1min','5min','15min'))
+resample_mms_files('mms1', 'hpca', 'spin', sample_intervals=('1min','5min','15min'))
+resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min','15min'))

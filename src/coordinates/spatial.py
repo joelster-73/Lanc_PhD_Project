@@ -256,7 +256,7 @@ def cartesian_to_spherical(x, y, z):
 
 def spherical_to_cartesian(r, theta, phi):
 
-    if isinstance(theta,UFloat) or isinstance(phi,UFloat):
+    if np.asarray(theta).dtype == object or np.asarray(phi).dtype == object:
         x = r * unp.cos(theta)
         y = r * unp.sin(theta) * unp.sin(phi)
         z = r * unp.sin(theta) * unp.cos(phi)

@@ -42,7 +42,7 @@ THEMIS_VARIABLES_FGM = {
 
 
 # %% MOM
-PLASMA_VARIABLES_TEMPLATE = {
+PLASMA_VARIABLES_TEMPLATE = { # spin resolution, 3s
     'time':         '{sc}_peim_time',
     'time_flag':    '{sc}_iesa_solarwind_flag_time',
     'flag':         '{sc}_iesa_solarwind_flag',     # 0 = not in solar wind, 1 = in solar wind

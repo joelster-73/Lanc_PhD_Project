@@ -5,6 +5,7 @@ Created on Thu May  8 18:08:31 2025
 @author: richarj2
 """
 import os
+import copy
 import numpy as np
 import pandas as pd
 
@@ -23,7 +24,7 @@ def write_to_cdf(df, output_file=None, directory=None, file_name=None, attribute
     If the dataframe is indexed by time, must set 'reset_index' to True.
     """
 
-    df_attrs = df.attrs.copy()
+    df_attrs = copy.deepcopy(df.attrs)
     df = df.copy()
     df.attrs = df_attrs
 
@@ -151,12 +152,15 @@ def update_cdf_attributes(directory, new_values, add=True):
 
 # %% resample
 
-def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, qual_func=None, files_by_keys={}):
+def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, qual_func=None, files_by_keys={}, resolution=None):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
     ###----------SET UP----------###
     print('Resampling.')
+
+    if resolution is None:
+        resolution=raw_res
 
     save_directories = {}
 
@@ -186,8 +190,8 @@ def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('
 
         for sample_interval, samp_dir in save_directories.items():
 
-            sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval, drop_nans=False)
+            sampled_df = resample_data(yearly_df, time_col='index', sample_interval=sample_interval)
 
-            attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E}
+            attributes = {'sample_interval': sample_interval, 'time_col': time_col, 'R_E': R_E, 'resolution': resolution}
             write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{key}', attributes=attributes, overwrite=overwrite, reset_index=True)
 

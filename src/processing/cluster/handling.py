@@ -20,6 +20,8 @@ from ..process import process_overlapping_files, format_extracted_vector, resamp
 from ...coordinates.magnetic import calc_B_GSM_angles
 from ...config import R_E, get_proc_directory, get_luna_directory
 
+CLUSTER_RESOLUTIONS = {'spin' : '4s', '5vps': '0.2s'}
+
 def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=('none',), time_col='epoch', year=None, overwrite=True, **kwargs):
 
     directory = get_luna_directory(spacecraft, instrument=data, info=data_info)
@@ -60,7 +62,7 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
 
         samples.append(sample_interval)
 
-    kwargs['resolutions'] = {'spin' : '4s', '5vps': '0.2s'}
+    kwargs['resolutions'] = CLUSTER_RESOLUTIONS
 
     process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filter_quality, **kwargs)
 
@@ -413,5 +415,7 @@ def resample_cluster_files(spacecraft, data, raw_res='spin', new_grouping='yearl
 
     QUAL_FUNCTIONS      = {'hia': filter_quality}
     kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
+
+    kwargs['resolution'] = CLUSTER_RESOLUTIONS.get(raw_res)
 
     resample_files(spacecraft, data, raw_res=raw_res, new_grouping=new_grouping, **kwargs)

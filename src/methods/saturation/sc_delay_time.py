@@ -16,6 +16,11 @@ from ...processing.reading import import_processed_data
 from ...processing.dataframes import resample_data_weighted
 from ...plotting.distributions import plot_freq_hist
 
+
+### So for this function, add the redundancy checks for missing data and simple flat approximation
+### then re-run the merge_sc function
+
+
 def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
     """
     Calculates time it takes solar wind to reach omni BSN, assuming planar solar wind propagation.
@@ -32,10 +37,8 @@ def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
         rotated = convert_GSE_to_GSM_with_angles(df, [[f'V_{comp}_GSM_{sc_key}' for comp in ('x','y','z')]], coords_suffix='c1', inverse=True)
         v_sw = rotated[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].values
 
-    v_hat = v_sw / np.linalg.norm(v_sw, axis=1)[:, None]
-
     delta_r = -(r_sc - r_bs)
-    t = np.einsum('ij,ij->i', delta_r, v_hat) / np.linalg.norm(v_sw, axis=1) # time = distance/speed
+    t = np.einsum('ij,ij->i', delta_r, v_sw) / np.linalg.norm(v_sw, axis=1)**2 # time = distance/speed
 
     df[f'prop_time_s_{sc_key}'] = t
 
