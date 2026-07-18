@@ -277,7 +277,7 @@ def process_cluster_hia_quality(df, files, variables, time_col='epoch'):
 
         merged = pd.merge_asof(df, quality_df, left_on=time_col, right_on=time_col, direction='backward')
 
-        df['quality'] = merged['quality'].values
+        df['quality'] = merged['quality'].to_numpy()
         print('Quality added.')
     else:
         df['quality'] = -2 # indicate no quality data

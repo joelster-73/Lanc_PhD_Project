@@ -10,6 +10,7 @@ import pandas as pd
 
 from ...config import R_E, get_proc_directory
 from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles
+from ...coordinates.boundaries import bsn_jelinek2012
 
 from ...processing.writing import write_to_cdf
 from ...processing.reading import import_processed_data
@@ -24,6 +25,39 @@ from ...plotting.distributions import plot_freq_hist
 ### then just use the x components
 ### if there is no speed data then use typical speeds in their place, find source for these
 
+def calc_flat_delay(df, omni_key='sw', sc_key='sc', region='sw'):
+    """
+    Calculates time it takes solar wind to reach omni BSN, assuming planar solar wind propagation.
+    t is the lag to add to the 17,53-minutes
+      so t>0 implies the plasma has reached the spacecraft before arriving at the bow shock nose
+      so the plasma has to travel this extra time, so is added onto 17
+    """
+
+    valid_positions = ~df['r_x_GSE'].isna()
+    positions = df.loc[valid_positions,'r_x_GSE'].to_numpy()
+
+    pressure = 2.056 # nPa
+    speed    = {'sw': 440, 'msh': 110} # km/s
+
+    # Position
+
+    pressures = df.loc[valid_positions,'P_dyn'].to_numpy()
+    pressures[pressures.isna()] = pressure
+    bowshocks = bsn_jelinek2012(pressures)
+
+    # Speed
+
+    speeds = df.loc[valid_positions,'V_x_GSE'].to_numpy()
+    speeds[speeds.isna()] = speed.get(region)
+
+    # Speed
+
+    speeds = df.loc[valid_positions,'V_x_GSE'].to_numpy()
+    speeds[speeds.isna()] = speed.get(region)
+
+    df.loc[valid_positions,f'prop_time_s_{sc_key}'] = -(positions - bowshocks) * R_E / speeds
+
+
 def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
     """
     Calculates time it takes solar wind to reach omni BSN, assuming planar solar wind propagation.
@@ -32,13 +66,13 @@ def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
       so the plasma has to travel this extra time, so is added onto 17
     """
 
-    r_bs = df[[f'R_{comp}_BSN_{omni_key}' for comp in ('x','y','z')]].values * R_E
-    r_sc = df[[f'r_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].values * R_E
+    r_bs = df[[f'R_{comp}_BSN_{omni_key}' for comp in ('x','y','z')]].to_numpy() * R_E
+    r_sc = df[[f'r_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].to_numpy() * R_E
     try:
-        v_sw = df[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].values
+        v_sw = df[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].to_numpy()
     except:
         rotated = convert_GSE_to_GSM_with_angles(df, [[f'V_{comp}_GSM_{sc_key}' for comp in ('x','y','z')]], coords_suffix='c1', inverse=True)
-        v_sw = rotated[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].values
+        v_sw = rotated[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].to_numpy()
 
     delta_r = -(r_sc - r_bs)
     t = np.einsum('ij,ij->i', delta_r, v_sw) / np.linalg.norm(v_sw, axis=1)**2 # time = distance/speed
@@ -112,17 +146,3 @@ def plot_delay_hists(sc, region, data_pop='plasma', sample_interval='5min'):
 
     plot_freq_hist(df['prop_time_s'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
 
-# %% OMNI
-
-def calc_omni_uncertainty(df_omni, column, dt_err_col='rms_timeshift'):
-    """
-    Estimate the uncertainty on a column in df_omni due to uncertainty in the applied time shift:
-        sigma_X = |dX/dt| * sigma_dt
-    """
-    X = df_omni[column].values
-    t_sec = df_omni.index.astype('int64')/1e9 # seconds since epoch
-
-    dX_dt = np.gradient(X, t_sec)
-    sigma_dt = df_omni[dt_err_col].values
-
-    return np.abs(dX_dt) * sigma_dt

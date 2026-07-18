@@ -141,8 +141,8 @@ def extract_omni_data(lst_file, omni_columns):
     # df = pd.concat([df, b_gsm_unc], axis=1)
 
     # Angle between IMF and BS normal at nose
-    b = df[[f'B_{comp}_GSE' for comp in ('x','y','z')]].values
-    r = df[[f'R_{comp}_BSN' for comp in ('x','y','z')]].values
+    b = df[[f'B_{comp}_GSE' for comp in ('x','y','z')]].to_numpy()
+    r = df[[f'R_{comp}_BSN' for comp in ('x','y','z')]].to_numpy()
     n = r / np.linalg.norm(r, axis=1)[:, None]
     cos_theta = np.einsum('ij,ij->i',b,n) / np.linalg.norm(b, axis=1)
 

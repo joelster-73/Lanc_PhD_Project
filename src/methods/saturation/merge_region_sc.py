@@ -259,7 +259,7 @@ def spacecraft_distance(df):
         r        = (df[cols]**2).sum(axis=1)**0.5
         try:
             unc_cols = [f'r_{comp}_GSE_unc' for comp in ('x','y','z')]
-            sigma_r = np.sqrt(((df[cols].values / r[:, None])**2 * df[unc_cols].values**2).sum(axis=1))
+            sigma_r = np.sqrt(((df[cols].to_numpy() / r[:, None])**2 * df[unc_cols].to_numpy()**2).sum(axis=1))
         except:
             sigma_r = np.nan
 

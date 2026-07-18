@@ -338,13 +338,6 @@ def vector_component_surface(df, sc, region, data_pop, surface_params={}):
 
 # %% Models
 
-def msh_to_sw_p(pressure):
-    """
-    Approximation to take pressure data from a spacecraft in the sheath and app
-
-    """
-    return
-
 def bsn_jelinek2012(pressure=2.056):
 
     R = 15.02
