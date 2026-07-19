@@ -11,7 +11,7 @@ import pandas as pd
 from scipy.constants import m_p, physical_constants
 m_a = physical_constants['alpha particle mass'][0]
 
-from .sc_delay_time import calc_bs_sc_delay
+from .sc_delay_time import calc_flat_delay
 
 from ...config import get_proc_directory, CLUSTER_SPACECRAFT as cluster, THEMIS_SPACECRAFT as themis, MMS_SPACECRAFT as mms
 
@@ -104,6 +104,7 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
     df_omni = import_processed_data('omni', resolution=sample_interval)
     update_omni(df_omni, indices_columns)
 
+
     for sc in sc_keys:
 
         print(f'Importing -{sc}-.')
@@ -150,13 +151,16 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         if region=='msh':
             condition = (df_merged['r_F'] > 0.1) & (df_merged['r_F'] < 1)
+            loose_condition = df_merged['r_F'] > 1.0   # looser than the 1.5 used outside intervals
+
 
         elif region=='sw':
             condition = (df_merged['r_F'] > 1.5) # position further than empirical BS
+            loose_condition = (df_merged['r_F'] > 0.05) & (df_merged['r_F'] < 1.2)
             #condition &= (df_merged[f'r_mag{suffix}']<35) # exclude ARTEMIS
 
         mask |= outside_interval & condition
-        mask |= inside_interval
+        mask |= inside_interval  & loose_condition # prevent crossings not being concurrent contaminating the dataset
 
         df_merged = df_merged.loc[mask]
         df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
@@ -167,10 +171,29 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         ###----------EXTRA PARAMETERS----------###
 
+        print('omni')
+        for (param,col) in (('pressure','P_flow_sw'),('density','N_tot_sw'),('velocity','V_x_GSE_sw')):
+            vals = df_merged[col].to_numpy()
+
+            print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
+            print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
+
+        print(sc)
+
+        for (param,col) in (('pressure',f'P_flow_{sc}'),('density',f'N_tot_{sc}'),('velocity',f'V_x_GSE_{sc}')):
+            vals = df_merged[col].to_numpy()
+
+            print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
+            print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
+
+        continue
+
+        #####
+
         vector_component_surface(df_merged, sc, region, data_pop, surface_params=column_names)
 
         # Correction to time lag based on spacecraft position in solar wind
-        calc_bs_sc_delay(df_merged, omni_key='sw', sc_key=sc, region=region)
+        calc_flat_delay(df_merged, region=region, pos_col=f'r_x_GSE_{sc}', pres_col=f'P_flow_{sc}', vel_col=f'V_x_GSE_{sc}', lag_col=f'prop_time_s_{sc}')
 
         update_parameters(df_merged, sc, region)
 
@@ -189,6 +212,8 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         print(f'Writing {sc} to file...')
         write_to_cdf(df_merged, directory=DIR, file_name=f'{region}_times_{sc}', reset_index=True)
+
+    exit()
 
     ###----------COMBINING----------###
     print('Combining spacecraft')

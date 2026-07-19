@@ -11,6 +11,8 @@ from src.methods.saturation.plotting_lags import plot_lags_saturation
 
 lags = (15,16,17,18,19)
 
+# take the lag time and slice the dataframe by different total rounded lags and then compare the shifted data
+
 plot_lags_saturation('E_R', 'THL', lags, spacecraft='omni', region='sw', resolution='1min', restrict=True)
 
 plot_lags_saturation('E_R', 'THL', lags, spacecraft='combined', region='sw', resolution='1min', restrict=True)

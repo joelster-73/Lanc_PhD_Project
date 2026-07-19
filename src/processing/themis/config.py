@@ -12,7 +12,7 @@ THEMIS_PLASMA_SPACECRAFT = ('thb', 'the')
 # %% State
 STATE_VARIABLES_TEMPLATE = { # 1 minute resolution
     'time':  '{sc}_state_time',
-    'r_GSE': '{sc}_pos_gse'
+    'r_gse': '{sc}_pos_gse'
 }
 
 THEMIS_VARIABLES_STATE = {

@@ -13,7 +13,10 @@ from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices, merge_dataframes
 from ..config import get_proc_directory
 
-spacecraft_populations = {'c'}
+import warnings
+from spacepy.pycdf import CDFWarning
+
+warnings.filterwarnings('ignore', category=CDFWarning)
 
 def import_processed_spacecraft(spacecraft, populations=['state'], resolution='1min', year=None):
 
@@ -43,25 +46,20 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         cdf_files = get_processed_files(directory, year)
         cdf_file  = cdf_files[0]
 
-        if len(cdf_files)==1:
+        try:
             df = read_spacepy_object(cdf_files)
 
-        else:
-            try:
-                df = read_spacepy_object(cdf_files)
+        except Exception: # CDF files for different parameters
+            print('Different file structures.')
+            df = pd.DataFrame()
+            for f in cdf_files:
+                df_param = read_spacepy_object(f)
+                df = pd.concat([df, df_param], axis=axis)
+                for k, v in df_param.attrs.items():
+                    if k not in df.attrs:
+                        df.attrs[k] = v
 
-            except Exception: # CDF files for different parameters
-                print('Different file structures.')
-                df = pd.DataFrame()
-                for f in cdf_files:
-                    df_param = read_spacepy_object(f)
-                    df = pd.concat([df, df_param], axis=axis)
-                    for k, v in df_param.attrs.items():
-                        if k not in df.attrs:
-                            df.attrs[k] = v
-
-    ### NOTE TO SELF: CHECK THE ORDER OF THE STATEMENTS BELOW, PARTICULARLY REGARDING ATTRIBUTES
-
+    ### NOTE: Check the order of the statements below, particularly regarding attributes
 
     for column in df.columns:
         if df.attrs.get('units',{}).get(column, '') == 'STRING':

@@ -18,66 +18,37 @@ from ...processing.dataframes import resample_data_weighted
 from ...plotting.distributions import plot_freq_hist
 
 
-### So for this function, add the redundancy checks for missing data and simple flat approximation
-### then re-run the merge_sc function
-### similarly consider if the region filtering can be simplified in merge_region_sc
-### use jelinek for the bow shock nose location (assume no aberration) and solar wind pressure from spacecraft or fixed 2.056 nPa. Check my pressure/density calculations asmine are likely more correct than those used in parameterising the model.
-### then just use the x components
-### if there is no speed data then use typical speeds in their place, find source for these
-
-def calc_flat_delay(df, omni_key='sw', sc_key='sc', region='sw'):
+def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s'):
     """
-    Calculates time it takes solar wind to reach omni BSN, assuming planar solar wind propagation.
-    t is the lag to add to the 17,53-minutes
-      so t>0 implies the plasma has reached the spacecraft before arriving at the bow shock nose
-      so the plasma has to travel this extra time, so is added onto 17
+    Approximates the time it takes solar wind to reach the BSN using just the x components
+    This is then added to the lag time from BSN to geomagnetic effect
     """
-
-    valid_positions = ~df['r_x_GSE'].isna()
-    positions = df.loc[valid_positions,'r_x_GSE'].to_numpy()
 
     pressure = 2.056 # nPa
-    speed    = {'sw': 440, 'msh': 110} # km/s
+    speed    = {'sw': -440, 'msh': -110} # km/s
 
     # Position
 
-    pressures = df.loc[valid_positions,'P_dyn'].to_numpy()
-    pressures[pressures.isna()] = pressure
-    bowshocks = bsn_jelinek2012(pressures)
+    valid_positions = ~df[pos_col].isna()
+    positions = df.loc[valid_positions,pos_col].to_numpy()
+
+    # Bowshock
+
+    if region=='sw':
+        pressures = df.loc[valid_positions,pres_col].to_numpy() * 2 # x2 is because I define pressure with 1/2 prefactor
+
+        pressures[np.isnan(pressures)] = pressure
+        bowshocks = bsn_jelinek2012(pressures)
+
+    else:
+        bowshocks = bsn_jelinek2012(pressure)
 
     # Speed
 
-    speeds = df.loc[valid_positions,'V_x_GSE'].to_numpy()
-    speeds[speeds.isna()] = speed.get(region)
+    speeds = df.loc[valid_positions,vel_col].to_numpy()
+    speeds[np.isnan(speeds)] = speed.get(region)
 
-    # Speed
-
-    speeds = df.loc[valid_positions,'V_x_GSE'].to_numpy()
-    speeds[speeds.isna()] = speed.get(region)
-
-    df.loc[valid_positions,f'prop_time_s_{sc_key}'] = -(positions - bowshocks) * R_E / speeds
-
-
-def calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw'):
-    """
-    Calculates time it takes solar wind to reach omni BSN, assuming planar solar wind propagation.
-    t is the lag to add to the 17,53-minutes
-      so t>0 implies the plasma has reached the spacecraft before arriving at the bow shock nose
-      so the plasma has to travel this extra time, so is added onto 17
-    """
-
-    r_bs = df[[f'R_{comp}_BSN_{omni_key}' for comp in ('x','y','z')]].to_numpy() * R_E
-    r_sc = df[[f'r_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].to_numpy() * R_E
-    try:
-        v_sw = df[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].to_numpy()
-    except:
-        rotated = convert_GSE_to_GSM_with_angles(df, [[f'V_{comp}_GSM_{sc_key}' for comp in ('x','y','z')]], coords_suffix='c1', inverse=True)
-        v_sw = rotated[[f'V_{comp}_GSE_{sc_key}' for comp in ('x','y','z')]].to_numpy()
-
-    delta_r = -(r_sc - r_bs)
-    t = np.einsum('ij,ij->i', delta_r, v_sw) / np.linalg.norm(v_sw, axis=1)**2 # time = distance/speed
-
-    df[f'prop_time_s_{sc_key}'] = t
+    df.loc[valid_positions,lag_col] = -(positions - bowshocks) * R_E / speeds
 
 def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60, write_to_file=False):
     """

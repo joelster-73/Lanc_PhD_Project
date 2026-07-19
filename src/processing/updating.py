@@ -116,6 +116,9 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
             ion_df = heavy_ions.loc[mask]
             updated_df = process_plasma_data(merged_df, ion_df, ion_source, with_unc=uncertainties, **kwargs)
 
+            print('Checking columns in df to make sure the pressure is here, otherwise might be all nans and thus dropped.')
+            print(updated_df.columns)
+
             cols_to_drop = [col for col in field_df if col in updated_df]
             updated_df.drop(columns=cols_to_drop, inplace=True)
 
@@ -324,7 +327,7 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
             print('Using OMNI alpha ratio.')
 
             merged_df = pd.merge_asof(merged_df.sort_index(), ion_df[['na_np_ratio']].sort_index(), left_index=True, right_index=True, direction='backward')   # take the closest value on or before the timestamp
-            m_avg   = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1) # kg
+            m_avg = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1) # kg
             idx = merged_df.columns.get_loc('N_tot')
             merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
 

@@ -4,6 +4,7 @@ Created on Thu May  8 15:58:08 2025
 
 @author: richarj2
 """
+
 from src.processing.themis.config import THEMIS_SPACECRAFT, THEMIS_PLASMA_SPACECRAFT
 from src.processing.themis.handling import process_themis_files, resample_themis_files
 from src.processing.updating import update_plasma_data
@@ -13,7 +14,6 @@ from src.processing.updating import update_plasma_data
 for spacecraft in THEMIS_SPACECRAFT:
 
     process_themis_files(spacecraft, 'STATE', sample_intervals=('1min','5min','15min'))
-
 
 # %% Field
 
@@ -35,28 +35,13 @@ for spacecraft in THEMIS_PLASMA_SPACECRAFT:
 
 # %% Filter
 
-for spacecraft in THEMIS_PLASMA_SPACECRAFT:
-
-    if spacecraft=='thb':
-        regions = ('sw',)
-
-    elif spacecraft=='the':
-        regions = ('msh',)
-
-
-    update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', regions, field_res='raw')
-
-resample_themis_files('thb', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
-resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min','15min'))
-
-# %% temp
+regions = {'thb': 'sw', 'the': 'msh'}
 
 for spacecraft in THEMIS_PLASMA_SPACECRAFT:
 
-    resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('5min','15min'))
-    resample_themis_files(spacecraft, 'FGM', 'raw', sample_intervals=('1min','5min','15min'))
+    region = regions.get(spacecraft)
 
+    update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', (region,), field_res='raw')
 
-resample_themis_files('thb', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
-resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_themis_files(spacecraft, region, 'spin', sample_intervals=('1min','5min','15min'))
 

@@ -487,7 +487,7 @@ def filter_quality(df, column='flag'):
 
     if column not in df:
         print(f'No "{column}" column.')
-        return df
+        return df.copy()
     else:
         print(f'Filtering quality: {column}.')
 
@@ -496,7 +496,7 @@ def filter_quality(df, column='flag'):
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=[column])
-    filtered_df.attrs = df.attrs
+    filtered_df.attrs = df.attrs.copy()
 
     return filtered_df
 

@@ -279,6 +279,7 @@ def process_cluster_hia_quality(df, files, variables, time_col='epoch'):
 
         df['quality'] = merged['quality'].to_numpy()
         print('Quality added.')
+
     else:
         df['quality'] = -2 # indicate no quality data
         print('No quality data.')
@@ -372,13 +373,13 @@ def filter_hia_data(df, region='sw'):
 
     if 'mode' not in df:
         print('"mode" column not in dataframe.')
-        return df
+        return df.copy()
 
     mask = df['mode'].isin(region_modes.get(region))
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=['mode'])
-    filtered_df.attrs = df.attrs
+    filtered_df.attrs = df.attrs.copy()
 
     return filtered_df
 
@@ -386,7 +387,7 @@ def filter_quality(df, column='quality'):
 
     if column not in df:
         print(f'No {column} column.')
-        return df
+        return df.copy()
     else:
         print(f'Filtering quality: {column}.')
 
@@ -401,7 +402,7 @@ def filter_quality(df, column='quality'):
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=[column])
-    filtered_df.attrs = df.attrs
+    filtered_df.attrs = df.attrs.copy()
 
     return filtered_df
 

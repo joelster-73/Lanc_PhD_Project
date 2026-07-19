@@ -5,7 +5,7 @@ if not hasattr(np, "float_"):
     np.float_ = np.float64 #ensures backward compatibility with code expecting np.float_
 
 from scipy.spatial.transform import Rotation as R
-from uncertainties import UFloat, unumpy as unp
+from uncertainties import unumpy as unp
 from spacepy.coordinates import Coords
 from spacepy.time import Ticktock
 

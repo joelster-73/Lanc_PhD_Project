@@ -133,9 +133,9 @@ def extract_themis_data(cdf_file, variables):
 
                 field  = var_name.split('_')[0]
 
-                if '_GSE' in var_name:
+                if '_GSE' in var_name.upper():
                     coords = 'GSE'
-                elif '_GSM' in var_name:
+                elif '_GSM' in var_name.upper():
                     coords = 'GSM'
                 else:
                     raise Exception(f'Coord system of variable not implemented: {var_name}.')
@@ -341,14 +341,14 @@ def filter_esa_data(df, region='sw'):
 
     if 'flag' not in df:
         print('"flag" not in dataframe.')
-        return df
+        return df.copy()
 
     # solar wind flag
     mask = (df['flag'].fillna(-2) != wrong_flag)
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=['flag'])
-    filtered_df.attrs = df.attrs
+    filtered_df.attrs = df.attrs.copy()
 
     return filtered_df
 
@@ -356,7 +356,7 @@ def filter_quality(df, instrument='esa', column='quality'):
 
     if column not in df:
         print(f'No "{column}" column.')
-        return df
+        return df.copy()
     else:
         print(f'Filtering quality: {instrument}, {column}.')
 
@@ -380,7 +380,7 @@ def filter_quality(df, instrument='esa', column='quality'):
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=[column])
-    filtered_df.attrs = df.attrs
+    filtered_df.attrs = df.attrs.copy()
 
     return filtered_df
 

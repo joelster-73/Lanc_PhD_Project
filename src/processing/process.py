@@ -120,7 +120,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
                     print('No quality filter function.')
 
                 # resample and write to file
-                sampled_df = resample_data(sampled_df, time_col, sample_interval, drop_nans=False)
+                sampled_df = resample_data(sampled_df, time_col, sample_interval)
 
             attributes['resolution'] = res
             write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)

@@ -102,6 +102,8 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
     ### Consider changing this so x_GSM is always written as x_GSE
 
+    print('NOTE: Consider changing this so x_GSM is always written as x_GSE')
+
 
     if sample_interval in ('none','NONE'):
         print('No valid sampling interval provided.')
@@ -122,7 +124,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
     if df['utc'].is_unique:
         df.drop(columns=columns_to_drop, inplace=True)
-        return
+        return df
 
     #---Sorting columns---#
 
@@ -145,7 +147,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
         elif '_GS' in column:
             field, comp, coords = column.split('_')
-            vector_groups.setdefault((field, coords), {})[comp] = column # if (field,coords) is not a key, it adds it with the default value {}
+            vector_groups.setdefault((field, coords.upper()), {})[comp] = column # if (field,coords) is not a key, it adds it with the default value {}
 
         else:
             unit = units.get(column)
@@ -358,7 +360,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
         resampled_df.reset_index(inplace=True)
     resampled_df.dropna(how='all',inplace=True)
 
-    resampled_df.attrs = df.attrs
+    resampled_df.attrs = df.attrs.copy()
     resampled_df.attrs['units'] = units
     resampled_df.attrs['sample_interval'] = sample_interval
 
