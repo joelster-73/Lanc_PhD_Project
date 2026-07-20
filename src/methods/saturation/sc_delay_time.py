@@ -8,13 +8,10 @@ import numpy as np
 import pandas as pd
 
 
-from ...config import R_E, get_proc_directory
-from ...coordinates.magnetic import convert_GSE_to_GSM_with_angles
+from ...config import R_E
 from ...coordinates.boundaries import bsn_jelinek2012
 
-from ...processing.writing import write_to_cdf
 from ...processing.reading import import_processed_data
-from ...processing.dataframes import resample_data_weighted
 from ...plotting.distributions import plot_freq_hist
 
 
@@ -25,7 +22,7 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
     """
 
     pressure = 2.056 # nPa
-    speed    = {'sw': -440, 'msh': -110} # km/s
+    speed    = {'sw': -400, 'msh': -120} # km/s
 
     # Position
 
@@ -50,64 +47,37 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
 
     df.loc[valid_positions,lag_col] = -(positions - bowshocks) * R_E / speeds
 
-def shift_sc_to_bs(df_sc, sample_interval, region='sw', max_delay=60, write_to_file=False):
+def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
     """
-    Shifts the time index of the spacecraft data based on propagation to OMNI BSN.
-    So comparing df_omni[t] with df_sc[t] is valid.
-    Due to possible matching indices, weighted average of duplicate rows is done.
-    Delays greater than 60 mins are set to-nan, and msh delays cannot be positive.
-    TL;DR this just shifts data to the BSN to create essentially a new OMNI but using Cluster, THEMIS, MMS.
+    Aligns df1 and df2 based on the lagged time of df1 and time of df2.
+    Importantly, duplicate rows in df1 are kept and matched with df2.
+    Replaces the older logic that relied on pre-shifted data:
+        intersect = df_ind.index.intersection(df_dep.index)
+        df_ind = df_ind.loc[intersect]
+        df_dep = df_dep.loc[intersect]
     """
+    total_lag = lag + np.rint(df1[lag_col].to_numpy())
+    rounded_lag = pd.to_timedelta(total_lag, unit='min').round(resolution)
 
-    if 'prop_time_s' not in df_sc:
-        print('Spacecraft to BSN propagation not in df.')
-        return df_sc
+    if 'lagged_time' in df1:
+        df1.drop('lagged_time', axis=1, inplace=True)
 
-    attrs = df_sc.attrs
+    df1.loc[:,'lagged_time'] = df1.index + rounded_lag
 
-    times = df_sc['prop_time_s'].copy()
-    times[times.abs()>max_delay*60] = np.nan # delays greater than 60-minutes are NaN
-    if region=='msh':
-        times[times>0] = np.nan # delays should always be negative in MSH
+    merged = df1.merge(df2, left_on='lagged_time', right_index=True, how='inner', suffixes=('_1', '_2'))
 
-    non_nan_lag = ~times.isna()
-    df_sc = df_sc.loc[non_nan_lag]
+    df1_cols = [c for c in df1.columns if c != 'lagged_time']
+    df2_cols = df2.columns
 
-    df_sc.index -= pd.to_timedelta(df_sc['prop_time_s'], unit='s')
-    df_sc        = df_sc.infer_objects(copy=False)
+    df1_out = merged[[c if c not in df2_cols else c + '_1' for c in df1_cols]]
+    df1_out.columns = df1_cols
+    df1_out = df1_out.reset_index(drop=True)
 
-    df_sc.index = df_sc.index.floor(sample_interval)
-    dup_mask    = df_sc.index.duplicated(keep=False)
+    df2_out = merged[[c if c not in df1_cols else c + '_2' for c in df2_cols]]
+    df2_out.columns = df2_cols
+    df2_out = df2_out.reset_index(drop=True)
 
-    if np.sum(dup_mask)==0:
-        print('No duplicate times.')
-
-    else:
-        df_duplicates = df_sc.loc[dup_mask]
-
-        df_resampled = resample_data_weighted(df_duplicates, time_col='index', sample_interval=sample_interval)
-
-        df_sc = df_sc.loc[~dup_mask]
-        df_sc = pd.concat([df_sc, df_resampled], axis=0)
-        df_sc = df_sc.sort_index()
-
-    df_sc.rename_axis('epoch', inplace=True)
-    df_sc.index.name = 'epoch'
-
-    df_sc.attrs = attrs
-    df_sc.attrs['units'][f'sc_{region}'] = 'STRING'
-    df_sc.attrs['units']['prop_time_s_unc'] = 's'
-    df_sc.attrs['units']['prop_time_s_count'] = 'NUM'
-    df_sc.attrs['units']['Delta B_z_unc'] = 'nT'
-    df_sc.attrs['units']['Delta B_z_count'] = 'NUM'
-
-    if write_to_file:
-        print('Writing shifted to file...')
-        DIR = get_proc_directory(region, dtype='plasma', resolution=sample_interval) # output directory
-        write_to_cdf(df_sc, directory=DIR, file_name=f'{region}_times_shifted', reset_index=True)
-
-    return df_sc
-
+    return df1_out, df2_out
 
 # %%% Delay Histograms
 

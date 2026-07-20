@@ -6,10 +6,9 @@ Created on Mon Oct  6 10:55:08 2025
 """
 
 import itertools as it
-import pandas as pd
-
 import matplotlib.pyplot as plt
 
+from .sc_delay_time import merge_with_lag
 from .plotting_utils import minimum_counts, def_param_names, get_variable_range, get_lagged_columns, mask_df
 
 from ...plotting.utils import save_figure
@@ -28,6 +27,7 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
     To see if a particular lag time shows stronger saturation than others
     """
 
+    # Imports
     if spacecraft=='omni':
         df = import_processed_data('omni', resolution=resolution)
     else:
@@ -35,6 +35,7 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
 
     df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
 
+    # Config
     kwargs['min_count'] = kwargs.get('min_count',minimum_counts['counts'])
     kwargs['display']   = kwargs.get('display','rolling')
     if kwargs['display']=='rolling':
@@ -46,6 +47,7 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
     kwargs['window_width'] = bin_width
 
     df_ind = mask_df(df, ind_var, limits)
+    df_dep = mask_df(df_pc, dep_var)
 
     cmap = plt.get_cmap('autumn_r')
     norm = plt.Normalize(vmin=0, vmax=len(lags)-1)
@@ -54,19 +56,14 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
 
     for i, lag in enumerate(lags):
 
-        td = pd.Timedelta(f'-{lag}min').round(resolution)
-        df_dep = df_pc.shift(freq=td) # this "adds" the td to the index, which is -ve here
+        df_ind, df_dep = merge_with_lag(df_ind, df_dep, lag, resolution)
 
-        df_dep = mask_df(df_dep, dep_var)
-        intersect = df_ind.index.intersection(df_dep.index)
-        df_ind_masked = df_ind.loc[intersect]
-        df_dep_masked = df_dep.loc[intersect]
-
+        # Config
         colour = cmap(norm(i))
-        kwargs['data_colour'] = colour
+        kwargs['data_colour']  = colour
         kwargs['error_colour'] = colour
 
-        _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        _ = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
 
         ax.plot([], [], ls='-', color=colour, label=lag)
 

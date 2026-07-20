@@ -20,14 +20,3 @@ for sample_interval in ('1min','5min','15min'):
 
 # MMS undercounts density in the solar wind (coarse energ/angle bins)
 # Cluster undercounts density in the msh (count-rate/dead-time saturation)
-
-
-# %% Plots
-
-#
-# could store as column then slice the indepdnent dataframe by the different shift values?
-
-
-
-
-merge_sc_in_region('sw', data_pop='plasma', sample_interval='15min')

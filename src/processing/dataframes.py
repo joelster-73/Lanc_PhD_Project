@@ -100,10 +100,7 @@ def relabel_columns(df, label):
 
 def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=SKIP_COLUMNS):
 
-    ### Consider changing this so x_GSM is always written as x_GSE
-
-    print('NOTE: Consider changing this so x_GSM is always written as x_GSE')
-
+    warnings.warn('NOTE: Consider changing this so x_GSM is always written as x_GSE')
 
     if sample_interval in ('none','NONE'):
         print('No valid sampling interval provided.')

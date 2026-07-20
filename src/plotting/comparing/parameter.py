@@ -34,7 +34,10 @@ def is_marker_like(marker):
         return False
 
 def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
-
+    """
+    Plots two columns from one dataframe against each other.
+    This ensures the data are in the correct format.
+    """
 
     series1 = df.loc[:,col1]
     series2 = df.loc[:,col2]
@@ -59,12 +62,15 @@ def compare_columns(df, col1, col2, col3=None, col1_err=None, col2_err=None, col
 
 
 def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, df3=None, col3=None, **kwargs):
-
+    """
+    Plots two columns from two different dataframes against each other.
+    This ensures the data are in the correct format.
+    """
 
     series1 = df1.loc[:,col1]
     series2 = df2.loc[:,col2]
 
-    # Include col 3 erro etc
+    # Include col 3 error etc
     if col3 is not None:
         kwargs['zs'] = df3.loc[:,col3]
 
@@ -81,7 +87,6 @@ def compare_dataframes(df1, df2, col1, col2, col1_err=None, col2_err=None, col1_
         kwargs['ys_counts'] = df2.loc[:,col2_counts]
 
     return compare_series(series1, series2, **kwargs)
-
 
 def investigate_difference(df, col1, col2, ind_col, **kwargs):
 

@@ -5,10 +5,9 @@ Created on Thu Jul 16 08:55:41 2026
 @author: richarj2
 """
 
-import pandas as pd
-
 import matplotlib.pyplot as plt
 
+from .sc_delay_time import merge_with_lag
 from .plotting_utils import minimum_counts, def_param_names, get_variable_range, mask_df
 
 from ...plotting.utils import save_figure
@@ -36,33 +35,30 @@ def plot_resolutions_saturation(ind_var, dep_var, resolutions, spacecraft='omni'
 
     for i, resolution in enumerate(resolutions):
 
+        # Imports
         if spacecraft=='omni':
             df = import_processed_data('omni', resolution=resolution)
         else:
             df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
-        ind_err, ind_count = def_param_names(df, ind_var)
-
-        bin_width, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
-        kwargs['window_width'] = bin_width
-
-        df_ind = mask_df(df, ind_var, limits)
-
         df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
 
-        td = pd.Timedelta(f'-{lag}min').round(resolution)
-        df_dep = df_pc.shift(freq=td) # this "adds" the td to the index, which is -ve here
+        ind_err, ind_count = def_param_names(df, ind_var)
+        bin_width, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
 
-        df_dep = mask_df(df_dep, dep_var)
-        intersect = df_ind.index.intersection(df_dep.index)
-        df_ind_masked = df_ind.loc[intersect]
-        df_dep_masked = df_dep.loc[intersect]
+        # Masks and slicing
+        df_ind = mask_df(df, ind_var, limits)
+        df_dep = mask_df(df_pc, dep_var)
 
+        df_ind, df_dep = merge_with_lag(df_ind, df_dep, lag, resolution)
+
+        # Config
         colour = cmap(norm(i))
-        kwargs['data_colour'] = colour
+        kwargs['data_colour']  = colour
         kwargs['error_colour'] = colour
+        kwargs['window_width'] = bin_width
 
-        _ = compare_dataframes(df_ind_masked, df_dep_masked, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        _ = compare_dataframes(df_ind, df_dep, ind_var, dep_var, col1_err=ind_err, col1_counts=ind_count, fig=fig, ax=ax, return_objs=True, **kwargs)
 
         ax.plot([], [], ls='-', color=colour, label=resolution)
 

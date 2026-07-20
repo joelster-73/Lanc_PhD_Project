@@ -7,6 +7,8 @@ Created on Wed Dec 24 11:18:29 2025
 
 import numpy as np
 import pandas as pd
+import warnings
+
 from uncertainties import unumpy as unp
 from scipy.constants import mu_0, m_p
 from scipy.constants import physical_constants
@@ -104,9 +106,8 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
         elif spacecraft in MMS_SPACECRAFT:
             uncertainties = True
 
-        if heavy_ions is None:
-            updated_df = merged_df
-        else:
+        if heavy_ions is not None:
+
             if '-' in key:
                 year, month = key.split('-')
                 mask = (heavy_ions.index.year==int(year))&(heavy_ions.index.month==int(month))
@@ -114,25 +115,23 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
                 mask = heavy_ions.index.year==int(key)
 
             ion_df = heavy_ions.loc[mask]
-            updated_df = process_plasma_data(merged_df, ion_df, ion_source, with_unc=uncertainties, **kwargs)
 
-            print('Checking columns in df to make sure the pressure is here, otherwise might be all nans and thus dropped.')
-            print(updated_df.columns)
+            process_plasma_data(merged_df, ion_df, ion_source, with_unc=uncertainties, **kwargs)
 
-            cols_to_drop = [col for col in field_df if col in updated_df]
-            updated_df.drop(columns=cols_to_drop, inplace=True)
+            cols_to_drop = [col for col in field_df if col in merged_df]
+            merged_df.drop(columns=cols_to_drop, inplace=True)
 
         ###----------WRITE TO FILE----------###
 
         print(f'{key} processed.')
-        write_to_cdf(updated_df, directory=save_directory, file_name=f'{spacecraft.upper()}_SPIN_{key}', attributes={'R_E': R_E}, overwrite=True, reset_index=True)
+        write_to_cdf(merged_df, directory=save_directory, file_name=f'{spacecraft.upper()}_SPIN_{key}', attributes={'R_E': R_E}, overwrite=True, reset_index=True)
 
         if not filt_func:
             print('No region filter function.')
             continue
 
         for region in regions:
-            filtered_df = filt_func(updated_df, region)
+            filtered_df = filt_func(merged_df, region)
             if filtered_df.empty:
                 print(f'No {region} data in correct mode.')
                 continue
@@ -147,59 +146,9 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     Once the plasma data has been extracted from the raw moments files
     This function will combine into total flow pressure and velocity etc
     """
-    def assign_values(df, column, uarr, col_before=None):
 
-        vals = unp.nominal_values(uarr) if with_unc else np.asarray(uarr, dtype=float)
-
-        if not isinstance(column, str):  # list of columns
-            df.loc[:, column] = vals
-            if with_unc:
-                df.loc[:, [f'{c}_unc' for c in column]] = unp.std_devs(uarr)
-
-        elif col_before:
-            idx = df.columns.get_loc(col_before)
-            df.insert(idx, column, vals)
-            if with_unc:
-                df.insert(idx + 1, f'{column}_unc', unp.std_devs(uarr))
-
-        else:
-            df[column] = vals
-            if with_unc:
-                df[f'{column}_unc'] = unp.std_devs(uarr)
-
-    def build_uarr(df, columns):
-
-        values = df[columns].to_numpy()
-        if not with_unc:
-            return values
-
-        values = np.nan_to_num(values, nan=0.0)
-
-        if isinstance(columns, str):
-            # single column
-            try:
-                uncs = np.nan_to_num(df[f'{columns}_unc'].to_numpy(), nan=0.0)
-            except:
-                uncs = np.zeros(len(values))
-        else:
-            # list of columns
-            try:
-                uncs = np.nan_to_num(df[[f'{c}_unc' for c in columns]].to_numpy(), nan=0.0)
-            except:
-                uncs = np.zeros(len(values))
-
-        return unp.uarray(values, uncs)
-
-    def cross_u(a, b):
-        if with_unc:
-            # Handles uncertainties
-            return np.stack([
-                a[:,1]*b[:,2] - a[:,2]*b[:,1],
-                a[:,2]*b[:,0] - a[:,0]*b[:,2],
-                a[:,0]*b[:,1] - a[:,1]*b[:,0]
-            ], axis=1)
-
-        return np.cross(a,b)
+    def cross_u(a,b):
+        return cross_prod(a,b, with_unc)
 
     ###----------CALCULATIONS----------###
     insert_magnitude(merged_df, 'V', 'GSE', 'flow')
@@ -208,12 +157,12 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
         idx = merged_df.columns.get_loc('V_flow')
         merged_df.insert(idx+1, 'V_flow_unc', (merged_df['V_x_GSE']**2 * merged_df['V_x_GSE_unc']**2 + merged_df['V_y_GSE']**2 * merged_df['V_y_GSE_unc']**2 + merged_df['V_z_GSE']**2 * merged_df['V_z_GSE_unc']**2) ** 0.5 / merged_df['V_flow'])
 
-    v_flow = build_uarr(merged_df, 'V_flow')
+    v_flow = build_uarr(merged_df, 'V_flow', with_unc)
 
     # Dynamic pressure
-    merged_df = calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs)
+    calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs)
 
-    n_tot   = build_uarr(merged_df, 'N_tot')
+    n_tot   = build_uarr(merged_df, 'N_tot', with_unc)
     rho_tot = (merged_df['m_avg_ratio']*m_p) * n_tot # kg/cc
 
     if with_unc:
@@ -225,18 +174,18 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     # P = 0.5 * rho * V^2
     # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
     p_flow = 0.5 * rho_tot * v_flow**2 * 1e21
-    assign_values(merged_df, 'P_flow', p_flow)
+    assign_values(merged_df, 'P_flow', p_flow, with_unc)
 
     # Beta = p_th / p_mag, p_mag = B^2/2mu_0
     # p_dyn *= 1e-9, 1/B_avg^2 *= 1e18, so beta *= 1e9
-    P_th = build_uarr(merged_df, 'P_th')
+    P_th = build_uarr(merged_df, 'P_th', with_unc)
     beta = P_th / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
-    assign_values(merged_df, 'beta', beta)
+    assign_values(merged_df, 'beta', beta, with_unc)
 
     # Alfven Speed = B / sqrt(mu_0 * rho)
     # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
     V_A = merged_df['B_avg'] / unp.sqrt(mu_0 * rho_tot) * 1e-15
-    assign_values(merged_df, 'V_A', V_A)
+    assign_values(merged_df, 'V_A', V_A, with_unc)
 
     ###----------GSE to GSM----------###
 
@@ -257,29 +206,29 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     # Kan and Lee Electric Field: E_R = |V| * B_T * sin^2 (clock/2)
     # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
     E_R = (v_flow * np.sqrt(merged_df[f'B_y_{vec_coords}']**2+merged_df[f'B_z_{vec_coords}']**2) * (np.sin(B_clock/2))**2) * 1e-3
-    assign_values(merged_df, 'E_R', E_R)
+    assign_values(merged_df, 'E_R', E_R, with_unc)
 
     ###----------CROSS PRODUCTS----------###
 
     # Build uarray for V and B
-    V = build_uarr(merged_df, vec_cols('V',vec_coords,merged_df))
+    V = build_uarr(merged_df, vec_cols('V',vec_coords,merged_df), with_unc)
     B = merged_df[vec_cols('B',vec_coords,merged_df)].to_numpy()
 
     # E = -V x B = B x V
     # V *= 1e3, B *= 1e-9, and E *= 1e3 so E_gse *= 1e-3
     E = cross_u(B, V) * 1e-3
-    assign_values(merged_df, vec_cols('E',vec_coords), E)
+    assign_values(merged_df, vec_cols('E',vec_coords), E, with_unc)
 
     E_mag = unp.sqrt(np.sum(E**2, axis=1))
-    assign_values(merged_df, 'E_mag', E_mag, col_before=f'E_x_{vec_coords}')
+    assign_values(merged_df, 'E_mag', E_mag, with_unc, col_before=f'E_x_{vec_coords}')
 
     # S = E x H = E x B / mu_0
     # E *= 1e-3, B *= 1e-9, and S *= 1e6 so S_gse *= 1e-6
     S = cross_u(E, B) * 1e-6 / mu_0
-    assign_values(merged_df, vec_cols('S',vec_coords), S)
+    assign_values(merged_df, vec_cols('S',vec_coords), S, with_unc)
 
     S_mag = unp.sqrt(np.sum(S**2, axis=1))
-    assign_values(merged_df, 'S_mag', S_mag, col_before=f'S_x_{vec_coords}')
+    assign_values(merged_df, 'S_mag', S_mag, with_unc, col_before=f'S_x_{vec_coords}')
 
     return merged_df
 
@@ -289,58 +238,119 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
     This ratio is then scaled by the total denisty measured by FPI.
     """
 
-    try: # find ratio of alpha and proton densities
+    default_ratios = {'heplus': 0.0005, 'oplus': 0.01, 'heplusplus': 0.05}  # default values
 
-        if ion_source=='hpca':
-            print('Using HPCA data.')
-            ion_mass_dict = kwargs.get('ion_mass_dict', ION_MASS_DICT)
+    # find ratio of alpha and proton densities
+    if ion_source=='hpca':
+        print('Using HPCA data.')
+        ion_mass_dict = kwargs.get('ion_mass_dict', ION_MASS_DICT)
 
-            # avoid extrapolation
-            ion_interp = ion_df.reindex(merged_df.index).interpolate(method='time')
-            ion_interp = ion_interp.loc[(ion_interp.index >= ion_df.index.min()) & (ion_interp.index <= ion_df.index.max())]
+        # avoid extrapolation
+        ion_interp = ion_df.reindex(merged_df.index).interpolate(method='time')
+        ion_interp = ion_interp.loc[(ion_interp.index >= ion_df.index.min()) & (ion_interp.index <= ion_df.index.max())]
 
-            # hplus density saturates in HPCA
-            ion_ratio_map = {'heplus': 'nhe_np_ratio', 'oplus': 'no_np_ratio', 'heplusplus': 'na_np_ratio'}
-            default_ratios = {'heplus': 0.0005, 'oplus': 0.01, 'heplusplus': 0.05}  # default values
+        # hplus density saturates in HPCA
+        ion_ratio_map = {'heplus': 'nhe_np_ratio', 'oplus': 'no_np_ratio', 'heplusplus': 'na_np_ratio'}
 
-            num = m_p
-            den = 1.0
-
-            idx = merged_df.columns.get_loc('N_tot')
-            for ion, ratio_col in ion_ratio_map.items():
-
-                r = ion_interp[f'N_{ion}'] / ion_interp['N_hplus']
-                r = r.fillna(default_ratios[ion]).clip(lower=0)
-
-                try:
-                    merged_df.insert(idx+2, ratio_col, r)
-                except:
-                    merged_df[ratio_col] = r
-
-                num += r * ion_mass_dict[ion]
-                den += r
-
-            m_avg = num / den # kg
-            merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
-
-        elif ion_source=='omni':
-            print('Using OMNI alpha ratio.')
-
-            merged_df = pd.merge_asof(merged_df.sort_index(), ion_df[['na_np_ratio']].sort_index(), left_index=True, right_index=True, direction='backward')   # take the closest value on or before the timestamp
-            m_avg = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1) # kg
-            idx = merged_df.columns.get_loc('N_tot')
-            merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
-
-    except:
-        print('Using default alpha ratio')
-        default_ratio = kwargs.get('default_ratio', 0.05)
+        num = m_p
+        den = 1.0
 
         idx = merged_df.columns.get_loc('N_tot')
-        if 'na_np_ratio' in merged_df:
-            merged_df['na_np_ratio'] = default_ratio
-        else:
-            merged_df.insert(idx+2, 'na_np_ratio', default_ratio)
-        m_avg   = (m_p + merged_df['na_np_ratio'] * m_a) / (merged_df['na_np_ratio'] + 1) # kg
+        for ion, ratio_col in ion_ratio_map.items():
+
+            r = ion_interp[f'N_{ion}'] / ion_interp['N_hplus']
+            r = r.fillna(default_ratios[ion]).clip(lower=0)
+
+            try:
+                merged_df.insert(idx+2, ratio_col, r)
+            except:
+                merged_df[ratio_col] = r
+
+            num += r * ion_mass_dict[ion]
+            den += r
+
+        m_avg = num / den # kg
         merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
 
-    return merged_df
+    else:
+        print('Using OMNI alpha ratio.')
+        default_ratio = default_ratios.get('heplusplus')
+        max_age = kwargs.get('max_ratio_age', pd.Timedelta('30min'))
+
+        try:
+            ratio = (ion_df['na_np_ratio'].sort_index().reindex(merged_df.index, method='ffill', tolerance=max_age).fillna(default_ratio))
+
+        except (TypeError, KeyError, AttributeError):
+            print('No valid OMNI alpha ratio available; using default.')
+            ratio = pd.Series(default_ratio, index=merged_df.index)
+
+
+        idx = merged_df.columns.get_loc('N_tot')
+
+        if 'na_np_ratio' in merged_df:
+            merged_df['na_np_ratio'] = ratio
+        else:
+            merged_df.insert(idx+2, 'na_np_ratio', ratio)
+
+        m_avg_ratio = (m_p + ratio*m_a) / ((1+ratio)*m_p)  # kg
+
+        if 'm_avg_ratio' in merged_df:
+            merged_df['m_avg_ratio'] = m_avg_ratio
+        else:
+            merged_df.insert(idx+3, 'm_avg_ratio', m_avg_ratio)
+
+# %% utils
+
+def assign_values(df, column, uarr, with_unc, col_before=None):
+
+    vals = unp.nominal_values(uarr) if with_unc else np.asarray(uarr, dtype=float)
+
+    if not isinstance(column, str):  # list of columns
+        df.loc[:, column] = vals
+        if with_unc:
+            df.loc[:, [f'{c}_unc' for c in column]] = unp.std_devs(uarr)
+
+    elif col_before:
+        idx = df.columns.get_loc(col_before)
+        df.insert(idx, column, vals)
+        if with_unc:
+            df.insert(idx + 1, f'{column}_unc', unp.std_devs(uarr))
+
+    else:
+        df[column] = vals
+        if with_unc:
+            df[f'{column}_unc'] = unp.std_devs(uarr)
+
+def build_uarr(df, columns, with_unc):
+
+    values = df[columns].to_numpy()
+    if not with_unc:
+        return values
+
+    values = np.nan_to_num(values, nan=0.0)
+
+    if isinstance(columns, str):
+        # single column
+        try:
+            uncs = np.nan_to_num(df[f'{columns}_unc'].to_numpy(), nan=0.0)
+        except:
+            uncs = np.zeros(len(values))
+    else:
+        # list of columns
+        try:
+            uncs = np.nan_to_num(df[[f'{c}_unc' for c in columns]].to_numpy(), nan=0.0)
+        except:
+            uncs = np.zeros(len(values))
+
+    return unp.uarray(values, uncs)
+
+def cross_prod(a, b, with_unc):
+    if with_unc:
+        # Handles uncertainties
+        return np.stack([
+            a[:,1]*b[:,2] - a[:,2]*b[:,1],
+            a[:,2]*b[:,0] - a[:,0]*b[:,2],
+            a[:,0]*b[:,1] - a[:,1]*b[:,0]
+        ], axis=1)
+
+    return np.cross(a,b)

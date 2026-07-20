@@ -12,6 +12,7 @@ import itertools as it
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+from sc_delay_time import merge_with_lag
 from .plotting_utils import minimum_counts, def_param_names, get_var_bin_width, get_variable_range, shift_angular_data, mask_df
 
 from ...plotting.utils import save_figure, calculate_bins
@@ -61,9 +62,6 @@ def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, s
     for i, dep_var in enumerate(dep_vars):
 
         df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
-        if lags is not None and lags[i]!=0:
-            td = pd.Timedelta(f'-{lags[i]}min').round(resolution)
-            df_pc = df_pc.shift(freq=td) # this "adds" the td to the index, which is -ve here
 
         ax0 = axs[0][i]
         ax1 = axs[1][i]
@@ -89,13 +87,13 @@ def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, s
             if shift_centre:
                 df = shift_angular_data(df, ind_var)
 
+            # Masks and slicing
             df_ind = mask_df(df, ind_var, limits)
             df_dep = mask_df(df_pc, dep_var)
 
-            intersect = df_ind.index.intersection(df_dep.index)
-            df_ind = df_ind.loc[intersect]
-            df_dep = df_dep.loc[intersect]
+            df_ind, df_dep = merge_with_lag(df_ind, df_dep, lags[i], resolution)
 
+            # Config
             kwargs['window_width'] = bin_width
             kwargs['window_step']  = bin_width/10
             kwargs['data_colour']  = colour

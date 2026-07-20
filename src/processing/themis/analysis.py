@@ -145,15 +145,18 @@ def determine_bs_direction(bs_boundaries, df_sc, resolution, data_pop):
     directions = {}
 
     if 'r_mag' not in df_sc:
-        cols           = [f'r_{comp}_GSE' for comp in ('x','y','z')]
+        cols     = [f'r_{comp}_GSE' for comp in ('x','y','z')]
         r        = np.linalg.norm(df_sc[cols].values, axis=1)
+
+        df_sc.insert(0, 'r_mag', r)
+
+    if 'r_mag_unc' not in df_sc:
         unc_cols = [f'r_{comp}_GSE_unc' for comp in ('x','y','z')]
         try:
             sigma_r = np.sqrt(((df_sc[cols].values / r[:, None])**2 * df_sc[unc_cols].values**2).sum(axis=1))
         except:
             sigma_r = np.nan
 
-        df_sc.insert(0, 'r_mag', r)
         df_sc.insert(1, 'r_mag_unc', sigma_r)
 
     # inc: parameter increases going into solar wind

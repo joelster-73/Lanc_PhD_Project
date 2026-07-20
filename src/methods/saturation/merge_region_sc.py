@@ -186,9 +186,8 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
             print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
             print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
 
-        continue
 
-        #####
+        ### Additional parameters
 
         vector_component_surface(df_merged, sc, region, data_pop, surface_params=column_names)
 
@@ -212,8 +211,6 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         print(f'Writing {sc} to file...')
         write_to_cdf(df_merged, directory=DIR, file_name=f'{region}_times_{sc}', reset_index=True)
-
-    exit()
 
     ###----------COMBINING----------###
     print('Combining spacecraft')
