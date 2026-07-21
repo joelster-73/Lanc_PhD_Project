@@ -19,19 +19,13 @@ for spacecraft in THEMIS_SPACECRAFT:
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    if spacecraft in THEMIS_PLASMA_SPACECRAFT:
-        sample_intervals = ('raw','1min','5min','15min')
-    else:
-        sample_intervals = ('1min','5min','15min')
-
-    process_themis_files(spacecraft, 'FGM', sample_intervals=sample_intervals)
+    process_themis_files(spacecraft, 'FGM', sample_intervals=('raw','1min','5min','15min'))
 
 # %% Plasma
 
 for spacecraft in THEMIS_PLASMA_SPACECRAFT:
-    # thb for msh; the for sw
 
-    process_themis_files(spacecraft, 'MOM', sample_intervals=('raw',))
+    process_themis_files(spacecraft, 'MOM', sample_intervals=('raw',)) # thb for msh; the for sw
 
 # %% Filter
 
@@ -45,3 +39,17 @@ for spacecraft in THEMIS_PLASMA_SPACECRAFT:
 
     resample_themis_files(spacecraft, region, 'spin', sample_intervals=('1min','5min','15min'))
 
+
+# %% TEMP
+
+for spacecraft in THEMIS_SPACECRAFT:
+
+    resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('5min','15min'))
+    resample_themis_files(spacecraft, 'FGM', 'raw', sample_intervals=('1min','5min','15min'))
+
+# re-run the position and field cells
+# then resample plasma below
+# state and field can then be done in a similar fashion to below
+
+resample_themis_files('thb', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
+resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min','15min'))

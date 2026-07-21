@@ -20,7 +20,9 @@ from ...processing.omni.analysis import calc_omni_uncertainty
 from scipy.stats import spearmanr
 
 def annotate_corr(ax, x, y, mask=None):
-    """Add Spearman rho as text at the top of the axis."""
+    """
+    Add Spearman rho as text at the top of the axis.
+    """
     if mask is not None:
         x, y = x[mask], y[mask]
     valid = np.isfinite(x) & np.isfinite(y)
@@ -37,7 +39,6 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
     Uncertainties on the drivers to see of a significant regression to the mean effect would be observed.
     Three panels: absolute against driver, relative against driver, histogram of relative.
     """
-
     if spacecraft=='omni':
         df = import_processed_data('omni', resolution=resolution)
         ncols = 4

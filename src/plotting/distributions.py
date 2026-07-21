@@ -485,7 +485,7 @@ def plot_rolling_window(xs, ys, window_width=5, window_step=0.5, **kwargs):
 
     mean_colour = kwargs.get('data_colour',blue)
     std_colour  = kwargs.get('error_colour','r')
-    region      = kwargs.get('region','std') # std or sem
+    region      = kwargs.get('error_region','sem') # std or sem
     data_type   = kwargs.get('data_type','counts')
 
     fig         = kwargs.get('fig',None)

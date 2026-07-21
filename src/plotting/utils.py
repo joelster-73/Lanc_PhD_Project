@@ -18,12 +18,7 @@ import imageio
 from .config import save_fig
 from ..config import FIGURES_DIR
 
-def change_series_name(series, new_name):
-
-    old_name = series.name
-    series.name = new_name
-    series.attrs['units'][new_name] = series.attrs['units'].pop(old_name)
-
+# %% saving
 
 def save_figure(figure, directory=None, sub_directory=None, file_name=None):
     """
@@ -100,23 +95,35 @@ def save_gif(frame_files, length=1, directory='Figures'):
 
     print(f'GIF saved as {file_path}\n')
 
+# %% format
+
+def change_series_name(series, new_name):
+
+    old_name = series.name
+    series.name = new_name
+    series.attrs['units'][new_name] = series.attrs['units'].pop(old_name)
+
+def get_grid_shape(n):
+    """
+    Returns (nrows,ncols) that is sensible given the number of elements.
+    Prefers a square shape, but goes wider than taller if not possible.
+    """
+    if n <= 0:
+        return (0, 0)
+
+    cols = np.ceil(np.sqrt(n))
+    rows = np.ceil(n / cols)
+    return int(rows), int(cols)
+
+# %% calculations
 
 def segment_dataframe(df, delta=Timedelta(minutes=1)):
     """
     Adds a 'segment' column to the DataFrame based on time gaps exceeding a threshold.
     This is useful for segmenting time-series data into separate chunks, typically for plotting purposes.
+    If the time difference between consecutive rows exceeds the delta, a new segment is started.
+    So, straight lines don't connect gaps in data.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The input DataFrame containing time-series data to be segmented. The DataFrame must have a DateTimeIndex.
-    delta : pd.Timedelta, optional
-        The time gap threshold for segmenting the data. If the time difference between consecutive rows exceeds this value,
-        a new segment is started. Defaults to 1 minute.
-
-    Returns
-    -------
-    None : the input DataFrame is modified in place, adding a 'segment' column to represent the segmented data.
     """
     df = df.copy()
     if 'segment' in df.columns:
@@ -129,18 +136,6 @@ def segment_dataframe(df, delta=Timedelta(minutes=1)):
     df.insert(0, 'segment', (time_diffs > delta).cumsum())
 
     return df
-
-def get_grid_shape(n):
-    """
-    Given a number of items, return a sensible (rows, cols) grid layout
-    that's as close to square as possible, favoring slightly wider than tall.
-    """
-    if n <= 0:
-        return (0, 0)
-
-    cols = np.ceil(np.sqrt(n))
-    rows = np.ceil(n / cols)
-    return int(rows), int(cols)
 
 
 def datetime_to_decimal_year_vectorised(date_index):

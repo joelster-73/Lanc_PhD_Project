@@ -4,19 +4,6 @@ Created on Mon Oct  6 10:55:08 2025
 
 @author: richarj2
 """
-import warnings
-import os
-
-def short_warn_format(message, category, filename, lineno, line=None):
-    # Get just the parent folder and filename, e.g. "magnetosheath_saturation/plotting.py"
-    parent = os.path.basename(os.path.dirname(filename))
-    base = os.path.basename(filename)
-    short_path = f'{parent}/{base}'
-    return f'{short_path}:{lineno}: {category.__name__}: {message}\n'
-
-warnings.formatwarning = short_warn_format
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -30,8 +17,6 @@ from ...plotting.formatting import create_label, add_figure_title
 from ...plotting.config import colour_dict
 from ...plotting.config import black, bar_hatches
 #from ...plotting.distributions import plot_fit
-
-minimum_counts = {'mins': 100, 'counts': 50}
 
 
 def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None, **kwargs):

@@ -11,7 +11,7 @@ import numpy as np
 from ...plotting.formatting import create_label, data_string
 from ...processing.mag.config import PC_STATIONS
 
-minimum_counts = {'mins': 100, 'counts': 50}
+minimum_counts = {'1min': 100, '5min': 50, '15min': 25}
 
 imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'M_A', 'beta']
 
@@ -44,6 +44,9 @@ def mask_df(df, col, limits=None):
                 mask &= df[col] <= limits[1]
 
         return df.loc[mask]
+
+
+# %% names
 
 def def_param_names(df, variable, source=None):
 
@@ -98,6 +101,7 @@ def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
 
     return bin_width, limits, invert
 
+# %% binwidths
 def get_var_bin_width(var, restrict):
 
     if var.startswith('AA'):
@@ -151,6 +155,7 @@ def get_var_bin_width(var, restrict):
 
     return bin_width
 
+# %% limits
 
 def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
 
@@ -255,7 +260,7 @@ def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, s
 
     return limits
 
-
+# %% parameters
 
 def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
 
@@ -383,19 +388,3 @@ def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):
                 z_labels.append(f'${grp_string}$={edge:.1f}{z_unit_str}')
 
     return edges, bin_width, grp_label, z_labels, used_median
-
-def get_lagged_columns(df, dep, skip_zero=False):
-
-    dep_vars = {}
-    for col in df.columns:
-        if col==dep:
-            if not skip_zero:
-                dep_vars[0] = col
-
-        elif col.startswith(dep) and '_' in col:
-            name = '_'.join(col.split('_')[:-1])
-            if name==dep:
-                lag = col.split('_')[-1][:2]
-                dep_vars[int(lag)] = col
-
-    return dep_vars

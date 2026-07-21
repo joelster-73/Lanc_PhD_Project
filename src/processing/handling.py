@@ -7,23 +7,27 @@ from datetime import datetime
 from .utils import create_directory
 from ..config import get_proc_directory
 
-def create_log_file(log_file_path):
+def create_log_file(log_file_path, overwrite=True):
+
+    print('(Re)creating log file....')
 
     create_directory(os.path.dirname(log_file_path))
-    if not os.path.exists(log_file_path):
+    if not os.path.exists(log_file_path) or overwrite:
         with open(log_file_path, 'w') as log_file:
-            log_file.write(f"Log created on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            log_file.write(f'Log created on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
 
 
 def log_missing_file(log_file_path, file_path, e=None):
 
-    create_log_file(log_file_path)
-
     file_name = os.path.basename(file_path)
     with open(log_file_path, 'a') as log_file:
-        log_file.write(f'{file_name} not added\n')
-    if e is not None:
-        print(f'{file_name} not added: {e}')
+        string = f'{file_name} not added'
+        if e is not None:
+            string += f': {e}'
+        string += '\n'
+        log_file.write(string)
+
+    print(string)
 
 
 def get_processed_files(directory, year=None, keyword=None):

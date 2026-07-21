@@ -117,7 +117,7 @@ def write_to_cdf(df, output_file=None, directory=None, file_name=None, attribute
                 # If it's not a dictionary, just assign the value
                 cdf.attrs[key] = value
 
-    print('Data written to file.\n')
+    print(f'Data written to file: {file_name}.\n')
 
 # %% utils
 

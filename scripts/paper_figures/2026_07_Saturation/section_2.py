@@ -5,8 +5,16 @@ Created on Thu Aug 28 12:29:26 2025
 @author: richarj2
 """
 
+# %% lags
 
-from src.methods.saturation.plot_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
+from src.methods.saturation.plotting import plot_delay_hists
+
+plot_delay_hists('combined', 'sw', data_pop='plasma', sample_interval='5min')
+plot_delay_hists('combined', 'msh', data_pop='plasma', sample_interval='5min')
+
+# %% distrubtions
+
+from src.methods.saturation.plotting_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
 
 sample_interval = '1min'
 data_pop = 'plasma'
@@ -14,7 +22,6 @@ data_pop = 'plasma'
 sw_keys = ('c1','mms1','thb')
 msh_keys = ('c1','mms1','the')
 
-# %% Plots
 
 # Solar Wind
 plot_sc_years(sample_interval, data_pop, 'sw', sw_keys, combined=False)
@@ -30,10 +37,17 @@ plot_sc_sw_msh(sample_interval, data_pop, sw_keys, msh_keys)
 
 # %% sources
 
-# plots comparing omni and spacecraft as q-q plot for example
-# similar plot for Thule and Resolute Bay magnetometers
-# pulkinnen figures
-#
+from src.methods.saturation.plotting import plot_pulkkinen_grid
+
+params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot','P_flow','T_tot')
+plot_pulkkinen_grid(*params, source='sw', restrict=True, display='scatter')
+
+plot_pulkkinen_grid(*params, source='sw', restrict=True, display='heat')
+
+params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot')
+plot_pulkkinen_grid(*params, source='sw', restrict=True)
+
+
 
 # %% uncertainties
 

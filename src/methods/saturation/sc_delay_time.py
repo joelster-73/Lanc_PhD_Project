@@ -11,9 +11,6 @@ import pandas as pd
 from ...config import R_E
 from ...coordinates.boundaries import bsn_jelinek2012
 
-from ...processing.reading import import_processed_data
-from ...plotting.distributions import plot_freq_hist
-
 
 def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s'):
     """
@@ -78,12 +75,4 @@ def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
     df2_out = df2_out.reset_index(drop=True)
 
     return df1_out, df2_out
-
-# %%% Delay Histograms
-
-def plot_delay_hists(sc, region, data_pop='plasma', sample_interval='5min'):
-
-    df = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc}')
-
-    plot_freq_hist(df['prop_time_s'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
 

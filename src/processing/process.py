@@ -70,8 +70,10 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
         save_directories[sample_interval] = save_directory
 
     ###----------PROCESS----------###
+
     attributes = {'time_col': time_col, 'R_E': R_E}
     next_key_df = pd.DataFrame()
+
     for k_i, (key, files) in enumerate(files_dict.items()):
 
         print(f'Processing {key} data.')
@@ -103,27 +105,29 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
 
         key_df.attrs = df_attrs
 
-        print(f'{key} processed.')
         # resample and write to file
         for sample_interval, samp_dir in save_directories.items():
 
-            sampled_df = key_df
-
             if sample_interval in ('raw','spin','fast'):
-                res = resolutions.get(sample_interval,sample_interval)
 
-            else:
-                res = sample_interval
-                if qual_func:
-                    sampled_df = qual_func(sampled_df)
-                else:
-                    print('No quality filter function.')
+                attributes['resolution'] = resolutions.get(sample_interval,sample_interval)
+                write_to_cdf(key_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)
+
+        # Filters and removes low quality data
+        if qual_func:
+            key_df = qual_func(key_df)
+        else:
+            print('No quality filter function.')
+
+        for sample_interval, samp_dir in save_directories.items():
+
+            if sample_interval not in ('raw','spin','fast'):
 
                 # resample and write to file
-                sampled_df = resample_data(sampled_df, time_col, sample_interval)
+                sampled_df = resample_data(key_df, time_col, sample_interval)
 
-            attributes['resolution'] = res
-            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)
+                attributes['resolution'] = sample_interval
+                write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)
 
 
 def format_extracted_vector(dictionary, data, var_name, coords='GSE', suffix='', fourD=False):
