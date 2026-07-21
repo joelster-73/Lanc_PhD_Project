@@ -9,15 +9,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .plotting_utils import def_param_names, get_variable_range, mask_df
-from .sc_delay_time import calc_omni_uncertainty
 
 from ...plotting.utils import save_figure
 from ...plotting.formatting import create_label
 from ...plotting.config import black
 
 from ...processing.reading import import_processed_data
-
-from scipy.stats import binned_statistic
+from ...processing.omni.analysis import calc_omni_uncertainty
 
 from scipy.stats import spearmanr
 
@@ -64,13 +62,17 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
         kwargs['window_width'] = bin_width
 
         df_ind = mask_df(df, ind_var, limits)
-        ind_vals = df_ind[ind_var].values
+        ind_vals = df_ind[ind_var].to_numpy()
 
         if spacecraft=='omni':
             ind_err = calc_omni_uncertainty(df_ind, ind_var)
         else:
             ind_err, ind_count = def_param_names(df, ind_var)
-            ind_err = df_ind[ind_err].values
+            ind_err = df_ind[ind_err].to_numpy()
+
+        if np.all(ind_err==0):
+            print('All errors are 0.')
+            continue
 
         ratio = 100*np.divide(ind_err, np.abs(ind_vals), out=np.full_like(ind_err, np.nan, dtype=float), where=np.abs(ind_vals)>=1)
 
@@ -115,11 +117,11 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
 
         if spacecraft=='omni':
 
-            scatter(ax_row[3], ind_vals, df_ind['rms_timeshift'].values)
+            scatter(ax_row[3], ind_vals, df_ind['rms_timeshift'].to_numpy())
 
             ax_row[3].set_xlabel(create_label(ind_var,units=df_ind.attrs['units']))
             ax_row[3].set_ylabel(r'rms(t) [s]')
-            annotate_corr(ax_row[3], ind_vals, df_ind['rms_timeshift'].values)
+            annotate_corr(ax_row[3], ind_vals, df_ind['rms_timeshift'].to_numpy())
 
             if invert:
                 ax_row[3].invert_xaxis()

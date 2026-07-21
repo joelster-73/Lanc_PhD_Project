@@ -29,3 +29,7 @@ df_sc = import_processed_data('sw', dtype='plasma', resolution='5min', file_name
 #calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw')
 
 test = import_processed_spacecraft('c1', populations=['fgm'],year=2001)
+
+
+
+df = import_processed_data('sw', dtype='plasma', resolution='5min', file_name='sw_times_combined')

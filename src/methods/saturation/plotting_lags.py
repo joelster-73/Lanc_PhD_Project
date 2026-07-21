@@ -29,9 +29,9 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
 
     # Imports
     if spacecraft=='omni':
-        df = import_processed_data('omni', resolution=resolution)
+        df_sw = import_processed_data('omni', resolution=resolution)
     else:
-        df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+        df_sw = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
     df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False)
 
@@ -41,13 +41,13 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
     if kwargs['display']=='rolling':
         kwargs['region'] = ''
 
-    ind_err, ind_count = def_param_names(df, ind_var)
+    ind_err, ind_count = def_param_names(df_sw, ind_var)
 
     bin_width, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
     kwargs['window_width'] = bin_width
 
-    df_ind = mask_df(df, ind_var, limits)
-    df_dep = mask_df(df_pc, dep_var)
+    df_sw = mask_df(df_sw, ind_var, limits)
+    df_pc = mask_df(df_pc, dep_var)
 
     cmap = plt.get_cmap('autumn_r')
     norm = plt.Normalize(vmin=0, vmax=len(lags)-1)
@@ -56,7 +56,7 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
 
     for i, lag in enumerate(lags):
 
-        df_ind, df_dep = merge_with_lag(df_ind, df_dep, lag, resolution)
+        df_ind, df_dep = merge_with_lag(df_sw, df_pc, lag, resolution)
 
         # Config
         colour = cmap(norm(i))
@@ -70,6 +70,7 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
         if invert:
             ax.invert_xaxis()
 
+    ax.set_xlabel(create_label(ind_var,units=df_sw.attrs['units']))
     ax.set_ylabel(create_label(dep_var,units=df_pc.attrs['units']))
 
     add_legend(fig, ax)

@@ -8,17 +8,17 @@ Created on Thu May  8 15:58:08 2025
 from src.processing.cluster.handling import process_cluster_files, update_fgm_data, resample_cluster_files
 from src.processing.updating import update_plasma_data
 
-# %% Field
-
-process_cluster_files('c1', 'fgm', '5VPS')
-process_cluster_files('c1', 'fgm', 'SPIN')
-
 # %% Position
 
 process_cluster_files('c1', 'state', '5VPS')
 process_cluster_files('c1', 'state', 'SPIN')
 
 resample_cluster_files('c1', 'state', 'spin', sample_intervals=('1min','5min','15min'))
+
+# %% Field
+
+process_cluster_files('c1', 'fgm', '5VPS')
+process_cluster_files('c1', 'fgm', 'SPIN')
 
 # %% Update_fgm
 
@@ -37,3 +37,9 @@ update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V'
 for region in ('sw','msh'):
     resample_cluster_files('c1', region, 'spin', sample_intervals=('1min','5min','15min'))
 
+# %% temp
+
+resample_cluster_files('c1', 'state', 'spin', sample_intervals=('1min','5min','15min'))
+resample_cluster_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min','15min'))
+resample_cluster_files('c1', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
+resample_cluster_files('c1', 'msh', 'spin', sample_intervals=('1min','5min','15min'))

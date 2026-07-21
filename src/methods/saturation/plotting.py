@@ -84,12 +84,12 @@ def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, s
 
             bin_width, limits, invert = get_variable_range(ind_var, 'sw', dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
-            if shift_centre:
-                df = shift_angular_data(df, ind_var)
-
             # Masks and slicing
             df_ind = mask_df(df, ind_var, limits)
             df_dep = mask_df(df_pc, dep_var)
+
+            if shift_centre:
+                shift_angular_data(df_ind, ind_var)
 
             df_ind, df_dep = merge_with_lag(df_ind, df_dep, lags[i], resolution)
 

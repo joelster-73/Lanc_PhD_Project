@@ -100,8 +100,6 @@ def relabel_columns(df, label):
 
 def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, columns_to_skip=SKIP_COLUMNS):
 
-    warnings.warn('NOTE: Consider changing this so x_GSM is always written as x_GSE')
-
     if sample_interval in ('none','NONE'):
         print('No valid sampling interval provided.')
         return df
@@ -155,7 +153,11 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             else:
                 scalar_columns.append(column)
 
-    #---Additions before grouping---#
+    scalar_columns  = sorted(scalar_columns)
+    angular_columns = sorted(angular_columns)
+    vector_groups   = dict(sorted(vector_groups.items())) # so GSE appears before GSM
+
+    # Additions before grouping for vectorised angular averaging
 
     for column in angular_columns:
 
@@ -218,13 +220,15 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             df.loc[valid, phi_sin_col] = np.sin(phi)
             df.loc[valid, phi_cos_col] = np.cos(phi)
 
-    #---Grouping---#
+    # Grouping
 
     grouped = df.groupby('utc')
 
     aggregated_columns = {}
 
-    #---Simple scalar columns---#
+    #---Resampling---#
+
+    # Simple scalar columns
 
     if len(scalar_columns)>0:
 
@@ -243,7 +247,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
                 units[f'{column}_unc']   = units.get(column)
                 units[f'{column}_count'] = 'NUM'
 
-    #---Angular columns---#
+    # Angular columns
 
     if len(angular_columns)>0:
 
@@ -280,8 +284,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
                 aggregated_columns[f'{column}_unc'] = sem.to_numpy()
                 aggregated_columns[f'{column}_count'] = counts[column].to_numpy()
 
-    #---Vector columns---#
-
+    # Vector columns
 
     for (field, coords), components in vector_groups.items():
 
@@ -312,6 +315,11 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
         y = np.full(len(r_mean), np.nan)
         z = np.full(len(r_mean), np.nan)
 
+        x_unc = np.full(len(r_mean), np.nan)
+        y_unc = np.full(len(r_mean), np.nan)
+        z_unc = np.full(len(r_mean), np.nan)
+
+
         if np.any(valid):
             r_u = make_ufloat_array(r_mean[valid], r_sem[valid])
             theta_u = make_ufloat_array(theta_mean[valid], theta_sem[valid])
@@ -323,20 +331,29 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             y[valid] = unp.nominal_values(y_u)
             z[valid] = unp.nominal_values(z_u)
 
-        vector_results = {'x': x, 'y': y, 'z': z}
+            x_unc[valid] = unp.std_devs(x_u)
+            y_unc[valid] = unp.std_devs(y_u)
+            z_unc[valid] = unp.std_devs(z_u)
+
+        vector_results = {'x': (x,x_unc), 'y': (y,y_unc), 'z': (z,z_unc)}
 
         for comp, values in vector_results.items():
 
-            if all((comp=='x', coords=='GSM', vector_groups.get((field,'GSE'),{}).get('x') in aggregated_columns)):
-                print(f'Not adding {field}_{comp}_{coords}.')
-                continue # skips x_GSM if x_GSE already in the new df
-
             column = components[comp]
-            aggregated_columns[column] = unp.nominal_values(values)
+            column_out = column
+
+            if comp=='x' and coords=='GSM':
+                column_out = f'{field}_x_GSE'
+
+                if column_out in aggregated_columns:
+                    print(f'Not adding {field}_{comp}_{coords}.')
+                    continue # skips x_GSM if x_GSE already in the new df
+
+            aggregated_columns[column] = values[0]
 
             if inc_info:
-                aggregated_columns[f'{column}_unc'] = unp.std_devs(values)
-                units[f'{column}_unc'] = units.get(column)
+                aggregated_columns[f'{column_out}_unc'] = values[1]
+                units[f'{column_out}_unc'] = units.get(column)
 
         if inc_info:
             vector_columns = [components['x'], components['y'], components['z']]

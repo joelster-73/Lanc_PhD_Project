@@ -11,13 +11,16 @@ from src.methods.saturation.plotting_lags import plot_lags_saturation
 
 lags = (15,16,17,18,19)
 
-# take the lag time and slice the dataframe by different total rounded lags and then compare the shifted data
+for sc, reg in (('omni','sw'),('combined','sw'),('combined','msh')):
 
-plot_lags_saturation('E_R', 'THL', lags, spacecraft='omni', region='sw', resolution='1min', restrict=True)
+    plot_lags_saturation('E_R', 'THL', lags, spacecraft=sc, region=reg, resolution='1min', restrict=True)
 
-plot_lags_saturation('E_R', 'THL', lags, spacecraft='combined', region='sw', resolution='1min', restrict=True)
 
-plot_lags_saturation('E_R', 'THL', lags, spacecraft='combined', region='msh', resolution='1min', restrict=True)
+lags = (0,5,10,15,20,25,30)
+
+for sc, reg in (('omni','sw'),('combined','sw'),('combined','msh')):
+
+    plot_lags_saturation('E_R', 'THL', lags, spacecraft=sc, region=reg, resolution='5min', restrict=True)
 
 # %% resolutions
 
@@ -25,10 +28,8 @@ from src.methods.saturation.plotting_resolutions import plot_resolutions_saturat
 
 resolutions = ('1min','5min','15min')
 
-plot_resolutions_saturation('E_R', 'THL', resolutions, spacecraft='omni', region='sw', lag=17, restrict=True)
+for sc, reg in (('omni','sw'),('combined','sw'),('combined','msh')):
 
-plot_resolutions_saturation('E_R', 'THL', resolutions, spacecraft='combined', region='sw', lag=17, restrict=True)
-
-plot_resolutions_saturation('E_R', 'THL', resolutions, spacecraft='combined', region='msh', lag=17, restrict=True)
+    plot_resolutions_saturation('E_R', 'THL', resolutions, spacecraft=sc, region=reg, lag=17, restrict=True)
 
 
