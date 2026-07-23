@@ -8,14 +8,14 @@ Created on Thu Jul 16 09:19:33 2026
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .plotting_utils import def_param_names, get_variable_range, mask_df
+from .utils import def_param_names, get_variable_range, mask_df
 
-from ...plotting.utils import save_figure
-from ...plotting.formatting import create_label
-from ...plotting.config import black
+from ....plotting.utils import save_figure
+from ....plotting.formatting import create_label, add_figure_title
+from ....plotting.config import black
 
-from ...processing.reading import import_processed_data
-from ...processing.omni.analysis import calc_omni_uncertainty
+from ....processing.reading import import_processed_data
+from ....processing.omni.analysis import calc_omni_uncertainty
 
 from scipy.stats import spearmanr
 
@@ -30,9 +30,7 @@ def annotate_corr(ax, x, y, mask=None):
 
     rho, _ = spearmanr(x, y)
 
-    ax.text(0.5, 0.98, r'$\rho$ = ' + f'{rho:.2f}',
-             transform=ax.transAxes, ha='center', va='top',
-             fontsize=8)
+    ax.text(0.5, 0.98, r'$\rho$ = ' + f'{rho:.2f}', transform=ax.transAxes, ha='center', va='top', fontsize=8)
 
 def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omni', region='sw', bounds=None, restrict=True, skip_zero=False, **kwargs):
     """
@@ -49,11 +47,19 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
     nrows = len(ind_vars)
 
     def scatter(ax, x, y, limit=True):
-        ax.scatter(x, y, marker='.', s=0.1, c=black, alpha=0.05)
+        mask = np.ones_like(x, dtype=bool)
         if limit:
-            ax.set_ylim(0, np.percentile(y,99))
+            d = 1
+            mask = (y < np.percentile(y,100-d))
+            # if np.abs(np.min(x)) > np.abs(np.max(x)): # negative parameter
+            #     mask &= (x > np.percentile(x,d))
+            # else:
+            #     mask &= (x < np.percentile(x,100-d))
 
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4.5, nrows*3), dpi=600)
+        ax.scatter(x[mask], y[mask], marker='.', s=0.4, c=black, alpha=0.5, edgecolors='none', linewidths=0)
+
+
+    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4.5, nrows*3), dpi=800)
 
     for row, ind_var in enumerate(ind_vars):
 
@@ -75,7 +81,7 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
             print('All errors are 0.')
             continue
 
-        ratio = 100*np.divide(ind_err, np.abs(ind_vals), out=np.full_like(ind_err, np.nan, dtype=float), where=np.abs(ind_vals)>=1)
+        ratio = 100*np.divide(ind_err, np.abs(ind_vals), out=np.full_like(ind_err, np.nan, dtype=float), where=np.abs(ind_vals)>=0.25)
 
         mask = np.isfinite(ratio)
 
@@ -88,6 +94,7 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
         ax_row[0].set_ylabel(r'$\sigma$'+f' [{df_ind.attrs["units"][ind_var]}]')
 
         #-----Panel 2-----#
+
         scatter(ax_row[1], ind_vals[mask], ratio[mask])
 
         annotate_corr(ax_row[1], ind_vals, ratio, mask=mask)
@@ -108,6 +115,12 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
 
         ax_row[2].set_xlim(0,200)
         ax_row[2].set_yscale('log')
+
+        good = np.sum(ratio[mask]<30)/np.sum(mask)*100
+
+        ax_row[2].axvline(x=30, ls='--', c='r')
+
+        ax_row[2].text(0.5, 0.98, f'{good:.3g} %', transform=ax_row[2].transAxes, ha='center', va='top', fontsize=8)
 
 
         if invert:
@@ -130,7 +143,14 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
     if ncols>1:
         fig.align_ylabels(axs[:,0])
 
-    plt.tight_layout()
-    save_figure(fig)
+    title = 'OMNI' if spacecraft=='omni' else f'{region.upper()} spacecraft'
+    add_figure_title(fig, title=title)
+
+    file_name = 'uncs_'
+    file_name += 'OMNI' if spacecraft=='omni' else f'{spacecraft}_{region.upper()}'
+    file_name += f'_{resolution}'
+
+    plt.tight_layout();
+    save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()

@@ -7,14 +7,15 @@ Created on Thu Aug 28 12:29:26 2025
 
 # %% lags
 
-from src.methods.saturation.plotting import plot_delay_hists
+from src.methods.saturation.plotting.general import plot_delay_hists
 
 plot_delay_hists('combined', 'sw', data_pop='plasma', sample_interval='5min')
 plot_delay_hists('combined', 'msh', data_pop='plasma', sample_interval='5min')
 
+
 # %% distrubtions
 
-from src.methods.saturation.plotting_space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
+from src.methods.saturation.plotting.space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
 
 sample_interval = '1min'
 data_pop = 'plasma'
@@ -37,21 +38,19 @@ plot_sc_sw_msh(sample_interval, data_pop, sw_keys, msh_keys)
 
 # %% sources
 
-from src.methods.saturation.plotting import plot_pulkkinen_grid
+from src.methods.saturation.plotting.general import plot_pulkkinen_grid
 
 params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot','P_flow','T_tot')
-plot_pulkkinen_grid(*params, source='sw', restrict=True, display='scatter')
 
-plot_pulkkinen_grid(*params, source='sw', restrict=True, display='heat')
+plot_pulkkinen_grid(*params, ind_src='omni', dep_src='sw', resolution='5min', restrict=True, display='heat')
+plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min', restrict=True, display='heat')
 
-params = ('B_avg','B_z_GSM','E_mag','E_y_GSM','V_flow','B_clock','beta','N_tot')
-plot_pulkkinen_grid(*params, source='sw', restrict=True)
 
 
 
 # %% uncertainties
 
-from src.methods.saturation.plotting_uncertainties import plot_independent_uncertainties
+from src.methods.saturation.plotting.uncertainties import plot_independent_uncertainties
 
 plot_independent_uncertainties('B_z_GSM', 'E_y_GSM', 'E_R', resolution='5min', spacecraft='omni')
 plot_independent_uncertainties('B_z_GSM', 'E_y_GSM', 'E_R', resolution='5min', spacecraft='combined', region='sw')

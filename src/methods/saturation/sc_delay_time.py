@@ -12,7 +12,7 @@ from ...config import R_E
 from ...coordinates.boundaries import bsn_jelinek2012
 
 
-def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s'):
+def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
     """
     Approximates the time it takes solar wind to reach the BSN using just the x components
     This is then added to the lag time from BSN to geomagnetic effect
@@ -30,7 +30,6 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
 
     if region=='sw':
         pressures = df.loc[valid_positions,pres_col].to_numpy() * 2 # x2 is because I define pressure with 1/2 prefactor
-
         pressures[np.isnan(pressures)] = pressure
         bowshocks = bsn_jelinek2012(pressures)
 
@@ -41,6 +40,7 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
 
     speeds = df.loc[valid_positions,vel_col].to_numpy()
     speeds[np.isnan(speeds)] = speed.get(region)
+    speeds[speeds > min_speeds.get(region)] = np.nan # Flag unreliable speeds
 
     df.loc[valid_positions,lag_col] = -(positions - bowshocks) * R_E / speeds
 

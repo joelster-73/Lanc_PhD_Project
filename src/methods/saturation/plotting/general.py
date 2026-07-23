@@ -10,17 +10,18 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from sc_delay_time import merge_with_lag
-from .plotting_utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df
+from .utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df
 
-from ...plotting.utils import save_figure, calculate_bins, get_grid_shape
-from ...plotting.formatting import create_label, shifted_angle_ticks
-from ...plotting.comparing.parameter import compare_dataframes
-from ...plotting.config import black, blue, grey, pink, green
-from ...plotting.distributions import plot_freq_hist
+from ..sc_delay_time import merge_with_lag
 
-from ...processing.reading import import_processed_data
-from ...processing.mag.indices import import_processed_index
+from ....plotting.utils import save_figure, calculate_bins, get_grid_shape
+from ....plotting.formatting import create_label, shifted_angle_ticks
+from ....plotting.comparing.parameter import compare_dataframes
+from ....plotting.config import black, blue, grey, pink, green
+from ....plotting.distributions import plot_freq_hist
+
+from ....processing.reading import import_processed_data
+from ....processing.mag.indices import import_processed_index
 
 
 def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, spacecraft=None, resolution='5min', region='sw', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
@@ -244,16 +245,29 @@ def plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min',
 
     axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
 
-    plt.tight_layout()
+    plt.tight_layout();
     save_figure(fig, file_name=f'{ind_src}_vs_{dep_src}_sc_{kwargs["display"]}', sub_directory='Pulkkinen')
     plt.show()
     plt.close()
 
 # %% Delay Histograms
 
-def plot_delay_hists(sc, region, data_pop='plasma', sample_interval='5min'):
+def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min'):
 
-    df = import_processed_data(region, dtype=data_pop, resolution=sample_interval, file_name=f'{region}_times_{sc}')
+    df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
 
-    plot_freq_hist(df['prop_time_s'], bin_width=60, data_name=f'Lag ({sc.upper()} to BS) [s]', brief_title=region.upper(), sub_directory='prop_hists', file_name=f'{region}_{sc}_{sample_interval}')
+    lags = df['prop_time_s'] / 60
+    lags.attrs['units']['prop_time_s'] = 'mins'
+
+    fig, ax = plot_freq_hist(lags, bin_width=1, data_name='Lag to BSN', brief_title=region.upper(), return_objs=True)
+
+    ax.invert_xaxis() # so positive goes to the left resembling physical system
+    ax.set_xlim(30,-30)
+
+    file_name = f'lags_{sc}_{region}_{resolution}'
+
+    plt.tight_layout();
+    save_figure(fig, file_name=file_name, overwrite=True)
+    plt.show()
+    plt.close()
 

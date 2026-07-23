@@ -7,7 +7,7 @@ Created on Wed Jul 15 17:22:14 2026
 
 # %% lags
 
-from src.methods.saturation.plotting_lags import plot_lags_saturation
+from src.methods.saturation.plotting.lags import plot_lags_saturation
 
 lags = (15,16,17,18,19)
 

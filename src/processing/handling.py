@@ -92,6 +92,9 @@ def refactor_keys(keys_dict, new_grouping='yearly'):
     else:
         grouping = 'yearly'
 
+    if new_grouping=='same':
+        new_grouping = grouping
+
     if grouping==new_grouping:
         return {k: [v] for k, v in keys_dict.items()}
     elif grouping=='yearly' and new_grouping=='monthly':

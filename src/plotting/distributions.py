@@ -140,7 +140,7 @@ def plot_freq_hist(series, **kwargs):
     add_count   = kwargs.get('add_count',False)
     orientation = kwargs.get('orientation','vertical')
 
-    colour      = kwargs.get('colour','k')
+    colour      = kwargs.get('colour',black)
     cmap        = kwargs.get('cmap',None)
     clipping    = kwargs.get('clipping',1)
     perc_low    = kwargs.get('perc_low',0)
@@ -262,6 +262,7 @@ def plot_freq_hist(series, **kwargs):
 
     sub_dir   = kwargs.get('sub_directory',None)
     save_name = kwargs.get('file_name',None)
+
     plt.tight_layout();
     save_figure(fig, sub_directory=sub_dir, file_name=save_name)
     plt.show()

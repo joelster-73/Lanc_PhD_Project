@@ -37,7 +37,7 @@ update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V'
 for region in ('sw','msh'):
     resample_cluster_files('c1', region, 'spin', sample_intervals=('1min','5min','15min'))
 
-# %% temp
+# %% Resample-only
 
 resample_cluster_files('c1', 'state', 'spin', sample_intervals=('1min','5min','15min'))
 resample_cluster_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min','15min'))

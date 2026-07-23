@@ -8,8 +8,8 @@ import warnings
 
 import numpy as np
 
-from ...plotting.formatting import create_label, data_string
-from ...processing.mag.config import PC_STATIONS
+from ....plotting.formatting import create_label, data_string
+from ....processing.mag.config import PC_STATIONS
 
 minimum_counts = {'1min': 100, '5min': 50, '15min': 25}
 

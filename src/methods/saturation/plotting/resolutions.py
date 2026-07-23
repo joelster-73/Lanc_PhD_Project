@@ -7,15 +7,16 @@ Created on Thu Jul 16 08:55:41 2026
 
 import matplotlib.pyplot as plt
 
-from .sc_delay_time import merge_with_lag
-from .plotting_utils import minimum_counts, def_param_names, get_variable_range, mask_df
+from .utils import minimum_counts, def_param_names, get_variable_range, mask_df
 
-from ...plotting.utils import save_figure
-from ...plotting.formatting import create_label, add_legend
-from ...plotting.comparing.parameter import compare_dataframes
+from ..sc_delay_time import merge_with_lag
 
-from ...processing.reading import import_processed_data
-from ...processing.mag.indices import import_processed_index
+from ....plotting.utils import save_figure
+from ....plotting.formatting import create_label, add_legend
+from ....plotting.comparing.parameter import compare_dataframes
+
+from ....processing.reading import import_processed_data
+from ....processing.mag.indices import import_processed_index
 
 
 def plot_resolutions_saturation(ind_var, dep_var, resolutions, spacecraft='omni', region='sw', lag=17, bounds=None, restrict=True, skip_zero=False, **kwargs):

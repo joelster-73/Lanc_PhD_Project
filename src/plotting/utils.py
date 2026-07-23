@@ -20,12 +20,11 @@ from ..config import FIGURES_DIR
 
 # %% saving
 
-def save_figure(figure, directory=None, sub_directory=None, file_name=None):
+def save_figure(figure, directory=None, sub_directory=None, file_name=None, overwrite=False):
     """
     Save a matplotlib figure as a PNG file with a timestamped name (HHMMSS.png).
     Saves the file in a folder named YYMMDD within the specified directory.
     Creates the folder if it does not exist.
-
     """
     if save_fig:
         now = datetime.now()
@@ -50,10 +49,11 @@ def save_figure(figure, directory=None, sub_directory=None, file_name=None):
         file_path = os.path.join(full_directory, file_name)
         base_name, extension = os.path.splitext(file_name)
 
-        counter = 2
-        while os.path.exists(file_path):
-            file_path = os.path.join(full_directory, f'{base_name}_({counter}){extension}')
-            counter += 1
+        if not overwrite:
+            counter = 2
+            while os.path.exists(file_path):
+                file_path = os.path.join(full_directory, f'{base_name}_({counter}){extension}')
+                counter += 1
 
         figure.savefig(file_path, format='png',bbox_inches='tight')
         print(f'\nFigure saved as {file_path}\n')

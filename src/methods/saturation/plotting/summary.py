@@ -13,13 +13,13 @@ import matplotlib.ticker as ticker
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 
-from .plotting_utils import minimum_counts, def_param_names, get_variable_range, grp_param_splitting, shift_angular_data, mask_df
+from .utils import minimum_counts, def_param_names, get_variable_range, grp_param_splitting, shift_angular_data, mask_df
 
-from ...plotting.space_time import plot_orbit_msh
-from ...plotting.utils import save_figure, calculate_bins
-from ...plotting.formatting import create_label, shifted_angle_ticks
-from ...plotting.comparing.parameter import compare_dataframes
-from ...plotting.config import black, blue, grey, pink, green
+from ....plotting.space_time import plot_orbit_msh
+from ....plotting.utils import save_figure, calculate_bins
+from ....plotting.formatting import create_label, shifted_angle_ticks
+from ....plotting.comparing.parameter import compare_dataframes
+from ....plotting.config import black, blue, grey, pink, green
 
 
 

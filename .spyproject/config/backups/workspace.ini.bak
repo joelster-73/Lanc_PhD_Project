@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['scripts\\paper_figures\\2026_07_Saturation\\section_0.py', 'scripts\\paper_figures\\2026_07_Saturation\\section_3.py', 'src\\methods\\saturation\\sc_delay_time.py', 'src\\processing\\themis\\script_process.py', 'src\\processing\\themis\\handling.py', 'src\\processing\\process.py', 'src\\processing\\dataframes.py']
+recent_files = ['scripts\\paper_figures\\2026_07_Saturation\\section_0.py', 'scripts\\paper_figures\\2026_07_Saturation\\section_2.py', 'scripts\\paper_figures\\2026_07_Saturation\\section_3.py', 'src\\methods\\saturation\\sc_delay_time.py', 'src\\methods\\saturation\\plotting.py', 'src\\methods\\saturation\\plotting_uncertainties.py']
 
 [main]
 version = 0.2.0

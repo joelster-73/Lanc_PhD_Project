@@ -8,17 +8,17 @@ Created on Mon Oct  6 10:55:08 2025
 import itertools as it
 import matplotlib.pyplot as plt
 
-from .sc_delay_time import merge_with_lag
-from .plotting_utils import minimum_counts, def_param_names, get_variable_range, get_lagged_columns, mask_df
+from .utils import minimum_counts, def_param_names, get_variable_range, get_lagged_columns, mask_df
+from ..sc_delay_time import merge_with_lag
 
-from ...plotting.utils import save_figure
-from ...plotting.formatting import create_label, add_legend, format_string
-from ...plotting.comparing.parameter import compare_dataframes
-from ...plotting.relationships import plot_fit_params_against_z
-from ...plotting.config import black, blue, pink
+from ....plotting.utils import save_figure
+from ....plotting.formatting import create_label, add_legend, format_string
+from ....plotting.comparing.parameter import compare_dataframes
+from ....plotting.relationships import plot_fit_params_against_z
+from ....plotting.config import black, blue, pink
 
-from ...processing.reading import import_processed_data
-from ...processing.mag.indices import import_processed_index
+from ....processing.reading import import_processed_data
+from ....processing.mag.indices import import_processed_index
 
 
 def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw', resolution='1min', bounds=None, restrict=True, skip_zero=False, **kwargs):
