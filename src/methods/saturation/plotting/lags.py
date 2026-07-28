@@ -17,7 +17,7 @@ from ....plotting.comparing.parameter import compare_dataframes
 from ....plotting.relationships import plot_fit_params_against_z
 from ....plotting.config import black, blue, pink
 
-from ....processing.reading import import_processed_data
+from ....processing.reading import import_processed_data, import_updated_omni
 from ....processing.mag.indices import import_processed_index
 
 
@@ -29,7 +29,7 @@ def plot_lags_saturation(ind_var, dep_var, lags, spacecraft='omni', region='sw',
 
     # Imports
     if spacecraft=='omni':
-        df_sw = import_processed_data('omni', resolution=resolution)
+        df_sw = import_updated_omni(resolution=resolution)
     else:
         df_sw = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 

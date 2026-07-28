@@ -486,11 +486,11 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, r
 
         z_label = 'Counts'
 
-        cbar = fig.colorbar(cm, ax=ax)
+        cbar = fig.colorbar(cm, ax=ax, orientation='horizontal', pad=0.1)
         cbar.set_label(z_label)
 
-    ax.set_xlabel('X [aGSE]')
-    ax.set_ylabel(r'$\sqrt{Y^2+Z^2}$')
+    ax.set_xlabel(r'$X$ [$\mathrm{R_E}$]')
+    ax.set_ylabel(r'$\sqrt{Y^2+Z^2}$ [$\mathrm{R_E}$]')
     ax.xaxis.set_inverted(True)
     ax.yaxis.set_inverted(True)
 

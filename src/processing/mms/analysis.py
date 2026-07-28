@@ -8,10 +8,12 @@ import os
 import pandas as pd
 from ...config import get_proc_directory
 
-# %% Region_intervals
-
 def mms_region_intervals(region='sw', max_gap=pd.Timedelta('10h')):
-
+    """
+    Uses a database of bow shock crossings of the MMS spacecraft
+    These are then used to determine if the spacecraft is in the solar wind or magnetosheath
+    No guarantee these are concurrent, so a max_gap is applied to reduce contamination
+    """
     mms_dir = get_proc_directory('mms1') # crossings in mms1 folder for all sc
 
     if region=='msh':

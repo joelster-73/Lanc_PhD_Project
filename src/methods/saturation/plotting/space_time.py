@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import to_rgba
 
-from ...processing.reading import import_processed_data
+from ....processing.reading import import_processed_data
 
-from ...plotting.space_time import plot_orbit_msh
-from ...plotting.utils import save_figure, calculate_bins
-from ...plotting.formatting import create_label, add_figure_title
-from ...plotting.config import colour_dict
-from ...plotting.config import black, bar_hatches
+from ....plotting.space_time import plot_orbit_msh
+from ....plotting.utils import save_figure, calculate_bins
+from ....plotting.formatting import create_label, add_figure_title
+from ....plotting.config import colour_dict
+from ....plotting.config import black, bar_hatches
 #from ...plotting.distributions import plot_fit
 
 
@@ -30,7 +30,7 @@ def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_k
     n_cols = min(3,len(sc_keys))
     n_rows = round(len(sc_keys)/n_cols)
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(4*(n_cols+1),6*(n_rows+1)), dpi=400)
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(3.5*(n_cols+0.5),6*(n_rows+1)), dpi=400)
 
     for i, sc_key in enumerate(sc_keys):
 
@@ -53,13 +53,14 @@ def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_k
 
         if col!=0:
             ax.set_ylabel(None)
-        if col!=(n_cols-1):
-            cbar.set_label(None)
         if row!=(n_rows-1) and n_rows!=1:
             ax.set_xlabel(None)
 
+    file_name = f'orbits_{region}_{data_pop}_{sample_interval}_'
+    file_name += '_'.join(sc_keys)
+
     plt.tight_layout()
-    save_figure(fig)
+    save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
 
@@ -89,10 +90,10 @@ def plot_sc_sw_msh(sample_interval='1min', data_pop='plasma', sw_keys=None, msh_
         for x in xticks:
             ax.axvline(x, color=to_rgba(black,0.9), linestyle=':', linewidth=0.5, zorder=20)
 
-    file_name = 'Spacecraft_in_sw_msh_combined'
-    save_figure(fig, file_name=file_name)
+    file_name = f'sw_msh_sc_combined_{data_pop}_{sample_interval}'
 
-    save_figure(fig)
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
 
@@ -183,10 +184,7 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
 
     print(f'{len(unique_indices):,} unique {data_type} of {region} data')
 
-    if n_rows==1:
-        the_ax = axs
-    else:
-        the_ax = axs[-1]
+    the_ax = axs if n_rows==1 else axs[-1]
 
     the_ax.set_xlabel('Year')
     if kwargs.get('year_range',None):
@@ -206,10 +204,7 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     if return_objs:
         return fig, axs
 
-    if n_rows==1:
-        first_ax = axs
-    else:
-        first_ax = axs[0]
+    first_ax = axs if n_rows==1 else axs[0]
 
     regions = {'sw': 'Solar Wind', 'msh': 'Magnetosheath'}
     add_figure_title(fig, title=regions.get(region,''),ax=first_ax)
@@ -217,7 +212,7 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     file_name = '_'.join(sc_keys)+f'_in_{region}'
     if combined:
         file_name += '_combined'
-    save_figure(fig, file_name=file_name)
+    save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
 

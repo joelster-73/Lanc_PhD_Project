@@ -1,8 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Sep 30 16:42:01 2025
+
+@author: richarj2
+"""
 import pandas as pd
 from ..reading import import_processed_data
 
-
 def cluster_region_intervals(spacecraft, region='sw'):
+    """
+    Returns intervals when the cluster spacecraft is in a particular magnetosphere region according to GRMB
+    """
+
+    ### NOTE TO SELF - Remove the bad times in the GRMB database
 
     if region=='sw':
         label = 12
@@ -10,8 +20,6 @@ def cluster_region_intervals(spacecraft, region='sw'):
         label = 10
 
     crossings = import_processed_data(spacecraft, dtype='crossings', file_name=f'{spacecraft.upper()}_CT_AUX_GRMB.cdf')
-
-    ### REMOVE BAD TIMES
 
     mask = (crossings['loc_num']==label) & (crossings['quality_num']>=2)
 

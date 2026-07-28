@@ -15,7 +15,7 @@ from ....plotting.utils import save_figure
 from ....plotting.formatting import create_label, add_legend
 from ....plotting.comparing.parameter import compare_dataframes
 
-from ....processing.reading import import_processed_data
+from ....processing.reading import import_processed_data, import_updated_omni
 from ....processing.mag.indices import import_processed_index
 
 
@@ -38,7 +38,7 @@ def plot_resolutions_saturation(ind_var, dep_var, resolutions, spacecraft='omni'
 
         # Imports
         if spacecraft=='omni':
-            df_sw = import_processed_data('omni', resolution=resolution)
+            df_sw = import_updated_omni(resolution=resolution)
         else:
             df_sw = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 

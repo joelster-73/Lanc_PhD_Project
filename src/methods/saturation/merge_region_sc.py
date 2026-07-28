@@ -8,7 +8,7 @@ Created on Tue Sep 16 12:21:25 2025
 import numpy as np
 import pandas as pd
 
-from scipy.constants import m_p, physical_constants
+from scipy.constants import physical_constants
 m_a = physical_constants['alpha particle mass'][0]
 
 from .sc_delay_time import calc_flat_delay
@@ -18,16 +18,13 @@ from ...config import get_proc_directory, CLUSTER_SPACECRAFT as cluster, THEMIS_
 from ...processing.mms.analysis import mms_region_intervals
 from ...processing.cluster.analysis import cluster_region_intervals
 from ...processing.themis.analysis import themis_region_intervals
-from ...processing.omni.config import indices_columns
 
-from ...processing.reading import import_processed_data, import_processed_spacecraft
+from ...processing.reading import import_processed_spacecraft, import_updated_omni
 from ...processing.dataframes import merge_dataframes
 from ...processing.writing import write_to_cdf
 
 from ...coordinates.boundaries import calc_msh_r_diff, vector_component_surface
-from ...coordinates.magnetic import calc_GSE_to_GSM_angles
 from ...analysing.comparing import difference_series
-from ...analysing.calculations import calc_angle_between_vecs
 
 column_names = {
     'r_x_name'  : 'r_x_GSE',
@@ -101,9 +98,9 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
     ###----------IMPORTS----------###
     print('Importing OMNI.\n')
-    df_omni = import_processed_data('omni', resolution=sample_interval)
-    update_omni(df_omni, indices_columns)
+    df_omni = import_updated_omni(resolution=sample_interval)
 
+    print_data(df_omni, 'OMNI')
 
     for sc in sc_keys:
 
@@ -112,6 +109,11 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         populations = data_populations(sc, data_pop, region)
 
         df_sc = import_processed_spacecraft(sc, populations, sample_interval)
+
+        ###----------FILTERING----------###
+
+        print('Initial')
+        print_data(df_sc, sc)
 
         if sc in cluster:
             intervals = cluster_region_intervals(sc, region)
@@ -122,73 +124,19 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
         elif sc in mms:
             intervals = mms_region_intervals(region)
 
-        ###---------------FILTERING------------###
-
-        location_mask = (df_sc['r_x_GSE']>0)
-        if nose:
-            location_mask &= (df_sc['r_z_GSE'].abs()<5)
-
-        df_sc = df_sc.loc[location_mask]
-        spacecraft_distance(df_sc)
-
-        # Combine OMNI and spacecraft
-
-        df_merged_attrs = df_sc.attrs # stores
-        df_merged = merge_dataframes(df_omni, df_sc, suffices=('sw',sc))
-        suffix = f'_{sc}'
-
-        ###----------FILTER FOR REGION----------###
-
-        df_positions = calc_msh_r_diff(df_merged, 'BOTH', position_key=sc, data_key='sw', column_names=column_names)
-        df_merged    = pd.concat([df_merged, df_positions[pos_cols]], axis=1)
-
-        mask = np.zeros(len(df_merged),dtype=bool)
-        interval_index = pd.IntervalIndex.from_tuples(intervals, closed='both')
-
-        # Times when have crossings
-        inside_interval  = interval_index.get_indexer(df_merged.index) != -1
-        outside_interval = ~inside_interval
-
-        if region=='msh':
-            condition = (df_merged['r_F'] > 0.1) & (df_merged['r_F'] < 1)
-            loose_condition = df_merged['r_F'] > 1.0   # looser than the 1.5 used outside intervals
-
-
-        elif region=='sw':
-            condition = (df_merged['r_F'] > 1.5) # position further than empirical BS
-            loose_condition = (df_merged['r_F'] > 0.05) & (df_merged['r_F'] < 1.2)
-            #condition &= (df_merged[f'r_mag{suffix}']<35) # exclude ARTEMIS
-
-        mask |= outside_interval & condition
-        mask |= inside_interval  & loose_condition # prevent crossings not being concurrent contaminating the dataset
-
-        df_merged = df_merged.loc[mask]
-        df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
-
+        df_merged, df_merged_attrs = filter_spacecraft_region(df_sc, df_omni, sc, intervals, region, nose=nose)
         if df_merged.empty:
             print(f'No {sc} data in {region}.')
             continue
 
+        suffix = f'_{sc}'
+        df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
+
         ###----------EXTRA PARAMETERS----------###
 
-        print('omni')
-        for (param,col) in (('pressure','P_flow_sw'),('density','N_tot_sw'),('velocity','V_x_GSE_sw')):
-            vals = df_merged[col].to_numpy()
+        print_median_params(df_merged, sc)
 
-            print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
-            print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
-
-        print(sc)
-
-        for (param,col) in (('pressure',f'P_flow_{sc}'),('density',f'N_tot_{sc}'),('velocity',f'V_x_GSE_{sc}')):
-            vals = df_merged[col].to_numpy()
-
-            print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
-            print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
-
-
-        ### Additional parameters
-
+        # Components parallel/perp to bs/mp surface
         vector_component_surface(df_merged, sc, region, data_pop, surface_params=column_names)
 
         # Correction to time lag based on spacecraft position in solar wind
@@ -205,6 +153,9 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
 
         # Need suffix when combining but removing for individual file
         df_merged = df_merged.rename(columns={col: col[:-len(suffix)] for col in df_merged.columns if col.endswith(suffix)})
+
+        print('Complete mask')
+        print_data(df_merged, sc)
 
         # Writes individual to file with omni
         update_attributes(df_merged, df_merged_attrs, region, suffix)
@@ -242,38 +193,76 @@ def merge_sc_in_region(region, data_pop='plasma', sample_interval='5min', sc_key
     write_to_cdf(df_combined, directory=DIR, file_name=f'{region}_times_combined', reset_index=True)
 
 
+def print_data(data, name):
+    print(f'Amount of {name}:\n|B|: {data["B_avg"].count():,}\n|V|: {data["V_flow"].count():,}\n')
+
+def print_median_params(df, sc):
+
+    print('omni')
+    for (param,col) in (('pressure','P_flow_sw'),('density','N_tot_sw'),('velocity','V_x_GSE_sw')):
+        vals = df[col].to_numpy()
+
+        print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
+        print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
+
+    print(sc)
+
+    for (param,col) in (('pressure',f'P_flow_{sc}'),('density',f'N_tot_{sc}'),('velocity',f'V_x_GSE_{sc}')):
+        vals = df[col].to_numpy()
+
+        print(f'mean {param}:   {np.mean(vals[~np.isnan(vals)]):.3g}')
+        print(f'median {param}: {np.median(vals[~np.isnan(vals)]):.3g}')
+
+def filter_spacecraft_region(df, omni, sc, intervals, region, nose=False):
+
+    ###-----Location-----###
+    spacecraft_distance(df)
+
+    location_mask = (df['r_x_GSE']>0)
+    if nose:
+        location_mask &= (df['r_z_GSE'].abs()<5)
+    location_mask &= (df['r_mag'] < 35) # exclude ARTEMIS
+
+    df = df.loc[location_mask]
+
+    print('Upstream of Earth')
+    print_data(df, sc)
+
+    # Combine OMNI and spacecraft
+
+    df_merged_attrs = df.attrs # stores
+    df_merged = merge_dataframes(omni, df, suffices=('sw',sc))
+
+    ###-----Region-----###
+
+    df_positions = calc_msh_r_diff(df_merged, 'BOTH', position_key=sc, data_key='sw', column_names=column_names)
+    df_merged    = pd.concat([df_merged, df_positions[pos_cols]], axis=1)
+
+    mask = np.zeros(len(df_merged),dtype=bool)
+    interval_index = pd.IntervalIndex.from_tuples(intervals, closed='both')
+
+    # Times when have crossings
+    inside_interval  = interval_index.get_indexer(df_merged.index) != -1
+    outside_interval = ~inside_interval
+
+    if region=='msh':
+        condition       = (df_merged['r_F'] > 0.1) & (df_merged['r_F'] < 1)
+        loose_condition = (df_merged['r_F'] > 0.05) & (df_merged['r_F'] < 1.2)
+
+    elif region=='sw':
+        condition       = (df_merged['r_F'] > 1.5) # position further than empirical BS
+        loose_condition = (df_merged['r_F'] > 1.0 )  # looser than the 1.5 used outside intervals
+
+    mask |= outside_interval & condition
+    mask |= inside_interval  & loose_condition # prevent crossings not being concurrent contaminating the dataset
+
+    df_merged = df_merged.loc[mask]
+
+    return df_merged, df_merged_attrs
+
+
 
 # %% updates
-
-def update_omni(df, drop_cols=indices_columns):
-
-    # Rename temperature for consistency, assuming isothermal
-    df.rename(columns={'P_flow': 'P_p', 'T_p': 'T_tot'}, inplace=True)
-    df.attrs['units']['P_p'] = 'nPa'
-
-    df.loc[df['T_tot']>=9999999, 'T_tot'] = np.nan # replace fills
-    df['T_tot'] /= 1e6 #convert to MK
-    df.attrs['units']['T_tot'] = 'MK'
-
-    # OMNI defines pressure as rhoV^2 for just the protons, so halving for consistency
-    df['P_flow'] = 0.5 * (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
-
-    df.loc[df['M_A']>100,'M_A'] = np.nan
-
-    df['N_tot'] = df['n_p'] * (1+df['na_np_ratio'])
-    df.attrs['units']['N_tot'] = 'n/cc'
-
-    # Theta Bn angle - quasi-perp/quasi-para
-    df['theta_Bn'] = calc_angle_between_vecs(df, 'B_GSE', 'R_BSN')
-
-    # restrict to be between 0 and 90 degrees
-    df.loc[df['theta_Bn']>np.pi/2,'theta_Bn'] = np.pi - df.loc[df['theta_Bn']>np.pi/2,'theta_Bn']
-    df.attrs['units']['theta_Bn'] = 'rad'
-
-    df['gse_to_gsm_angle'] = calc_GSE_to_GSM_angles(df, ref='B')
-
-    # Drop index columns
-    df.drop(columns=drop_cols,inplace=True,errors='ignore')
 
 def spacecraft_distance(df):
     if 'r_mag' not in df:
@@ -292,6 +281,9 @@ def spacecraft_distance(df):
         df.drop(columns=['r_mag_count'],inplace=True)
 
 def update_parameters(df, sc, region):
+    """
+    Removes erroneous values
+    """
 
     suffix = f'_{sc}'
 

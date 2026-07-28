@@ -223,15 +223,29 @@ def shifted_angle_ticks(ax, axis='x'):
     elif axis=='y':
         ax_ticks = ax.get_yticks()
 
-    new_labels = []
+    good_ticks = False
+
     for tick in ax_ticks:
         tick = int(np.rad2deg(tick))
         if tick == 180:
-            new_labels.append('±180')
-        elif tick > 180:
-            new_labels.append(tick - 360)
-        else:
-            new_labels.append(tick)
+            good_ticks = True
+            break
+
+    if good_ticks:
+
+        new_labels = []
+        for tick in ax_ticks:
+            tick = int(np.rad2deg(tick))
+            if tick == 180:
+                new_labels.append('±180')
+            elif tick > 180:
+                new_labels.append(tick - 360)
+            else:
+                new_labels.append(tick)
+
+    else:
+        ax_ticks = np.arange(0, 2*np.pi + 1e-6, np.pi/4)
+        new_labels = ['0', '45', '90', '135', '±180', '-135', '-90', '-45', '0']
 
     if axis=='x':
         ax.set_xticks(ax_ticks, new_labels)

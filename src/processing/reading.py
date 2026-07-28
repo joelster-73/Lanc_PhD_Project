@@ -11,6 +11,8 @@ from contextlib import ExitStack
 
 from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices, merge_dataframes
+from .omni.analysis import update_omni
+
 from ..config import get_proc_directory
 
 import warnings
@@ -29,6 +31,17 @@ def import_processed_spacecraft(spacecraft, populations=['state'], resolution='1
         all_data.append(df_sc)
 
     return merge_dataframes(*all_data)
+
+
+def import_updated_omni(resolution='1min', file_name=None, year=None):
+    """
+    A wrapper to import omni data with the update procedure called to match the columns with the spacecraft data.
+    """
+    df = import_processed_data('omni', resolution=resolution, file_name=file_name, year=year)
+
+    update_omni(df)
+
+    return df
 
 
 def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, year=None, axis=0):

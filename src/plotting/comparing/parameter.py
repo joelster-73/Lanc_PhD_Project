@@ -197,10 +197,7 @@ def compare_series(series1, series2, **kwargs):
 
     ###---------------CONVERT TICKS TO DEGREES---------------###
     def rad2deg(x, pos):
-            return f'{np.degrees(x):.0f}'
-
-    unit1 = series1.attrs.get('units',{}).get(series1.name, None)
-    unit2 = series2.attrs.get('units',{}).get(series2.name, None)
+        return f'{np.degrees(x):.0f}'
 
     if unit1 == 'rad':
         standard_angle_ticks(ax, series1, 'x', np.pi/4)

@@ -43,7 +43,7 @@ def mask_df(df, col, limits=None):
             if limits[-1] is not None:
                 mask &= df[col] <= limits[1]
 
-        return df.loc[mask]
+        return df.loc[mask].copy()
 
 
 # %% names
@@ -117,7 +117,7 @@ def get_var_bin_width(var, restrict):
 
         if var.startswith(('B_avg', 'B_para','B_y')):
             bin_width = 1 if restrict else 2
-        elif var=='B_clock':
+        elif var.startswith('B_clock'):
             bin_width = np.pi/18
         else:
             bin_width = 2 if restrict else 5

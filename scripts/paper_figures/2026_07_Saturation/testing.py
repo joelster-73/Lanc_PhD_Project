@@ -20,16 +20,11 @@ for bottom_axis in ('heat','scatter','hist'):
 
 
 # %% Columns
-from src.processing.reading import import_processed_data, import_processed_spacecraft
-from src.methods.saturation.sc_delay_time import calc_bs_sc_delay
+from src.processing.reading import import_processed_data
 
 df_sc = import_processed_data('sw', dtype='plasma', resolution='5min', file_name='sw_times_combined')
 
 
-#calc_bs_sc_delay(df, omni_key='sw', sc_key='sc', region='sw')
-
-test = import_processed_spacecraft('c1', populations=['fgm'],year=2001)
 
 
-
-df = import_processed_data('sw', dtype='plasma', resolution='5min', file_name='sw_times_combined')
+df = import_processed_data('sw', dtype='plasma', resolution='5min', file_name='sw_times_mms1')

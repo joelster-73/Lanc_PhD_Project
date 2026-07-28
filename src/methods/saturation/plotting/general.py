@@ -17,11 +17,12 @@ from ..sc_delay_time import merge_with_lag
 from ....plotting.utils import save_figure, calculate_bins, get_grid_shape
 from ....plotting.formatting import create_label, shifted_angle_ticks
 from ....plotting.comparing.parameter import compare_dataframes
-from ....plotting.config import black, blue, grey, pink, green
+from ....plotting.config import black, blue, grey, pink, green, white
 from ....plotting.distributions import plot_freq_hist
 
-from ....processing.reading import import_processed_data
+from ....processing.reading import import_processed_data, import_updated_omni
 from ....processing.mag.indices import import_processed_index
+
 
 
 def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, spacecraft=None, resolution='5min', region='sw', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
@@ -157,7 +158,7 @@ def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, s
     plt.show()
     plt.close()
 
-def plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min', bounds=None, restrict=True, shift_centre=True, compare_colour=green, **kwargs):
+def plot_pulkkinen_grid(*params, ind_reg='sw', dep_reg='msh', resolution='5min', bounds=None, restrict=True, shift_centre=True, compare_colour=green, ind_src='combined', dep_src='combined', **kwargs):
     """
     Pulkkinen comparisons
 
@@ -166,19 +167,23 @@ def plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min',
 
     ###----------IMPORTS----------###
 
-    if ind_src=='omni':
-        df1 = import_processed_data('omni', resolution=resolution)
-    elif ind_src in ('sw','msh'):
-        df1 = import_processed_data(ind_src, dtype='plasma', resolution=resolution, file_name=f'{ind_src}_times_combined')
+    ind_suff = ind_reg
+    if ind_reg=='omni':
+        df1 = import_updated_omni(resolution=resolution)
+    elif ind_reg in ('sw','msh'):
+        df1 = import_processed_data(ind_reg, dtype='plasma', resolution=resolution, file_name=f'{ind_reg}_times_{ind_src}')
+        ind_suff += f'_{ind_src}' if ind_src!='combined' else ''
     else:
-        raise ValueError(f'"{ind_src}" is not a valid source.')
+        raise ValueError(f'"{ind_reg}" is not a valid source.')
 
-    if dep_src=='omni':
-        df2 = import_processed_data('omni', resolution=resolution)
-    elif dep_src in ('sw','msh'):
-        df2 = import_processed_data(dep_src, dtype='plasma', resolution=resolution, file_name=f'{dep_src}_times_combined')
+    dep_suff = dep_reg
+    if dep_reg=='omni':
+        df2 = import_updated_omni(resolution=resolution)
+    elif dep_reg in ('sw','msh'):
+        df2 = import_processed_data(dep_reg, dtype='plasma', resolution=resolution, file_name=f'{dep_reg}_times_{dep_src}')
+        dep_suff += f'_{dep_src}' if dep_src!='combined' else ''
     else:
-        raise ValueError(f'"{dep_src}" is not a valid source.')
+        raise ValueError(f'"{dep_reg}" is not a valid source.')
 
     kwargs['data_colour']  = compare_colour
     kwargs['error_colour'] = compare_colour
@@ -195,12 +200,15 @@ def plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min',
 
         col, row = i % n_cols, i // n_cols
 
-        ax = axs[row][col]
+        if len(enumerator)>1:
+            ax = axs[row][col]
+        else:
+            ax = axs
 
         ind_err, ind_count = def_param_names(df1, independent)
         dep_err, dep_count = def_param_names(df2, dependent)
 
-        bin_width, limits, invert = get_variable_range(independent, ind_src, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+        bin_width, limits, invert = get_variable_range(independent, ind_reg, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
 
         # Shift angular data to centre lies at +-180 rather than 0
         if independent=='B_clock' and shift_centre:
@@ -214,26 +222,29 @@ def plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min',
 
         # Config
         kwargs['window_width'] = bin_width
-        kwargs['data1_name'] = create_label(f'{independent}_{ind_src}')
-        kwargs['data2_name'] = create_label(f'{dependent}_{dep_src}')
+        kwargs['data1_name'] = create_label(f'{independent}_{ind_suff}')
+        kwargs['data2_name'] = create_label(f'{dependent}_{dep_suff}')
 
         if kwargs['display']=='scatter':
             ind_err = None
             dep_err = None
-            if f'sc_{dep_src}' in df_dep:
+            if f'sc_{dep_reg}' in df_dep:
                 kwargs['df3'] = df_dep
-                kwargs['col3'] = f'sc_{dep_src}'
+                kwargs['col3'] = f'sc_{dep_reg}'
                 kwargs['data_colour'] = 'spacecraft'
 
-        _ = compare_dataframes(df_ind, df_dep, independent, dependent, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
+        objs = compare_dataframes(df_ind, df_dep, independent, dependent, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
 
-        ax.axline((limits[0],limits[0]), slope=1, c=black, ls=':')
+        ax.axline((limits[0],limits[0]), slope=1, c=black, ls='-')
+        ax.axline((limits[0],limits[0]), slope=1, c=white, ls=':')
         ax.grid(ls=':', c=grey, lw=0.5)
 
         if independent=='B_clock' and shift_centre:
             ax.axvline(x=np.pi, c=grey, ls=':')
             shifted_angle_ticks(ax, 'x')
             shifted_angle_ticks(ax, 'y')
+            ax.set_xlim(limits[0], limits[1])
+            ax.set_ylim(limits[0], limits[1])
 
         if independent.startswith('T_') and kwargs['display']!='heat':
             ax.set_xscale('log')
@@ -243,10 +254,19 @@ def plot_pulkkinen_grid(*params, ind_src='sw', dep_src='msh', resolution='5min',
             ax.invert_xaxis()
             ax.invert_yaxis()
 
-    axs[0][0].text(0.02, 0.95, kwargs.get('region',''), transform=axs[0][0].transAxes, va='top', ha='left')
+        if len(objs)==3 and not (col==(n_cols-1) and row==0):
+            objs[2].set_label(None)
+
+
+    if len(enumerator)>1:
+        ax0 = axs[0][0]
+    else:
+        ax0 = axs
+
+    ax0.text(0.02, 0.95, kwargs.get('region',''), transform=ax0.transAxes, va='top', ha='left')
 
     plt.tight_layout();
-    save_figure(fig, file_name=f'{ind_src}_vs_{dep_src}_sc_{kwargs["display"]}', sub_directory='Pulkkinen')
+    save_figure(fig, file_name=f'{ind_suff}_vs_{dep_suff}_{kwargs["display"]}', sub_directory='Pulkkinen', overwrite=True)
     plt.show()
     plt.close()
 
