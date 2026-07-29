@@ -5,7 +5,7 @@ Created on Thu May  8 15:58:08 2025
 @author: richarj2
 """
 
-from src.processing.themis.config import THEMIS_SPACECRAFT, THEMIS_PLASMA_SPACECRAFT
+from src.processing.themis.config import THEMIS_SPACECRAFT
 from src.processing.themis.handling import process_themis_files, resample_themis_files
 from src.processing.updating import update_plasma_data
 
@@ -13,39 +13,42 @@ from src.processing.updating import update_plasma_data
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    process_themis_files(spacecraft, 'STATE', sample_intervals=('1min','5min','15min'))
+    process_themis_files(spacecraft, 'STATE', sample_intervals=('1min','5min','15min'), start_year=2020)
 
 # %% Field
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    process_themis_files(spacecraft, 'FGM', sample_intervals=('raw','1min','5min','15min'))
+    process_themis_files(spacecraft, 'FGM', sample_intervals=('raw','1min','5min','15min'), start_year=2020)
 
 # %% Plasma
 
-for spacecraft in THEMIS_PLASMA_SPACECRAFT:
+for spacecraft in THEMIS_SPACECRAFT:
 
-    process_themis_files(spacecraft, 'MOM', sample_intervals=('raw',)) # thb for msh; the for sw
+    process_themis_files(spacecraft, 'MOM', sample_intervals=('raw',), start_year=2020) # thb for msh; the for sw
 
 # %% Filter
 
-regions = {'thb': 'sw', 'the': 'msh'}
+import itertools as it
 
-for spacecraft in THEMIS_PLASMA_SPACECRAFT:
+for spacecraft, region in it.product(THEMIS_SPACECRAFT,('sw','msh')):
 
-    region = regions.get(spacecraft)
+    print(spacecraft,region)
 
-    update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', (region,), field_res='raw')
+    update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', (region,), field_res='raw', start_year=2020)
 
-    resample_themis_files(spacecraft, region, 'spin', sample_intervals=('1min','5min','15min'))
+    resample_themis_files(spacecraft, region, 'spin', sample_intervals=('1min','5min','15min'), start_year=2020)
 
 
 # %% Resample-only
+
+#### REMOVE START YEARS
 
 for spacecraft in THEMIS_SPACECRAFT:
 
     resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('5min','15min'))
     resample_themis_files(spacecraft, 'FGM', 'raw', sample_intervals=('1min','5min','15min'))
 
-resample_themis_files('thb', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
-resample_themis_files('the', 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_themis_files(spacecraft, 'sw', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_themis_files(spacecraft, 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+

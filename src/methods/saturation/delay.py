@@ -8,8 +8,12 @@ import numpy as np
 import pandas as pd
 
 
-from ...config import R_E
+from ...config import R_E, DEFAULT_VALUES
 from ...coordinates.boundaries import bsn_jelinek2012
+
+P_SW  = DEFAULT_VALUES.get('sw',{}).get('p')
+V_SW   = DEFAULT_VALUES.get('sw',{}).get('v')
+V_MSH  = DEFAULT_VALUES.get('msh',{}).get('v')
 
 
 def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
@@ -18,8 +22,8 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
     This is then added to the lag time from BSN to geomagnetic effect
     """
 
-    pressure = 2.056 # nPa
-    speed    = {'sw': -400, 'msh': -120} # km/s
+    pressure = P_SW # nPa
+    speed    = {'sw': V_SW, 'msh': V_MSH} # km/s
 
     # Position
 

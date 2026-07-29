@@ -21,7 +21,7 @@ from ...config import R_E, get_luna_directory
 
 THEMIS_RESOLUTIONS = {'spin': '3s', 'STATE': '1min'}
 
-def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='epoch', year=None, overwrite=True, **kwargs):
+def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='epoch', year=None, start_year=None, overwrite=True, **kwargs):
 
     directory = get_luna_directory(spacecraft, instrument=data)
 
@@ -38,7 +38,7 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
     else:
         raise ValueError(f'"{data}" not valid data to sample.')
 
-    files_dict = get_themis_files(directory, year)
+    files_dict = get_themis_files(directory, year, start_year)
     variables  = VARIABLES_DICT.get(data,{}).get(spacecraft,{})
 
     # Sample intervals
@@ -63,7 +63,7 @@ def is_int(s):
         return False
 
 
-def get_themis_files(directory=None, year=None):
+def get_themis_files(directory=None, year=None, start_year=None):
 
     """
     Obtains a list of all files in the directory
@@ -76,11 +76,16 @@ def get_themis_files(directory=None, year=None):
     for year_folder in sorted(os.listdir(directory)):
         year_dir = os.path.join(directory, year_folder)
 
-        if year and year_folder != str(year):
+        if not os.path.isdir(year_dir):
             continue
-        elif not os.path.isdir(year_dir):
-            continue
+
         elif not is_int(year_folder):
+            continue
+
+        elif year and year_folder != str(year):
+            continue
+
+        elif start_year and int(year_folder)<start_year:
             continue
 
         files = []
@@ -94,6 +99,8 @@ def get_themis_files(directory=None, year=None):
     if year and str(year) not in files_by_year:
         raise ValueError(f'No files found for {year}.')
     elif all(not v for v in files_by_year.values()):
+        if start_year:
+            raise ValueError(f'No files found from {start_year}.')
         raise ValueError('No files found.')
 
     return files_by_year

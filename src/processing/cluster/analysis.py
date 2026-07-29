@@ -38,8 +38,13 @@ def cluster_region_intervals(spacecraft, region='sw'):
 
     reg_times = result.loc[result['region_duration']>60]
 
-    c1_intervals = [(pd.to_datetime(str(start)), pd.to_datetime(str(end))) for start, end in zip(
-            reg_times.index,
-            reg_times.index + pd.to_timedelta(reg_times['region_duration'], unit='s'))]
+    times = [(pd.to_datetime(str(start)), pd.to_datetime(str(end))) for start, end in zip(reg_times.index, reg_times.index + pd.to_timedelta(reg_times['region_duration'], unit='s'))]
+
+    c1_intervals = pd.IntervalIndex.from_tuples(times, closed='both')
+
+    total_duration = (c1_intervals.right - c1_intervals.left).sum()
+    mins = total_duration.total_seconds() / 60
+    print(f'Total duration of {spacecraft} in {region}: {total_duration} | {int(mins):,}')
+
 
     return c1_intervals

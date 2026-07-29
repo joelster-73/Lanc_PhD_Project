@@ -21,7 +21,7 @@ from .writing import resample_cdf_files
 from .handling import get_file_keys, refactor_keys
 
 
-def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', year=None, **kwargs):
+def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', year=None, start_year=None, **kwargs):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
@@ -29,11 +29,17 @@ def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', 
     files_by_keys = get_file_keys(spacecraft, data, raw_res)
     files_by_year = refactor_keys(files_by_keys, new_grouping)
 
-    if year is not None:
+    if not (year is None and start_year is None):
         if new_grouping=='yearly':
-            files_by_year = {year: files_by_year.get(year,[])}
+            if year is not None:
+                files_by_year = {year: files_by_year.get(year, [])}
+            else:
+                files_by_year = {k: v for k, v in files_by_year.items() if k >= start_year}
         else:
-            files_by_year = {k: v for k, v in files_by_year.items() if year in k}
+            files_by_year = {k: v for k, v in files_by_year.items()
+                             if (year is None or int(k[:4])==year)
+                             and (start_year is None or int(k[:4])>=start_year)
+                             }
 
     kwargs['files_by_keys'] = files_by_year
 
@@ -81,6 +87,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
         kwargs_key['qual_files'] = kwargs.get('qual_files',{}).get(key,[])
 
         key_df = process_func(variables_dict, files, directory_name, log_file_path, time_col=time_col, **kwargs_key)
+
         if key_df.empty:
             continue
         df_attrs = key_df.attrs

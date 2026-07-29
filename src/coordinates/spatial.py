@@ -9,159 +9,70 @@ from uncertainties import unumpy as unp
 from spacepy.coordinates import Coords
 from spacepy.time import Ticktock
 
-
-from .config import DEFAULT_COLUMN_NAMES
 from ..processing.utils import add_unit
+from ..config import DEFAULT_VALUES
 
 v_Earth = 29.78 # km/s
 
+P_DYN  = DEFAULT_VALUES.get('sw',{}).get('p')
+V_SW   = DEFAULT_VALUES.get('sw',{}).get('v')
+V_MSH  = DEFAULT_VALUES.get('msh',{}).get('v')
+BZ_SW  = DEFAULT_VALUES.get('sw',{}).get('Bz')
 
-def car_to_aGSE(df, column_names=None, simple=False, return_rotation=False):
 
-    if column_names is None:
-        column_names = DEFAULT_COLUMN_NAMES
-    else:
-        column_names = column_names.copy()
+def car_to_aGSE(rx, ry, rz, vx=np.nan, vy=np.nan, vz=np.nan, simple=False, return_rotation=False):
+    """
+    r_x_aGSE = rotated_coords[:,0]
+    r_y_aGSE = rotated_coords[:,1]
+    r_z_aGSE = rotated_coords[:,2]
+    """
 
-    r_x_name = column_names['r_x_name']
-    r_y_name = column_names['r_y_name']
-    r_z_name = column_names['r_z_name']
-    r_name   = column_names['r_name']
-    r_ax_name = column_names['r_ax_name']
-    r_ay_name = column_names['r_ay_name']
-    r_az_name = column_names['r_az_name']
-    v_x_name  = column_names['v_x_name']
-    v_y_name  = column_names['v_y_name']
-    v_z_name  = column_names['v_z_name']
-
-    df_aGSE = pd.DataFrame(index=df.index)
-
-    # Magnitude of cluster vector
-    df_aGSE[r_name] = (df[r_x_name]**2 + df[r_y_name]**2 + df[r_z_name]**2) ** 0.5
-
-    try:
-        df_aGSE[v_x_name] = df[v_x_name]
-    except:
-        df_aGSE[v_x_name] = np.full(len(df),-400) # default is v_x = -400
-
-    if simple:
-        v_Earth = 30
-        df_aGSE[v_y_name] = np.zeros(len(df))
-        df_aGSE[v_z_name] = np.zeros(len(df))
-    else:
-        try:
-            df_aGSE[v_y_name] = df[v_y_name]
-        except:
-            df_aGSE[v_y_name] = np.zeros(len(df)) # default is v_y = 0
-
-        try:
-            df_aGSE[v_z_name] = df[v_z_name]
-        except:
-            df_aGSE[v_z_name] = np.zeros(len(df)) # default is v_z = 0
-
-    valid_mask = ~df_aGSE[v_x_name].isna()
-
-    # Rotation only for valid rows
-    if not valid_mask.any():
-        print('No valid data for aberration.')
-        if return_rotation:
-            return pd.DataFrame(), np.array([])
-        return pd.DataFrame()
-
-    # Aberration
-    df_aGSE.loc[valid_mask, 'v_y_shift'] = df_aGSE.loc[valid_mask, v_y_name] + v_Earth
-
-    df_aGSE.loc[valid_mask, 'alpha_z'] = -np.arctan(
-        df_aGSE.loc[valid_mask, 'v_y_shift'] / np.abs(df_aGSE.loc[valid_mask, v_x_name])
-    )
-    df_aGSE.loc[valid_mask, 'alpha_y'] = np.arctan(
-        -df_aGSE.loc[valid_mask, v_z_name] /
-        np.sqrt(df_aGSE.loc[valid_mask, v_x_name]**2 + df_aGSE.loc[valid_mask, 'v_y_shift']**2)
-    )
-
-    R_z = R.from_euler('z', -df_aGSE.loc[valid_mask, 'alpha_z'].to_numpy(), degrees=False)
-    R_y = R.from_euler('y',  df_aGSE.loc[valid_mask, 'alpha_y'].to_numpy(), degrees=False)
-
-    rotation = R_y * R_z
-    coords = np.column_stack((
-        df.loc[valid_mask, r_x_name],
-        df.loc[valid_mask, r_y_name],
-        df.loc[valid_mask, r_z_name]
-    ))
+    rotation, alpha_y, alpha_z = calc_agse_matrix(vx, vy, vz, v_Earth, simple)
+    coords = np.column_stack((rx,ry,rz))
 
     rotated_coords = rotation.apply(coords)
-    df_aGSE.loc[valid_mask, r_ax_name] = rotated_coords[:, 0]
-    df_aGSE.loc[valid_mask, r_ay_name] = rotated_coords[:, 1]
-    df_aGSE.loc[valid_mask, r_az_name] = rotated_coords[:, 2]
 
     if return_rotation:
-        return df_aGSE, rotation
-    return df_aGSE
+        return rotated_coords, rotation, {'alpha_z': alpha_z, 'alpha_y': alpha_y}
 
-def car_to_aGSE_constant(x, y, z, return_rotation=False, simple=False, **kwargs):
+    return rotated_coords
 
-    # Same solar wind conditions/transformation applied to all coordinates
+def calc_agse_matrix(vx, vy, vz, vE, simple=False):
 
-    coords = np.column_stack((x, y, z))
-
-    v_x = kwargs.get('v_sw_x',-400)
+    vx = np.where(np.isnan(vx), V_SW, vx)
 
     if simple:
-        v_Earth = 30
-        v_y, v_z = 0, 0
+        vE = 30
+        vy = 0
+        vz = 0
     else:
-        v_y = kwargs.get('v_sw_y',0)
-        v_z = kwargs.get('v_sw_z',0)
+        vy = np.where(np.isnan(vy), 0, vy)
+        vz = np.where(np.isnan(vy), 0, vy)
 
-    v_y_shift = v_y + v_Earth
+    # Aberration
+    vy_shift = vy + vE
 
-    # Rotation about Z
-    alpha_z = -np.arctan(v_y_shift / np.abs(v_x))
+    alpha_z = -np.arctan(vy_shift / np.abs(vx))
+    alpha_y =  np.arctan(-vz / np.sqrt(vx**2 + vy_shift**2))
+
     R_z = R.from_euler('z', -alpha_z, degrees=False)
+    R_y = R.from_euler('y',  alpha_y, degrees=False)
 
-    # Rotation about Y
-    alpha_y = np.arctan(-v_z/np.sqrt(v_x**2+v_y_shift**2))
-    R_y     = R.from_euler('y', alpha_y, degrees=False)
-
-    #"_p" is for "prime"
-
-    rotation = R_y * R_z
-    x_p, y_p, z_p = rotation.apply(coords).T
-
-    if return_rotation:
-        return x_p, y_p, z_p, rotation, {'alpha_z': alpha_z, 'alpha_y': alpha_y}
-    return x_p, y_p, z_p
+    return R_y * R_z, alpha_y, alpha_z
 
 
-
-def aGSE_to_car_constant(x_p, y_p, z_p, return_rotation=False, simple=False, rotation_matrix=None, **kwargs):
+def aGSE_to_car(x_p, y_p, z_p, return_rotation=False, simple=False, rotation_matrix=None, **kwargs):
 
     # Same solar wind conditions/transformation applied to all coordinates
 
     coords_p = np.column_stack((x_p, y_p, z_p))
 
     if rotation_matrix is None:
-        v_x = kwargs.get('v_sw_x',-400)
+        v_x = kwargs.get('v_x',np.nan)
+        v_y = kwargs.get('v_y',np.nan)
+        v_z = kwargs.get('v_z',np.nan)
 
-        if simple:
-            v_Earth = 30
-            v_y, v_z = 0, 0
-        else:
-            v_y = kwargs.get('v_sw_y',0)
-            v_z = kwargs.get('v_sw_z',0)
-
-        v_y_shift = v_y + v_Earth
-
-        # Rotation about Z
-        alpha_z = -np.arctan(v_y_shift / np.abs(v_x))
-        R_z = R.from_euler('z', -alpha_z, degrees=False)
-
-        # Rotation about Y
-        alpha_y = np.arctan(-v_z/np.sqrt(v_x**2+v_y_shift**2))
-        R_y     = R.from_euler('y', alpha_y, degrees=False)
-
-        #"_p" is for "prime"
-        rotation_matrix = R_y * R_z
+        rotation_matrix, _, _ = calc_agse_matrix(v_x, v_y, v_z, simple)
 
     rotate_inv = rotation_matrix.inv()
 

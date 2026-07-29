@@ -21,11 +21,7 @@ def exclude_days(df, bad_data):
     """
     Excludes rows in a DataFrame where the index falls on any of the specified bad days.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame to be filtered. The DataFrame's index is expected to contain datetime values.
-    bad_data : list or tuple of datetime or tuple
+    bad_data :
         A list or tuple specifying the dates to be excluded. Can contain:
         - Single datetime values for exact dates to exclude.
         - Tuples specifying date ranges or conditions for exclusion.
@@ -33,10 +29,6 @@ def exclude_days(df, bad_data):
             - A tuple of length 3: (day, df_column, condition_value) to exclude a specific day based on a condition.
             - A tuple of length 4: (start_date, end_date, df_column, condition_value) to exclude rows based on a condition within a date range.
 
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame with rows on the specified bad days removed.
     """
     df.index = pd.to_datetime(df.index, errors='coerce')
     mask = pd.Series(True, index=df.index)
@@ -85,31 +77,6 @@ def filter_percentile(df, y_col, bins, p, filtering='Above'):
     """
     Filters a DataFrame to include only rows where the `y_col` values are above or below
     a specified percentile for each bin.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The DataFrame containing the data to be filtered.
-
-    y_col : str
-        The name of the column on which the percentile filtering is applied.
-
-    bins : pd.Series
-        The bin assignments for each row in the DataFrame (e.g., from pd.cut).
-
-    p : int or float
-        The percentile to use as the cutoff for filtering.
-
-    filtering : str, optional (default='Above')
-        Whether to filter values "Above" or "Below" the percentile cutoff.
-
-    Returns
-    -------
-    pd.DataFrame
-        A filtered DataFrame containing only rows where the `y_col` values satisfy
-        the filtering condition within each bin. The resulting DataFrame includes
-        the bin assignment and an attribute 'bin_percentiles' storing the cutoff values
-        for each bin.
     """
     # Group the DataFrame by bins
     grouped = df.groupby(bins, observed=True)
@@ -142,27 +109,6 @@ def filter_sw(df, method, **kwargs):
     """
     Filters a DataFrame based on spacecraft proximity to the bow shock and optional nose region.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame containing the spacecraft data to be filtered.
-
-    bs_df : pandas.DataFrame
-        The DataFrame containing the bow shock data.
-
-    sc_key : str
-        The key for the spacecraft, used to access relevant columns in the DataFrame.
-
-    buffer : float, optional
-        A buffer value to filter based on the distance to the bow shock (default is 0).
-
-    nose : bool, optional
-        Whether to apply additional filtering based on the spacecraft being within the nose region (default is False).
-
-    Returns
-    -------
-    pandas.DataFrame
-        A new DataFrame filtered based on the proximity to the bow shock and optional nose region.
     """
     df = df.copy()
     bad_data = kwargs.get('bad_data',None)
@@ -210,22 +156,6 @@ def filter_data(df, *args):
     """
     Filters the DataFrame based on a specified column and value range.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame to be filtered.
-    *args : tuple containing three elements :
-        column (str) :
-            The column to filter by.
-        min_val (float) :
-            The minimum value for the filter range.
-        max_val (float) :
-            The maximum value for the filter range.
-
-    Returns
-    -------
-    None
-        The DataFrame is modified in place, and rows outside the specified range are dropped.
     """
     column, min_val, max_val = args
     # Create a mask based on the filtering conditions
@@ -242,21 +172,6 @@ def filter_by_spacecraft(df, sc_col, sc_id, include=True):
     """
     Filters the DataFrame to include or exclude rows based on spacecraft ID.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame to be filtered.
-    sc_col : str
-        The column containing spacecraft IDs.
-    sc_id : int
-        The spacecraft ID to filter by.
-    include : bool, optional, default=True
-        If True, include rows with the specified spacecraft ID. If False, exclude rows with the specified spacecraft ID.
-
-    Returns
-    -------
-    None
-        The DataFrame is modified in place, and rows are dropped based on the filtering condition.
     """
     if sc_col not in df:
         raise ValueError(f'"{sc_col}" not in dataframe.')

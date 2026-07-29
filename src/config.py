@@ -12,6 +12,8 @@ from .processing.utils import create_directory
 
 R_E = 6370 # Cluster takes 1 earth radius to be 6370 km
 
+DEFAULT_VALUES = {'sw': {'p': 2.056, 'v': -400, 'Bz': -0.001}, 'msh': {'v': -120}}
+
 
 def short_warn_format(message, category, filename, lineno, line=None):
     # Get just the parent folder and filename, e.g. "magnetosheath_saturation/plotting.py"
@@ -239,7 +241,7 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
     # mms
     elif source in MMS_SPACECRAFT:
 
-        if dtype == 'base':
+        if dtype in ('base','crossings'):
             path = MMS_DIR
 
         else:

@@ -7,7 +7,6 @@ Created on Wed Dec 24 11:18:29 2025
 
 import numpy as np
 import pandas as pd
-import warnings
 
 from uncertainties import unumpy as unp
 from scipy.constants import mu_0, m_p
@@ -74,6 +73,8 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
     field_res   = kwargs.get('field_res','raw')
     plasma_res  = kwargs.get('plasma_res','raw')
 
+    start_year = kwargs.get('start_year',None)
+
     if ion_source == 'omni':
         heavy_ions = import_processed_data('omni', resolution='5min')
         heavy_ions = heavy_ions[['na_np_ratio']]
@@ -92,6 +93,14 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
         if not plasma_file:
             continue
 
+        if start_year:
+            if '-' in key:
+                year, _ = key.split('-')
+            else:
+                year = key
+            if int(year) < start_year:
+                continue
+
         print(f'Updating {key}...')
 
         ###----------PROCESSING----------###
@@ -100,6 +109,10 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
         plasma_df = import_processed_data(spacecraft, plasma, resolution=plasma_res, file_name=plasma_file)
 
         merged_df = init_func(field_df, plasma_df) # initial processing
+
+        if merged_df.empty:
+            print('No valid data; likely due to poor quality.')
+            continue
 
         if spacecraft in CLUSTER_SPACECRAFT or spacecraft in THEMIS_SPACECRAFT:
             uncertainties = False

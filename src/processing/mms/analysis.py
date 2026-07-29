@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Sep 30 16:42:01 2025
+Created on Wed Jul 29 10:49:57 2026
 
 @author: richarj2
 """
@@ -8,36 +8,30 @@ import os
 import pandas as pd
 from ...config import get_proc_directory
 
-def mms_region_intervals(region='sw', max_gap=pd.Timedelta('10h')):
+def mms_region_intervals(spacecraft, region='sw'):
     """
-    Uses a database of bow shock crossings of the MMS spacecraft
-    These are then used to determine if the spacecraft is in the solar wind or magnetosheath
-    No guarantee these are concurrent, so a max_gap is applied to reduce contamination
+    Returns intervals when the mms spacecraft is in a particular magnetosphere region according to Toy-Edens model
     """
-    mms_dir = get_proc_directory('mms1') # crossings in mms1 folder for all sc
 
-    if region=='msh':
-        direction = 1 # inbound from BS
-    elif region=='sw':
-        direction = -1 # outbound from BS
+    region_map = {'sw': 'solar_wind', 'msh': 'magnetosheath', 'ms': 'magnetosphere', 'ion': 'ion_foreshock'}
 
-    file_path = os.path.join(mms_dir,'Lalti_2022_BS_crossings.csv')
+    directory = get_proc_directory(spacecraft, dtype='crossings')
+    file_name=f'{region_map.get(region)}_region_list.csv'
 
-    crossings = pd.read_csv(file_path, skiprows=53)
-    crossings = crossings[['#time','direction']]
-    crossings['time'] = pd.to_datetime(crossings['#time'],unit='s')
+    file_path = os.path.join(directory, file_name)
 
-    crossings.set_index('time',inplace=True)
-    crossings.sort_index(inplace=True)
-    crossings.drop(columns='#time',inplace=True)
+    crossings = pd.read_csv(file_path)
+    crossings['start'] = pd.to_datetime(crossings['start'], errors='coerce')
+    crossings['stop'] = pd.to_datetime(crossings['stop'], errors='coerce')
 
-    starts = crossings.index[(crossings['direction'] == direction) & (crossings['direction'].shift(-1) == -direction)]  # next direction is opposite
-    valid = crossings.index.get_indexer(starts) + 1
-    valid = valid[valid < len(crossings)]  # avoid IndexError
-    ends = crossings.index[valid]
+    crossings = crossings.dropna(subset=['start', 'stop'])
+    crossings = crossings.loc[crossings['probe']==spacecraft]
 
-    intervals = pd.DataFrame({'start': starts.values, 'end': ends.values})
-    intervals = intervals.dropna()
-    intervals = intervals[(intervals['end'] - intervals['start']) <= max_gap]
+    times = list(zip(crossings['start'], crossings['stop']))
+    mms_intervals = pd.IntervalIndex.from_tuples(times, closed='both')
 
-    return list(intervals.itertuples(index=False, name=None))
+    total_duration = (mms_intervals.right - mms_intervals.left).sum()
+    mins = total_duration.total_seconds() / 60
+    print(f'Total duration of {spacecraft} in {region}: {total_duration} | {int(mins):,}')
+
+    return mms_intervals
