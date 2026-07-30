@@ -21,8 +21,8 @@ def mms_region_intervals(spacecraft, region='sw'):
     file_path = os.path.join(directory, file_name)
 
     crossings = pd.read_csv(file_path)
-    crossings['start'] = pd.to_datetime(crossings['start'], errors='coerce')
-    crossings['stop'] = pd.to_datetime(crossings['stop'], errors='coerce')
+    crossings['start'] = pd.to_datetime(crossings['start'])
+    crossings['stop'] = pd.to_datetime(crossings['stop'])
 
     crossings = crossings.dropna(subset=['start', 'stop'])
     crossings = crossings.loc[crossings['probe']==spacecraft]

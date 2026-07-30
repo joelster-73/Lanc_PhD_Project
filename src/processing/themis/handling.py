@@ -28,13 +28,15 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
     # Process function
     if data=='STATE':
         process = process_themis_state
-        quality = None
+        filtering = None
     elif data=='FGM':
         process = process_themis_fgm
-        quality = filter_quality
+        def filtering(df):
+            return filter_quality(df, 'fgm', 'quality')
     elif data=='MOM':
         process = process_themis_mom
-        quality = filter_quality
+        def filtering(df):
+            return filter_quality(df, 'mom', 'quality')
     else:
         raise ValueError(f'"{data}" not valid data to sample.')
 
@@ -52,7 +54,7 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
 
     kwargs['resolutions'] = THEMIS_RESOLUTIONS
 
-    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=quality, **kwargs)
+    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filtering, **kwargs)
 
 
 def is_int(s):
@@ -311,7 +313,7 @@ def process_themis_mom(variables, files, directory_name, log_file_path, time_col
 
 # %% Plasma
 
-def update_esa_data(field_df, plasma_df):
+def update_mom_data(field_df, plasma_df):
     """
     To be used as init_func() in processing/updating/update_plasma_data()
     Merges the field and plasma dataframes so quantities such as E can be calculated
@@ -325,7 +327,7 @@ def update_esa_data(field_df, plasma_df):
     field_df.sort_index(inplace=True)
 
     field_df  = filter_quality(field_df, 'fgm').sort_index()
-    plasma_df = filter_quality(plasma_df, 'esa').sort_index()
+    plasma_df = filter_quality(plasma_df, 'mom').sort_index()
 
     merged_df = pd.merge_asof(plasma_df, field_df, left_index=True, right_index=True, direction='nearest', tolerance=pd.Timedelta('3s'))
 
@@ -334,7 +336,7 @@ def update_esa_data(field_df, plasma_df):
 
     return merged_df
 
-def filter_esa_data(df, region='sw'):
+def filter_mom_data(df, region='sw'):
     """
     To be used as filt_func() in processing/updating/update_plasma_data()
     Drops any data that is not flagged as being in the correct region of the magnetosphere
@@ -359,7 +361,7 @@ def filter_esa_data(df, region='sw'):
 
     return filtered_df
 
-def filter_quality(df, instrument='esa', column='quality'):
+def filter_quality(df, instrument='mom', column='quality'):
 
     if column not in df:
         print(f'No "{column}" column.')
@@ -367,8 +369,8 @@ def filter_quality(df, instrument='esa', column='quality'):
     else:
         print(f'Filtering quality: {instrument}, {column}.')
 
-    if instrument=='esa':
-        # Quality flags for ESA instrument
+    if instrument=='mom':
+        # Quality flags for MOM instrument
         # Could possibly remove 1 or 4
         # Quality = 0 indicates good data (-2 placeholder for no quality provided)
         qualities = (1, 4, 8, 16, 32, 64)
@@ -401,10 +403,10 @@ def resample_themis_files(spacecraft, data, raw_res='spin', new_grouping='yearly
 
     def filter_thm_fgm(df):
         return filter_quality(df, instrument='fgm')
-    def filter_thm_esa(df):
-        return filter_quality(df, instrument='esa')
+    def filter_thm_mom(df):
+        return filter_quality(df, instrument='mom')
 
-    QUAL_FUNCTIONS = {'fgm': filter_thm_fgm, 'esa': filter_thm_esa}
+    QUAL_FUNCTIONS = {'fgm': filter_thm_fgm, 'mom': filter_thm_mom}
     kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
 
     if data=='STATE':

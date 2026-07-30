@@ -21,7 +21,7 @@ from ..coordinates.magnetic import convert_GSE_to_GSM_with_angles
 from ..config import R_E, get_proc_directory, CLUSTER_SPACECRAFT, THEMIS_SPACECRAFT, MMS_SPACECRAFT
 
 from .cluster.handling import update_hia_data, filter_hia_data
-from .themis.handling import update_esa_data, filter_esa_data
+from .themis.handling import update_mom_data, filter_mom_data
 from .mms.handling import update_fpi_data
 from .mms.config import ION_MASS_DICT, ION_SPECIES
 
@@ -33,8 +33,8 @@ for sc in CLUSTER_SPACECRAFT:
     FILT_FUNCTIONS[sc] = filter_hia_data
 
 for sc in THEMIS_SPACECRAFT:
-    INIT_FUNCTIONS[sc] = update_esa_data
-    FILT_FUNCTIONS[sc] = filter_esa_data
+    INIT_FUNCTIONS[sc] = update_mom_data
+    FILT_FUNCTIONS[sc] = filter_mom_data
 
 for sc in MMS_SPACECRAFT:
     INIT_FUNCTIONS[sc] = update_fpi_data

@@ -108,8 +108,8 @@ def filter_region(df, omni, sc, region):
 
     elif region=='msh':
         mask =  (df_merged[f'r_x_GSE_{sc}']>=5) & (df_merged[f'r_cone_{sc}']<=np.pi/4)
-        mask &= (df_merged['r_F'] > 0) & (df_merged['r_F'] < 1) # tweak based on comparison with GRMB
-        mask &= (df_merged[f'N_tot_{sc}'] >= 10)
+        mask &= (df_merged['r_F'] > 0) & (df_merged['r_F'] < 1) # tweak based on comparison with Toy-Edens
+        mask &= (df_merged[f'N_tot_{sc}'] >= 10)  # test how sensitive results are to this
 
 
     df_merged = df_merged.loc[mask]
