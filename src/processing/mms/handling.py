@@ -99,7 +99,7 @@ def get_mms_files_year(directory=None, year=None):
                 files.append(cdf_file)
         files_by_year[int(year_folder)] = files
 
-    if year and str(year) not in files_by_year:
+    if year and year not in files_by_year:
         raise ValueError(f'No files found for {year}.')
     if not files_by_year:
         raise ValueError('No files found.')

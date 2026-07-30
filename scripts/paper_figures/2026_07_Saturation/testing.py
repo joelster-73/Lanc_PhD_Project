@@ -55,8 +55,6 @@ total_mins = total_duration.total_seconds() / 60
 
 populations = data_populations(sc, data_pop, region)
 
-
-
 df_sc = import_processed_spacecraft(sc, populations, resolution)
 
 # %% num
