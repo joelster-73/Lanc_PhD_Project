@@ -19,22 +19,6 @@ ION_MASS_DICT = {
 
 MMS_SPACECRAFT = ('mms1', 'mms2', 'mms3', 'mms4')
 
-###---------- FGM Data ----------###
-
-FGM_VARIABLES_TEMPLATE = { # 1 minute resolution
-    # Vectors are 4 columns - magntiude and components
-    # Field data is 8/16 Hz
-    'epoch'     : 'Epoch',
-    'B_gse'     : '{sc}_fgm_b_gse_srvy_l2',
-    'B_gsm'     : '{sc}_fgm_b_gsm_srvy_l2',
-    'B_flag'    : '{sc}_fgm_flag_srvy_l2', # quality
-}
-
-MMS_VARIABLES_FGM = {
-    sc: {key: value.format(sc=sc) for key, value in FGM_VARIABLES_TEMPLATE.items()}
-    for sc in MMS_SPACECRAFT
-}
-
 ###---------- STATE Data ----------###
 
 # STATE data is in the FGM files
@@ -47,6 +31,22 @@ STATE_VARIABLES_TEMPLATE = {
 
 MMS_VARIABLES_STATE = {
     sc: {key: value.format(sc=sc) for key, value in STATE_VARIABLES_TEMPLATE.items()}
+    for sc in MMS_SPACECRAFT
+}
+
+###---------- FGM Data ----------###
+
+FGM_VARIABLES_TEMPLATE = { # 1 minute resolution
+    # Vectors are 4 columns - magntiude and components
+    # Field data is 8/16 Hz
+    'epoch'     : 'Epoch',
+    'B_gse'     : '{sc}_fgm_b_gse_srvy_l2',
+    'B_gsm'     : '{sc}_fgm_b_gsm_srvy_l2',
+    'quality'   : '{sc}_fgm_flag_srvy_l2', # 0 = good, >=1 bad
+}
+
+MMS_VARIABLES_FGM = {
+    sc: {key: value.format(sc=sc) for key, value in FGM_VARIABLES_TEMPLATE.items()}
     for sc in MMS_SPACECRAFT
 }
 
@@ -81,7 +81,7 @@ MMS_VARIABLES_HPCA = {
 
 FPI_VARIABLES_TEMPLATE = {
     'epoch'     : 'Epoch',                              # Nanoseconds since J2000
-    'flag'      : '{sc}_dis_errorflags_fast',           # Vector of data-quality indicators at epoch start time
+    'quality'   : '{sc}_dis_errorflags_fast',           # Vector of data-quality indicators at epoch start time
     'V_gse'     : '{sc}_dis_bulkv_gse_fast',            # Bulk-velocity vector in GSE     km/s
     'V_gse_unc' : '{sc}_dis_bulkv_err_fast',            # Bulk-velocity error vector      km/s
     'N_tot'     : '{sc}_dis_numberdensity_fast',        # Number density                  n/cc

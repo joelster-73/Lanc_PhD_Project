@@ -4,7 +4,6 @@ import re
 
 import numpy as np
 import pandas as pd
-import itertools as it
 from scipy.constants import k as kB, e
 
 from spacepy import pycdf
@@ -29,14 +28,17 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
     if data=='STATE':
         process = process_themis_state
         filtering = None
+
     elif data=='FGM':
         process = process_themis_fgm
         def filtering(df):
-            return filter_quality(df, 'fgm', 'quality')
+            return filter_quality(df, instrument='fgm', column='quality')
+
     elif data=='MOM':
         process = process_themis_mom
         def filtering(df):
-            return filter_quality(df, 'mom', 'quality')
+            return filter_quality(df, instrument='mom', column='quality')
+
     else:
         raise ValueError(f'"{data}" not valid data to sample.')
 
@@ -188,6 +190,36 @@ def select_latest_versions(files):
 
 # %% Process
 
+def process_themis_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
+    """
+    STATE data has a 1-min resolution.
+    """
+
+    pos_list = []
+
+    # Loop through each daily file in the year
+    for pos_file in files:
+
+        try:
+            # position data at every minute
+            pos_dict, _ = extract_themis_data(pos_file, variables)
+            pos_df = pd.DataFrame(pos_dict)
+            pos_list.append(pos_df)
+        except:
+            #print(f'{pos_file} empty.')
+            log_missing_file(log_file_path, pos_file)
+            continue
+
+    ###---------------COMBINING------------###
+    if not pos_list:
+        print('No data.')
+        return pd.DataFrame()
+
+    pos_df = pd.concat(pos_list, ignore_index=True)
+    add_df_units(pos_df)
+
+    return pos_df
+
 def process_themis_fgm(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
     FGS data is the priority (spin ~3s)
@@ -247,36 +279,6 @@ def process_themis_fgm(variables, files, directory_name, log_file_path, time_col
     add_df_units(fgm_df)
 
     return fgm_df
-
-def process_themis_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
-    """
-    STATE data has a 1-min resolution.
-    """
-
-    pos_list = []
-
-    # Loop through each daily file in the year
-    for pos_file in files:
-
-        try:
-            # position data at every minute
-            pos_dict, _ = extract_themis_data(pos_file, variables)
-            pos_df = pd.DataFrame(pos_dict)
-            pos_list.append(pos_df)
-        except:
-            #print(f'{pos_file} empty.')
-            log_missing_file(log_file_path, pos_file)
-            continue
-
-    ###---------------COMBINING------------###
-    if not pos_list:
-        print('No data.')
-        return pd.DataFrame()
-
-    pos_df = pd.concat(pos_list, ignore_index=True)
-    add_df_units(pos_df)
-
-    return pos_df
 
 def process_themis_mom(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
 
@@ -342,18 +344,17 @@ def filter_mom_data(df, region='sw'):
     Drops any data that is not flagged as being in the correct region of the magnetosphere
     Then parent function then writes the region data to file
     """
-    # Solar wind flag =1 in solar wind, =0 if not
-    # So want to remove those with the wrong flag
-    wrong_flag = 1
-    if region=='sw':
-        wrong_flag = 0
-
     if 'flag' not in df:
         print('"flag" not in dataframe.')
         return df.copy()
 
+    # Solar wind flag =1 in solar wind, =0 if not
+    good_flag = 0
+    if region=='sw':
+        good_flag = 1
+
     # solar wind flag
-    mask = (df['flag'].fillna(-2) != wrong_flag)
+    mask = (df['flag']==good_flag)
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=['flag'])
@@ -367,25 +368,32 @@ def filter_quality(df, instrument='mom', column='quality'):
         print(f'No "{column}" column.')
         return df.copy()
     else:
-        print(f'Filtering quality: {instrument}, {column}.')
+        print(f'Filtering quality: {instrument}.')
 
-    if instrument=='mom':
-        # Quality flags for MOM instrument
-        # Could possibly remove 1 or 4
-        # Quality = 0 indicates good data (-2 placeholder for no quality provided)
-        qualities = (1, 4, 8, 16, 32, 64)
+    df[column] = df[column].fillna(-2).astype(int)
 
-        bad_qualities = []
-        for i in range(1, len(qualities)+1):
-            for combo in it.combinations(qualities, i):
-                bad_qualities.append(sum(combo))
-        bad_qualities = sorted(bad_qualities)
+    if instrument=='fgm':
+        # bad_qualities = (1, 2, 3, 4), 0 = good quality
+        # Missing quality values are retained because no bad flag is reported.
+        mask = ~df[column].isin([1, 2, 3, 4])
 
-    elif instrument=='fgm':
-        bad_qualities = (1, 2, 3, 4) # 0 = good quality
+    elif instrument=='mom':
+        # bit mask quality flags
+        # 0  = good data
+        # 1  = spacecraft potential unavailable
+        # 8  = ion low-energy mode
+        # 16 = electron density > 2 × ion density
+        # 32 = ion density > 2 × electron density
+        # 64 = spacecraft manoeuvre
 
+        mask = (df[column] == 0) # Conservative
+        #bad_bits = (1 | 8 | 64)
+        #mask = (df[column] & bad_bits) == 0 # Less conservative
 
-    mask = ~df[column].isin(bad_qualities)
+    if np.sum(mask)==0:
+        print('No good quality data.')
+        print(df[column].value_counts(dropna=False))
+        return pd.DataFrame()
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=[column])
@@ -400,14 +408,6 @@ def resample_themis_files(spacecraft, data, raw_res='spin', new_grouping='yearly
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
-
-    def filter_thm_fgm(df):
-        return filter_quality(df, instrument='fgm')
-    def filter_thm_mom(df):
-        return filter_quality(df, instrument='mom')
-
-    QUAL_FUNCTIONS = {'fgm': filter_thm_fgm, 'mom': filter_thm_mom}
-    kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
 
     if data=='STATE':
         key = data

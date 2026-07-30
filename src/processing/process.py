@@ -110,6 +110,16 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
             next_key_df = key_df.loc[~keep] # store for next key
             key_df      = key_df.loc[keep]
 
+        # Filters and removes low quality data
+        if qual_func:
+            key_df = qual_func(key_df)
+
+            if key_df.empty:
+                print(f'Skipping {key}\n.')
+                continue
+        else:
+            print('No quality filter function.')
+
         key_df.attrs = df_attrs
 
         # resample and write to file
@@ -120,15 +130,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
                 attributes['resolution'] = resolutions.get(sample_interval,sample_interval)
                 write_to_cdf(key_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)
 
-        # Filters and removes low quality data
-        if qual_func:
-            key_df = qual_func(key_df)
-        else:
-            print('No quality filter function.')
-
-        for sample_interval, samp_dir in save_directories.items():
-
-            if sample_interval not in ('raw','spin','fast'):
+            else:
 
                 # resample and write to file
                 sampled_df = resample_data(key_df, time_col, sample_interval)

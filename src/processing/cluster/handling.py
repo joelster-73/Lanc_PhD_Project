@@ -389,7 +389,7 @@ def filter_quality(df, column='quality'):
         print(f'No {column} column.')
         return df.copy()
     else:
-        print(f'Filtering quality: {column}.')
+        print('Filtering quality: hia.')
 
     bad_qualities = (0, 1, 2)
     # 0 : science mode
@@ -399,6 +399,9 @@ def filter_quality(df, column='quality'):
     # 4 : excellent
 
     mask = ~df[column].isin(bad_qualities)
+
+    if np.sum(mask)==0:
+        print('No good quality data.')
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=[column])
@@ -413,9 +416,6 @@ def resample_cluster_files(spacecraft, data, raw_res='spin', new_grouping='yearl
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
-
-    QUAL_FUNCTIONS      = {'hia': filter_quality}
-    kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
 
     kwargs['resolution'] = CLUSTER_RESOLUTIONS.get(raw_res)
 

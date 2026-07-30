@@ -152,7 +152,7 @@ def update_cdf_attributes(directory, new_values, add=True):
 
 # %% resample
 
-def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, qual_func=None, files_by_keys={}, resolution=None):
+def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, files_by_keys={}, resolution=None):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
@@ -184,9 +184,6 @@ def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('
         yearly_df = pd.concat(yearly_list) # don't set ignore_index to True
         yearly_df.drop(columns=[c for c in yearly_df.columns if c.endswith('_unc')],inplace=True) # measurement error << statistical uncertainty
         add_df_units(yearly_df)
-
-        if qual_func: # filter quality etc
-            yearly_df = qual_func(yearly_df)
 
         for sample_interval, samp_dir in save_directories.items():
 

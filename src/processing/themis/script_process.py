@@ -29,15 +29,13 @@ for spacecraft in THEMIS_SPACECRAFT:
 
 # %% Filter
 
-regions = ('sw','msh')
-
 for spacecraft in THEMIS_SPACECRAFT:
 
     print(spacecraft)
 
-    update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', regions, field_res='raw')
+    update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', ('sw','msh'), field_res='raw')
 
-    for region in regions:
+    for region in ('sw','msh'):
 
         print(region)
 

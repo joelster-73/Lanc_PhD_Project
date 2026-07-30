@@ -46,7 +46,7 @@ PLASMA_VARIABLES_TEMPLATE = { # spin resolution, 3s
     'time':         '{sc}_peim_time',
     'time_flag':    '{sc}_iesa_solarwind_flag_time',
     'flag':         '{sc}_iesa_solarwind_flag',     # 0 = not in solar wind, 1 = in solar wind
-    'quality':      '{sc}_peim_data_quality',       # 0 = good, >1 = bad
+    'quality':      '{sc}_peim_data_quality',       # 0 = good, >1 = not good
     'N_ion':        '{sc}_peim_density',            # n/cc
     'P_ion':        '{sc}_peim_ptot',               # eV/cc
     'T_vec':        '{sc}_peim_t3_mag',             # Field aligned temperature (scalar = mean of components), eV

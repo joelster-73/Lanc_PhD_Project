@@ -218,6 +218,44 @@ def extract_mms_data(cdf_file, variables):
 
 # %% Process_raw_files
 
+def process_mms_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
+    """
+    Extracts the state and field data into one dataframe
+    """
+
+    ###----------FILES----------###
+
+    state_list = []
+
+    # Loop through each daily file in the year
+    for cdf_file in files:
+        file_date = os.path.basename(cdf_file).split('_')[4]
+        try:  # Bad data check
+            state_dict = extract_mms_data(cdf_file, variables)
+            if not state_dict:
+                log_missing_file(log_file_path, file_date, 'Empty file.')
+                continue
+
+            state_list.append(pd.DataFrame(state_dict))
+
+        except Exception as e:
+            log_missing_file(log_file_path, file_date, e)
+
+        print(f'{file_date} read.')
+
+    ###---------------COMBINING------------###
+
+    if not state_list:
+        print('No data.')
+        return pd.DataFrame()
+
+    state_df = pd.concat(state_list, ignore_index=True)
+    state_df.rename(columns={f'{time_col}_pos': time_col}, inplace=True)
+    add_df_units(state_df)
+    del state_list
+
+    return state_df
+
 def process_mms_fgm(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
     Extracts the state and field data into one dataframe
@@ -259,44 +297,6 @@ def process_mms_fgm(variables, files, directory_name, log_file_path, time_col='e
     add_df_units(field_df)
 
     return field_df
-
-def process_mms_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
-    """
-    Extracts the state and field data into one dataframe
-    """
-
-    ###----------FILES----------###
-
-    state_list = []
-
-    # Loop through each daily file in the year
-    for cdf_file in files:
-        file_date = os.path.basename(cdf_file).split('_')[4]
-        try:  # Bad data check
-            state_dict = extract_mms_data(cdf_file, variables)
-            if not state_dict:
-                log_missing_file(log_file_path, file_date, 'Empty file.')
-                continue
-
-            state_list.append(pd.DataFrame(state_dict))
-
-        except Exception as e:
-            log_missing_file(log_file_path, file_date, e)
-
-        print(f'{file_date} read.')
-
-    ###---------------COMBINING------------###
-
-    if not state_list:
-        print('No data.')
-        return pd.DataFrame()
-
-    state_df = pd.concat(state_list, ignore_index=True)
-    state_df.rename(columns={f'{time_col}_pos': time_col}, inplace=True)
-    add_df_units(state_df)
-    del state_list
-
-    return state_df
 
 def process_mms_hpca(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
@@ -469,7 +469,7 @@ def update_fpi_data(field_df, plasma_df):
 
     plasma_df.rename(columns={'P_th_tens': 'P_th', 'T_tens': 'T_tot', 'V_mag': 'V_flow', 'V_mag_unc': 'V_flow_unc'}, inplace=True)
     plasma_df.drop(columns=['N_tot_bg', 'P_th_bg'], inplace=True)
-    plasma_df = filter_quality(plasma_df, column='flag')
+    plasma_df = filter_quality(plasma_df, column='quality')
 
     merged_df = pd.concat([field_df, plasma_df], axis=1)
 
@@ -481,18 +481,36 @@ There is no filt_func(region) for MMS
 """
 
 
-def filter_quality(df, column='flag'):
-
-    good_quality = 0 # good data
+def filter_quality(df, instrument='fgm', column='quality'):
 
     if column not in df:
         print(f'No "{column}" column.')
         return df.copy()
     else:
-        print(f'Filtering quality: {column}.')
+        print(f'Filtering quality: {instrument}.')
 
-    # solar wind flag
-    mask = (df[column].fillna(-2) == good_quality)
+    df[column] = df[column].fillna(-2).astype(int)
+
+    if instrument=='fgm':
+        # bad_qualities = (1, 2, 3, 4), 0 = good quality
+        mask = (df[column]==0)
+
+    elif instrument=='fpi':
+        # Keep:
+        # 16 = cold plasma present
+        # 32 = hot plasma present
+        # 64 = high sonic Mach number
+
+        bad_bits = (1 | 2 | 4 | 8 | 128 | 256 | 1024 | 2048 | 4096 | 8192 | 16384)
+
+        mask = ((df[column] & bad_bits) == 0)
+
+    mask &= (df[column] != -2) # exclude nans for now
+
+    if np.sum(mask)==0:
+        print('No good quality data.')
+        print(df[column].value_counts(dropna=False))
+        return pd.DataFrame()
 
     filtered_df = df.loc[mask]
     filtered_df = filtered_df.drop(columns=[column])
@@ -506,14 +524,6 @@ def resample_mms_files(spacecraft, data, raw_res='spin', new_grouping='yearly', 
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
-
-    def filter_mms_fgm(df):
-        return filter_quality(df, column='B_flag')
-    def filter_mms_fpi(df):
-        return filter_quality(df, column='flag')
-
-    QUAL_FUNCTIONS = {'fgm': filter_mms_fgm, 'fpi': filter_mms_fpi}
-    kwargs['qual_func'] = QUAL_FUNCTIONS.get(data,None)
 
     resolutions = {'spin' : '10s', 'raw': {'state': '30s', 'fgm': '0.125s', 'hpca': '10s', 'fpi': '10s'}}
 
