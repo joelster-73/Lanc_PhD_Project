@@ -24,23 +24,18 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
 
     directory = get_luna_directory(spacecraft, instrument=data)
 
+    PROCESS_FUNCS = {'fgm': process_themis_fgm, 'state': process_themis_state, 'mom': process_themis_mom}
+
     # Process function
-    if data=='STATE':
-        process = process_themis_state
-        filtering = None
+    process = PROCESS_FUNCS.get(data.lower())
+    if not process:
+        raise ValueError(f'"{data}" not valid data to sample')
 
-    elif data=='FGM':
-        process = process_themis_fgm
+    if data.lower() in ('fgm','mom'):
         def filtering(df):
-            return filter_quality(df, instrument='fgm', column='quality')
-
-    elif data=='MOM':
-        process = process_themis_mom
-        def filtering(df):
-            return filter_quality(df, instrument='mom', column='quality')
-
+            return filter_quality(df, instrument=data.lower(), column='quality')
     else:
-        raise ValueError(f'"{data}" not valid data to sample.')
+        filtering = None
 
     files_dict = get_themis_files(directory, year, start_year)
     variables  = VARIABLES_DICT.get(data,{}).get(spacecraft,{})
@@ -192,9 +187,9 @@ def select_latest_versions(files):
 
 def process_themis_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
+    To be used as process_func() in processing/process/process_overlapping_files()
     STATE data has a 1-min resolution.
     """
-
     pos_list = []
 
     # Loop through each daily file in the year
@@ -222,6 +217,7 @@ def process_themis_state(variables, files, directory_name, log_file_path, time_c
 
 def process_themis_fgm(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
+    To be used as process_func() in processing/process/process_overlapping_files()
     FGS data is the priority (spin ~3s)
     """
     priority_suffices = kwargs.get('priority_suffices',('fgs','fgl','fgh','fge'))
@@ -281,7 +277,9 @@ def process_themis_fgm(variables, files, directory_name, log_file_path, time_col
     return fgm_df
 
 def process_themis_mom(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
-
+    """
+    To be used as process_func() in processing/process/process_overlapping_files()
+    """
     plas_list = []
     flag_list = [] # solar wind/magnetosphere flag
 
@@ -328,8 +326,8 @@ def update_mom_data(field_df, plasma_df):
     field_df = field_df[~field_df.index.duplicated(keep='first')]
     field_df.sort_index(inplace=True)
 
-    field_df  = filter_quality(field_df, 'fgm').sort_index()
-    plasma_df = filter_quality(plasma_df, 'mom').sort_index()
+    plasma_df = plasma_df[~plasma_df.index.duplicated(keep='first')]
+    plasma_df.sort_index(inplace=True)
 
     merged_df = pd.merge_asof(plasma_df, field_df, left_index=True, right_index=True, direction='nearest', tolerance=pd.Timedelta('3s'))
 
@@ -344,9 +342,9 @@ def filter_mom_data(df, region='sw'):
     Drops any data that is not flagged as being in the correct region of the magnetosphere
     Then parent function then writes the region data to file
     """
+    print(f'Filtering MS region: {region}.')
     if 'flag' not in df:
-        print('"flag" not in dataframe.')
-        return df.copy()
+        raise NameError('"flag" not in dataframe.')
 
     # Solar wind flag =1 in solar wind, =0 if not
     good_flag = 0
@@ -364,11 +362,9 @@ def filter_mom_data(df, region='sw'):
 
 def filter_quality(df, instrument='mom', column='quality'):
 
+    print(f'Filtering quality: {instrument}.')
     if column not in df:
-        print(f'No "{column}" column.')
-        return df.copy()
-    else:
-        print(f'Filtering quality: {instrument}.')
+        raise NameError(f'No "{column}" column.')
 
     df[column] = df[column].fillna(-2).astype(int)
 
@@ -380,7 +376,7 @@ def filter_quality(df, instrument='mom', column='quality'):
     elif instrument=='mom':
         # bit mask quality flags
         # 0  = good data
-        # 1  = spacecraft potential unavailable
+        # 1  = spacecraft potential unavailable  --  all 2007 THA data has this bit flagged
         # 8  = ion low-energy mode
         # 16 = electron density > 2 × ion density
         # 32 = ion density > 2 × electron density

@@ -9,6 +9,11 @@ from src.processing.themis.config import THEMIS_SPACECRAFT
 from src.processing.themis.handling import process_themis_files, resample_themis_files
 from src.processing.updating import update_plasma_data
 
+import warnings
+
+warnings.filterwarnings('error', category=RuntimeWarning)
+
+
 # %% Position
 
 for spacecraft in THEMIS_SPACECRAFT:

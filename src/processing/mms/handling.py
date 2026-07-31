@@ -31,34 +31,24 @@ def process_mms_files(spacecraft, data, sample_intervals=('raw',), year=None, **
 
     directory = get_luna_directory(spacecraft, data)
 
+    PROCESS_FUNCS = {'fgm': process_mms_fgm, 'state': process_mms_state, 'hpca': process_mms_hpca, 'fpi': process_mms_fpi}
+
     # Process function
-    if data=='fgm':
-        files_dict = get_mms_files_month(directory, year)
-        process = process_mms_fgm
-        def filtering(df):
-            return filter_quality(df, column='B_flag')
+    process = PROCESS_FUNCS.get(data)
+    if not process:
+        raise ValueError(f'"{data}" not valid data to sample')
 
-    elif data=='state':
-        files_dict = get_mms_files_year(directory, year)
-        process = process_mms_state
-        filtering = None
-
-    elif data=='hpca':
-        files_dict = get_mms_files_year(directory, year)
-        process = process_mms_hpca
-        if 'raw' in sample_intervals:
+    if data=='hpca' and 'raw' in sample_intervals:
             kwargs['keep_ions'] = True
             sample_intervals = ('raw',) # prevents resampling
-        filtering = None
 
-    elif data=='fpi':
+    if data in ('fgm','fpi'):
         files_dict = get_mms_files_month(directory, year)
-        process = process_mms_fpi
         def filtering(df):
-            return filter_quality(df, column='flag')
-
+            return filter_quality(df, instrument=data, column='quality')
     else:
-        raise ValueError(f'"{data}" not valid data to sample')
+        files_dict = get_mms_files_year(directory, year)
+        filtering = None
 
     variables = VARIABLES_DICT.get(data,{}).get(spacecraft,{})
 
@@ -220,6 +210,7 @@ def extract_mms_data(cdf_file, variables):
 
 def process_mms_state(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
+    To be used as process_func() in processing/process/process_overlapping_files()
     Extracts the state and field data into one dataframe
     """
 
@@ -258,6 +249,7 @@ def process_mms_state(variables, files, directory_name, log_file_path, time_col=
 
 def process_mms_fgm(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
+    To be used as process_func() in processing/process/process_overlapping_files()
     Extracts the state and field data into one dataframe
     """
 
@@ -300,6 +292,7 @@ def process_mms_fgm(variables, files, directory_name, log_file_path, time_col='e
 
 def process_mms_hpca(variables, files, directory_name, log_file_path, time_col='epoch', **kwargs):
     """
+    To be used as process_func() in processing/process/process_overlapping_files()
     Extracts the hpca data into a dataframe
     """
     ###----------FILES----------###
@@ -462,14 +455,12 @@ def update_fpi_data(field_df, plasma_df):
 
     # Align field on plasma timestamps (as plasma contains mode, quality etc. numbers)
     field_df = field_df.reindex(plasma_df.index, method=None).interpolate(method='time')
-    field_df = filter_quality(field_df, column='B_flag')
 
     plasma_df['N_tot']      -= plasma_df['N_tot_bg'] # removes background counts
     plasma_df['P_th_tens']  -= plasma_df['P_th_bg']
 
     plasma_df.rename(columns={'P_th_tens': 'P_th', 'T_tens': 'T_tot', 'V_mag': 'V_flow', 'V_mag_unc': 'V_flow_unc'}, inplace=True)
     plasma_df.drop(columns=['N_tot_bg', 'P_th_bg'], inplace=True)
-    plasma_df = filter_quality(plasma_df, column='quality')
 
     merged_df = pd.concat([field_df, plasma_df], axis=1)
 
@@ -483,11 +474,9 @@ There is no filt_func(region) for MMS
 
 def filter_quality(df, instrument='fgm', column='quality'):
 
+    print(f'Filtering quality: {instrument}.')
     if column not in df:
-        print(f'No "{column}" column.')
-        return df.copy()
-    else:
-        print(f'Filtering quality: {instrument}.')
+        raise NameError(f'No "{column}" column.')
 
     df[column] = df[column].fillna(-2).astype(int)
 

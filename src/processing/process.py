@@ -114,11 +114,13 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
         if qual_func:
             key_df = qual_func(key_df)
 
-            if key_df.empty:
-                print(f'Skipping {key}\n.')
-                continue
         else:
             print('No quality filter function.')
+
+        key_df.drop(how='all', inplace=True)
+        if key_df.empty:
+            print(f'Dataframe empty; skipping {key}.\n')
+            continue
 
         key_df.attrs = df_attrs
 

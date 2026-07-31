@@ -367,13 +367,13 @@ def filter_hia_data(df, region='sw'):
     Then parent function then writes the region data to file
     """
 
+    print(f'Filtering MS region: {region}.')
+    if 'mode' not in df:
+        raise NameError('"mode" column not in dataframe.')
+
     # Modes for CIS instrument
     region_modes = {'msh': [8,9,10,11,12,13,14],
                     'sw':  [0,1,2,3,4,5]}
-
-    if 'mode' not in df:
-        print('"mode" column not in dataframe.')
-        return df.copy()
 
     mask = df['mode'].isin(region_modes.get(region))
 
@@ -385,11 +385,9 @@ def filter_hia_data(df, region='sw'):
 
 def filter_quality(df, column='quality'):
 
+    print('Filtering quality: hia.')
     if column not in df:
-        print(f'No {column} column.')
-        return df.copy()
-    else:
-        print('Filtering quality: hia.')
+        raise NameError(f'No "{column}" column.')
 
     bad_qualities = (0, 1, 2)
     # 0 : science mode

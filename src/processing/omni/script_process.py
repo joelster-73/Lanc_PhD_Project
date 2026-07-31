@@ -11,12 +11,12 @@ from src.processing.omni.handling import process_omni_files, resample_omni_files
 
 # %% Definitive
 
-process_omni_files(resolution='1min', ext='lst')
+process_omni_files(resolution='1min', ext='lst', year=2025)
 
 # %% Definitive_5min
 
-process_omni_files(resolution='5min', ext='lst')
+process_omni_files(resolution='5min', ext='lst', year=2025)
 
 # %% Resample
 
-resample_omni_files(raw_res='1min', sample_intervals=('15min',))
+resample_omni_files(raw_res='1min', sample_intervals=('15min',), year=2025)

@@ -176,7 +176,7 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs)
 
     n_tot   = build_uarr(merged_df, 'N_tot', with_unc)
-    rho_tot = (merged_df['m_avg_ratio']*m_p) * n_tot # kg/cc
+    rho_tot = (merged_df['m_avg_ratio'].to_numpy()*m_p) * n_tot # kg/cc
 
     if with_unc:
         mask = np.array(unp.nominal_values(rho_tot)) <= 0
@@ -192,12 +192,12 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     # Beta = p_th / p_mag, p_mag = B^2/2mu_0
     # p_dyn *= 1e-9, 1/B_avg^2 *= 1e18, so beta *= 1e9
     P_th = build_uarr(merged_df, 'P_th', with_unc)
-    beta = P_th / (merged_df['B_avg']**2) * (2*mu_0) * 1e9
+    beta = P_th / (merged_df['B_avg'].to_numpy()**2) * (2*mu_0) * 1e9
     assign_values(merged_df, 'beta', beta, with_unc)
 
     # Alfven Speed = B / sqrt(mu_0 * rho)
     # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
-    V_A = merged_df['B_avg'] / unp.sqrt(mu_0 * rho_tot) * 1e-15
+    V_A = (merged_df['B_avg'].to_numpy() / safe_sqrt(mu_0 * rho_tot)* 1e-15)
     assign_values(merged_df, 'V_A', V_A, with_unc)
 
     ###----------GSE to GSM----------###
@@ -232,7 +232,7 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     E = cross_u(B, V) * 1e-3
     assign_values(merged_df, vec_cols('E',vec_coords), E, with_unc)
 
-    E_mag = unp.sqrt(np.sum(E**2, axis=1))
+    E_mag = safe_sqrt(np.sum(E**2, axis=1))
     assign_values(merged_df, 'E_mag', E_mag, with_unc, col_before=f'E_x_{vec_coords}')
 
     # S = E x H = E x B / mu_0
@@ -240,7 +240,7 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     S = cross_u(E, B) * 1e-6 / mu_0
     assign_values(merged_df, vec_cols('S',vec_coords), S, with_unc)
 
-    S_mag = unp.sqrt(np.sum(S**2, axis=1))
+    S_mag = safe_sqrt(np.sum(S**2, axis=1))
     assign_values(merged_df, 'S_mag', S_mag, with_unc, col_before=f'S_x_{vec_coords}')
 
     return merged_df
@@ -367,3 +367,12 @@ def cross_prod(a, b, with_unc):
         ], axis=1)
 
     return np.cross(a,b)
+
+def safe_sqrt(x):
+    nominal = unp.nominal_values(x)
+
+    out = np.full(np.shape(x), np.nan, dtype=object)
+    mask = np.isfinite(nominal) & (nominal >= 0)
+
+    out[mask] = unp.sqrt(x[mask])
+    return out

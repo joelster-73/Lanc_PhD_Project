@@ -180,7 +180,7 @@ def extract_omni_data(lst_file, omni_columns):
 
 # %% resample
 
-def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='epoch'):
+def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='epoch', year=None):
     """
     Resample omni files to lower resolutions.
     The 5-min OMNI is built from the 1-min files via a simple mean and interpolation, rather than averaging the time-shifted daya in a 5-min window.
@@ -201,9 +201,12 @@ def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='e
         save_directories[sample_interval] = save_directory
 
     ###----------PROCESS----------###
-    for year, file in files_by_year.items():
+    for files_year, file in files_by_year.items():
 
-        print(f'Updating {year}.')
+        if year is not None and files_year!=str(year):
+            continue
+
+        print(f'Updating {files_year}.')
 
         df = import_processed_data('omni', resolution=raw_res, file_name=file)
 
@@ -214,5 +217,5 @@ def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='e
             sampled_df = resample_data(df, time_col='index', sample_interval=sample_interval, drop_nans=False)
 
             attributes = {'sample_interval': sample_interval}
-            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{year}', attributes=attributes, reset_index=True)
+            write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{files_year}', attributes=attributes, reset_index=True)
 
