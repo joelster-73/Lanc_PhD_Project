@@ -18,6 +18,11 @@ warnings.filterwarnings('error', category=RuntimeWarning)
 
 for spacecraft in THEMIS_SPACECRAFT:
 
+    ### temp
+
+    if spacecraft in ('tha','thb'):
+        continue
+
     process_themis_files(spacecraft, 'STATE', sample_intervals=('1min','5min','15min'))
 
 # %% Field
@@ -49,11 +54,17 @@ for spacecraft in THEMIS_SPACECRAFT:
 
 # %% Resample-only
 
-for spacecraft in THEMIS_SPACECRAFT:
+def resample():
 
-    resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('5min','15min'))
-    resample_themis_files(spacecraft, 'FGM', 'raw', sample_intervals=('1min','5min','15min'))
+    for spacecraft in THEMIS_SPACECRAFT:
 
-    resample_themis_files(spacecraft, 'sw', 'spin', sample_intervals=('1min','5min','15min'))
-    resample_themis_files(spacecraft, 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+        resample_themis_files(spacecraft, 'STATE', '1min', sample_intervals=('5min','15min'))
+        resample_themis_files(spacecraft, 'FGM', 'raw', sample_intervals=('1min','5min','15min'))
+
+        resample_themis_files(spacecraft, 'sw', 'spin', sample_intervals=('1min','5min','15min'))
+        resample_themis_files(spacecraft, 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+
+if False:
+
+    resample()
 

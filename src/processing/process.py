@@ -119,7 +119,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
 
         key_df.dropna(how='all', inplace=True)
         if key_df.empty:
-            print(f'Dataframe empty; skipping {key}.\n')
+            print(f'Dataframe empty; skipping {key}.\n')   ### NOTE TO SELF - Consider logging files like this for reference
             continue
 
         key_df.attrs = df_attrs

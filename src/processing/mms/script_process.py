@@ -40,7 +40,13 @@ resample_mms_files('mms1', 'fpi', 'spin', sample_intervals=('1min','5min','15min
 
 # %% Resample-only
 
-resample_mms_files('mms1', 'state', 'raw', sample_intervals=('1min','5min','15min'))
-resample_mms_files('mms1', 'fgm',   'raw', new_grouping='monthly', sample_intervals=('1min','5min','15min'))
-resample_mms_files('mms1', 'hpca', 'spin', sample_intervals=('1min','5min','15min'))
-resample_mms_files('mms1', 'fpi',  'spin', sample_intervals=('1min','5min','15min'))
+def resample():
+
+    resample_mms_files('mms1', 'state', 'raw', sample_intervals=('1min','5min','15min'))
+    resample_mms_files('mms1', 'fgm',   'raw', new_grouping='monthly', sample_intervals=('1min','5min','15min'))
+    resample_mms_files('mms1', 'hpca', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_mms_files('mms1', 'fpi',  'spin', sample_intervals=('1min','5min','15min'))
+
+if False:
+
+    resample()

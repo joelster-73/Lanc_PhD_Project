@@ -195,11 +195,11 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
         r_col = f'{field}_{coords}__r'
 
-        theta_sin_col = f'{field}_{coords}__theta_sin'
-        theta_cos_col = f'{field}_{coords}__theta_cos'
+        theta_sin_col = f'{field}_{coords}__theta__sin'
+        theta_cos_col = f'{field}_{coords}__theta__cos'
 
-        phi_sin_col = f'{field}_{coords}__phi_sin'
-        phi_cos_col = f'{field}_{coords}__phi_cos'
+        phi_sin_col = f'{field}_{coords}__phi__sin'
+        phi_cos_col = f'{field}_{coords}__phi__cos'
 
         temp_columns = [r_col, theta_sin_col, theta_cos_col, phi_sin_col, phi_cos_col]
 
@@ -253,26 +253,11 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
         print('Processing angular columns:',angular_columns)
 
-        sin_cols = [f'{col}__sin' for col in angular_columns]
-        cos_cols = [f'{col}__cos' for col in angular_columns]
-
-        sin_mean = grouped[sin_cols].mean()
-        cos_mean = grouped[cos_cols].mean()
-        counts = grouped[angular_columns].count()
+        means, sems, counts = grouped_circular_mean(grouped, angular_columns)
 
         for column in angular_columns:
 
-            sin_col = f'{column}__sin'
-            cos_col = f'{column}__cos'
-
-            R = np.sqrt(sin_mean[sin_col]**2 + cos_mean[cos_col]**2)
-
-            mean = np.arctan2(sin_mean[sin_col],cos_mean[cos_col])
-
-            std = np.sqrt(-2 * np.log(R))
-            sem = std / np.sqrt(counts[column])
-
-            sem = sem.mask(counts[column] <= 1, 0)
+            mean, sem = means[column], sems[column]
 
             if units.get(column) in ('deg', '°'):
                 mean = np.degrees(mean)
@@ -294,18 +279,12 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
         print(f'Processing {field}_{coords} (vector).')
 
         r_col = f'{field}_{coords}__r'
-
-        theta_sin_col = f'{field}_{coords}__theta_sin'
-        theta_cos_col = f'{field}_{coords}__theta_cos'
-
-        phi_sin_col = f'{field}_{coords}__phi_sin'
-        phi_cos_col = f'{field}_{coords}__phi_cos'
+        theta_col = f'{field}_{coords}__theta'
+        phi_col = f'{field}_{coords}__phi'
 
         r_mean, r_sem, r_count = grouped_mean(grouped[r_col])
-
-        theta_mean, theta_sem, theta_count = grouped_circular_mean(grouped[theta_sin_col], grouped[theta_cos_col])
-
-        phi_mean, phi_sem, phi_count = grouped_circular_mean(grouped[phi_sin_col], grouped[phi_cos_col])
+        theta_mean, theta_sem, theta_count = grouped_circular_mean_single(grouped, theta_col)
+        phi_mean, phi_sem, phi_count = grouped_circular_mean_single(grouped, phi_col)
 
         # Convert spherical averages back to Cartesian
         valid = (np.isfinite(r_mean) & np.isfinite(theta_mean) & np.isfinite(phi_mean))
@@ -407,25 +386,39 @@ def grouped_mean(grouped_series):
 
     return mean, sem, count
 
-def grouped_circular_mean(grouped_sin, grouped_cos):
+def grouped_circular_mean_single(grouped, base_col):
+
+    mean, sem, count = grouped_circular_mean(grouped, [base_col])
+
+    return mean[base_col], sem[base_col], count[base_col]
+
+def grouped_circular_mean(grouped, angular_columns):
     """
     Circular mean and SEM from grouped sin/cos components.
     """
 
-    sin_mean = grouped_sin.mean()
-    cos_mean = grouped_cos.mean()
+    sin_cols = [f'{col}__sin' for col in angular_columns]
+    cos_cols = [f'{col}__cos' for col in angular_columns]
+
+    sin_mean = grouped[sin_cols].mean()
+    cos_mean = grouped[cos_cols].mean()
+
+    # rename to base names so the two align and results are easy to index
+    sin_mean.columns = angular_columns
+    cos_mean.columns = angular_columns
 
     mean = np.arctan2(sin_mean, cos_mean)
+    R    = np.sqrt(sin_mean**2 + cos_mean**2)
+    R    = np.clip(R, 0, 1) # prevent errors below
+    std  = np.sqrt(-2 * np.log(R))
 
-    R = np.sqrt(sin_mean**2 + cos_mean**2)
-
-    std = np.sqrt(-2 * np.log(R))
-
-    count = grouped_sin.count()
+    count = grouped[sin_cols].count()
+    count.columns = angular_columns
 
     sem = (std.divide(np.sqrt(count)).mask(count <= 1, 0))
 
     return mean, sem, count
+
 # %% weighted
 def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns_to_skip=SKIP_COLUMNS):
 
