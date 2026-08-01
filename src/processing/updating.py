@@ -197,7 +197,7 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
 
     # Alfven Speed = B / sqrt(mu_0 * rho)
     # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
-    V_A = (merged_df['B_avg'].to_numpy() / safe_sqrt(mu_0 * rho_tot)* 1e-15)
+    V_A = merged_df['B_avg'].to_numpy() / safe_sqrt(mu_0 * rho_tot)* 1e-15
     assign_values(merged_df, 'V_A', V_A, with_unc)
 
     ###----------GSE to GSM----------###
@@ -321,18 +321,18 @@ def assign_values(df, column, uarr, with_unc, col_before=None):
     if not isinstance(column, str):  # list of columns
         df.loc[:, column] = vals
         if with_unc:
-            df.loc[:, [f'{c}_unc' for c in column]] = unp.std_devs(uarr)
+            df.loc[:, [f'{c}_unc' for c in column]] = safe_std(uarr)
 
     elif col_before:
         idx = df.columns.get_loc(col_before)
         df.insert(idx, column, vals)
         if with_unc:
-            df.insert(idx + 1, f'{column}_unc', unp.std_devs(uarr))
+            df.insert(idx + 1, f'{column}_unc', safe_std(uarr))
 
     else:
         df[column] = vals
         if with_unc:
-            df[f'{column}_unc'] = unp.std_devs(uarr)
+            df[f'{column}_unc'] = safe_std(uarr)
 
 def build_uarr(df, columns, with_unc):
 
@@ -375,4 +375,13 @@ def safe_sqrt(x):
     mask = np.isfinite(nominal) & (nominal >= 0)
 
     out[mask] = unp.sqrt(x[mask])
+    return out
+
+def safe_std(x):
+    nominal = unp.nominal_values(x)
+
+    out = np.full(np.shape(x), np.nan, dtype=object)
+    mask = np.isfinite(nominal)
+
+    out[mask] = unp.std_devs(x[mask])
     return out

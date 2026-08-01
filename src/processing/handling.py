@@ -24,8 +24,17 @@ def log_missing_file(log_file_path, file_path, e=None):
         string = f'{file_name} not added'
         if e is not None:
             string += f': {e}'
-        string += '\n'
-        log_file.write(string)
+        log_file.write(f'{string}\n')
+
+    print(string)
+
+def log_quality_issue(log_file_path, file_name, reason=None):
+
+    with open(log_file_path, 'a') as log_file:
+        string = f'{file_name} has quality issues'
+        if reason is not None:
+            string += f': {reason}'
+        log_file.write(f'{string}\n')
 
     print(string)
 

@@ -476,7 +476,7 @@ def filter_quality(df, instrument='fgm', column='quality'):
 
     print(f'Filtering quality: {instrument}.')
     if column not in df:
-        raise NameError(f'No "{column}" column.')
+        raise KeyError(f'No "{column}" column: {", ".join(df.columns)}')
 
     df[column] = df[column].fillna(-2).astype(int)
 
@@ -496,15 +496,12 @@ def filter_quality(df, instrument='fgm', column='quality'):
 
     mask &= (df[column] != -2) # exclude nans for now
 
-    if np.sum(mask)==0:
-        print('No good quality data.')
-        print(df[column].value_counts(dropna=False))
-        return pd.DataFrame()
+    if mask.sum()==0:
+        vc_str = ', '.join(f'{k}: {v}' for k, v in df[column].value_counts(dropna=False).items())
+        raise ValueError(f'{instrument}: 0/{len(df)} rows passed quality mask. Value counts: {vc_str}')
 
-    filtered_df = df.loc[mask]
-    filtered_df = filtered_df.drop(columns=[column])
+    filtered_df = df.loc[mask].drop(columns=[column])
     filtered_df.attrs = df.attrs.copy()
-
     return filtered_df
 
 # %% Resample

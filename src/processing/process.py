@@ -10,7 +10,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from .handling import create_log_file
+from .handling import create_log_file, log_quality_issue
 from .dataframes import resample_data
 from .writing import write_to_cdf
 from .utils import create_directory
@@ -67,6 +67,9 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
     log_file_path = os.path.join(save_directory, f'{directory_name}_files_not_added.txt')  # Stores not loaded files
     create_log_file(log_file_path)
 
+    quality_log_path = os.path.join(save_directory, f'{directory_name}_files_quality.txt')  # Stores not loaded files
+    create_log_file(quality_log_path)
+
     save_directories = {}
 
     for sample_interval in sample_intervals:
@@ -112,14 +115,19 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
 
         # Filters and removes low quality data
         if qual_func:
-            key_df = qual_func(key_df)
+            try:
+                key_df = qual_func(key_df)
+
+            except (ValueError, KeyError) as e:
+                log_quality_issue(quality_log_path, key, e)
+                continue
 
         else:
             print('No quality filter function.')
 
         key_df.dropna(how='all', inplace=True)
         if key_df.empty:
-            print(f'Dataframe empty; skipping {key}.\n')   ### NOTE TO SELF - Consider logging files like this for reference
+            log_quality_issue(quality_log_path, key, 'Dataframe empty after dropna()')
             continue
 
         key_df.attrs = df_attrs

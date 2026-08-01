@@ -37,10 +37,15 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
         files_dict = get_cluster_files(directory, year, sub_folders=sub_folder)
         variables  = VARIABLES_DICT.get(data,{}).get(spacecraft.upper(),{}).get(data_info,{})
 
+        filtering = None
+
     elif data=='hia':
         process    = process_cluster_hia
         files_dict = get_cluster_files(directory, year, sub_folders=True)
         variables  = VARIABLES_DICT.get(data,{}).get(spacecraft.upper(),{})
+
+        def filtering(df):
+            return filter_quality(df, instrument='hia', column='quality')
 
         qual_dir   = get_luna_directory(spacecraft, instrument='hia', info='hiaq')
 
@@ -64,7 +69,7 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
 
     kwargs['resolutions'] = CLUSTER_RESOLUTIONS
 
-    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filter_quality, **kwargs)
+    process_overlapping_files(spacecraft, data, process, variables, files_dict, samples, qual_func=filtering, **kwargs)
 
 def get_cluster_files(directory=None, year=None, sub_folders=False):
     """
@@ -377,17 +382,16 @@ def filter_hia_data(df, region='sw'):
 
     mask = df['mode'].isin(region_modes.get(region))
 
-    filtered_df = df.loc[mask]
-    filtered_df = filtered_df.drop(columns=['mode'])
+    filtered_df = df.loc[mask].drop(columns=['mode'])
     filtered_df.attrs = df.attrs.copy()
 
     return filtered_df
 
-def filter_quality(df, column='quality'):
+def filter_quality(df, instrument='hia', column='quality'):
 
-    print('Filtering quality: hia.')
+    print(f'Filtering quality: {instrument}.')
     if column not in df:
-        raise NameError(f'No "{column}" column.')
+        raise KeyError(f'No "{column}" column: {", ".join(df.columns)}')
 
     bad_qualities = (0, 1, 2)
     # 0 : science mode
@@ -398,11 +402,11 @@ def filter_quality(df, column='quality'):
 
     mask = ~df[column].isin(bad_qualities)
 
-    if np.sum(mask)==0:
-        print('No good quality data.')
+    if mask.sum()==0:
+        vc_str = ', '.join(f'{k}: {v}' for k, v in df[column].value_counts(dropna=False).items())
+        raise ValueError(f'{instrument}: 0/{len(df)} rows passed quality mask. Value counts: {vc_str}')
 
-    filtered_df = df.loc[mask]
-    filtered_df = filtered_df.drop(columns=[column])
+    filtered_df = df.loc[mask].drop(columns=[column])
     filtered_df.attrs = df.attrs.copy()
 
     return filtered_df

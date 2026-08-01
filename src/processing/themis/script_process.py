@@ -18,18 +18,19 @@ warnings.filterwarnings('error', category=RuntimeWarning)
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    ### temp
-
-    if spacecraft in ('tha','thb'):
-        continue
-
     process_themis_files(spacecraft, 'STATE', sample_intervals=('1min','5min','15min'))
 
 # %% Field
 
 for spacecraft in THEMIS_SPACECRAFT:
 
+    if spacecraft=='tha':
+        continue # temp skip
+
     process_themis_files(spacecraft, 'FGM', sample_intervals=('raw','1min','5min','15min'))
+
+    ## look at variables on luna
+    ## download some new files and test them e.g. the 2025 ones
 
 # %% Plasma
 
