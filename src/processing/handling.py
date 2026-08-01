@@ -34,7 +34,8 @@ def log_quality_issue(log_file_path, file_name, reason=None):
         string = f'{file_name} has quality issues'
         if reason is not None:
             string += f': {reason}'
-        log_file.write(f'{string}\n')
+        string += '\n'
+        log_file.write(string)
 
     print(string)
 
