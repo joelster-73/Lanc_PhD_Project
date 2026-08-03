@@ -28,16 +28,32 @@ def log_missing_file(log_file_path, file_path, e=None):
 
     print(string)
 
-def log_quality_issue(log_file_path, file_name, reason=None):
+def log_file_quality(log_file_path, file_name, reason=None):
 
     with open(log_file_path, 'a') as log_file:
-        string = f'{file_name} has quality issues'
+        string = f'{file_name} quality notes'
         if reason is not None:
-            string += f': {reason}'
+            string += f':\n{reason}'
         string += '\n'
-        log_file.write(string)
+        log_file.write(f'{string}\n')
 
     print(string)
+
+def quality_log_string(series, mask):
+
+    good_count = mask.sum()
+    counts_string = ' | '.join(f'{k}: {v:,}' for k, v in series.value_counts(dropna=False).items())
+
+    failed = good_count==0
+
+    begin = 'Failed' if failed else 'Passed'
+
+    quality_string = (
+        f'\t{begin} quality check: {good_count:,} / {len(mask):,} rows passed.\n'
+        f'\tValue counts: {counts_string}.'
+    )
+
+    return quality_string, failed
 
 
 def get_processed_files(directory, year=None, keyword=None):
@@ -86,7 +102,11 @@ def get_cdf_file(directory, filename=None):
 
 def get_file_keys(spacecraft, data=' ', raw_res='raw'):
     file_keys = {}
-    data_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
+    try:
+        data_dir = get_proc_directory(spacecraft, dtype=data, resolution=raw_res)
+    except ValueError as e:
+        print(f'There is no {data} data for {spacecraft}: {e}')
+        return file_keys
     pattern = os.path.join(data_dir, '*.cdf')
 
     for cdf_file in sorted(glob.glob(pattern)):

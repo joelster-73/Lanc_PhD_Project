@@ -11,7 +11,7 @@ m_a = physical_constants['alpha particle mass'][0]
 
 from .config import VARIABLES_DICT
 
-from ..handling import log_missing_file, get_processed_files
+from ..handling import log_missing_file, get_processed_files, quality_log_string
 from ..writing import write_to_cdf
 from ..dataframes import add_df_units
 from ..reading import import_processed_data
@@ -391,7 +391,7 @@ def filter_quality(df, instrument='hia', column='quality'):
 
     print(f'Filtering quality: {instrument}.')
     if column not in df:
-        raise KeyError(f'No "{column}" column: {", ".join(df.columns)}')
+        raise ValueError(f'\tNo "{column}" column.')
 
     bad_qualities = (0, 1, 2)
     # 0 : science mode
@@ -401,15 +401,15 @@ def filter_quality(df, instrument='hia', column='quality'):
     # 4 : excellent
 
     mask = ~df[column].isin(bad_qualities)
+    quality_string, failed = quality_log_string(df[column], mask)
 
-    if mask.sum()==0:
-        vc_str = ', '.join(f'{k}: {v}' for k, v in df[column].value_counts(dropna=False).items())
-        raise ValueError(f'{instrument}: 0/{len(df)} rows passed quality mask. Value counts: {vc_str}')
+    if failed:
+        raise ValueError(quality_string)
 
     filtered_df = df.loc[mask].drop(columns=[column])
     filtered_df.attrs = df.attrs.copy()
 
-    return filtered_df
+    return filtered_df, quality_string
 
 
 # %% Resample

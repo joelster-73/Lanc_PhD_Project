@@ -6,9 +6,9 @@ import pandas as pd
 
 from datetime import datetime, timedelta
 
-from .config import imf_bad_cols, plasma_bad_cols, column_units, omni_columns, omni_columns_5min
+from .config import imf_bad_cols, plasma_bad_cols, column_units, OMNI_VARIABLES
 
-from ..handling import create_log_file, log_missing_file, get_file_keys
+from ..handling import get_file_keys
 from ..writing import write_to_cdf
 from ..reading import import_processed_data
 from ..dataframes import add_df_units, resample_data
@@ -21,53 +21,35 @@ from ...config import get_luna_directory, get_proc_directory
 
 from ...z_archive.processing_omni_handling import extract_omni_data_old
 
-def process_omni_files(resolution='1min', year=None, overwrite=True, ext='asc'):
-
-    directory = get_luna_directory('omni',resolution=resolution)
-    data_directory = get_proc_directory('omni',resolution=resolution)
-    if resolution=='1min':
-        variables = omni_columns
-    elif resolution=='5min':
-        variables = omni_columns_5min
+def process_omni_files(resolution='1min', year=None, overwrite=True, ext='lst'):
 
     print('Processing OMNI.\n')
-    # Gather all OMNI files for the specified year (or all files if no year is specified)
-    files_to_process = get_omni_files(directory, year=year, ext=ext)
 
+    directory      = get_luna_directory('omni', info=resolution) # read
     directory_name = os.path.basename(os.path.normpath(directory))
 
-    if '5min' in directory_name:
-        raw_dir = os.path.join(data_directory, '5min')
-    elif 'min' in directory_name:
-        raw_dir = os.path.join(data_directory, 'min')
-    else:
-        raw_dir = os.path.join(data_directory, 'raw')
-    create_directory(raw_dir)
+    data_directory = get_proc_directory('omni', resolution=resolution) # write
+    variables      = OMNI_VARIABLES.get(resolution) # columns
 
-    log_file_path = os.path.join(data_directory, f'{directory_name}_not_added_files.txt')  # Log for unprocessed files
-    create_log_file(log_file_path)
+    # Gather all OMNI files for the specified year (or all files if no year is specified)
+    files_to_process = get_omni_files(directory, year=year, ext=ext)
 
     # Process each file
     for i, omni_file in enumerate(files_to_process):
         file_name = os.path.basename(omni_file)
         print(f'Processing {file_name}.')
 
-        try:
-            if ext=='asc': # old version of OMNI
-                data_dict = extract_omni_data_old(omni_file, variables)
-                df = pd.DataFrame(data_dict)
-                add_df_units(df)
-            elif ext=='lst': # definitive version of OMNI
-                df = extract_omni_data(omni_file, variables)
-                df.attrs['units'] = column_units
-            else:
-                raise Exception(f'Unknown file type "{ext}".')
+        if ext=='lst': # definitive version of OMNI
+            df = extract_omni_data(omni_file, variables)
+            df.attrs['units'] = column_units
+        elif ext=='asc': # old version of OMNI
+            data_dict = extract_omni_data_old(omni_file, variables)
+            df = pd.DataFrame(data_dict)
+            add_df_units(df)
+        else:
+            raise ValueError(f'Unknown file type "{ext}".')
 
-            print(f'Data from {file_name} extracted.')
-
-        except Exception as e:
-            log_missing_file(log_file_path, file_name, e)
-            continue
+        print('Data extracted.')
 
         if ext=='asc':
             # Extract the year from the filename assuming the format omni_minYYYY.asc
@@ -78,10 +60,7 @@ def process_omni_files(resolution='1min', year=None, overwrite=True, ext='asc'):
         else:
             file_year = i+1
 
-        output_file = os.path.join(raw_dir, f'{directory_name}_{file_year}.cdf')
-        attributes = {'time_col': 'epoch'}
-        print(f'Writing {file_name} to file...')
-        write_to_cdf(df, output_file, attributes, overwrite)
+        write_to_cdf(df, directory=data_directory, file_name=f'{directory_name}_{file_year}', attributes={'time_col': 'epoch'}, overwrite=overwrite)
 
 
 
@@ -214,7 +193,7 @@ def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='e
 
         for sample_interval, samp_dir in save_directories.items():
 
-            sampled_df = resample_data(df, time_col='index', sample_interval=sample_interval, drop_nans=False)
+            sampled_df = resample_data(df, time_col='index', sample_interval=sample_interval)
 
             attributes = {'sample_interval': sample_interval}
             write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{files_year}', attributes=attributes, reset_index=True)

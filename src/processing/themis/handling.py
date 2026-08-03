@@ -12,7 +12,7 @@ import spacepy.pycdf.istp
 from .config import VARIABLES_DICT
 
 from ..dataframes import add_df_units
-from ..handling import log_missing_file
+from ..handling import log_missing_file, quality_log_string
 from ..process import process_overlapping_files, format_extracted_vector, resample_files
 
 from ...coordinates.magnetic import calc_B_GSM_angles
@@ -364,19 +364,19 @@ def filter_quality(df, instrument='mom', column='quality'):
 
     print(f'Filtering quality: {instrument}.')
     if column not in df:
-        raise KeyError(f'No "{column}" column: {", ".join(df.columns)}')
+        raise ValueError(f'\tNo "{column}" column.')
 
     df[column] = df[column].fillna(-2).astype(int)
 
     if instrument=='fgm':
         # bad_qualities = (1, 2, 3, 4), 0 = good quality
-        # Missing quality values are retained because no bad flag is reported.
-        mask = ~df[column].isin([1, 2, 3, 4])
+        mask = (df[column] == 0) # Exclude missing quality flag
+        #mask = ~df[column].isin([1, 2, 3, 4]) # includes missing flag data
 
     elif instrument=='mom':
         # bit mask quality flags
         # 0  = good data
-        # 1  = spacecraft potential unavailable  --  all 2007 THA data has this bit flagged
+        # 1  = spacecraft potential unavailable
         # 8  = ion low-energy mode
         # 16 = electron density > 2 × ion density
         # 32 = ion density > 2 × electron density
@@ -386,13 +386,14 @@ def filter_quality(df, instrument='mom', column='quality'):
         #bad_bits = (1 | 8 | 64)
         #mask = (df[column] & bad_bits) == 0 # Less conservative
 
-    if mask.sum()==0:
-        vc_str = ', '.join(f'{k}: {v}' for k, v in df[column].value_counts(dropna=False).items())
-        raise ValueError(f'{instrument}: 0/{len(df)} rows passed quality mask. Value counts: {vc_str}')
+    quality_string, failed = quality_log_string(df[column], mask)
+
+    if failed:
+        raise ValueError(quality_string)
 
     filtered_df = df.loc[mask].drop(columns=[column])
     filtered_df.attrs = df.attrs.copy()
-    return filtered_df
+    return filtered_df, quality_string
 
 
 # %% Resample

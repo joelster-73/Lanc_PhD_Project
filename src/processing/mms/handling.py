@@ -18,7 +18,7 @@ import spacepy.pycdf.istp
 
 from .config import ION_MASS_DICT, ION_SPECIES, VARIABLES_DICT
 
-from ..handling import log_missing_file
+from ..handling import log_missing_file, quality_log_string
 from ..dataframes import add_df_units
 from ..process import process_overlapping_files, format_extracted_vector, resample_files
 
@@ -462,9 +462,7 @@ def update_fpi_data(field_df, plasma_df):
     plasma_df.rename(columns={'P_th_tens': 'P_th', 'T_tens': 'T_tot', 'V_mag': 'V_flow', 'V_mag_unc': 'V_flow_unc'}, inplace=True)
     plasma_df.drop(columns=['N_tot_bg', 'P_th_bg'], inplace=True)
 
-    merged_df = pd.concat([field_df, plasma_df], axis=1)
-
-    return merged_df
+    return pd.concat([field_df, plasma_df], axis=1)
 
 
 """
@@ -476,7 +474,7 @@ def filter_quality(df, instrument='fgm', column='quality'):
 
     print(f'Filtering quality: {instrument}.')
     if column not in df:
-        raise KeyError(f'No "{column}" column: {", ".join(df.columns)}')
+        raise ValueError(f'\tNo "{column}" column.')
 
     df[column] = df[column].fillna(-2).astype(int)
 
@@ -496,13 +494,14 @@ def filter_quality(df, instrument='fgm', column='quality'):
 
     mask &= (df[column] != -2) # exclude nans for now
 
-    if mask.sum()==0:
-        vc_str = ', '.join(f'{k}: {v}' for k, v in df[column].value_counts(dropna=False).items())
-        raise ValueError(f'{instrument}: 0/{len(df)} rows passed quality mask. Value counts: {vc_str}')
+    quality_string, failed = quality_log_string(df[column], mask)
+
+    if failed:
+        raise ValueError(quality_string)
 
     filtered_df = df.loc[mask].drop(columns=[column])
     filtered_df.attrs = df.attrs.copy()
-    return filtered_df
+    return filtered_df, quality_string
 
 # %% Resample
 

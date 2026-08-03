@@ -87,3 +87,5 @@ column_units = {
     'PSI_P_60'      : '1/scm2sr'
 }
 
+
+OMNI_VARIABLES = {'1min': omni_columns, '5min': omni_columns_5min}

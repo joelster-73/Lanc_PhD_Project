@@ -78,10 +78,12 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
     if ion_source == 'omni':
         heavy_ions = import_processed_data('omni', resolution='5min')
         heavy_ions = heavy_ions[['na_np_ratio']]
+
     elif ion_source == 'hpca':
         ion_species = kwargs.get('ion_species',ION_SPECIES)
         heavy_ions = import_processed_data(spacecraft, dtype='hpca', resolution='raw')
         heavy_ions = heavy_ions[[f'N_{ion}' for ion in ion_species]] # Just need ion density columns
+
     elif ion_source == 'none': # e.g. HPCA raw data
         heavy_ions = None
 
@@ -89,15 +91,12 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
     filt_func = FILT_FUNCTIONS.get(spacecraft,None)
 
     for key, field_file in field_keys.items():
-        plasma_file = plasma_keys.get(key,None)
+        plasma_file = plasma_keys.get(key)
         if not plasma_file:
             continue
 
         if start_year:
-            if '-' in key:
-                year, _ = key.split('-')
-            else:
-                year = key
+            year = key.split('-')[0] if '-' in key else key
             if int(year) < start_year:
                 continue
 
@@ -133,6 +132,8 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
 
             cols_to_drop = [col for col in field_df if col in merged_df]
             merged_df.drop(columns=cols_to_drop, inplace=True)
+
+        return
 
         ###----------WRITE TO FILE----------###
 
@@ -177,12 +178,6 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
 
     n_tot   = build_uarr(merged_df, 'N_tot', with_unc)
     rho_tot = (merged_df['m_avg_ratio'].to_numpy()*m_p) * n_tot # kg/cc
-
-    if with_unc:
-        mask = np.array(unp.nominal_values(rho_tot)) <= 0
-        rho_tot[mask] = unp.uarray(np.nan, 0)
-    else:
-        rho_tot[rho_tot <= 0] = np.nan
 
     # P = 0.5 * rho * V^2
     # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21

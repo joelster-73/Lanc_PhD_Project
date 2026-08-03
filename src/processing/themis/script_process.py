@@ -24,13 +24,8 @@ for spacecraft in THEMIS_SPACECRAFT:
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    if spacecraft=='tha':
-        continue # temp skip
-
     process_themis_files(spacecraft, 'FGM', sample_intervals=('raw','1min','5min','15min'))
 
-    ## look at variables on luna
-    ## download some new files and test them e.g. the 2025 ones
 
 # %% Plasma
 
@@ -42,13 +37,13 @@ for spacecraft in THEMIS_SPACECRAFT:
 
 for spacecraft in THEMIS_SPACECRAFT:
 
-    print(spacecraft)
+    print(f'{spacecraft}:')
 
     update_plasma_data(spacecraft, 'FGM', 'MOM', 'omni', ('sw','msh'), field_res='raw')
 
     for region in ('sw','msh'):
 
-        print(region)
+        print(f'{region}:')
 
         resample_themis_files(spacecraft, region, 'spin', sample_intervals=('1min','5min','15min'))
 

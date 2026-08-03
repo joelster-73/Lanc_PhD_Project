@@ -14,9 +14,6 @@ from ...processing.writing import write_to_cdf
 # MP & BS
 all_spacecraft = ('c1','mms1','tha','thb','thc','thd','the')
 
-spacecraft     = {'sw':  {'field': all_spacecraft, 'plasma': ('c1','mms1','thb','thc')},
-                  'msh': {'field': all_spacecraft, 'plasma': ('c1','mms1','the')}}
-
 
 # %%% Merge_sc
 
@@ -32,7 +29,7 @@ def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=Non
 
     dfs_combined = []
     if sc_keys is None:
-        sc_keys = spacecraft[region][data_pop]
+        sc_keys = all_spacecraft
 
     for sc in sc_keys:
 

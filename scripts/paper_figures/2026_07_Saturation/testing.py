@@ -5,28 +5,14 @@ Created on Thu Aug 28 12:29:26 2025
 @author: richarj2
 """
 
-from src.methods.saturation.plotting import plot_driver_multi_responses
 
-param_names  = {'E_y_GSM': 'E_y',
-                'V_flow' : 'V',
-                'B_z_GSM': 'B_z',
-                'N_tot'  : 'N'}
-
-responses = ('THL','SME','SMR')
-param     = 'E_R'
-
-for bottom_axis in ('heat','scatter','hist'):
-    plot_driver_multi_responses(param, *responses, lags=(17,53,60), restrict=True, bottom_axis=bottom_axis, data1_name=param_names.get(param,param), data_name_map=param_names)
-
-
-# %% Columns
-from src.processing.reading import import_processed_data
+from src.processing.reading import import_processed_data, import_processed_spacecraft
 
 df_sc = import_processed_data('sw', dtype='plasma', resolution='5min', file_name='sw_times_combined')
 
 
-df = import_processed_data('omni', resolution='15min')
-
+df_m1 = import_processed_spacecraft('mms1', populations=['state','fgm','fpi'], resolution='15min')
+df_te = import_processed_spacecraft('the', populations=['STATE','FGM','msh'], resolution='15min')
 
 
 

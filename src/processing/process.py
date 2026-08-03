@@ -10,7 +10,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from .handling import create_log_file, log_quality_issue
+from .handling import create_log_file, log_file_quality
 from .dataframes import resample_data
 from .writing import write_to_cdf
 from .utils import create_directory
@@ -27,6 +27,9 @@ def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', 
     """
 
     files_by_keys = get_file_keys(spacecraft, data, raw_res)
+    if len(files_by_keys)==0:
+        return # no keys to refactor
+
     files_by_year = refactor_keys(files_by_keys, new_grouping)
 
     if not (year is None and start_year is None):
@@ -67,8 +70,10 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
     log_file_path = os.path.join(save_directory, f'{directory_name}_files_not_added.txt')  # Stores not loaded files
     create_log_file(log_file_path)
 
-    quality_log_path = os.path.join(save_directory, f'{directory_name}_files_quality.txt')  # Stores not loaded files
-    create_log_file(quality_log_path)
+    if qual_func is not None:
+
+        quality_log_path = os.path.join(save_directory, f'{directory_name}_files_quality.txt')  # Stores not loaded files
+        create_log_file(quality_log_path)
 
     save_directories = {}
 
@@ -116,10 +121,11 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
         # Filters and removes low quality data
         if qual_func:
             try:
-                key_df = qual_func(key_df)
+                key_df, qual_str = qual_func(key_df)
+                log_file_quality(quality_log_path, key, qual_str) # no quality issue, just tracking info
 
-            except (ValueError, KeyError) as e:
-                log_quality_issue(quality_log_path, key, e)
+            except ValueError as e:
+                log_file_quality(quality_log_path, key, e)
                 continue
 
         else:
@@ -127,7 +133,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
 
         key_df.dropna(how='all', inplace=True)
         if key_df.empty:
-            log_quality_issue(quality_log_path, key, 'Dataframe empty after dropna()')
+            log_file_quality(quality_log_path, key, 'Dataframe empty after dropna().')
             continue
 
         key_df.attrs = df_attrs

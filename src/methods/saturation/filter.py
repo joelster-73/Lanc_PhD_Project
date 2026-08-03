@@ -21,12 +21,14 @@ from ...processing.writing import write_to_cdf
 
 from ...coordinates.boundaries import calc_msh_dist, vector_component_surface
 
+all_spacecraft = ('c1','mms1','tha','thb','thc','thd','the')
+
 pos_cols  = ['r_MP','r_BS','r_phi','r_F']
 norm_vecs = {'field': ('B',), 'plasma': ('B','E','V','S')}
 
 # %% procedure
 
-def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', test_return=True):
+def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=None, test_return=True):
 
     """
     data_pop = 'field' means field only
@@ -38,15 +40,17 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', test_retu
     DIR = get_proc_directory(region, dtype=data_pop, resolution=resolution, create=True) # output directory
 
     ###----------IMPORTS----------###
-    print('Importing OMNI.\n')
-
-    df_omni = import_processed_data('omni', resolution=resolution)
+    if df_omni is None:
+        print('Importing OMNI.\n')
+        df_omni = import_processed_data('omni', resolution=resolution)
 
     print(f'Importing {sc.upper()}.')
 
     populations = data_populations(sc, data_pop, region)
 
     df_sc = import_processed_spacecraft(sc, populations, resolution)
+    print('REMOVE TEMP')
+    print(list(df_sc.columns))
 
     ###----------FILTERING----------###
 
@@ -54,6 +58,8 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', test_retu
     if df_merged.empty:
         print(f'No {sc} data in {region}.')
         return
+    print('REMOVE TEMP')
+    print(list(df_merged.columns))
 
     suffix = f'_{sc}'
     df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
@@ -86,7 +92,15 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', test_retu
 
 
 
-def filter_region(df, omni, sc, region):
+def filter_region(df, omni, sc, region, params={}):
+    """
+    Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath
+    """
+    default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw': 275},
+                      'msh': {'r_x': 5, 'r_theta': np.pi/4, 'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
+
+    for reg, vals in params.items():
+        default_params[reg].update(vals)
 
     ###-----Location-----###
 
@@ -102,14 +116,23 @@ def filter_region(df, omni, sc, region):
     df_positions = calc_msh_dist(df_merged, position_key=sc, data_key='sw')
     df_merged    = pd.concat([df_merged, df_positions[pos_cols]], axis=1)
 
+    rx    = default_params[region]['r_x']
+    rcone = default_params[region]['r_theta']
+
     if region=='sw':
-        mask =  (df_merged[f'r_x_GSE_{sc}']>=7) & (df_merged[f'r_cone_{sc}']<=np.pi/6)
-        mask &= (df_merged[f'V_flow_{sc}'] >= 275)
+        vflow = default_params['sw']['V_sw']
+
+        mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
+        mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':
-        mask =  (df_merged[f'r_x_GSE_{sc}']>=5) & (df_merged[f'r_cone_{sc}']<=np.pi/4)
-        mask &= (df_merged['r_F'] > 0) & (df_merged['r_F'] < 1) # tweak based on comparison with Toy-Edens
-        mask &= (df_merged[f'N_tot_{sc}'] >= 10)  # test how sensitive results are to this
+        ntot  = default_params['msh']['N_tot']
+        rFmin = default_params['msh']['r_F_min']
+        rFmax = default_params['msh']['r_F_max']
+
+        mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
+        mask &= (df_merged['r_F'] > rFmin) & (df_merged['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
+        mask &= (df_merged[f'N_tot_{sc}'] >= ntot)  # test how sensitive results are to this
 
 
     df_merged = df_merged.loc[mask]

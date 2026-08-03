@@ -9,16 +9,9 @@ import re
 import numpy as np
 
 import matplotlib.dates as mdates
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, StrMethodFormatter
 
 from .config import black, white
-
-
-def check_labels(df, *labels):
-    for label in labels:
-        if label not in df.keys():
-            raise ValueError(f'Field data "{label}" not found in data.')
-
 
 def dark_mode_fig(fig,heat=False):
     print('Deprecated')
@@ -79,6 +72,13 @@ def add_legend(fig, ax, legend_on=True, loc='upper left', anchor=None, cols=1, h
                            labelcolor=label_colour, facecolor=face_colour, edgecolor=edge_col, title=title)
             legend.set_zorder(5)
 
+
+# %% labels
+
+def check_labels(df, *labels):
+    for label in labels:
+        if label not in df.keys():
+            raise ValueError(f'Field data "{label}" not found in data.')
 
 def format_string(s):
     # make so instead of first character, everything before 'mag' is put in ||
@@ -177,9 +177,10 @@ def common_prefix(x, y):
 
     return x[:min_length]  # Entire shorter string is the common prefix
 
-
 def array_to_string(arr, fmt='.1f'):
     return f'[{", ".join(f"{value:{fmt}}" for value in arr)}]'
+
+# %% ticks
 
 def format_datetime_axis(ax, style='time'):
 
@@ -197,6 +198,12 @@ def custom_date_formatter(x, pos):
         #return timestamp.strftime('%H:%M\n%Y-%m-%d')
     return timestamp.strftime('%H:%M')
 
+def format_comma_integers(ax, which='y'):
+
+    if which=='x':
+        ax.xaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
+    elif which=='y':
+        ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
 
 def standard_angle_ticks(ax, series, axis='x', step=np.pi/4):
 
@@ -214,7 +221,6 @@ def standard_angle_ticks(ax, series, axis='x', step=np.pi/4):
     elif axis=='y':
         ax.yaxis.set_major_formatter(FuncFormatter(rad2deg))
         ax.set_yticks(np.arange(min_tick, max_tick, step))
-
 
 def shifted_angle_ticks(ax, axis='x'):
 
