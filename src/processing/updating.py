@@ -153,7 +153,7 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
             write_to_cdf(filtered_df, directory=region_save_directory, file_name=f'{spacecraft.upper()}_{region.upper()}_{key}', attributes={'R_E': R_E}, overwrite=True, reset_index=True)
 
 
-def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_fields=None, **kwargs):
+def process_plasma_data(df, ion_df, ion_source, with_unc=False, convert_fields=None, **kwargs):
     """
     Once the plasma data has been extracted from the raw moments files
     This function will combine into total flow pressure and velocity etc
@@ -163,85 +163,86 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
         return cross_prod(a,b, with_unc)
 
     ###----------CALCULATIONS----------###
-    insert_magnitude(merged_df, 'V', 'GSE', 'flow')
+    insert_magnitude(df, 'V', 'GSE', 'flow')
 
-    if with_unc and 'V_flow_unc' not in merged_df:
-        idx = merged_df.columns.get_loc('V_flow')
-        merged_df.insert(idx+1, 'V_flow_unc', (
-            merged_df['V_x_GSE'].to_numpy()**2 * merged_df['V_x_GSE_unc'].to_numpy()**2 +
-            merged_df['V_y_GSE'].to_numpy()**2 * merged_df['V_y_GSE_unc'].to_numpy()**2 +
-            merged_df['V_z_GSE'].to_numpy()**2 * merged_df['V_z_GSE_unc'].to_numpy()**2
-        ) ** 0.5 / merged_df['V_flow'].to_numpy())
+    if with_unc and 'V_flow_unc' not in df:
+        idx = df.columns.get_loc('V_flow')
+        df.insert(idx+1, 'V_flow_unc', (
+            df['V_x_GSE'].to_numpy()**2 * df['V_x_GSE_unc'].to_numpy()**2 +
+            df['V_y_GSE'].to_numpy()**2 * df['V_y_GSE_unc'].to_numpy()**2 +
+            df['V_z_GSE'].to_numpy()**2 * df['V_z_GSE_unc'].to_numpy()**2
+        ) ** 0.5 / df['V_flow'].to_numpy())
 
-    v_flow = build_uarr(merged_df, 'V_flow', with_unc)
+    v_flow = build_uarr(df, 'V_flow', with_unc)
 
     # Dynamic pressure
-    calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs)
+    calc_avg_ion_mass(df, ion_df, ion_source, **kwargs)
 
-    n_tot   = build_uarr(merged_df, 'N_tot', with_unc)
-    rho_tot = (merged_df['m_avg_ratio'].to_numpy()*m_p) * n_tot # kg/cc
+    n_tot   = build_uarr(df, 'N_tot', with_unc)
+    rho_tot = (df['m_avg_ratio'].to_numpy()*m_p) * n_tot # kg/cc
 
     # P = 0.5 * rho * V^2
     # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
     p_flow = 0.5 * rho_tot * v_flow**2 * 1e21
-    assign_values(merged_df, 'P_flow', p_flow, with_unc)
+    assign_values(df, 'P_flow', p_flow, with_unc)
 
     # Beta = p_th / p_mag, p_mag = B^2/2mu_0
     # p_dyn *= 1e-9, 1/B_avg^2 *= 1e18, so beta *= 1e9
-    P_th = build_uarr(merged_df, 'P_th', with_unc)
-    beta = P_th / (merged_df['B_avg'].to_numpy()**2) * (2*mu_0) * 1e9
-    assign_values(merged_df, 'beta', beta, with_unc)
+    P_th = build_uarr(df, 'P_th', with_unc)
+    beta = P_th / (df['B_avg'].to_numpy()**2) * (2*mu_0) * 1e9
+    assign_values(df, 'beta', beta, with_unc)
 
     # Alfven Speed = B / sqrt(mu_0 * rho)
     # B_avg *= 1e-9, 1/sqrt(rho) *= 1e-3, vA *= 1e-3, so speed *= 1e-15
-    V_A = merged_df['B_avg'].to_numpy() / safe_sqrt(mu_0 * rho_tot)* 1e-15
-    assign_values(merged_df, 'V_A', V_A, with_unc)
+    V_A = df['B_avg'].to_numpy() / safe_sqrt(mu_0 * rho_tot)* 1e-15
+    assign_values(df, 'V_A', V_A, with_unc)
 
     ###----------GSE to GSM----------###
 
     if convert_fields is not None:
         print('Rotating...')
-        convert_columns = [vec_cols(field,'GSE',merged_df) for field in convert_fields]
-        gsm_vectors = convert_GSE_to_GSM_with_angles(merged_df, convert_columns, ref='B', interp=True, include_unc=with_unc)
-        merged_df[gsm_vectors.columns] = gsm_vectors
+        convert_columns = [vec_cols(field,'GSE',df) for field in convert_fields]
+        gsm_vectors = convert_GSE_to_GSM_with_angles(df, convert_columns, ref='B', interp=True, include_unc=with_unc)
+        df[gsm_vectors.columns] = gsm_vectors
 
     vec_coords = 'GSM'
 
     # Clock Angle: theta = atan2(By,Bz)
-    if 'B_clock' not in merged_df:
-        B_clock = np.arctan2(merged_df[f'B_y_{vec_coords}'].to_numpy(), merged_df[f'B_z_{vec_coords}'].to_numpy())
+    if 'B_clock' not in df:
+        B_clock = np.arctan2(df[f'B_y_{vec_coords}'].to_numpy(), df[f'B_z_{vec_coords}'].to_numpy())
     else:
-        B_clock = merged_df['B_clock'].to_numpy()
+        B_clock = df['B_clock'].to_numpy()
 
     # Kan and Lee Electric Field: E_R = |V| * B_T * sin^2 (clock/2)
     # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
-    E_R = (v_flow * np.sqrt(merged_df[f'B_y_{vec_coords}'].to_numpy()**2+merged_df[f'B_z_{vec_coords}'].to_numpy()**2) * (np.sin(B_clock/2))**2) * 1e-3
-    assign_values(merged_df, 'E_R', E_R, with_unc)
+    B_yz = df[f'B_y_{vec_coords}'].to_numpy()**2 + df[f'B_z_{vec_coords}'].to_numpy()**2
+    E_R = (v_flow * np.sqrt(B_yz) * (np.sin(B_clock/2))**2) * 1e-3
+    assign_values(df, 'E_R', E_R, with_unc)
 
     ###----------CROSS PRODUCTS----------###
 
     # Build uarray for V and B
-    V = build_uarr(merged_df, vec_cols('V',vec_coords,merged_df), with_unc)
-    B = merged_df[vec_cols('B',vec_coords,merged_df)].to_numpy()
+    V = build_uarr(df, vec_cols('V',vec_coords,df), with_unc)
+    B = df[vec_cols('B',vec_coords,df)].to_numpy()
 
     # E = -V x B = B x V
     # V *= 1e3, B *= 1e-9, and E *= 1e3 so E_gse *= 1e-3
     E = cross_u(B, V) * 1e-3
-    assign_values(merged_df, vec_cols('E',vec_coords), E, with_unc)
+    assign_values(df, vec_cols('E',vec_coords), E, with_unc)
 
     E_mag = safe_sqrt(np.sum(E**2, axis=1))
-    assign_values(merged_df, 'E_mag', E_mag, with_unc, col_before=f'E_x_{vec_coords}')
+    assign_values(df, 'E_mag', E_mag, with_unc, col_before=f'E_x_{vec_coords}')
 
     # S = E x H = E x B / mu_0
     # E *= 1e-3, B *= 1e-9, and S *= 1e6 so S_gse *= 1e-6
     S = cross_u(E, B) * 1e-6 / mu_0
-    assign_values(merged_df, vec_cols('S',vec_coords), S, with_unc)
+    assign_values(df, vec_cols('S',vec_coords), S, with_unc)
 
     S_mag = safe_sqrt(np.sum(S**2, axis=1))
-    assign_values(merged_df, 'S_mag', S_mag, with_unc, col_before=f'S_x_{vec_coords}')
+    assign_values(df, 'S_mag', S_mag, with_unc, col_before=f'S_x_{vec_coords}')
 
 
-def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
+def calc_avg_ion_mass(df, ion_df, ion_source, **kwargs):
     """
     This method assumes the relative amount of ions measured by the HPCA instrument (so the ratios) are correct.
     This ratio is then scaled by the total denisty measured by FPI.
@@ -255,8 +256,9 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
         ion_mass_dict = kwargs.get('ion_mass_dict', ION_MASS_DICT)
 
         # avoid extrapolation
-        ion_interp = ion_df.reindex(merged_df.index).interpolate(method='time')
-        ion_interp = ion_interp.loc[(ion_interp.index >= ion_df.index.min()) & (ion_interp.index <= ion_df.index.max())]
+        ion_interp = ion_df.reindex(df.index).interpolate(method='time')
+        internal   = (ion_interp.index >= ion_df.index.min()) & (ion_interp.index <= ion_df.index.max())
+        ion_interp = ion_interp.loc[internal]
 
         # hplus density saturates in HPCA
         ion_ratio_map = {'heplus': 'nhe_np_ratio', 'oplus': 'no_np_ratio', 'heplusplus': 'na_np_ratio'}
@@ -264,22 +266,22 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
         num = m_p
         den = 1.0
 
-        idx = merged_df.columns.get_loc('N_tot')
+        idx = df.columns.get_loc('N_tot')
         for ion, ratio_col in ion_ratio_map.items():
 
             r = ion_interp[f'N_{ion}'] / ion_interp['N_hplus']
             r = r.fillna(default_ratios[ion]).clip(lower=0)
 
             try:
-                merged_df.insert(idx+2, ratio_col, r)
+                df.insert(idx+2, ratio_col, r)
             except:
-                merged_df[ratio_col] = r
+                df.loc[:,ratio_col] = r
 
             num += r * ion_mass_dict[ion]
             den += r
 
         m_avg = num / den # kg
-        merged_df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
+        df.insert(idx+2, 'm_avg_ratio', m_avg/m_p)
 
     else:
         print('Using OMNI alpha ratio.')
@@ -287,26 +289,26 @@ def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
         max_age = kwargs.get('max_ratio_age', pd.Timedelta('30min'))
 
         try:
-            ratio = (ion_df['na_np_ratio'].sort_index().reindex(merged_df.index, method='ffill', tolerance=max_age).fillna(default_ratio))
+            ratio = (ion_df['na_np_ratio'].sort_index().reindex(df.index, method='ffill', tolerance=max_age).fillna(default_ratio))
 
         except (TypeError, KeyError, AttributeError):
             print('No valid OMNI alpha ratio available; using default.')
-            ratio = pd.Series(default_ratio, index=merged_df.index)
+            ratio = pd.Series(default_ratio, index=df.index)
 
 
-        idx = merged_df.columns.get_loc('N_tot')
+        idx = df.columns.get_loc('N_tot')
 
-        if 'na_np_ratio' in merged_df:
-            merged_df['na_np_ratio'] = ratio
+        if 'na_np_ratio' in df:
+            df.loc[:,'na_np_ratio'] = ratio
         else:
-            merged_df.insert(idx+2, 'na_np_ratio', ratio)
+            df.insert(idx+2, 'na_np_ratio', ratio)
 
         m_avg_ratio = (m_p + ratio*m_a) / ((1+ratio)*m_p)  # kg
 
-        if 'm_avg_ratio' in merged_df:
-            merged_df['m_avg_ratio'] = m_avg_ratio
+        if 'm_avg_ratio' in df:
+            df.loc[:,'m_avg_ratio'] = m_avg_ratio
         else:
-            merged_df.insert(idx+3, 'm_avg_ratio', m_avg_ratio)
+            df.insert(idx+3, 'm_avg_ratio', m_avg_ratio)
 
 # %% utils
 
@@ -336,8 +338,6 @@ def assign_values(df, column, uarr, with_unc, col_before=None):
             unit = df.attrs.get('units',{}).get(column)
             if unit:
                 df.attrs['units'][f'{column}_unc'] = unit
-
-
 
 def build_uarr(df, columns, with_unc):
 
