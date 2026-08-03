@@ -133,8 +133,6 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
             cols_to_drop = [col for col in field_df if col in merged_df]
             merged_df.drop(columns=cols_to_drop, inplace=True)
 
-        return
-
         ###----------WRITE TO FILE----------###
 
         print(f'{key} processed.')
@@ -169,7 +167,11 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
 
     if with_unc and 'V_flow_unc' not in merged_df:
         idx = merged_df.columns.get_loc('V_flow')
-        merged_df.insert(idx+1, 'V_flow_unc', (merged_df['V_x_GSE']**2 * merged_df['V_x_GSE_unc']**2 + merged_df['V_y_GSE']**2 * merged_df['V_y_GSE_unc']**2 + merged_df['V_z_GSE']**2 * merged_df['V_z_GSE_unc']**2) ** 0.5 / merged_df['V_flow'])
+        merged_df.insert(idx+1, 'V_flow_unc', (
+            merged_df['V_x_GSE'].to_numpy()**2 * merged_df['V_x_GSE_unc'].to_numpy()**2 +
+            merged_df['V_y_GSE'].to_numpy()**2 * merged_df['V_y_GSE_unc'].to_numpy()**2 +
+            merged_df['V_z_GSE'].to_numpy()**2 * merged_df['V_z_GSE_unc'].to_numpy()**2
+        ) ** 0.5 / merged_df['V_flow'].to_numpy())
 
     v_flow = build_uarr(merged_df, 'V_flow', with_unc)
 
@@ -201,19 +203,19 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
         print('Rotating...')
         convert_columns = [vec_cols(field,'GSE',merged_df) for field in convert_fields]
         gsm_vectors = convert_GSE_to_GSM_with_angles(merged_df, convert_columns, ref='B', interp=True, include_unc=with_unc)
-        merged_df   = pd.concat([merged_df,gsm_vectors], axis=1)
+        merged_df[gsm_vectors.columns] = gsm_vectors
 
     vec_coords = 'GSM'
 
     # Clock Angle: theta = atan2(By,Bz)
     if 'B_clock' not in merged_df:
-        B_clock = np.arctan2(merged_df[f'B_y_{vec_coords}'], merged_df[f'B_z_{vec_coords}'])
+        B_clock = np.arctan2(merged_df[f'B_y_{vec_coords}'].to_numpy(), merged_df[f'B_z_{vec_coords}'].to_numpy())
     else:
-        B_clock = merged_df['B_clock']
+        B_clock = merged_df['B_clock'].to_numpy()
 
     # Kan and Lee Electric Field: E_R = |V| * B_T * sin^2 (clock/2)
     # V *= 1e3, B *= 1e-9, E *= 1e3, so E_R *= 1e-3
-    E_R = (v_flow * np.sqrt(merged_df[f'B_y_{vec_coords}']**2+merged_df[f'B_z_{vec_coords}']**2) * (np.sin(B_clock/2))**2) * 1e-3
+    E_R = (v_flow * np.sqrt(merged_df[f'B_y_{vec_coords}'].to_numpy()**2+merged_df[f'B_z_{vec_coords}'].to_numpy()**2) * (np.sin(B_clock/2))**2) * 1e-3
     assign_values(merged_df, 'E_R', E_R, with_unc)
 
     ###----------CROSS PRODUCTS----------###
@@ -238,7 +240,6 @@ def process_plasma_data(merged_df, ion_df, ion_source, with_unc=False, convert_f
     S_mag = safe_sqrt(np.sum(S**2, axis=1))
     assign_values(merged_df, 'S_mag', S_mag, with_unc, col_before=f'S_x_{vec_coords}')
 
-    return merged_df
 
 def calc_avg_ion_mass(merged_df, ion_df, ion_source, **kwargs):
     """

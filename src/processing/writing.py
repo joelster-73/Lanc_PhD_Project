@@ -69,12 +69,12 @@ def write_to_cdf(df, output_file=None, directory=None, file_name=None, attribute
         for column in df.columns:
             new_data = df[column].to_numpy()
             if column not in cdf or update_column:
-                unit = df.attrs.get('units',{}).get(column,None)
+                unit = df.attrs.get('units',{}).get(column)
                 if unit is None:
                     unit = add_unit(column)
 
                 try:
-                    if column == time_col or unit == 'datetime':
+                    if (column == time_col) or (unit == 'datetime'):
                         new_data = datetime_to_cdf_epoch(new_data)
                         cdf.new(column, data=new_data, type=pycdf.const.CDF_EPOCH)
 
