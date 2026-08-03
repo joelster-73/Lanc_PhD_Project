@@ -130,8 +130,8 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
 
             process_plasma_data(merged_df, ion_df, ion_source, with_unc=uncertainties, **kwargs)
 
-            cols_to_drop = [col for col in field_df if col in merged_df]
-            merged_df.drop(columns=cols_to_drop, inplace=True)
+        cols_to_drop = [col for col in field_df if col in merged_df]
+        merged_df.drop(columns=cols_to_drop, inplace=True)
 
         ###----------WRITE TO FILE----------###
 
@@ -317,18 +317,27 @@ def assign_values(df, column, uarr, with_unc, col_before=None):
     if not isinstance(column, str):  # list of columns
         df.loc[:, column] = vals
         if with_unc:
-            df.loc[:, [f'{c}_unc' for c in column]] = safe_std(uarr)
-
-    elif col_before:
-        idx = df.columns.get_loc(col_before)
-        df.insert(idx, column, vals)
-        if with_unc:
-            df.insert(idx + 1, f'{column}_unc', safe_std(uarr))
+            df.loc[:,[f'{c}_unc' for c in column]] = safe_stds(uarr)
 
     else:
-        df[column] = vals
+
+        if col_before:
+            idx = df.columns.get_loc(col_before)
+            df.insert(idx, column, vals)
+            if with_unc:
+                df.insert(idx + 1, f'{column}_unc', safe_stds(uarr))
+
+        else:
+            df[column] = vals
+            if with_unc:
+                df.loc[:,f'{column}_unc'] = safe_stds(uarr)
+
         if with_unc:
-            df[f'{column}_unc'] = safe_std(uarr)
+            unit = df.attrs.get('units',{}).get(column)
+            if unit:
+                df.attrs['units'][f'{column}_unc'] = unit
+
+
 
 def build_uarr(df, columns, with_unc):
 
@@ -373,10 +382,10 @@ def safe_sqrt(x):
     out[mask] = unp.sqrt(x[mask])
     return out
 
-def safe_std(x):
+def safe_stds(x):
     nominal = unp.nominal_values(x)
 
-    out = np.full(np.shape(x), np.nan, dtype=object)
+    out = np.full(np.shape(x), np.nan, dtype=float)
     mask = np.isfinite(nominal)
 
     out[mask] = unp.std_devs(x[mask])

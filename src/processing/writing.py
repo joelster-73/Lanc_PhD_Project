@@ -95,8 +95,9 @@ def write_to_cdf(df, output_file=None, directory=None, file_name=None, attribute
 
                     else:
                         cdf.new(column, data=new_data)
-                except:
-                    print(f'Cannot add "{column}" to cdf file.')
+
+                except Exception as e:
+                    print(f'Cannot add "{column}" to cdf file: {e}.')
 
                 else:
                     cdf[column].attrs['units'] = str(unit)
