@@ -180,6 +180,11 @@ def process_plasma_data(df, ion_df, ion_source, with_unc=False, convert_fields=N
 
     n_tot   = build_uarr(df, 'N_tot', with_unc)
     rho_tot = (df['m_avg_ratio'].to_numpy()*m_p) * n_tot # kg/cc
+    if with_unc: # prevents divide by zero error
+        mask = unp.nominal_values(rho_tot) <= 0
+        rho_tot[mask] = unp.uarray(np.nan, 0)
+    else:
+        rho_tot[rho_tot <= 0] = np.nan
 
     # P = 0.5 * rho * V^2
     # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21

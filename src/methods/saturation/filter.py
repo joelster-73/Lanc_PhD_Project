@@ -49,8 +49,6 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     populations = data_populations(sc, data_pop, region)
 
     df_sc = import_processed_spacecraft(sc, populations, resolution)
-    print('REMOVE TEMP')
-    print(list(df_sc.columns))
 
     ###----------FILTERING----------###
 
