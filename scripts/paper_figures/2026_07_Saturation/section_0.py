@@ -21,7 +21,7 @@ for resolution in ('1min','5min','15min'):
         filter_sc_region(spacecraft, region, resolution=resolution, df_omni=df_omni, test_return=False)
 
 
-# MMS undercounts density in the solar wind (coarse energ/angle bins)
+# MMS undercounts density in the solar wind (coarse energy/angle bins)
 # Cluster undercounts density in the msh (count-rate/dead-time saturation)
 
 

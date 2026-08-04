@@ -27,7 +27,7 @@ def plot_calibration(df, ind_col, good_col, total_col):
     ax2 = ax.twinx()
 
     ax2.plot(independent, good_percentage, c=blue, ls='--')
-    ax2.set_ylabel('Good Data [%]', color=blue)
+    ax2.set_ylabel('overlap [%]', color=blue)
 
 
     file_name = f'Varying_{ind_col}'

@@ -65,13 +65,14 @@ for i, ind in enumerate(independent):
     inside_model  = toy_eden_times.get_indexer(df_merged.index) != -1
     outside_model = ~inside_model
 
+
     print(f'UNIQUE TIMES in {region} [mins]')
     print('------------')
     print(f'Toy-Edens database in region:                  {int(total_mins):,}')
     print(f'Toy-Edens database when plasma data:           {np.sum(times_with_plasma):,}')
     print(f'Simple method data in region:                  {length0:,}')
     print(f'Simple method data in Toy-Edens time range:    {length:,}  | {100*length/np.sum(times_with_plasma):.2f}%')
-    print(f'Simple method data in Toy-Edens (good):        {np.sum(inside_model):,}  | {100*np.sum(inside_model)/length:.2f}%')
+    print(f'Simple method data in Toy-Edens (good?):       {np.sum(inside_model):,}  | {100*np.sum(inside_model)/length:.2f}%')
     print(f'Simple method data not in Toy-Edens (contam?): {np.sum(outside_model):,}    | {100*np.sum(outside_model)/length:.2f}%')
 
     percents[i] = 100*np.sum(inside_model)/length
