@@ -62,9 +62,9 @@ def calc_GSE_to_GSM_angles(df_coords, ref='B', suffix=''):
 def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B', interp=False, coords_suffix='', inverse=False, include_unc=False):
     """
     df_transform : data to rotate from GSE to GSM
-    vectors : column(s) to transform in df_transform
-    df_coords : contains GSE and GSM vectors
-    ref : column with GSE and GSM data in df_coords
+    vectors :      column(s) to transform in df_transform
+    df_coords :    contains GSE and GSM vectors
+    ref :          column with GSE and GSM data in df_coords
     """
 
     print('Converting...')
@@ -104,9 +104,9 @@ def convert_GSE_to_GSM_with_angles(df_transform, vectors, df_coords=None, ref='B
     ones  = np.ones_like(theta)
 
     R = np.stack([
-        np.stack([ones, zeros, zeros], axis=-1),
+        np.stack([ones,  zeros,      zeros],     axis=-1),
         np.stack([zeros, cos_theta, -sin_theta], axis=-1),
-        np.stack([zeros, sin_theta, cos_theta], axis=-1)
+        np.stack([zeros, sin_theta,  cos_theta], axis=-1)
     ], axis=-2)  # shape (N,3,3)
 
     dfs_to_concat = [dfs_rotated]
@@ -131,16 +131,15 @@ def calc_B_GSM_angles(df, **kwargs):
     time_col = kwargs.get('time_col', None)
 
     # Check if GSM components are missing, convert from GSE if necessary
-    if 'B_y_GSM' not in df or 'B_z_GSM' not in df:
+    if not ('B_y_GSM' in df and 'B_z_GSM' in df):
         gsm = convert_GSE_to_GSM(df, field='B', time_col=time_col)
         Bx, By, Bz = gsm[['B_x_GSM', 'B_y_GSM', 'B_z_GSM']].to_numpy().T
         gsm['B_mag'], gsm['B_pitch'], gsm['B_clock'] = cartesian_to_spherical(Bx, By, Bz)
 
         return gsm
 
-    x_label = 'B_x_GSM'
-    if 'B_x_GSM' not in df:
-        x_label = 'B_x_GSE'
+    x_label = 'B_x_GSE' if 'B_x_GSM' not in df else 'B_x_GSM'
+
     # If GSM components are present, compute the spherical components
     Bx, By, Bz = df[[x_label, 'B_y_GSM', 'B_z_GSM']].to_numpy().T
     B_mag, B_pitch, B_clock = cartesian_to_spherical(Bx, By, Bz)

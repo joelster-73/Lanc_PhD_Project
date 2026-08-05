@@ -22,6 +22,9 @@ from ...processing.writing import write_to_cdf
 from ...coordinates.boundaries import calc_msh_dist, vector_component_surface
 
 all_spacecraft = ('c1','mms1','tha','thb','thc','thd','the')
+sw_spacecraft  = ('c1','mms1','thb','thc')
+
+filter_spacecraft = {'sw': sw_spacecraft, 'msh': all_spacecraft}
 
 pos_cols  = ['r_MP','r_BS','r_phi','r_F']
 norm_vecs = {'field': ('B',), 'plasma': ('B','E','V','S')}
@@ -36,8 +39,6 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     """
 
     print(f'Processing {resolution} {region} data.\n')
-
-    DIR = get_proc_directory(region, dtype=data_pop, resolution=resolution, create=True) # output directory
 
     ###----------IMPORTS----------###
     if df_omni is None:
@@ -56,8 +57,6 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     if df_merged.empty:
         print(f'No {sc} data in {region}.')
         return
-    print('REMOVE TEMP')
-    print(list(df_merged.columns))
 
     suffix = f'_{sc}'
     df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
@@ -86,7 +85,8 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
         return df_merged
 
     print(f'Writing {sc} to file...')
-    write_to_cdf(df_merged, directory=DIR, file_name=f'{region}_times_{sc}', reset_index=True)
+    out_dir = get_proc_directory(region, dtype=data_pop, resolution=resolution, create=True) # output directory
+    write_to_cdf(df_merged, directory=out_dir, file_name=f'{region}_times_{sc}', reset_index=True)
 
 
 
@@ -237,7 +237,7 @@ def update_parameters(df, sc, region):
         df[temp] /= 1e6 #convert to MK
 
     if region=='sw':
-        remove_extremes(df, {f'beta{suffix}': 100, f'P_flow{suffix}': 30, f'E_mag{suffix}': 20, f'E_y_GSM{suffix}': 20})
+        remove_extremes(df, {f'beta{suffix}': 100, f'P_flow{suffix}': 15, f'E_mag{suffix}': 20, f'E_y_GSM{suffix}': 20, 'V_flow{suffix}':1400})
 
     elif region=='msh':
         remove_extremes(df, {f'B_avg{suffix}': 100}, {f'B_z_GSM{suffix}': 250, f'beta{suffix}': 100})

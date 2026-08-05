@@ -27,7 +27,7 @@ def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_k
     if sc_keys is None:
         sc_keys = ('c1','mms1','tha','thc','thd','the')
 
-    n_cols = min(3,len(sc_keys))
+    n_cols = len(sc_keys)
     n_rows = round(len(sc_keys)/n_cols)
 
     fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(3.5*(n_cols+0.5),6*(n_rows+1)), dpi=400)

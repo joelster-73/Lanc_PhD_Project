@@ -188,7 +188,7 @@ GROUND_DIR             = f'{PROCESSED_DATA_DIR}/GROUND'
 
 
 
-def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
+def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=True):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -332,7 +332,10 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False):
         raise ValueError(f'Spacecraft "{source}" does not have processed directory.')
 
     if not os.path.isdir(path):
-        if create:
+        if empty: # an empty location is not an issue
+            warnings.warn(f'Directory does not exist (no data): {path}.')
+            return 'EMPTY'
+        elif create:
             warnings.warn(f'Directory does not exist on processed drive: {path}. Creating directory...')
             create_directory(path)
         else:

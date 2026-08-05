@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from .utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df
 
-from ..sc_delay_time import merge_with_lag
+from ..delay import merge_with_lag
 
 from ....plotting.utils import save_figure, calculate_bins, get_grid_shape
 from ....plotting.formatting import create_label, shifted_angle_ticks
@@ -218,7 +218,12 @@ def plot_pulkkinen_grid(*params, ind_reg='sw', dep_reg='msh', resolution='5min',
         df_ind = mask_df(df1, independent, limits)
         df_dep = mask_df(df2, dependent)
 
-        df_ind, df_dep = merge_with_lag(df_ind, df_dep, 0, resolution)
+        if ind_reg in ('sw','msh'):
+            df_ind, df_dep = merge_with_lag(df_ind, df_dep, 0, resolution)
+        elif dep_reg in ('sw','msh') and ind_reg=='omni':
+            df_dep, df_ind = merge_with_lag(df_dep, df_ind, 0, resolution) # the spacecraft is the dependent variable
+        else:
+            raise ValueError('Not a valid combination.')
 
         # Config
         kwargs['window_width'] = bin_width

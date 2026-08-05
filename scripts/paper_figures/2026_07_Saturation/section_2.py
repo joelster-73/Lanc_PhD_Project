@@ -17,38 +17,36 @@ plot_delay_hists('combined', 'msh', data_pop='plasma', resolution='5min')
 
 from src.methods.saturation.plotting.space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
 
-sample_interval = '1min'
-data_pop = 'plasma'
+resolution = '1min'
 
-sw_keys = ('c1','mms1','thb')
-msh_keys = ('c1','mms1','the')
+sw_keys  = ('c1','mms1','thb','thc')
+msh_keys = ('c1','mms1','tha','thd','the')
 
 
 # Solar Wind
-plot_sc_years(sample_interval, data_pop, 'sw', sw_keys, combined=False)
-plot_sc_orbits(sample_interval, data_pop, 'sw', sw_keys)
+plot_sc_years(resolution, 'plasma', 'sw', sw_keys, combined=False)
+plot_sc_orbits(resolution, 'plasma', 'sw', sw_keys)
 
 
 # Magnetosheath
-plot_sc_years(sample_interval, data_pop, 'msh', msh_keys, combined=False)
-plot_sc_orbits(sample_interval, data_pop, 'msh', msh_keys)
+plot_sc_years(resolution, 'plasma', 'msh', msh_keys, combined=False)
+plot_sc_orbits(resolution, 'plasma', 'msh', msh_keys)
 
 # Both
-plot_sc_sw_msh(sample_interval, data_pop, sw_keys, msh_keys)
+plot_sc_sw_msh(resolution, 'plasma', sw_keys, msh_keys)
 
 # %% sources
 
 from src.methods.saturation.plotting.general import plot_pulkkinen_grid
 
-params = ('B_avg','B_z_GSM','B_clock','E_mag','E_y_GSM','V_flow','N_tot','P_flow','beta')
+sw_params = ('B_avg','B_z_GSM','B_clock','E_mag','E_y_GSM','E_R','N_tot','V_flow','P_flow')
 
-plot_pulkkinen_grid(*params, ind_reg='omni', dep_reg='sw', display='heat')
-plot_pulkkinen_grid(*params, ind_reg='omni', dep_reg='sw', dep_src='c1',  display='heat')
-plot_pulkkinen_grid(*params, ind_reg='omni', dep_reg='sw', dep_src='mms1', display='heat')
-plot_pulkkinen_grid(*params, ind_reg='omni', dep_reg='sw', dep_src='thb',  display='heat')
+plot_pulkkinen_grid(*sw_params, ind_reg='omni', dep_reg='sw', display='heat')
 
-plot_pulkkinen_grid(*params, ind_reg='sw',   dep_reg='msh', display='heat')
-plot_pulkkinen_grid(*params, ind_reg='omni', dep_reg='msh', display='heat')
+mah_params = ('B_avg','B_z_GSM','B_clock','E_mag','E_y_GSM','E_R','N_tot','V_flow','beta')
+
+plot_pulkkinen_grid(*mah_params, ind_reg='sw',   dep_reg='msh', display='heat')
+plot_pulkkinen_grid(*mah_params, ind_reg='omni', dep_reg='msh', display='heat')
 
 
 

@@ -46,7 +46,7 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
         fig, ax = plt.subplots()
 
     if fit_type is None:
-        print('No fit type entered.')
+        #print('No fit type entered.')
         return {}
 
     try:

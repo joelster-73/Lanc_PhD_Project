@@ -425,12 +425,12 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, r
         f_min = 0
         f_max = 1
     elif region=='sw':
-        f_min = 1
-        f_max = 5
+        f_min = round(df['r_F'].min())
+        f_max = round(df['r_F'].max())
 
     f_num = int((f_max-f_min)/f_step)+1
 
-    theta_step = 3
+    theta_step = 2
     theta_min = -90
     theta_max = 90
     theta_num = int((theta_max-theta_min)/theta_step)+1
@@ -477,9 +477,8 @@ def plot_orbit_msh(df, sc_keys='msh', param='count', title='', colourbar=True, r
     #cm = axis.pcolormesh(X, Y, counts, cmap='hot', norm=mpl.colors.LogNorm())
     cm = ax.pcolormesh(X, Y, counts, cmap='hot')
 
-    ax.plot(mp_shue1998(theta_edges)*np.cos(theta_edges),mp_shue1998(theta_edges)*np.sin(theta_edges),c='w',ls='--')
+    ax.plot(mp_shue1998(theta_edges)*np.cos(theta_edges),mp_shue1998(theta_edges)*np.sin(theta_edges),c='w',ls='-')
     ax.plot(bs_jelinek2012(theta_edges)*np.cos(theta_edges),bs_jelinek2012(theta_edges)*np.sin(theta_edges),c='w',ls='--')
-
     create_half_circle_marker(ax, angle_start=270, full=False)
 
     if colourbar:
