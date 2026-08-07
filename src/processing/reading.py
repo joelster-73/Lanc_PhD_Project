@@ -11,16 +11,20 @@ from contextlib import ExitStack
 
 from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices, merge_dataframes
+
 from .omni.analysis import update_omni
 
-from ..config import get_proc_directory
+from ..config import get_proc_directory, get_data_populations
 
 import warnings
 from spacepy.pycdf import CDFWarning
 
 warnings.filterwarnings('ignore', category=CDFWarning)
 
-def import_processed_spacecraft(spacecraft, populations=['state'], resolution='1min', year=None):
+def import_processed_spacecraft(spacecraft, populations=None, resolution='1min', year=None, region='sw'):
+
+    if populations is None:
+        populations = get_data_populations(spacecraft, 'plasma', region)
 
     if len(populations)==1:
         return import_processed_data(spacecraft, dtype=populations[0], resolution=resolution, year=year)
@@ -47,6 +51,8 @@ def import_updated_omni(resolution='1min', file_name=None, year=None):
 def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, year=None, axis=0):
 
     directory = get_proc_directory(source, dtype, resolution)
+    if directory=='EMPTY':
+        return pd.DataFrame()
 
     # axis = 0 combines files that have (mostly) the same columns at different times
     # axis = 1 combines files that have different columns

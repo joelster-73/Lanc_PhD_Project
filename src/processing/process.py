@@ -141,7 +141,7 @@ def process_overlapping_files(spacecraft, data, process_func, variables_dict, fi
         # resample and write to file
         for sample_interval, samp_dir in save_directories.items():
 
-            if sample_interval in ('raw','spin','fast'):
+            if sample_interval in ('raw','5vps','spin','fast'):
 
                 attributes['resolution'] = resolutions.get(sample_interval,sample_interval)
                 write_to_cdf(key_df, directory=samp_dir, file_name=f'{directory_name}_{key}', attributes=attributes, overwrite=overwrite)

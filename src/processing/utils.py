@@ -12,7 +12,6 @@ import pandas as pd
 
 from spacepy import pycdf
 
-
 UNIT_MAP = {
     r'^(B_[XYZ]_(GSE|GSM))': 'nT',
     r'^(V_[XYZ]_(GSE|GSM))': 'km/s',

@@ -5,19 +5,23 @@ Created on Mon Oct  6 10:55:08 2025
 @author: richarj2
 """
 import numpy as np
+import pandas as pd
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import to_rgba
 
-from ....processing.reading import import_processed_data
+from ....processing.reading import import_processed_data, import_processed_spacecraft
 
 from ....plotting.space_time import plot_orbit_msh
 from ....plotting.utils import save_figure, calculate_bins
-from ....plotting.formatting import create_label, add_figure_title
-from ....plotting.config import colour_dict
-from ....plotting.config import black, bar_hatches
+from ....plotting.formatting import add_figure_title
+from ....plotting.config import colour_dict, black, bar_hatches, white
 #from ...plotting.distributions import plot_fit
 
+from ....config import THEMIS_SPACECRAFT, CLUSTER_SPACECRAFT
+
+# %% space
 
 def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None, **kwargs):
 
@@ -97,6 +101,8 @@ def plot_sc_sw_msh(sample_interval='1min', data_pop='plasma', sw_keys=None, msh_
     plt.show()
     plt.close()
 
+# %% time
+
 def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_keys=None, combined=True, **kwargs):
 
     """
@@ -115,17 +121,14 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
         if combined:
             sc_keys = ('c1','mms1','th')
 
-    n_rows = len(sc_keys)
+    n_rows = 1 if combined else len(sc_keys)
     n_cols = 1
-    width  = 1
-    fig_h  = 2*(n_rows+1)
-    fig_w  = 4.5*(n_cols+1)
-    if combined:
-        n_rows = 1
-        width  = 1/len(sc_keys)
+    width  = 1/len(sc_keys) if combined else 1
 
-    if n_rows==1:
-        fig_h = 2*(n_rows+1.5)
+    dh = 1.5 if n_rows==1 else 1
+    fig_h  = 2*(n_rows+dh)
+    fig_w  = 4.5*(n_cols+1)
+
 
     if fig is None or axs is None:
 
@@ -216,79 +219,60 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     plt.show()
     plt.close()
 
+def plot_data_inventory(*spacecraft, region='msh', resolution='1min', field_col='B_avg', plasma_col='V_flow', **kwargs):
 
-def plot_bias_over_years(df_sw, df_msh, sw_col='AE'):
+    """
+    Combined flag: show all years on one axis, rather than split per spacecraft
+    """
 
-    # Shows driver for full OMNI and for times when contemp. MSH
+    fig, ax = plt.subplots(figsize=(12,4))
+    row = 0
+    row_sep = 0.5
+    row_labels = []
+    df_cols = [field_col, plasma_col] if region=='all' else [field_col]
+    rows = len(spacecraft) * len(df_cols)
+    ys = np.arange(0, rows*row_sep, row_sep)
 
-    fig, ax = plt.subplots(figsize=(10,6), dpi=400, sharex=True)
+    for sc in spacecraft:
+        print(sc)
 
-    for i, (colour, label) in enumerate(zip(('orange','blue'),('All OMNI','Contemp MSH'))):
-        mask = np.ones(len(df_sw),dtype=bool)
+        if region=='all': # all spacecraft before region filtering
 
-        if i==1:
-            mask = df_msh.index
+            if sc in CLUSTER_SPACECRAFT:
+                df_sw = import_processed_spacecraft(sc, resolution=resolution, region='sw')
+                df_msh = import_processed_spacecraft(sc, resolution=resolution, region='msh')
 
-        monthly_max = df_sw.loc[mask,sw_col].resample('ME').max()
-        rolling_max = monthly_max.rolling(window=6, min_periods=1).mean()
+                df = pd.concat([df_sw, df_msh]).sort_index()
 
-        month_datetimes = monthly_max.index
-        fractional_years = month_datetimes.year + (month_datetimes.month - 1)/12
+            elif sc in THEMIS_SPACECRAFT:
+                the_region = 'sw' if sc in ('thb','thc') else 'msh'
+                df = import_processed_spacecraft(sc, resolution=resolution, region=the_region)
 
-        ax.plot(fractional_years, rolling_max.values, linestyle='-', color=colour, label=label)
-
-    y_label = create_label(sw_col, units=df_sw.attrs['units'])
-
-    ax.set_ylabel(y_label)
-    ax.legend(loc='upper left')
-
-    plt.tight_layout()
-    save_figure(fig)
-    plt.show()
-    plt.close()
-
-
-def plot_bias_in_parameters(df_sw, df_msh, params=None):
-
-    if params is None:
-        parameters_to_plot = ('B_avg','B_z_GSM','V_flow','V_x_GSE','E_R','E_y_GSM','n_p','P_flow','M_A','AE')
-    param_width = {'B_avg': 1, 'B_z_GSM': 1, 'V_flow': 50, 'V_x_GSE': 50, 'n_p': 1, 'P_flow': 1, 'MA': 2, 'AE': 50, 'E_mag': 1, 'S_mag': 2}
-
-
-    n_params = len(parameters_to_plot)
-    n_cols = 2
-    n_rows = round(n_params/n_cols)
-
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(6*(n_cols+1),4*(n_rows+1)), dpi=400)
-
-    for i, param in enumerate(parameters_to_plot):
-
-        col = i % 2
-        row = i // 2
-
-        ax = axs[row,col]
-
-        for j in range(2):
-            if j==0:
-                mask = np.ones(len(df_sw),dtype=bool)
-                colour = 'orange'
-                axis = ax
             else:
-                mask = df_msh.index
-                colour = 'blue'
-                axis = ax.twinx()
+                df = import_processed_spacecraft(sc, resolution=resolution, region='')
 
-            series = df_sw.loc[mask,param].dropna()
-            if param=='MA':
-                series = series.loc[series<200]
+        else:
 
-            axis.hist(series, bins=calculate_bins(series,param_width.get(param)), histtype='step', edgecolor=colour)
-            axis.set_yscale('log')
+            df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{sc}', )
 
-        x_label = create_label(param, units=df_sw.attrs.get('units',{}))
-        ax.set_xlabel(x_label)
+        df.index = pd.to_datetime(df.index)
+
+        for col in df_cols:
+            present = df[col].notna()
+            x = df.index[present]
+            ax.scatter(x, np.full(len(x), row), marker='|', s=300, linewidths=0.5, facecolors='cyan', alpha=0.1)
+            row_labels.append(f'{sc}: {col}' if len(df_cols) > 1 else sc)
+            row += row_sep
+
+    ax.set_ylim(-row_sep, rows*row_sep)
+    ax.invert_yaxis()
+    ax.set_yticks(ys)
+    ax.set_yticklabels(row_labels)
+
+    ax.xaxis_date()
+    fig.autofmt_xdate()
 
     plt.tight_layout()
-    save_figure(fig)
+
     plt.show()
     plt.close()

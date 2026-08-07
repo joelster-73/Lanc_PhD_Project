@@ -166,6 +166,7 @@ def compare_series(series1, series2, **kwargs):
             n_bins = (calculate_bins(series1,bin_width[0]), calculate_bins(series2,bin_width[1]))
         else:
             n_bins = (calculate_bins(series1,bin_width), calculate_bins(series2,bin_width))
+
         h = ax.hist2d(series1, series2, bins=n_bins, norm=mpl.colors.LogNorm(), cmap='hot')
         ax.set_facecolor('k')
 

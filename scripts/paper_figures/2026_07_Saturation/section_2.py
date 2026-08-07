@@ -15,10 +15,11 @@ plot_delay_hists('combined', 'msh', data_pop='plasma', resolution='5min')
 
 # %% distrubtions
 
-from src.methods.saturation.plotting.space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
+from src.methods.saturation.plotting.space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh, plot_data_inventory
 
-resolution = '1min'
+resolution = '5min'
 
+all_keys = ('c1','mms1','tha','thb','thc','thd','the')
 sw_keys  = ('c1','mms1','thb','thc')
 msh_keys = ('c1','mms1','tha','thd','the')
 
@@ -34,6 +35,23 @@ plot_sc_orbits(resolution, 'plasma', 'msh', msh_keys)
 
 # Both
 plot_sc_sw_msh(resolution, 'plasma', sw_keys, msh_keys)
+
+plot_data_inventory(*all_keys, region='all', resolution=resolution)
+plot_data_inventory(*sw_keys, region='sw', resolution='5min')
+plot_data_inventory(*msh_keys, region='msh', resolution='5min')
+
+
+# %% counts
+
+from src.methods.saturation.plotting.quality import plot_avg_counts, plot_compare_averaging
+
+
+plot_avg_counts('mms1', 'msh', 'B_GSM', 'V_GSE', 'E_GSM')
+plot_avg_counts('c1', 'msh', 'B_GSM', 'V_GSE', 'E_GSM')
+plot_avg_counts('the', 'msh', 'B_GSM', 'V_GSE', 'E_GSM')
+
+
+plot_compare_averaging('mms1', 'msh', 'B_z_GSM', 'V_x_GSE', 'E_y_GSM')
 
 # %% sources
 

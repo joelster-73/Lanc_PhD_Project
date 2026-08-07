@@ -26,12 +26,12 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
 
     directory = get_luna_directory(spacecraft, instrument=data, info=data_info)
 
+    PROCESS_FUNCS = {'state': process_cluster_state, 'fgm': process_cluster_fgm, 'hia': process_cluster_hia}
+
+    process = PROCESS_FUNCS.get(data)
+
     # Process function
     if data in ('state','fgm'):
-        if data=='state':
-            process = process_cluster_state
-        elif data=='fgm':
-            process = process_cluster_fgm
 
         sub_folder = True if data_info=='5VPS' else False
         files_dict = get_cluster_files(directory, year, sub_folders=sub_folder)
@@ -40,7 +40,6 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
         filtering = None
 
     elif data=='hia':
-        process    = process_cluster_hia
         files_dict = get_cluster_files(directory, year, sub_folders=True)
         variables  = VARIABLES_DICT.get(data,{}).get(spacecraft.upper(),{})
 
@@ -127,7 +126,6 @@ def extract_cluster_data(cdf_file, variables):
         for var_name, var_code in variables.items():
 
             if var_code not in cdf:
-                print(f'"{var_code}" not in file.')
                 continue
 
             data = cdf[var_code].copy()

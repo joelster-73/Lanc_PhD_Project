@@ -15,4 +15,17 @@ df_m1 = import_processed_spacecraft('mms1', populations=['state','fgm','fpi'], r
 df_te = import_processed_spacecraft('the', populations=['STATE','FGM','msh'], resolution='15min')
 
 
+# %%
 
+from src.methods.saturation.plotting.utils import def_param_names, get_variable_range, mask_df
+
+from src.processing.reading import import_processed_data, import_updated_omni
+
+
+df1 = import_updated_omni(resolution='5min')
+
+ind_err, ind_count = def_param_names(df1, 'B_z_GSM')
+
+bin_width, limits, invert = get_variable_range('B_z_GSM', 'omni', dep_var='B_z_GSM')
+
+df_ind = mask_df(df1, 'B_z_GSM', limits)

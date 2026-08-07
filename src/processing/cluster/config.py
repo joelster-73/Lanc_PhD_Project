@@ -6,6 +6,7 @@ Created on Thu May  8 17:01:45 2025
 """
 
 CLUSTER_SPACECRAFT = ('C1', 'C2', 'C3', 'C4')
+CLUSTER_PLASMA     = ('c1', 'c3') # working plasma instruments
 MODES              = ('5VPS', 'SPIN')
 
 # %% STATE

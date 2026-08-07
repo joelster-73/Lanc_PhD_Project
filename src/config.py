@@ -30,6 +30,9 @@ CLUSTER_SPACECRAFT = ('c1', 'c2', 'c3', 'c4')
 MMS_SPACECRAFT     = ('mms1', 'mms2', 'mms3', 'mms4')
 THEMIS_SPACECRAFT  = ('tha', 'thb', 'thc', 'thd', 'the')
 
+CONSTELLATION = {**{k: 'cluster' for k in CLUSTER_SPACECRAFT}, **{k: 'mms' for k in MMS_SPACECRAFT}, **{k: 'themis' for k in THEMIS_SPACECRAFT}}
+INSTRUMENTS   = {'cluster': {'field': 'fgm', 'plasma': 'hia'}, 'themis': {'field': 'fgm', 'plasma': 'ESA'}, 'mms': {'field': 'fgm', 'plasma': 'fpi'}}
+
 
 #####----------LUNA DIRECTORIES----------#####
 
@@ -48,7 +51,7 @@ LUNA_MAG_DIR    = 'Y:/Processed_Data/GROUND/SuperMAG/NetCDF/'
 
 
 
-def get_luna_directory(source, instrument=None, info=None, create=False):
+def get_luna_directory(source, instrument=None, info=None):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -147,11 +150,7 @@ def get_luna_directory(source, instrument=None, info=None, create=False):
         raise ValueError(f'Spacecraft "{source} does not have processed directory.')
 
     if not os.path.isdir(path):
-        if create:
-            warnings.warn(f'Directory does not exist on LUNA: {path}. Creating directory...')
-            create_directory(path)
-        else:
-            raise ValueError(f'Directory does not exist on LUNA: {path}.')
+        raise ValueError(f'Directory does not exist on LUNA: {path}.')
 
 
 
@@ -188,7 +187,7 @@ GROUND_DIR             = f'{PROCESSED_DATA_DIR}/GROUND'
 
 
 
-def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=True):
+def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=False):
 
     # cluster
     if source in CLUSTER_SPACECRAFT:
@@ -332,14 +331,45 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=Tr
         raise ValueError(f'Spacecraft "{source}" does not have processed directory.')
 
     if not os.path.isdir(path):
-        if empty: # an empty location is not an issue
-            warnings.warn(f'Directory does not exist (no data): {path}.')
-            return 'EMPTY'
-        elif create:
+        if create:
             warnings.warn(f'Directory does not exist on processed drive: {path}. Creating directory...')
             create_directory(path)
+        elif empty: # an empty location is not an issue
+            warnings.warn(f'Directory does not exist (no data): {path}.')
+            return 'EMPTY'
         else:
             raise ValueError(f'Directory does not exist on processed drive: {path}.')
 
 
     return path
+
+
+
+def get_data_populations(sc, data, region):
+
+    populations = ['state']
+
+    if sc in CLUSTER_SPACECRAFT:
+
+        if data in ('field','plasma'):
+            populations.append('fgm')
+        if data in ('plasma',):
+            populations.append(region)
+
+    elif sc in THEMIS_SPACECRAFT:
+
+        populations[0] = 'STATE'
+
+        if data in ('field','plasma'):
+            populations.append('FGM')
+        if data in ('plasma',):
+            populations.append(region)
+
+    elif sc in MMS_SPACECRAFT:
+
+        if data in ('field','plasma'):
+            populations.append('fgm')
+        if data in ('plasma',):
+            populations.append('fpi')
+
+    return populations

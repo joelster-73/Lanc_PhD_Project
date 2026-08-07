@@ -71,7 +71,7 @@ def get_processed_files(directory, year=None, keyword=None):
     files_processed = sorted(glob.glob(pattern))
 
     if not files_processed:
-        raise ValueError(f"No files found in the directory: {directory}")
+        raise ValueError(f'No files found in the directory: {directory}')
 
     return files_processed
 
@@ -85,18 +85,18 @@ def get_cdf_file(directory, filename=None):
         file_path = root + ext
 
         if not file_path.lower().endswith('.cdf'):
-            raise ValueError(f"Provided file '{filename}' is not a .cdf file.")
+            raise ValueError(f'Provided file "{filename}" is not a .cdf file.')
 
 
         if not os.path.isfile(file_path):
-            raise FileNotFoundError(f"Specified file '{file_path}' not found.")
+            raise FileNotFoundError(f'Specified file "{file_path}" not found.')
         return file_path
 
     # If no filename provided, look for CDF files in the directory
     cdf_files = glob.glob(os.path.join(directory, '*.cdf'))
 
     if len(cdf_files) != 1:
-        raise ValueError(f"Expected one CDF file in the directory, found {len(cdf_files)}.")
+        raise ValueError(f'Expected one CDF file in the directory, found {len(cdf_files)}.')
 
     return cdf_files[0]
 

@@ -37,11 +37,19 @@ def mask_df(df, col, limits=None):
 
         mask = ~df[col].isna()
 
-        if limits:
+        if limits is not None:
+
             if limits[0] is not None:
-                mask &= df[col] >= limits[0]
+                if limits[0]==0:
+                    mask &= ((df[col] > 0) | ((df[col] == 0) & ~np.signbit(df[col])))
+                else:
+                    mask &= df[col] >= limits[0]
+
             if limits[-1] is not None:
-                mask &= df[col] <= limits[1]
+                if limits[1]==0:
+                    mask &= ((df[col] < 0) | ((df[col] == 0) & np.signbit(df[col])))
+                else:
+                    mask &= df[col] <= limits[1]
 
         return df.loc[mask].copy()
 
@@ -118,7 +126,7 @@ def get_var_bin_width(var, restrict):
         if var.startswith(('B_avg', 'B_para','B_y')):
             bin_width = 1 if restrict else 2
         elif var.startswith('B_clock'):
-            bin_width = np.pi/18
+            bin_width = np.pi/20
         else:
             bin_width = 2 if restrict else 5
 

@@ -5,37 +5,49 @@ Created on Thu May  8 15:58:08 2025
 @author: richarj2
 """
 
+#from src.processing.cluster.config import CLUSTER_PLASMA
 from src.processing.cluster.handling import process_cluster_files, update_fgm_data, resample_cluster_files
 from src.processing.updating import update_plasma_data
 
+
+CLUSTER_PLASMA = ('c3',) # temp to skip C1
+
 # %% Position
 
-process_cluster_files('c1', 'state', '5VPS')
-process_cluster_files('c1', 'state', 'SPIN')
+for sc in CLUSTER_PLASMA:
 
-resample_cluster_files('c1', 'state', 'spin', sample_intervals=('1min','5min','15min'))
+    process_cluster_files(sc, 'state', '5VPS')
+    process_cluster_files(sc, 'state', 'SPIN', sample_intervals=('1min','5min','15min'))
 
 # %% Field
 
-process_cluster_files('c1', 'fgm', '5VPS')
-process_cluster_files('c1', 'fgm', 'SPIN')
+for sc in CLUSTER_PLASMA:
+
+    process_cluster_files(sc, 'fgm', '5VPS')
+    process_cluster_files(sc, 'fgm', 'SPIN')
 
 # %% Update_fgm
 
-update_fgm_data('c1', 'raw')
+for sc in CLUSTER_PLASMA:
 
-resample_cluster_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min','15min'))
+    update_fgm_data(sc, 'raw') # GSE to GSM
+
+    resample_cluster_files(sc, 'fgm', 'spin', sample_intervals=('1min','5min','15min'))
 
 # %% Plasma
 
-process_cluster_files('c1', 'hia', 'moments')
+for sc in CLUSTER_PLASMA:
+
+    process_cluster_files(sc, 'hia', 'moments')
 
 # %% Update_hia
 
-update_plasma_data('c1', 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V',), field_res='spin')
+for sc in CLUSTER_PLASMA:
 
-for region in ('sw','msh'):
-    resample_cluster_files('c1', region, 'spin', sample_intervals=('1min','5min','15min'))
+    update_plasma_data(sc, 'fgm', 'hia', 'omni', ('sw','msh'), convert_fields=('V',), field_res='spin')
+
+    for region in ('sw','msh'):
+        resample_cluster_files(sc, region, 'spin', sample_intervals=('1min','5min','15min'))
 
 # %% Resample-only
 
