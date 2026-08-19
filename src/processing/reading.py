@@ -69,7 +69,7 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
             df = read_spacepy_object(cdf_files)
 
         except Exception: # CDF files for different parameters
-            print(f'Different file structures: {source} | {dtype} | {resolution}.')
+            print(f'Different file structures: {source} {dtype} {resolution}.')
             df = pd.DataFrame()
             for f in cdf_files:
                 df_param = read_spacepy_object(f)

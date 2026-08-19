@@ -369,9 +369,11 @@ def filter_quality(df, instrument='mom', column='quality'):
     df[column] = df[column].fillna(-2).astype(int)
 
     if instrument=='fgm':
-        # bad_qualities = (1, 2, 3, 4), 0 = good quality
-        mask = (df[column] == 0) # Exclude missing quality flag
-        #mask = ~df[column].isin([1, 2, 3, 4]) # includes missing flag data
+        # 0 = good quality
+        # 1, 2, 3, 4 = bad qualities
+
+        mask = (df[column] == 0)                # Excludes missing flag
+        #mask = ~df[column].isin([1, 2, 3, 4])  # Includes missing flag
 
     elif instrument=='mom':
         # bit mask quality flags

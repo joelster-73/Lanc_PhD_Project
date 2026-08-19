@@ -59,10 +59,7 @@ def process_cluster_files(spacecraft, data, data_info='SPIN', sample_intervals=(
     for sample_interval in sample_intervals:
 
         if sample_interval=='none':
-            if data in ('fgm','hia'):
-                sample_interval = 'raw' if data_info.lower()=='spin' else data_info.lower()
-            if data in ('state',):
-                sample_interval = data_info.lower()
+            sample_interval = 'raw'
 
         samples.append(sample_interval)
 
@@ -391,14 +388,17 @@ def filter_quality(df, instrument='hia', column='quality'):
     if column not in df:
         raise ValueError(f'\tNo "{column}" column.')
 
-    bad_qualities = (0, 1, 2)
+    #bad_qualities  = (0, 1, 2)
+    good_qualities = (3, 4)
+
     # 0 : science mode
     # 1 : major
     # 2 : minor
     # 3 : good
     # 4 : excellent
 
-    mask = ~df[column].isin(bad_qualities)
+    #mask = ~df[column].isin(bad_qualities)
+    mask = df[column].isin(good_qualities)
     quality_string, failed = quality_log_string(df[column], mask)
 
     if failed:

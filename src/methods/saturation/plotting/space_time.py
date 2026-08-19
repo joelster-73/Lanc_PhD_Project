@@ -16,7 +16,7 @@ from ....processing.reading import import_processed_data, import_processed_space
 from ....plotting.space_time import plot_orbit_msh
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import add_figure_title
-from ....plotting.config import colour_dict, black, bar_hatches, white
+from ....plotting.config import colour_dict, black, bar_hatches
 #from ...plotting.distributions import plot_fit
 
 from ....config import THEMIS_SPACECRAFT, CLUSTER_SPACECRAFT
@@ -225,13 +225,14 @@ def plot_data_inventory(*spacecraft, region='msh', resolution='1min', field_col=
     Combined flag: show all years on one axis, rather than split per spacecraft
     """
 
-    fig, ax = plt.subplots(figsize=(12,4))
     row = 0
     row_sep = 0.5
     row_labels = []
     df_cols = [field_col, plasma_col] if region=='all' else [field_col]
     rows = len(spacecraft) * len(df_cols)
     ys = np.arange(0, rows*row_sep, row_sep)
+
+    fig, ax = plt.subplots(figsize=(12,rows+0.5))
 
     for sc in spacecraft:
         print(sc)
@@ -258,11 +259,23 @@ def plot_data_inventory(*spacecraft, region='msh', resolution='1min', field_col=
         df.index = pd.to_datetime(df.index)
 
         for col in df_cols:
+
+            # region='all' doesn't seem correct, should be more B than V.
+
             present = df[col].notna()
             x = df.index[present]
-            ax.scatter(x, np.full(len(x), row), marker='|', s=300, linewidths=0.5, facecolors='cyan', alpha=0.1)
-            row_labels.append(f'{sc}: {col}' if len(df_cols) > 1 else sc)
-            row += row_sep
+
+            # replace below with proper dict wherever it is
+            if sc in CLUSTER_SPACECRAFT:
+                colour = 'cyan'
+            elif sc in THEMIS_SPACECRAFT:
+                colour = 'lime'
+            else:
+                colour = 'magenta'
+
+            ax.scatter(x, np.full(len(x), row), marker='|', s=300, linewidths=0.5, facecolors=colour, alpha=0.1)
+            row_labels.append(f'{sc}: {col[0]}' if len(df_cols) > 1 else sc)
+            row += row_sep ## needs changing so same spacecraft are closer, greater sep for others
 
     ax.set_ylim(-row_sep, rows*row_sep)
     ax.invert_yaxis()
@@ -271,6 +284,8 @@ def plot_data_inventory(*spacecraft, region='msh', resolution='1min', field_col=
 
     ax.xaxis_date()
     fig.autofmt_xdate()
+
+    ax.set_title(region)
 
     plt.tight_layout()
 

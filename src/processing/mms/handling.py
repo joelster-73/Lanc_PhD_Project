@@ -479,7 +479,10 @@ def filter_quality(df, instrument='fgm', column='quality'):
     df[column] = df[column].fillna(-2).astype(int)
 
     if instrument=='fgm':
-        # bad_qualities = (1, 2, 3, 4), 0 = good quality
+        # Uses a bit mask
+        # 0 = good quality
+        # Anything else is bad
+
         mask = (df[column]==0)
 
     elif instrument=='fpi':

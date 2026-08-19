@@ -5,12 +5,9 @@ Created on Thu May  8 15:58:08 2025
 @author: richarj2
 """
 
-#from src.processing.cluster.config import CLUSTER_PLASMA
+from src.processing.cluster.config import CLUSTER_PLASMA
 from src.processing.cluster.handling import process_cluster_files, update_fgm_data, resample_cluster_files
 from src.processing.updating import update_plasma_data
-
-
-CLUSTER_PLASMA = ('c3',) # temp to skip C1
 
 # %% Position
 
