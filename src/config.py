@@ -31,7 +31,7 @@ MMS_SPACECRAFT     = ('mms1', 'mms2', 'mms3', 'mms4')
 THEMIS_SPACECRAFT  = ('tha', 'thb', 'thc', 'thd', 'the')
 
 CONSTELLATION = {**{k: 'cluster' for k in CLUSTER_SPACECRAFT}, **{k: 'mms' for k in MMS_SPACECRAFT}, **{k: 'themis' for k in THEMIS_SPACECRAFT}}
-INSTRUMENTS   = {'cluster': {'field': 'fgm', 'plasma': 'hia'}, 'themis': {'field': 'fgm', 'plasma': 'ESA'}, 'mms': {'field': 'fgm', 'plasma': 'fpi'}}
+INSTRUMENTS   = {'cluster': {'field': 'fgm', 'plasma': 'hia'}, 'themis': {'field': 'FGM', 'plasma': 'MOM'}, 'mms': {'field': 'fgm', 'plasma': 'fpi'}}
 
 
 #####----------LUNA DIRECTORIES----------#####
@@ -147,7 +147,7 @@ def get_luna_directory(source, instrument=None, info=None):
 
 
     else:
-        raise ValueError(f'Spacecraft "{source} does not have processed directory.')
+        raise ValueError(f'Spacecraft "{source}" does not have LUNA directory.')
 
     if not os.path.isdir(path):
         raise ValueError(f'Directory does not exist on LUNA: {path}.')

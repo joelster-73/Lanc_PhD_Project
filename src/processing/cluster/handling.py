@@ -331,7 +331,7 @@ def update_hia_data(field_df, plasma_df):
     """
     To be used as init_func() in processing/updating/update_plasma_data()
     Merges the field and plasma dataframes so quantities such as E can be calculated
-    It drops any low-quality data, and renames columns as appropriate
+    It renames columns as appropriate
     Then parent function then drops the field columns
     """
 
@@ -342,7 +342,6 @@ def update_hia_data(field_df, plasma_df):
 
     # For now treating all species together
     plasma_df.rename(columns={'P_ion': 'P_th', 'T_ion': 'T_tot', 'N_ion': 'N_tot'}, inplace=True)
-    plasma_df = filter_quality(plasma_df)
 
     field_df.loc[field_df['B_avg']>200,'B_avg'] = np.nan
     for comp in ('x','y','z'):

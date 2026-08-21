@@ -13,18 +13,16 @@ m_a = physical_constants['alpha particle mass'][0]
 
 from .delay import calc_flat_delay
 
-from ...config import get_proc_directory
-
-from ...processing.utils import data_populations
+from ...config import get_proc_directory, get_data_populations
 from ...processing.reading import import_processed_spacecraft, import_processed_data
 from ...processing.dataframes import merge_dataframes
 from ...processing.writing import write_to_cdf
 
 from ...coordinates.boundaries import calc_msh_dist, vector_component_surface
 
-all_spacecraft = ('c1','mms1','tha','thb','thc','thd','the')
-sw_spacecraft  = ('c1','mms1','thb','thc')
-msh_spacecraft  = ('c1','mms1','tha','thd','the')
+all_spacecraft = ('c1','c3','mms1','tha','thb','thc','thd','the')
+sw_spacecraft  = ('c1','c3','mms1','thb','thc')
+msh_spacecraft = ('c1','c3','mms1','tha','thd','the')
 
 filter_spacecraft = {'sw': sw_spacecraft, 'msh': all_spacecraft}
 
@@ -49,7 +47,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
 
     print(f'Importing {sc.upper()}.')
 
-    populations = data_populations(sc, data_pop, region)
+    populations = get_data_populations(sc, data_pop, region)
 
     df_sc = import_processed_spacecraft(sc, populations, resolution)
 
@@ -208,7 +206,7 @@ def update_parameters(df, sc, region):
         df[temp] /= 1e6 #convert to MK
 
     if region=='sw':
-        remove_extremes(df, {f'beta{suffix}': 100, f'P_flow{suffix}': 15, f'E_mag{suffix}': 20, f'E_y_GSM{suffix}': 20, 'V_flow{suffix}':1400, 'N_tot{suffix}': 300})
+        remove_extremes(df, {f'beta{suffix}': 100, f'P_flow{suffix}': 15, f'E_mag{suffix}': 20, f'E_y_GSM{suffix}': 20, f'V_flow{suffix}' : 1400, f'N_tot{suffix}': 300})
 
     elif region=='msh':
         remove_extremes(df, {f'B_avg{suffix}': 100}, {f'B_z_GSM{suffix}': 250, f'beta{suffix}': 100})

@@ -7,9 +7,9 @@ Created on Thu Nov  6 17:19:46 2025
 import numpy as np
 import pandas as pd
 
-
 from ...config import R_E, DEFAULT_VALUES
 from ...coordinates.boundaries import bsn_jelinek2012
+from ...coordinates.spatial import aGSE_to_car
 
 P_SW  = DEFAULT_VALUES.get('sw',{}).get('p')
 V_SW   = DEFAULT_VALUES.get('sw',{}).get('v')
@@ -30,21 +30,32 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
     valid_positions = ~df[pos_col].isna()
     positions = df.loc[valid_positions,pos_col].to_numpy()
 
+    # Speed
+    speeds = df.loc[valid_positions,vel_col].to_numpy()
+    speeds[np.isnan(speeds)] = speed.get(region)
+    speeds[speeds > min_speeds.get(region)] = np.nan # Flag unreliable speeds
+
     # Bowshock
 
     if region=='sw':
-        pressures = df.loc[valid_positions,pres_col].to_numpy() * 2 # x2 is because I define pressure with 1/2 prefactor
+        # x2 is because I define pressure with 1/2 prefactor
+        pressures = df.loc[valid_positions,pres_col].to_numpy() * 2
+
         pressures[np.isnan(pressures)] = pressure
         bowshocks = bsn_jelinek2012(pressures)
+
+        solar_wind_speeds = speeds
 
     else:
         bowshocks = bsn_jelinek2012(pressure)
 
-    # Speed
+        solar_wind_speeds = V_SW
 
-    speeds = df.loc[valid_positions,vel_col].to_numpy()
-    speeds[np.isnan(speeds)] = speed.get(region)
-    speeds[speeds > min_speeds.get(region)] = np.nan # Flag unreliable speeds
+    # simple rotation
+
+    bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=solar_wind_speeds)
+
+
 
     df.loc[valid_positions,lag_col] = -(positions - bowshocks) * R_E / speeds
 

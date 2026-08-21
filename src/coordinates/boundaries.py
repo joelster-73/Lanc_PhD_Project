@@ -57,14 +57,14 @@ def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=
 
     if mp=='shue':
         #print('Using Shue mp.')
-        r_mp      = mp_shue1998(theta_ps, Pd=p, Bz=Bz)
+        r_mp = mp_shue1998(theta_ps, Pd=p, Bz=Bz)
     else:
         #print('Using Jelínek mp.')
-        r_mp       = mp_jelinek2012(theta_ps, Pd=p)
+        r_mp = mp_jelinek2012(theta_ps, Pd=p)
 
     if bs=='jelinek':
         #print('Using Jelínek bs.')
-        r_bs       = bs_jelinek2012(theta_ps, Pd=p)
+        r_bs = bs_jelinek2012(theta_ps, Pd=p)
 
     data_ab.update({'r_MP': r_mp, 'r_BS': r_bs})
 

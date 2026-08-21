@@ -11,15 +11,15 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import to_rgba
 
-from ....processing.reading import import_processed_data, import_processed_spacecraft
+from ....processing.reading import import_processed_data
 
 from ....plotting.space_time import plot_orbit_msh
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import add_figure_title
-from ....plotting.config import colour_dict, black, bar_hatches
+from ....plotting.config import colour_dict, black, bar_hatches, colour_dict_simple
 #from ...plotting.distributions import plot_fit
 
-from ....config import THEMIS_SPACECRAFT, CLUSTER_SPACECRAFT
+from ....config import INSTRUMENTS, CONSTELLATION
 
 # %% space
 
@@ -219,75 +219,104 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     plt.show()
     plt.close()
 
-def plot_data_inventory(*spacecraft, region='msh', resolution='1min', field_col='B_avg', plasma_col='V_flow', **kwargs):
-
-    """
-    Combined flag: show all years on one axis, rather than split per spacecraft
-    """
+def plot_data_inventory(*spacecraft, region='msh', display='yearly', **kwargs):
 
     row = 0
-    row_sep = 0.5
+    row_sep = 0.4
     row_labels = []
-    df_cols = [field_col, plasma_col] if region=='all' else [field_col]
-    rows = len(spacecraft) * len(df_cols)
-    ys = np.arange(0, rows*row_sep, row_sep)
 
-    fig, ax = plt.subplots(figsize=(12,rows+0.5))
+    rows = len(spacecraft) * (2 if region=='all' else 1)
+    width = 8 * (2 if region=='all' else 1)
+    height = (2*rows + 1)*row_sep if region=='all' else 10*row_sep
+    ys = np.arange(0, rows*row_sep-0.1, row_sep)
+
+    field_col = 'B_avg'
+    plasma_col = 'V_flow'
+
+    def _draw_bar(ax, row, start, end, group, colour, row_sep, alpha_min=0.2, bar_scale=0.75):
+        alpha = len(group) / (end - start).total_seconds() * 60
+        alpha = alpha * (1 - alpha_min) + alpha_min
+        ax.barh(row, end - start, left=start, height=row_sep*bar_scale, color=colour, alpha=alpha)
+
+
+    fig, ax = plt.subplots(figsize=(width, height))
 
     for sc in spacecraft:
         print(sc)
 
         if region=='all': # all spacecraft before region filtering
 
-            if sc in CLUSTER_SPACECRAFT:
-                df_sw = import_processed_spacecraft(sc, resolution=resolution, region='sw')
-                df_msh = import_processed_spacecraft(sc, resolution=resolution, region='msh')
+            constellation = CONSTELLATION.get(sc)
+            instruments = INSTRUMENTS.get(constellation)
 
-                df = pd.concat([df_sw, df_msh]).sort_index()
+            field = instruments.get('field')
+            plasma = instruments.get('plasma')
 
-            elif sc in THEMIS_SPACECRAFT:
-                the_region = 'sw' if sc in ('thb','thc') else 'msh'
-                df = import_processed_spacecraft(sc, resolution=resolution, region=the_region)
+            print(field,plasma)
 
-            else:
-                df = import_processed_spacecraft(sc, resolution=resolution, region='')
+            df_field = import_processed_data(sc, dtype=field, resolution='1min')
+            df_plasma = import_processed_data(sc, dtype=plasma, resolution='spin')
+
+            df_field = df_field.loc[df_field[field_col].notna(),[field_col]]
+            df_plasma = df_plasma.loc[df_plasma[plasma_col].notna(),[plasma_col]]
+
+            plasma_times = df_plasma.index.floor('min').drop_duplicates()
+
+            times_dict = {f'{sc} {field.lower()}': pd.to_datetime(df_field.index), f'{sc} {plasma.lower()}': pd.to_datetime(plasma_times)}
 
         else:
 
-            df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{sc}', )
+            df = import_processed_data(region, dtype='plasma', resolution='1min', file_name=f'{region}_times_{sc}', )
 
-        df.index = pd.to_datetime(df.index)
+            times_dict = {sc: pd.to_datetime(df.index)}
 
-        for col in df_cols:
+        colour = colour_dict_simple.get(sc.upper(),black)
 
-            # region='all' doesn't seem correct, should be more B than V.
+        for label, times in times_dict.items():
 
-            present = df[col].notna()
-            x = df.index[present]
+            times = pd.DatetimeIndex(times).floor('min').unique()
 
-            # replace below with proper dict wherever it is
-            if sc in CLUSTER_SPACECRAFT:
-                colour = 'cyan'
-            elif sc in THEMIS_SPACECRAFT:
-                colour = 'lime'
+            if display=='scatter':
+
+                ax.scatter(times, np.full(len(times), row), marker='|', s=300, linewidths=0.5, facecolors=colour, alpha=0.1)
+
+            elif display == 'yearly':
+                times = pd.Series(times)
+                time_groups = times.groupby(times.dt.year)
+                for year, group in time_groups:
+                    start = pd.Timestamp(f'{year}-01-01')
+                    end = start + pd.DateOffset(years=1)
+                    _draw_bar(ax, row, start, end, group, colour, row_sep)
+
+            elif display == 'monthly':
+                times = pd.Series(times)
+                time_groups = times.groupby([times.dt.year, times.dt.month])
+                for (year, month), group in time_groups:
+                    start = pd.Timestamp(f'{year}-{month:02d}-01')
+                    end = start + pd.DateOffset(months=1)
+                    _draw_bar(ax, row, start, end, group, colour, row_sep)
+
             else:
-                colour = 'magenta'
+                continue
 
-            ax.scatter(x, np.full(len(x), row), marker='|', s=300, linewidths=0.5, facecolors=colour, alpha=0.1)
-            row_labels.append(f'{sc}: {col[0]}' if len(df_cols) > 1 else sc)
-            row += row_sep ## needs changing so same spacecraft are closer, greater sep for others
+            row_labels.append(label)
+            row += row_sep
 
     ax.set_ylim(-row_sep, rows*row_sep)
     ax.invert_yaxis()
     ax.set_yticks(ys)
     ax.set_yticklabels(row_labels)
 
-    ax.xaxis_date()
-    fig.autofmt_xdate()
+    if region=='all':
+        # left-align all ticklabels
+        for ticklabel in ax.get_yticklabels():
+            ticklabel.set_horizontalalignment('left')
+        ax.tick_params('y', pad=90)
 
     ax.set_title(region)
 
     plt.tight_layout()
+    save_figure(fig, file_name=f'Data_Inventory_{region}', overwrite=True)
 
     plt.show()
     plt.close()

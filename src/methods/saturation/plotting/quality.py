@@ -97,10 +97,10 @@ def plot_avg_counts(sc, region, *params, data_pop='plasma', resolution='5min'):
 
     axs[0].set_ylabel('Counts')
 
-    print('Add saving functionality etc.')
+    plt.tight_layout()
+    save_figure(fig, file_name=f'Counts_per_{resolution}_avg_{sc}_{region}', overwrite=True)
 
     plt.show()
-
     plt.close()
 
 
@@ -144,12 +144,13 @@ def plot_compare_averaging(sc, region, *params, data_pop='plasma', resolutions=(
             if j==0:
                 ax.set_title(resolution)
 
-    print('Add saving functionality etc.')
-
     plt.tight_layout()
+    filename = f'Compare_distributions_{sc}_{region}'
+    filename += '_'.join(resolutions)
+    save_figure(fig, file_name=filename, overwrite=True)
+
     plt.show()
     plt.close()
-
 
 # %% uncs
 

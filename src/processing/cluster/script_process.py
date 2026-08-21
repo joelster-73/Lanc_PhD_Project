@@ -21,13 +21,13 @@ for sc in CLUSTER_PLASMA:
 for sc in CLUSTER_PLASMA:
 
     process_cluster_files(sc, 'fgm', '5VPS')
-    process_cluster_files(sc, 'fgm', 'SPIN')
+    process_cluster_files(sc, 'fgm', 'SPIN') # check whether this needs reprocessing
 
 # %% Update_fgm
 
 for sc in CLUSTER_PLASMA:
 
-    update_fgm_data(sc, 'raw') # GSE to GSM
+    update_fgm_data(sc, 'raw') # GSE to GSM using spin data ('raw' in the directory)
 
     resample_cluster_files(sc, 'fgm', 'spin', sample_intervals=('1min','5min','15min'))
 
@@ -48,7 +48,13 @@ for sc in CLUSTER_PLASMA:
 
 # %% Resample-only
 
-resample_cluster_files('c1', 'state', 'spin', sample_intervals=('1min','5min','15min'))
-resample_cluster_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min','15min'))
-resample_cluster_files('c1', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
-resample_cluster_files('c1', 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+def resample():
+
+    resample_cluster_files('c1', 'state', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_cluster_files('c1', 'fgm', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_cluster_files('c1', 'sw', 'spin', sample_intervals=('1min','5min','15min'))
+    resample_cluster_files('c1', 'msh', 'spin', sample_intervals=('1min','5min','15min'))
+
+if False:
+
+    resample()

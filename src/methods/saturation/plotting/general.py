@@ -277,9 +277,14 @@ def plot_pulkkinen_grid(*params, ind_reg='sw', dep_reg='msh', resolution='5min',
 
 # %% Delay Histograms
 
-def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min'):
+def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min', close=True):
 
     df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+
+    limit = 30
+    if close: # mainly to exclude artemis
+        df = df.loc[df['r_mag']<35]
+        limit = 15
 
     lags = df['prop_time_s'] / 60
     lags.attrs['units']['prop_time_s'] = 'mins'
@@ -287,7 +292,7 @@ def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min'):
     fig, ax = plot_freq_hist(lags, bin_width=1, data_name='Lag to BSN', brief_title=region.upper(), return_objs=True)
 
     ax.invert_xaxis() # so positive goes to the left resembling physical system
-    ax.set_xlim(30,-30)
+    ax.set_xlim(limit,-limit)
 
     file_name = f'lags_{sc}_{region}_{resolution}'
 
@@ -295,4 +300,6 @@ def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min'):
     save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
+
+    print(f'Standard deviation: {np.std(lags, ddof=1):.3f} mins')
 

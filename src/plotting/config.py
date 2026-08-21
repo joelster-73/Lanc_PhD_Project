@@ -8,7 +8,7 @@ Created on Fri May 16 10:21:52 2025
 import matplotlib.pyplot as plt
 
 
-dark_mode  = True
+dark_mode  = False
 large_text = True
 save_fig   = True
 
@@ -75,6 +75,29 @@ colour_dict = {
     'MMS2': 'tomato',
     'MMS3': 'lightsalmon',
     'MMS4': 'mistyrose'
+}
+
+colour_dict_simple = {
+    'OMNI': 'orange',
+    'C1':   'blue',
+    'C2':   'blue',
+    'C3':   'blue',
+    'C4':   'blue',
+    'TH':   'green',
+    'THA':  'green',
+    'THB':  'green',
+    'THC':  'green',
+    'THD':  'green',
+    'THE':  'green',
+    'ACE':  'darkviolet',
+    'DSC':  'deeppink',
+    'GEO':  'cyan',
+    'IMP8': 'crimson',
+    'WIND': 'magenta',
+    'MMS1': 'red',
+    'MMS2': 'red',
+    'MMS3': 'red',
+    'MMS4': 'red'
 }
 
 database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}

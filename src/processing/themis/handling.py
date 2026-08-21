@@ -379,6 +379,7 @@ def filter_quality(df, instrument='mom', column='quality'):
         # bit mask quality flags
         # 0  = good data
         # 1  = spacecraft potential unavailable
+        # 4  = electron low-energy mode
         # 8  = ion low-energy mode
         # 16 = electron density > 2 × ion density
         # 32 = ion density > 2 × electron density
@@ -387,6 +388,7 @@ def filter_quality(df, instrument='mom', column='quality'):
         mask = (df[column] == 0) # Conservative
         #bad_bits = (1 | 8 | 64)
         #mask = (df[column] & bad_bits) == 0 # Less conservative
+        #check above - does this exclude missing flags
 
     quality_string, failed = quality_log_string(df[column], mask)
 
