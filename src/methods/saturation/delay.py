@@ -26,7 +26,6 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
     speed    = {'sw': V_SW, 'msh': V_MSH} # km/s
 
     # Position
-
     valid_positions = ~df[pos_col].isna()
     positions = df.loc[valid_positions,pos_col].to_numpy()
 
@@ -83,12 +82,12 @@ def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
 
     df1_out = merged[[c if c not in df2_cols else c + '_1' for c in df1_cols]]
     df1_out.columns = df1_cols
-    df1_out = df1_out.reset_index(drop=True)
+    #df1_out = df1_out.reset_index(drop=True)
     df1_out.attrs = df1.attrs
 
     df2_out = merged[[c if c not in df1_cols else c + '_2' for c in df2_cols]]
     df2_out.columns = df2_cols
-    df2_out = df2_out.reset_index(drop=True)
+    #df2_out = df2_out.reset_index(drop=True)
     df2_out.attrs = df2.attrs
 
     return df1_out, df2_out

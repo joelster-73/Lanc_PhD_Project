@@ -14,6 +14,8 @@ from .utils import minimum_counts, def_param_names, get_variable_range, shift_an
 
 from ..delay import merge_with_lag
 
+from ....analysing.fitting import fit_bootstrap, get_confidence_range
+
 from ....plotting.utils import save_figure, calculate_bins, get_grid_shape
 from ....plotting.formatting import create_label, shifted_angle_ticks
 from ....plotting.comparing.parameter import compare_dataframes
@@ -23,6 +25,85 @@ from ....plotting.distributions import plot_freq_hist
 from ....processing.reading import import_processed_data, import_updated_omni
 from ....processing.mag.indices import import_processed_index
 
+def plot_driver_response(ind_var, dep_var, lag=None, spacecraft='combined', resolution='5min', region='sw', sc_colour=blue, bounds=None, restrict=True, shift_centre=True, **kwargs):
+    """
+    Look at OMNI and in-situ data in driver-response
+    The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
+    """
+
+    ###----------IMPORTS----------###
+
+    df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
+    kwargs.setdefault('min_count', minimum_counts[resolution])
+    kwargs.setdefault('display', 'scatter_binned')
+
+    if 'data1_name' in kwargs:
+        kwargs['data1_name'] = create_label(kwargs['data1_name'])
+
+    if ind_var=='B_clock':
+        shift_centre = True and shift_centre
+    else:
+        shift_centre = False
+
+    df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
+
+    ###----------CONFIG----------###
+
+    bin_width, limits, invert = get_variable_range(ind_var, region, dep_var=dep_var, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
+
+    # Masks and slicing
+    df_ind = mask_df(df_sc, ind_var, limits)
+    df_dep = mask_df(df_pc, dep_var)
+
+    if shift_centre:
+        shift_angular_data(df_ind, ind_var)
+
+    df_ind, df_dep = merge_with_lag(df_ind, df_dep, lag, resolution)
+
+    # Config
+    kwargs.setdefault('fit_type', 'saturation')
+
+    kwargs['window_width'] = bin_width
+    kwargs['window_step']  = bin_width/10
+    kwargs['data_colour']  = sc_colour
+    kwargs['error_colour'] = sc_colour
+
+    if 'data_name_map' in kwargs:
+        kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
+
+    ###----------BOOTSTRAP----------###
+
+    df_boot = fit_bootstrap(df_ind, ind_var, dep_var, df_dep, iterations=50, **kwargs)
+
+    x_range = np.linspace(np.min(df_ind[ind_var]), np.max(df_ind[ind_var]), 100)
+
+    confidence   = 95
+    param_intervals, (lower, upper) = get_confidence_range(df_boot, x_range, kwargs['fit_type'], confidence)
+
+    ###----------PLOT ----------###
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5), dpi=200)
+
+    ax.fill_between(x_range, lower, upper, color=black, alpha=0.2)
+
+        # Binned scatter
+    _ = compare_dataframes(df_ind, df_dep, ind_var, dep_var, fig=fig, ax=ax, return_objs=True, **kwargs)
+
+    print(f'Confidence intervals ({confidence}%)')
+    for key, val in param_intervals.items():
+        print(f'{key}:\t{val[0]:.4g}\t| {val[1]:.4g}')
+
+    file_name = f'Response_of_{dep_var}_to_{ind_var}_driver'
+    if df_sc is None:
+        file_name += '_OMNI'
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, overwrite=True)
+    plt.show()
+    plt.close()
+
+    return df_boot
 
 
 def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, spacecraft=None, resolution='5min', region='sw', omni_colour=black, contemp_colour=blue, sc_colour=pink, bounds=None, restrict=True, shift_centre=True, bottom_axis='scatter', **kwargs):
@@ -40,8 +121,8 @@ def plot_driver_multi_responses(ind_var, *dep_vars, lags=None, show_omni=True, s
     if spacecraft is not None:
         df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
-    kwargs['min_count'] = kwargs.get('min_count',minimum_counts[resolution])
-    kwargs['display']   = kwargs.get('display','rolling')
+    kwargs.setdefault('min_count', minimum_counts[resolution])
+    kwargs.setdefault('display', 'rolling')
 
     if 'data1_name' in kwargs:
         kwargs['data1_name'] = create_label(kwargs['data1_name'])

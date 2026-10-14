@@ -58,10 +58,7 @@ def mask_df(df, col, limits=None):
 
 def def_param_names(df, variable, source=None):
 
-    if source in ('sw','pc'):
-        var_err = None # Need to include
-    else:
-        var_err   = '_'.join((variable,'unc'))
+    var_err   = '_'.join((variable,'unc'))
 
     if source is not None:
         var_err = '_'.join((var_err,source))

@@ -124,7 +124,7 @@ def process_PCC_data(include_prelim=True):
 
 def process_Dst_data():
 
-    dst_dir = get_proc_directory('dst')
+    dst_dir = get_proc_directory('DST')
 
     records = []
 
@@ -329,7 +329,7 @@ def clean_mag_data(df, index):
     rename_columns(df, columns_to_rename)
 
 
-def import_processed_index(index, resolution='1min', return_series=True):
+def import_processed_index(index, resolution='1min', return_series=True, return_full=False):
     """
     Wrapper function to import a processed index as the structure depends on the index
     """
@@ -343,7 +343,11 @@ def import_processed_index(index, resolution='1min', return_series=True):
 
     df = import_processed_data('indices', resolution=resolution, file_name=index_parents.get(index,index))
 
-    if return_series:
+    if return_full:
+        return df
+
+    elif return_series:
         return df.loc[:,index]
+
     return df.loc[:,[index]]
 

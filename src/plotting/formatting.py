@@ -7,6 +7,7 @@ Created on Fri May 16 11:24:05 2025
 
 import re
 import numpy as np
+from uncertainties import UFloat
 
 import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter, StrMethodFormatter
@@ -179,6 +180,123 @@ def common_prefix(x, y):
 
 def array_to_string(arr, fmt='.1f'):
     return f'[{", ".join(f"{value:{fmt}}" for value in arr)}]'
+
+# %% fits
+
+def format_label(equation, param_dict, detailed=True, unit='', xunit='', **statistics):
+
+    params = {}
+
+    for key, value in param_dict.items():
+        if value in ('', None):
+            continue
+
+        if unit =='rad':
+            value *= (180 / np.pi)
+            unit = '°'
+
+        if detailed and isinstance(value, UFloat):
+            params[key] = f'({value:L})'
+        elif isinstance(value, UFloat):
+            params[key] = f'{value.n:.4g}'
+        else:
+            params[key] = f'{value:.4g}'
+
+    equation = equation.format(**params, unit=unit, xunit=xunit)
+
+    if detailed:
+        stats = []
+
+        for key, value in statistics.items():
+            if key=='R2':
+                label = r'$R^2$'
+            elif key=='chi2':
+                label = r'$\chi^2_\nu$'
+            else:
+                label = key
+            stats.append(f'{label}: {value:.4g}')
+
+        if len(stats)>0:
+            equation += '\n' + ', '.join(stats)
+
+    return equation
+
+def get_plot_label(fit_type):
+
+    if fit_type in ('gaussian','lognormal'):
+        return gaussian_params()
+
+    elif fit_type in ('bimodal','bimodal_offset'):
+        return bimodal_params()
+
+    elif fit_type=='saturation':
+        return saturation_params()
+
+    elif fit_type=='straight':
+        return straight_equation()
+
+    elif fit_type=='linear_flat':
+        return linear_flat_equation()
+
+    return None
+
+def straight_equation():
+    # y = a + bx
+    return r'$y = {c} + {m} \cdot x\ \mathrm{{{unit}}}$'
+
+def straight_params():
+    # y = a + bx
+    return (
+        r'$a = {c}\ \mathrm{{{unit}}}$'
+        '\n'
+        r'$b = {m}$'
+    )
+
+def saturation_equation():
+    # Vmax * x / (K + x)
+    return r'$y = ({V_max} \cdot x) / ({K} + x)\ \mathrm{{{unit}}}$'
+
+def saturation_params():
+    # Vmax * x / (K + x)
+    return r'$x_0 = {K}\ \mathrm{{{xunit}}},\quad y_s = {V_max}\ \mathrm{{{unit}}}$'
+
+def linear_flat_equation():
+    # y = (y_b / x_b) * x     for x <= x_b
+    # y = y_b                 for x >  x_b
+
+    # return (
+    #     r'$y = ({y_b} / {x_b}) \cdot x\ \mathrm{{{unit}}}'
+    #     r'\quad x \leq {x_b}$'
+    #     '\n'
+    #     r'$y = {y_b}\ \mathrm{{{unit}}}'
+    #     r'\quad x > {x_b}$'
+    # )
+    return (
+        r'$y = {y_b}\ \mathrm{{{unit}}}'
+        r'\quad x \geq {x_b}$'
+    )
+
+def gaussian_params():
+    return (
+        r'$\mu = {mu}\ \mathrm{{{unit}}}$'
+        '\n'
+        r'$\sigma = {sigma}\ \mathrm{{{unit}}}$'
+    )
+
+def bimodal_params():
+    return (
+        (
+            r'$\mu_1 = {mu1:L}\ \mathrm{{{unit}}}$'
+            '\n'
+            r'$\sigma_1 = {std1:L}\ \mathrm{{{unit}}}$'
+        ),
+        (
+            r'$\mu_2 = {mu2:L}\ \mathrm{{{unit}}}$'
+            '\n'
+            r'$\sigma_2 = {std2:L}\ \mathrm{{{unit}}}$'
+        )
+    )
+
 
 # %% ticks
 

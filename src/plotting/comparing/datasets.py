@@ -16,7 +16,6 @@ from ..distributions import plot_freq_hist, plot_q_q
 from ...analysing.comparing import difference_series
 
 
-
 def plot_compare_dataset_parameters(df1, df2, *columns, **kwargs):
 
     df1_colour     = kwargs.get('df1_colour','g')

@@ -5,6 +5,7 @@ Created on Thu May  8 17:07:51 2025
 @author: richarj2
 """
 import numpy as np
+import pandas as pd
 
 from scipy.stats import lognorm
 from scipy.optimize import curve_fit
@@ -13,8 +14,82 @@ from scipy.signal import find_peaks
 
 from uncertainties import ufloat, umath
 
+from odrpack import odr_fit
+
 from .utils import save_statistics
 
+# %% Bootstrapper
+
+
+def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, iterations=1000, **kwargs):
+
+    """
+    Implemented to do a daily bootstrapping
+    """
+
+    idx1 = df1.groupby(df1.index.normalize()).indices
+    if df2 is not None:
+        idx2 = df2.groupby(df2.index.normalize()).indices
+        days = sorted(set(idx1) & set(idx2))   # days present in both
+    else:
+        days = sorted(idx1)
+
+    rng = np.random.default_rng(42) # seed for testing, meaning of life
+    kwargs['quick_return'] = True
+    results = []
+
+    print('Bootstrapping...')
+
+    for loop in range(iterations):
+
+        if (loop+1) % int(iterations*0.05) == 0:
+            print(f'{loop+1} | {iterations}')
+
+        # Random sample of days with replacement for all iterations
+        # Choosing a sample that is the same sie as original dataset
+        sample = rng.integers(0, len(days), size=len(days))
+        chosen = [days[i] for i in sample]
+
+        rows1 = np.concatenate([idx1[d] for d in chosen])
+        block1 = df1.iloc[rows1]
+
+        if df2 is None:
+            block2 = block1
+        else:
+            rows2 = np.concatenate([idx2[d] for d in chosen])
+            block2 = df2.iloc[rows2]
+
+        popt, perr, plab, _ = fit_series(block1, col1, col2, block2, col1_err, col2_err, col1_counts, col2_counts, **kwargs)
+
+        row = dict(zip(plab, popt))
+        row.update({f'{lab}_err': e for lab, e in zip(plab, perr)})
+        #row.update({'size': len(block1)}) # if added, need to change function below
+        results.append(row)
+
+    return pd.DataFrame(results)
+
+
+def get_confidence_range(df_boot, x_range, model, confidence=95):
+
+    low_p  = (100-confidence)/2
+    high_p = (100+confidence)/2
+
+    columns = [col for col in df_boot.columns if not col.endswith('_err')]
+
+    param_intervals = {}
+    for param in columns:
+        lower  = np.percentile(df_boot[param].to_numpy(), low_p)
+        higher = np.percentile(df_boot[param].to_numpy(), high_p)
+        param_intervals[param] = (lower, higher)
+
+    func    = FIT_MAP[model]['func']
+
+    y_boot  = np.array([func(x_range, *params) for params in df_boot[columns].to_numpy()])
+
+    y_lower   = np.percentile(y_boot, low_p, axis=0)
+    y_upper   = np.percentile(y_boot, high_p, axis=0)
+
+    return param_intervals, (y_lower, y_upper)
 
 # %% Wrapper
 
@@ -28,6 +103,7 @@ def fit_series(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_cou
 
     kwargs['xunit'] = series1.attrs.get('units',{}).get(col1,'')
     kwargs['yunit'] = series2.attrs.get('units',{}).get(col2,'')
+
 
     if col1_err is not None:
         kwargs['xs_unc'] = df1.loc[:,col1_err]
@@ -47,10 +123,11 @@ def fit_series(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_cou
 
 def fit_function(xs, ys, **kwargs):
 
-    fit_name   = kwargs.get('fit_name','')
-    print_text = kwargs.get('print_text',False)
-    save_text  = kwargs.get('save_text',False)
-    save_dir   = kwargs.get('save_dir',None)
+    quick_return = kwargs.get('quick_return',False)
+    fit_name     = kwargs.get('fit_name','')
+    print_text   = kwargs.get('print_text',False)
+    save_text    = kwargs.get('save_text',False)
+    save_dir     = kwargs.get('save_dir',None)
 
     if len(xs)==0:
         print('xs is empty')
@@ -60,32 +137,22 @@ def fit_function(xs, ys, **kwargs):
         return {}
 
     mask = (~np.isnan(xs)) & (~np.isnan(ys))
-    if kwargs.get('ys_unc',None) is not None:
-        mask &= ~np.isnan(kwargs['ys_unc'])
-        mask &= kwargs['ys_unc']>0
+    for col in ('xs_unc','ys_unc'):
+        if kwargs.get(col,None) is not None:
+            mask &= ~np.isnan(kwargs[col])
+            mask &= kwargs[col]>0
 
     xs = xs[mask]
     ys = ys[mask]
-    if kwargs.get('ys_unc',None) is not None:
-        kwargs['ys_unc'] = kwargs['ys_unc'][mask]
+    for col in ('xs_unc','ys_unc'):
+        if kwargs.get(col,None) is not None:
+            kwargs[col] = kwargs[col][mask]
 
     fit_type = kwargs.get('fit_type','straight')
 
-    fit_dict = {}
-
-    FIT_MAP = {
-        'straight':       {'fit_func': straight_best_fit,    'func': straight_line},
-        'saturation':     {'fit_func': saturation_fit,       'func': saturation},
-        'gaussian':       {'fit_func': gaussian_fit,         'func': gaussian},
-        'bimodal':        {'fit_func': bimodal_fit,          'func': bimodal},
-        'bimodal_offset': {'fit_func': bimodal_fit_offset,   'func': bimodal_offset},
-        'lognormal':      {'fit_func': lognormal_fit,        'func': lognormal},
-        'linear_flat':    {'fit_func': linear_flat_fit,      'func': linear_flat},
-    }
-
-    try:
-        fit_func = FIT_MAP[fit_type]['fit_func']
-        func     = FIT_MAP[fit_type]['func']
+    try: # FIT_MAP at bottom of file
+        fit_func = FIT_MAP[fit_type]['fit_func'] # procedure that initialises the fitting
+        func     = FIT_MAP[fit_type]['func']     # the actual equation of the function
     except KeyError:
         raise Exception(f'{fit_type} not valid fit type.')
 
@@ -94,14 +161,19 @@ def fit_function(xs, ys, **kwargs):
     data_units['xunit'] = kwargs.get('xunit','')
     data_units['yunit'] = kwargs.get('yunit','')
 
-    # popt, perr, ('m', 'c'), (r'{yunit} {xunit}$^{-1}$', '{yunit}')
+    # e.g., popt, perr, ('m','c'), (r'{yunit} {xunit}$^{-1}$','{yunit}')
     popt, perr, plab, punits = fit_func(xs, ys, **kwargs)
+    if quick_return:
+        return popt, perr, plab, punits
+
     params = {}
     units = {}
 
     for lab, p, err, unit in zip(plab, popt, perr, punits):
         params[lab] = ufloat(p, err)
         units[lab]  = unit.format(**data_units)
+
+    fit_dict = {}
 
     fit_dict['params'] = params
     fit_dict['units'] = units
@@ -161,6 +233,50 @@ def fit_function(xs, ys, **kwargs):
 
 # %% Functions
 
+def fit_with_errors(model_func, x, y, p0=None, bounds=None, yerr=None, xerr=None):
+
+    try:
+
+        if xerr is not None: # use orthogonal distance regression
+
+            def odr_model(x, beta):
+                return model_func(x, *beta)
+
+            if bounds is None:
+                bounds = bounds = (np.full(len(p0), -np.inf), np.full(len(p0), np.inf))
+            else:
+                bounds = tuple(np.asarray(bound) for bound in bounds)
+
+            solution = odr_fit(odr_model, x, y, p0, bounds=bounds, weight_x=1/xerr**2, weight_y=1/yerr**2) # , report='short'
+
+            popt, perr = solution.beta, solution.sd_beta
+
+        else: # use ordinary least squares
+
+            if bounds is None:
+                bounds = (-np.inf, np.inf)
+
+            if yerr is not None:
+                eps = 1e-12 * np.median(yerr)
+                yerr += eps
+
+            popt, pcov = curve_fit(model_func, x, y, p0=p0, bounds=bounds, sigma=yerr, absolute_sigma=(yerr is not None))
+
+            if yerr is None:
+                # Scale covariance by reduced chi-square
+                chi2_red = reduced_chi2(y, model_func(x, *popt), len(popt))
+                perr = np.sqrt(np.diag(pcov) * chi2_red)
+            else:
+                perr = np.sqrt(np.diag(pcov))
+
+        return popt, perr
+
+    except RuntimeError:
+        print(f'Fit for {model_func.__name__} failed!')
+        if p0 is None:
+            return None, None
+        return p0, np.zeros(len(p0))
+
 def calculate_R2(y, yfit, yerr=None):
     if yerr is None: # Unweighted
         return r2_score(y, yfit)
@@ -182,38 +298,6 @@ def reduced_chi2(y_obs, y_model, n_params, y_err=None):
         chi2_red = np.sum((residuals / y_err)**2) / dof
 
     return chi2_red
-
-def fit_with_errors(model_func, x, y, p0=None, bounds=(-np.inf, np.inf), yerr=None):
-
-    if yerr is not None:
-        eps = 1e-12 * np.median(yerr)
-        yerr += eps
-
-    try:
-        popt, pcov = curve_fit(
-            model_func, x, y,
-            p0=p0,
-            bounds=bounds,
-            sigma=yerr,
-            absolute_sigma=(yerr is not None)
-        )
-
-        if yerr is None:
-            # Scale covariance by reduced chi-square
-            chi2_red = reduced_chi2(y, model_func(x, *popt), len(popt))
-            perr = np.sqrt(np.diag(pcov) * chi2_red)
-        else:
-            perr = np.sqrt(np.diag(pcov))
-
-        return popt, perr
-
-    except RuntimeError:
-        print(f'Fit for {model_func.__name__} failed!')
-        if p0 is None:
-            return None, None
-        return p0, np.zeros(len(p0))
-
-
 
 def histogram_perc(mids, counts, perc=50):
 
@@ -238,6 +322,7 @@ def histogram_params(mids, counts):
 
 # %% Straight
 def straight_line(x, *params):
+
     if len(params)==1:
         m = params
         return m*x
@@ -247,6 +332,7 @@ def straight_line(x, *params):
 
 def straight_best_fit(x, y, **kwargs):
 
+    xerr   = kwargs.get('xs_unc',None)
     yerr   = kwargs.get('ys_unc',None)
     origin = kwargs.get('origin',False)
 
@@ -263,7 +349,7 @@ def straight_best_fit(x, y, **kwargs):
         m0, c0 = np.polyfit(x, y, 1)
         p0 = (m0, c0)
 
-    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr)
+    popt, perr = fit_with_errors(func, x, y, p0=p0, yerr=yerr, xerr=xerr)
     if not origin:
         return popt, perr, ('m', 'c'), (r'{yunit} ({xunit})$^{{-1}}$', '{yunit}')
 
@@ -281,6 +367,7 @@ def saturation(x, *params):
 
 def saturation_fit(x, y, **kwargs):
 
+    xerr = kwargs.get('xs_unc', None)
     yerr = kwargs.get('ys_unc', None)
 
     # Initial guesses
@@ -289,7 +376,10 @@ def saturation_fit(x, y, **kwargs):
 
     p0 = (V_max0, K0)
 
-    popt, perr = fit_with_errors(saturation, x, y, p0=p0, yerr=yerr)
+    bounds = ([0, 0], # lower bounds
+              [1.25*np.max(y), 1.25*np.max(x)]) # upper bounds
+
+    popt, perr = fit_with_errors(saturation, x, y, p0=p0, bounds=bounds, yerr=yerr, xerr=xerr)
     return popt, perr, ('V_max', 'K'), ('{yunit}', '{xunit}')
 
 
@@ -306,6 +396,7 @@ def linear_flat(x, *params):
 
 def linear_flat_fit(x, y, **kwargs):
 
+    xerr = kwargs.get('xs_unc', None)
     yerr = kwargs.get('ys_unc', None)
 
     # Initial guesses
@@ -314,7 +405,7 @@ def linear_flat_fit(x, y, **kwargs):
 
     p0 = (y_b0, x_b0)
 
-    popt, perr = fit_with_errors(linear_flat, x, y, p0=p0, yerr=yerr)
+    popt, perr = fit_with_errors(linear_flat, x, y, p0=p0, yerr=yerr, xerr=xerr)
     return popt, perr, ('y_b', 'x_b'), ('{yunit}', '{xunit}')
 
 
@@ -325,6 +416,7 @@ def gaussian(x, *params):
 
 def gaussian_fit(x, y, **kwargs):
 
+    xerr          = kwargs.get('xs_unc', None)
     yerr          = kwargs.get('ys_unc',None)
     simple_bounds = kwargs.get('simple_bounds',False)
 
@@ -334,14 +426,14 @@ def gaussian_fit(x, y, **kwargs):
     initial_guess = (amplitude_guess, mean_guess, std_guess)
     # stops negative As and sigs
     if simple_bounds:
-        bounds = ([0, np.min(x), 0],
-                  [np.inf, np.max(x), np.inf])
+        bounds = ([0, np.min(x), 0], # lower bounds
+                  [np.inf, np.max(x), np.inf]) # upper bounds
     else:
-        bounds = ([amplitude_guess*0.75, mean_guess-std_guess, 0],
-                  [amplitude_guess*1.25, mean_guess+std_guess, 2*std_guess])
+        bounds = ([amplitude_guess*0.75, mean_guess-std_guess, 0], # lower bounds
+                  [amplitude_guess*1.25, mean_guess+std_guess, 2*std_guess]) # upper bounds
 
     # Perform the curve fitting
-    popt, perr = fit_with_errors(gaussian, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
+    popt, perr = fit_with_errors(gaussian, x, y, p0=initial_guess, bounds=bounds, yerr=yerr, xerr=xerr)
     return popt, perr, ('A','mu','sigma'), ('{yunit}', '{xunit}', '{xunit}')
 
 
@@ -368,6 +460,7 @@ def bimodal(x, *params):
 
 def bimodal_fit(x, y, **kwargs):
 
+    xerr          = kwargs.get('xs_unc', None)
     yerr          = kwargs.get('ys_unc',None)
     simple_bounds = kwargs.get('simple_bounds',False)
 
@@ -389,7 +482,7 @@ def bimodal_fit(x, y, **kwargs):
                   [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, x2_guess+std_guess,    sigma])
 
     # Perform the curve fitting
-    popt, perr = fit_with_errors(bimodal, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
+    popt, perr = fit_with_errors(bimodal, x, y, p0=initial_guess, bounds=bounds, yerr=yerr, xerr=xerr)
     return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2'), ('{yunit}', '{xunit}', '{xunit}', '{yunit}', '{xunit}', '{xunit}')
 
 
@@ -401,6 +494,7 @@ def bimodal_offset(x, *params):
 
 def bimodal_fit_offset(x, y, **kwargs):
 
+    xerr          = kwargs.get('xs_unc', None)
     yerr          = kwargs.get('ys_unc',None)
     simple_bounds = kwargs.get('simple_bounds',True)
 
@@ -425,7 +519,7 @@ def bimodal_fit_offset(x, y, **kwargs):
                   [2.0*amplitude_guess, median, sigma, 2.0*amplitude_guess, np.max(x), sigma, 1.1*np.min(y)])
 
     # Perform the curve fitting
-    popt, perr = fit_with_errors(bimodal_offset, x, y, p0=initial_guess, bounds=bounds, yerr=yerr)
+    popt, perr = fit_with_errors(bimodal_offset, x, y, p0=initial_guess, bounds=bounds, yerr=yerr, xerr=xerr)
     return popt, perr, ('A1', 'mu1', 'sigma1', 'A2', 'mu2', 'sigma2', 'c'), ('{yunit}', '{xunit}', '{xunit}', '{yunit}', '{xunit}', '{xunit}', '{yunit}')
 
 
@@ -437,7 +531,8 @@ def lognormal(x, *params):
 
 def lognormal_fit(x, y, **kwargs):
 
-    yerr          = kwargs.get('ys_unc',None)
+    xerr = kwargs.get('xs_unc', None)
+    yerr = kwargs.get('ys_unc',None)
     # Initial guesses
     _, sigma_guess, median, amplitude_guess = histogram_params(x, y)
 
@@ -446,8 +541,19 @@ def lognormal_fit(x, y, **kwargs):
     initial_guess = (amplitude_guess, mu_guess, sigma_guess)
 
     # Perform the curve fitting
-    popt, perr = fit_with_errors(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf), yerr=yerr)
+    popt, perr = fit_with_errors(lognormal, x, y, p0=initial_guess, bounds=(0, np.inf), yerr=yerr, xerr=xerr)
     return popt, perr, ('A', 'mu', 'sigma'), ('{yunit}', '{xunit}', '{xunit}')
 
 
 
+# %% Dictionary
+
+FIT_MAP = {
+    'straight':       {'fit_func': straight_best_fit,    'func': straight_line},
+    'saturation':     {'fit_func': saturation_fit,       'func': saturation},
+    'gaussian':       {'fit_func': gaussian_fit,         'func': gaussian},
+    'bimodal':        {'fit_func': bimodal_fit,          'func': bimodal},
+    'bimodal_offset': {'fit_func': bimodal_fit_offset,   'func': bimodal_offset},
+    'lognormal':      {'fit_func': lognormal_fit,        'func': lognormal},
+    'linear_flat':    {'fit_func': linear_flat_fit,      'func': linear_flat},
+}
