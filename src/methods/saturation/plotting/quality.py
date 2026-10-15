@@ -203,13 +203,14 @@ def plot_independent_uncertainties(*ind_vars, resolution='1min', spacecraft='omn
         bin_width, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
         kwargs['window_width'] = bin_width
 
-        df_ind = mask_df(df, ind_var, limits)
+        ind_err, ind_count = def_param_names(df, ind_var)
+
+        df_ind = mask_df(df, ind_var, limits, ind_count, resolution)
         ind_vals = df_ind[ind_var].to_numpy()
 
         if spacecraft=='omni':
             ind_err = calc_omni_uncertainty(df_ind, ind_var)
         else:
-            ind_err, ind_count = def_param_names(df, ind_var)
             ind_err = df_ind[ind_err].to_numpy()
 
         if np.all(ind_err==0):

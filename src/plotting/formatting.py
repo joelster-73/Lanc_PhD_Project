@@ -254,11 +254,11 @@ def straight_params():
 
 def saturation_equation():
     # Vmax * x / (K + x)
-    return r'$y = ({V_max} \cdot x) / ({K} + x)\ \mathrm{{{unit}}}$'
+    return r'$y = ({ys} \cdot x) / ({x0} + x)\ \mathrm{{{unit}}}$'
 
 def saturation_params():
     # Vmax * x / (K + x)
-    return r'$x_0 = {K}\ \mathrm{{{xunit}}},\quad y_s = {V_max}\ \mathrm{{{unit}}}$'
+    return r'$x_0 = {x0}\ \mathrm{{{xunit}}},\quad y_s = {ys}\ \mathrm{{{unit}}},\quad y_0 = {y0}\ \mathrm{{{unit}}}$'
 
 def linear_flat_equation():
     # y = (y_b / x_b) * x     for x <= x_b

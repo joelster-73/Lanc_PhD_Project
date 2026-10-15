@@ -13,6 +13,8 @@ from ....processing.mag.config import PC_STATIONS
 
 minimum_counts = {'1min': 100, '5min': 50, '15min': 25}
 
+minimum_sample = {'1min': 5, '5min': 25, '15min': 125} # at least 5 counts per min for stats
+
 imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'M_A', 'beta']
 
 plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSM', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSM', 'S_y_GSM', 'S_z_GSM', 'E_R']
@@ -33,7 +35,7 @@ def shift_angular_data(df, *cols, inplace=True):
     if not inplace:
         return df
 
-def mask_df(df, col, limits=None):
+def mask_df(df, col, limits=None, count_col=None, resolution='1min'):
 
         mask = ~df[col].isna()
 
@@ -51,6 +53,18 @@ def mask_df(df, col, limits=None):
                 else:
                     mask &= df[col] <= limits[1]
 
+        if count_col is not None:
+
+            if count_col not in df:
+
+                warnings.warn(f'Column {count_col} not in dataframe.')
+
+            else:
+                min_count = minimum_sample.get(resolution, 5)
+                initial = np.sum(mask)
+                mask &= df[count_col] >= min_count
+                print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,}.')
+
         return df.loc[mask].copy()
 
 
@@ -58,7 +72,9 @@ def mask_df(df, col, limits=None):
 
 def def_param_names(df, variable, source=None):
 
-    var_err   = '_'.join((variable,'unc'))
+    ###-----Error-----###
+
+    var_err = '_'.join((variable,'unc'))
 
     if source is not None:
         var_err = '_'.join((var_err,source))
@@ -66,7 +82,9 @@ def def_param_names(df, variable, source=None):
     if var_err not in df:
         var_err = None
 
-    if source in ('sw','pc'):
+    ###-----Count-----###
+
+    if source=='omni':
         if variable in plasma_cols:
             var_count   = 'plasma_counts'
         elif variable in imf_cols:

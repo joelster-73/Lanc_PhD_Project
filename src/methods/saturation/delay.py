@@ -16,11 +16,22 @@ V_SW   = DEFAULT_VALUES.get('sw',{}).get('v')
 V_MSH  = DEFAULT_VALUES.get('msh',{}).get('v')
 
 
+RESPONSE_DELAYS = {'AE': 53, 'SME': 53, 'AL': 53, 'SML': 53, 'AU': 53, 'SMU': 53,
+                   'THL': 17, 'RES': 17}
+
+def get_reponse_delay(index):
+
+    return RESPONSE_DELAYS.get(index,0)
+
+
 def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
     """
     Approximates the time it takes solar wind to reach the BSN using just the x components
     This is then added to the lag time from BSN to geomagnetic effect
     """
+
+    #### CHECK COMMENT in procedure below about large lags
+    #### Also check when the magnetosheath fractions are added that r_avg isn't, or remove at source
 
     pressure = P_SW # nPa
     speed    = {'sw': V_SW, 'msh': V_MSH} # km/s
@@ -67,7 +78,7 @@ def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
         df_ind = df_ind.loc[intersect]
         df_dep = df_dep.loc[intersect]
     """
-    total_lag = lag + np.rint(df1[lag_col].to_numpy())
+    total_lag = lag + np.rint(df1[lag_col].to_numpy()) # overflow being caused by possible large lags - inspect and fix
     rounded_lag = pd.to_timedelta(total_lag, unit='min').round(resolution)
 
     if 'lagged_time' in df1:

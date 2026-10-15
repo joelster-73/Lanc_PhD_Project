@@ -42,8 +42,8 @@ def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_
 
     for loop in range(iterations):
 
-        if (loop+1) % int(iterations*0.05) == 0:
-            print(f'{loop+1} | {iterations}')
+        # if (loop+1) % int(iterations*0.05) == 0:
+        #     print(f'{loop+1} | {iterations}')
 
         # Random sample of days with replacement for all iterations
         # Choosing a sample that is the same sie as original dataset
@@ -66,6 +66,8 @@ def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_
         #row.update({'size': len(block1)}) # if added, need to change function below
         results.append(row)
 
+    print('Complete.')
+
     return pd.DataFrame(results)
 
 
@@ -81,6 +83,8 @@ def get_confidence_range(df_boot, x_range, model, confidence=95):
         lower  = np.percentile(df_boot[param].to_numpy(), low_p)
         higher = np.percentile(df_boot[param].to_numpy(), high_p)
         param_intervals[param] = (lower, higher)
+
+    ### Probably save to a file??
 
     func    = FIT_MAP[model]['func']
 
@@ -360,10 +364,10 @@ def straight_best_fit(x, y, **kwargs):
 def saturation(x, *params):
     """
     Michaelis–Menten saturation curve:
-        y = V_max * x / (K + x)
+        y = ys * x / (x0 + x) + y0
     """
-    V_max, K = params
-    return V_max * x / (K + x)
+    ys, x0, y0 = params
+    return ys * x / (x0 + x) + y0
 
 def saturation_fit(x, y, **kwargs):
 
@@ -371,16 +375,18 @@ def saturation_fit(x, y, **kwargs):
     yerr = kwargs.get('ys_unc', None)
 
     # Initial guesses
-    V_max0 = np.percentile(y,90)
-    K0     = np.median(x)
+    ys_guess = np.percentile(y,90)
+    x0_guess = np.median(x)
+    y0_guess = np.percentile(y,1)
 
-    p0 = (V_max0, K0)
 
-    bounds = ([0, 0], # lower bounds
-              [1.25*np.max(y), 1.25*np.max(x)]) # upper bounds
+    p0 = (ys_guess, x0_guess, y0_guess)
+
+    bounds = ([0, 0, -0.5*np.median(y)], # lower bounds
+              [1.25*np.max(y), 1.25*np.max(x), np.median(y)]) # upper bounds
 
     popt, perr = fit_with_errors(saturation, x, y, p0=p0, bounds=bounds, yerr=yerr, xerr=xerr)
-    return popt, perr, ('V_max', 'K'), ('{yunit}', '{xunit}')
+    return popt, perr, ('ys', 'x0', 'y0'), ('{yunit}', '{xunit}', '{yunit}')
 
 
 def linear_flat(x, *params):

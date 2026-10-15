@@ -39,10 +39,10 @@ def plot_fit(xs, ys, x_range=None, **kwargs):
 
     colour      = kwargs.get('fit_colour','r')
     ls          = kwargs.get('fit_style','-')
-    lw          = kwargs.get('fit_width',2)
+    lw          = kwargs.get('fit_width',1.5)
 
     show_error  = kwargs.get('show_error',False)
-    as_text     = kwargs.get('as_text',False)
+    as_text     = kwargs.get('as_text',True)
     orientation = kwargs.get('orientation','vertical')
 
     if ys_unc is None:
@@ -227,7 +227,7 @@ def plot_scatter_binned(xs, ys, **kwargs):
     data_colour  = kwargs.get('data_colour',blue)
     error_colour = kwargs.get('error_colour','k')
     scat_size    = kwargs.get('scatter_size',0.5)
-    scat_marker  = kwargs.get('scat_marker','o')
+    scat_marker  = kwargs.get('scat_marker','s')
 
     bin_step     = kwargs.get('bin_step',1)
     z_min        = kwargs.get('z_min',None)
@@ -243,15 +243,13 @@ def plot_scatter_binned(xs, ys, **kwargs):
         fig, ax = plt.subplots()
 
     if not is_marker_like(scat_marker):
-        scat_marker = 'o'
+        scat_marker = 's'
 
     scatter = None
 
     for X_bin in calculate_bins(xs,bin_step):
 
         mask = (xs>=X_bin) & (xs<(X_bin+bin_step))
-
-        scatter_size = scat_size
 
         if np.sum(mask)==0:
             continue
@@ -261,7 +259,7 @@ def plot_scatter_binned(xs, ys, **kwargs):
             x = ufloat(xs.loc[mask].iloc[0],0)
             y = ufloat(ys.loc[mask].iloc[0],0)
 
-            scatter_size *= 0.25
+            #scatter_size *= 0.25
 
         else:
             x = average_of_averages(xs, xs_unc, xs_counts, mask)
@@ -270,7 +268,9 @@ def plot_scatter_binned(xs, ys, **kwargs):
             if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
                 continue
 
-            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.5, capthick=0.2, lw=0.2, zorder=1)
+            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=1, capthick=0.2, lw=0.2, zorder=2)
+
+        scatter_size = scat_size * (np.log10(np.sum(mask)))
 
         if zs is not None:
             z = average_of_averages(zs, zs_unc, zs_counts, mask)
