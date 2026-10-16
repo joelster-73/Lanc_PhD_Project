@@ -17,7 +17,7 @@ from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 from collections import Counter
 
-from ..config import black, blue, scatter_markers, colour_dict, database_colour_dict
+from ..config import black, blue, colour_dict, database_colour_dict
 from ..formatting import  create_label, data_string, format_label, get_plot_label, add_legend
 from ..utils import calculate_bins
 
@@ -270,7 +270,7 @@ def plot_scatter_binned(xs, ys, **kwargs):
 
             ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=1, capthick=0.2, lw=0.2, zorder=2)
 
-        scatter_size = scat_size * (np.log10(np.sum(mask)))
+        scatter_size = scat_size * int(np.log10(np.sum(mask)))**2
 
         if zs is not None:
             z = average_of_averages(zs, zs_unc, zs_counts, mask)
@@ -350,72 +350,6 @@ def plot_rolling_multiple(xs, ys, **kwargs):
 
     return fig, ax
 
-def plot_scatter_binned_multiple(xs, ys, **kwargs):
-
-    zs           = kwargs.get('zs',None)
-    zs_edges     = kwargs.get('zs_edges',None)
-
-    xs_unc       = kwargs.get('xs_unc',None)
-    ys_unc       = kwargs.get('ys_unc',None)
-
-    xs_counts    = kwargs.get('xs_counts',None)
-    ys_counts    = kwargs.get('ys_counts',None)
-
-    error_colour = kwargs.get('error_colour','k')
-    scat_size    = kwargs.get('scatter_size',0.5)
-
-    bin_step     = kwargs.get('bin_step',1)
-    z_min        = kwargs.get('z_min',None)
-    z_max        = kwargs.get('z_max',None)
-
-    fig         = kwargs.get('fig',None)
-    ax          = kwargs.get('ax',None)
-
-
-    if fig is None or ax is None:
-        fig, ax = plt.subplots()
-
-    if zs is None or zs_edges is None:
-        print('Need zs and zs edges for splitting scatter.')
-        return plot_scatter_binned(xs, ys, **kwargs)
-
-    z_bins, z_labels, z_vals = create_multiple_labels(zs, zs_edges, z_min, z_max)
-
-    for X_bin in calculate_bins(xs,bin_step):
-
-        mask_X = (xs>=X_bin) & (xs<(X_bin+bin_step))
-
-        for z_i, (z_bin, z_val) in  enumerate(zip(z_bins, z_vals)):
-
-            mask = mask_X.copy()
-
-            mask &= (zs>=z_bin[0]) & (zs<z_bin[1])
-
-            if np.sum(mask)==0:
-                continue
-
-            elif np.sum(mask)==1: # No standard dev.
-
-                ax.scatter(xs.loc[mask].iloc[0], ys.loc[mask].iloc[0], c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2)*0.25)
-                continue
-
-            x = average_of_averages(xs, xs_unc, xs_counts, mask)
-            y = average_of_averages(ys, ys_unc, ys_counts, mask)
-
-            if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
-                continue
-
-            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.8, capthick=0.4, lw=0.4, zorder=1)
-
-            ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2))
-
-
-    for z_i, (z_val, z_label) in enumerate(zip(z_vals, z_labels)):
-
-        ax.scatter(x.n, y.n, c=z_val, cmap='cool', marker=scatter_markers[z_i], vmin=z_min, vmax=z_max, s=scat_size*(1+z_i/2), label=z_label)
-
-
-    return fig, ax
 
 def create_multiple_labels(zs, zs_edges, z_min, z_max, z_name=None):
 

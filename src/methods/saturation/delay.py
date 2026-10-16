@@ -19,7 +19,7 @@ V_MSH  = DEFAULT_VALUES.get('msh',{}).get('v')
 RESPONSE_DELAYS = {'AE': 53, 'SME': 53, 'AL': 53, 'SML': 53, 'AU': 53, 'SMU': 53,
                    'THL': 17, 'RES': 17}
 
-def get_reponse_delay(index):
+def get_response_delay(index):
 
     return RESPONSE_DELAYS.get(index,0)
 
@@ -49,7 +49,7 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
 
     if region=='sw':
         # x2 is because I define pressure with 1/2 prefactor
-        pressures = df.loc[valid_positions,pres_col].to_numpy() * 2
+        pressures = df.loc[valid_positions,pres_col].to_numpy() * 2 ### THIS NEEDS TO USE OMNI
 
         pressures[np.isnan(pressures)] = pressure
         bowshocks = bsn_jelinek2012(pressures)
@@ -64,8 +64,6 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
     # simple rotation
 
     bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=solar_wind_speeds)
-
-
 
     df.loc[valid_positions,lag_col] = -(positions - bowshocks) * R_E / speeds
 

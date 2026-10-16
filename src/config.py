@@ -304,12 +304,14 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=Fa
             print(f'"{resolution}" not a valid resolution (get_proc_directory).')
 
     # index
-    elif source in ('PCN','PCC','AA','SME','DST','SMR','indices'):
+    elif source in ('PCN','PCC','AA','SME','SML','SMU','DST','SMR','indices'):
 
         path = f'{INDEX_DIR}/'
 
         if resolution != ' ':
             path += f'{resolution}/'
+        elif source in ('SML','SMU'):
+            path += 'SMU-L/'
         elif source != 'indices':
             path += f'{source.upper()}/'
         else:

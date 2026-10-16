@@ -175,6 +175,24 @@ def process_Dst_data():
     df_dst.attrs = {'units': {'Dst': 'nT'}, 'time_col': 'epoch'}
     return df_dst
 
+# %% Misc
+
+def process_AA_data():
+
+    aa_dir = get_proc_directory('aa')
+    file_path = os.path.join(aa_dir, 'AA_indices.dat')
+
+    df_aa = pd.read_csv(file_path, skiprows=34, sep=r'\s+', comment='|')
+    df_aa['epoch'] = pd.to_datetime(df_aa['DATE'] + ' ' + df_aa['TIME'])
+
+    df_aa.set_index('epoch',inplace=True)
+    df_aa.drop(columns=['DATE','TIME','DOY','Kpa','Aa','CK24','CK48'],inplace=True)
+
+    df_aa.loc[df_aa['aa']>=999, 'aa'] = np.nan
+
+    df_aa.attrs = {'units': {'aa': 'nT'}, 'time_col': 'epoch'}
+
+    return df_aa
 
 # %% SuperMAG
 def process_SMR_data():
@@ -191,52 +209,49 @@ def process_SMR_data():
     df_smr.set_index('epoch',inplace=True)
     df_smr.drop(columns=['year','month','day','hour','minute','<sec>'],inplace=True)
 
-    df_smr.loc[df_smr['SMR']>=3000] = np.nan
+    df_smr.loc[df_smr['SMR']>=3000, 'SMR'] = np.nan
 
     df_smr.attrs = {'units': {'SMR': 'nT'}, 'time_col': 'epoch'}
 
     return df_smr
 
 
-def process_SME_data():
+def process_SME_data(index='sme'):
+    """
+    Works for SME, SML, and SMU
+    NOTE: When the data is downloaded, there are strings at the bottom of the file
+    Either implement automatic removal or just manually delete
+    """
 
-    file_path = os.path.join(get_proc_directory('sme'), 'SME_indices.txt')
+    if index.upper()=='SME':
+        file = 'SME_indices.txt'
+        to_rename = {'<SME (nT)>': 'SME'}
+        to_filter = ('SME',)
+    else:
+        file = 'SMUL_indices.txt'
+        to_rename = {'<SMU (nT)>': 'SMU', '<SML (nT)>': 'SML'}
+        to_filter = ('SMU', 'SML')
+
+    file_path = os.path.join(get_proc_directory(index), file)
 
     df_sme = pd.read_csv(file_path, skiprows=104, sep='\t')
     df_sme = df_sme.loc[df_sme['<year>']>1995]
 
-    df_sme.rename(columns={'<year>': 'year', '<month>': 'month', '<day>': 'day', '<hour>': 'hour', '<min>': 'minute', '<SME (nT)>': 'SME'},inplace=True)
+    to_rename = {'<year>': 'year', '<month>': 'month', '<day>': 'day', '<hour>': 'hour', '<min>': 'minute'} | to_rename
+
+    df_sme.rename(columns=to_rename, inplace=True)
 
     df_sme['epoch'] = pd.to_datetime(df_sme[['year','month','day','hour','minute']])
 
     df_sme.set_index('epoch',inplace=True)
     df_sme.drop(columns=['year','month','day','hour','minute','<sec>'],inplace=True)
 
-    df_sme.loc[df_sme['SME']>=3000] = np.nan
+    for col in to_filter:
+        df_sme.loc[df_sme[col]==999999, col] = np.nan
 
-    df_sme.attrs = {'units': {'SME': 'nT'}, 'time_col': 'epoch'}
+    df_sme.attrs = {'units': {ind: 'nT' for ind in to_filter}, 'time_col': 'epoch'}
 
     return df_sme
-
-
-# %% Misc
-
-def process_AA_data():
-
-    aa_dir = get_proc_directory('aa')
-    file_path = os.path.join(aa_dir, 'AA_indices.dat')
-
-    df_aa = pd.read_csv(file_path, skiprows=34, sep=r'\s+', comment='|')
-    df_aa['epoch'] = pd.to_datetime(df_aa['DATE'] + ' ' + df_aa['TIME'])
-
-    df_aa.set_index('epoch',inplace=True)
-    df_aa.drop(columns=['DATE','TIME','DOY','Kpa','Aa','CK24','CK48'],inplace=True)
-
-    df_aa.loc[df_aa['aa']>=999] = np.nan
-
-    df_aa.attrs = {'units': {'aa': 'nT'}, 'time_col': 'epoch'}
-
-    return df_aa
 
 
 # %% averaged_indices
@@ -254,7 +269,7 @@ def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')
 
     print(f'\nImporting {index}...')
 
-
+    # Data in OMNI
     index_cols = {'AE': ['AE','AL','AU'], 'SYM': ['SYM_D','SYM_H'], 'ASY': ['ASY_D','ASY_H']}
 
     procedures = {'PCN':  process_PCN_data,'PCC': process_PCC_data, 'AA': process_AA_data, 'SME': process_SME_data, 'Dst': process_Dst_data, 'SMR': process_SMR_data}
@@ -263,7 +278,6 @@ def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')
         # indices_columns = ['AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H']
         # for consistency, averaging 1min omni data rather than 5min
         df_index = import_processed_data('omni', resolution='1min')[index_cols.get(index)]
-
         df_index.attrs = {'units': {col: 'nT' for col in index_cols.get(index)}, 'time_col': 'epoch'}
 
     elif index=='PC':
@@ -277,6 +291,12 @@ def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')
         # SuperMAG PolarCap - magnitude of horizontal field and y-component as "index"
         # need X and Z components for averaging
         df_index = import_processed_data('supermag', dtype=index, resolution='gsm')[['H_mag', 'H_x_GSE', 'H_y_GSE', 'H_z_GSE', 'H_y_GSM', 'H_z_GSM']]
+
+    elif index=='SME':
+        df_sme  = procedures['SME']('SME')
+        df_smul = procedures['SME']('SMU') # SMU and SML
+        df_index = pd.concat([df_sme, df_smul], axis=1)
+        df_index.attrs = {'units': {'SME': 'nT', 'SMU': 'nT', 'SML': 'nT'}, 'time_col': 'epoch'}
 
     else:
         df_index = procedures[index]()
@@ -338,10 +358,11 @@ def import_processed_index(index, resolution='1min', return_series=True, return_
         warnings.warn(f'Resolution {resolution} is not available as the native resolution is {native_res}.')
         resolution = native_res
 
-    index_parents = {'SYM_D': 'SYM', 'SYM_H': 'SYM', 'ASY_D': 'ASY', 'ASY_H': 'ASY', 'PCC': 'PC', 'PCN': 'PC', 'AL': 'AE', 'AU': 'AE'}
+    index_parents = {'SYM_D': 'SYM', 'SYM_H': 'SYM', 'ASY_D': 'ASY', 'ASY_H': 'ASY', 'PCC': 'PC', 'PCN': 'PC', 'AL': 'AE', 'AU': 'AE', 'SMU': 'SME', 'SML': 'SME'}
     index_parents |= {f'{station}_mag': station for station in PC_STATIONS} | {f'{station}_y_GSE': station for station in PC_STATIONS} | {f'{station}_y_GSM': station for station in PC_STATIONS}
 
     df = import_processed_data('indices', resolution=resolution, file_name=index_parents.get(index,index))
+    df = df[[col for col in df.columns if col.startswith(index)]] # retains counts and errs, discards others
 
     if return_full:
         return df

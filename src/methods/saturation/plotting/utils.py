@@ -68,6 +68,7 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min'):
         return df.loc[mask].copy()
 
 
+
 # %% names
 
 def def_param_names(df, variable, source=None):
@@ -112,10 +113,7 @@ def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
 
     invert = False
 
-    if ind_var.startswith('B_') and not ind_var.startswith(('B_avg', 'B_para','B_y')):
-        invert = True
-
-    elif ind_var.startswith('V_') and not ind_var.startswith('V_flow'):
+    if ind_var.startswith(('B_z','V_x','S_x')):
         invert = True
 
     bin_width = get_var_bin_width(ind_var, restrict)
@@ -229,7 +227,7 @@ def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, s
                 limits[1] = 25
 
             else:
-                limits[0] = -40
+                limits[0] = -30
                 if ind_src=='msh':
                     limits[0] = -80
                 elif ind_var==dep_var:
@@ -246,7 +244,7 @@ def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, s
         elif ind_var.startswith('E_'):
             limits[1] = 20
             if ind_src=='msh':
-                limits[1] = 40
+                limits[1] = 30
             elif ind_var.startswith('E_para'):
                 limits[1] = 15
             elif (dep_var is not None) and ((ind_var==dep_var) or (dep_var.startswith('E_para'))):
@@ -273,7 +271,7 @@ def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, s
             if ind_var.startswith('S_perp'):
                 limits[0] = -150
             if ind_src=='msh':
-                limits[0] = -600
+                limits[0] = -300
 
         elif ind_var.startswith('M_A'):
             limits[1] = 50

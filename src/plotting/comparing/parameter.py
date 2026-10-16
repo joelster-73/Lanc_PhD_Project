@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from .procedures import plot_fit, plot_scatter, plot_scatter_binned, plot_rolling_multiple, plot_scatter_binned_multiple, plot_scatter_with_dict, plot_rolling_window
+from .procedures import plot_fit, plot_scatter, plot_scatter_binned, plot_scatter_with_dict, plot_rolling_window
 
 from ..config import black
 from ..formatting import add_legend, add_figure_title, create_label, data_string, standard_angle_ticks
@@ -111,6 +111,7 @@ def compare_series(series1, series2, **kwargs):
     fig         = kwargs.get('fig',None)
     ax          = kwargs.get('ax',None)
     return_objs = kwargs.get('return_objs',False)
+    return_fit  = kwargs.get('return_fit', False)
 
     ###---------------CONSTRUCT COLUMN LABELS---------------###
 
@@ -142,14 +143,8 @@ def compare_series(series1, series2, **kwargs):
     elif display == 'rolling':
         _ = plot_rolling_window(series1, series2, **kwargs)
 
-    elif display == 'rolling_multiple':
-        _ = plot_rolling_multiple(series1, series2, **kwargs)
-
-    elif display == 'scatter_binned_multiple':
-        _ = plot_scatter_binned_multiple(series1, series2, **kwargs)
-
     elif display == 'heat':
-        if hasattr(bin_width, '__len__') and len(bin_width) == 2:
+        if hasattr(bin_width, '__len__') and len(bin_width)==2:
             n_bins = (calculate_bins(series1,bin_width[0]), calculate_bins(series2,bin_width[1]))
         else:
             n_bins = (calculate_bins(series1,bin_width), calculate_bins(series2,bin_width))
@@ -178,7 +173,7 @@ def compare_series(series1, series2, **kwargs):
     fit_kwargs['xunit'] = unit1
     fit_kwargs['yunit'] = unit2
 
-    _ = plot_fit(series1, series2, **fit_kwargs)
+    fit_dict = plot_fit(series1, series2, **fit_kwargs)
 
     if invert:
         ax.invert_xaxis()
@@ -213,9 +208,9 @@ def compare_series(series1, series2, **kwargs):
 
     if return_objs:
         try:
-            return fig, ax, cbar
+            return fig, ax, cbar, fit_dict if return_fit else None
         except:
-            return fig, ax
+            return fig, ax, fit_dict if return_fit else None
 
     save_figure(fig)
     plt.show()

@@ -379,7 +379,6 @@ def saturation_fit(x, y, **kwargs):
     x0_guess = np.median(x)
     y0_guess = np.percentile(y,1)
 
-
     p0 = (ys_guess, x0_guess, y0_guess)
 
     bounds = ([0, 0, -0.5*np.median(y)], # lower bounds
