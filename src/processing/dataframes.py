@@ -113,7 +113,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
     else:
         if time_col != 'epoch':
             df.rename(columns={time_col: 'epoch'},inplace=True)
-        df['utc'] = df[time_col].dt.floor(sample_interval)
+        df['utc'] = df['epoch'].dt.floor(sample_interval)
 
     columns_to_drop = ['utc']
 
@@ -131,7 +131,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
     for column in df.columns:
 
-        if column in ('utc',time_col) or column in columns_to_skip or column.endswith(('_unc','_count')):
+        if column in ('utc','epoch',time_col) or column in columns_to_skip or column.endswith(('_unc','_count')):
             # columns that are meaningless to average, e.g. quality, mode
             print(f'Skipping {column}.')
             continue
@@ -163,7 +163,7 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
         values = df[column]
 
-        if unit in ('deg', '°'):
+        if units.get(column) in ('deg', '°'):
             values = np.radians(values)
 
         df[f'{column}__sin'] = np.sin(values)
@@ -321,25 +321,22 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
             column = components[comp]
             column_out = column
 
-            if comp=='x' and coords=='GSM':
+            if comp == 'x' and coords == 'GSM':
                 column_out = f'{field}_x_GSE'
 
-                if column_out in aggregated_columns:
-                    print(f'Not adding {field}_{comp}_{coords}.')
-                    continue # skips x_GSM if x_GSE already in the new df
+            # x_GSE already written (real GSE group, or borrowed) so skip x_GSM and its unc
+            if column_out in aggregated_columns:
+                print(f'Not adding {column} (already present as {column_out}).')
+                continue
 
-            aggregated_columns[column] = values[0]
+            aggregated_columns[column_out] = values[0]
+
+            if column_out not in units:
+                units[column_out] = units.get(column)
 
             if inc_info:
                 aggregated_columns[f'{column_out}_unc'] = values[1]
                 units[f'{column_out}_unc'] = units.get(column)
-
-        if inc_info:
-            vector_columns = [components['x'], components['y'], components['z']]
-
-            aggregated_columns[f'{field}_{coords}_count'] = (grouped[vector_columns].count().min(axis=1).to_numpy())
-
-            units[f'{field}_{coords}_count'] = 'NUM'
 
     #---Combining the data---#
 

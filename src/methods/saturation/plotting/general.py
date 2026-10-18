@@ -70,6 +70,9 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     if shift_centre:
         shift_angular_data(df_ind, ind_var)
 
+    if False: ## just for testinf, can delete after
+        df_ind = df_ind.loc[df_ind['B_z_GSM']<0]
+
     if invert:
         df_ind[ind_var] *= -1
         df_ind.rename(columns={ind_var: f'-{ind_var}'}, inplace=True) ##### I THINK I HAVE FUNCTON FOR THIS
@@ -86,9 +89,6 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         fig, ax = plt.subplots(1, 1, figsize=(8, 5), dpi=400)
 
     x_range = np.linspace(np.min(df_ind[ind_var]), np.max(df_ind[ind_var]), 100)
-
-    ### CHANGE SO ERRORS/COUNTS CAN BE PASSED FOR PLOTTING BUT NOT FOR FITTING, SEPARATELY
-    ### ALSO CONSIDER IF Y ERRORS CAN/SHOULD BE INCLUDED, NOT X THOUGH
 
     # Binned scatter
     fit_dict = compare_dataframes(df_ind, df_dep, ind_var, dep_var, fig=fig, ax=ax, return_objs=True, return_fit=True, **kwargs)[-1]
@@ -143,12 +143,15 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
     The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
     """
 
-    ### try importing all here, if too much memory, then keep import in each loop
+    #-----
+    # try importing all here, if too much memory, then keep import in each loop
+    #-----
 
     ###----------PLOT GRIDS----------###
     n_rows, n_cols = len(dep_vars), len(ind_vars)
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False) # squeeze keeps axs as 2D even if n_cols or n_rows = 1
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
+    # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
     for row, dep_var in enumerate(dep_vars):
 

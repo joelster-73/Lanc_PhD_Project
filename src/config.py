@@ -177,6 +177,7 @@ SHOCKS_DIR             = f'{PROCESSED_DATA_DIR}/SHOCKS'
 REGION_DIR             = f'{PROCESSED_DATA_DIR}/REGION'
 INDEX_DIR              = f'{PROCESSED_DATA_DIR}/INDICES'
 
+MSH20_DIR              = f'{REGION_DIR}/MSH20'
 MSH_DIR                = f'{REGION_DIR}/MSH'
 SW_DIR                 = f'{REGION_DIR}/SW'
 C1_BS_CROSSINGS        = f'{REGION_DIR}/Bowshock'
@@ -285,11 +286,10 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=Fa
             path += f'{resolution}/'
 
     # combined
-    elif source in ('msh', 'sw'):
-        if source=='msh':
-            path = f'{MSH_DIR}/'
-        elif source=='sw':
-            path = f'{SW_DIR}/'
+    elif source in ('msh', 'sw', 'msh20'):
+
+        paths = {'msh': MSH_DIR, 'sw': SW_DIR, 'msh20': MSH20_DIR}
+        path = f'{paths.get(source)}/'
 
         if 'field' in dtype:
             path += 'field/'
@@ -349,8 +349,6 @@ def get_proc_directory(source, dtype=' ', resolution=' ', create=False, empty=Fa
 
     return path
 
-
-
 def get_data_populations(sc, data, region):
 
     populations = ['state']
@@ -360,7 +358,7 @@ def get_data_populations(sc, data, region):
         if data in ('field','plasma'):
             populations.append('fgm')
         if data in ('plasma',):
-            populations.append(region)
+            populations.append('msh' if region.startswith('msh') else region)
 
     elif sc in THEMIS_SPACECRAFT:
 
@@ -369,7 +367,7 @@ def get_data_populations(sc, data, region):
         if data in ('field','plasma'):
             populations.append('FGM')
         if data in ('plasma',):
-            populations.append(region)
+            populations.append('msh' if region.startswith('msh') else region)
 
     elif sc in MMS_SPACECRAFT:
 

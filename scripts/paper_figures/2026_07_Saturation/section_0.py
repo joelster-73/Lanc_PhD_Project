@@ -17,7 +17,10 @@ for resolution in ('1min','5min','15min'):
 
     df_omni = import_processed_data('omni', resolution=resolution)
 
-    for region in ('sw','msh'):
+    for region in ('sw','msh','msh20'):
+
+        if resolution=='1min' and region in ('sw','msh'):
+            continue
 
         for spacecraft in filter_spacecraft.get(region):
 
@@ -34,7 +37,7 @@ import itertools as it
 from src.methods.saturation.merge import merge_sc_in_region
 
 
-for region, resolution in it.product(('sw','msh'),('1min','5min','15min')):
+for region, resolution in it.product(('sw','msh','msh20'),('1min','5min','15min')):
 
     print(f'{region} region | {resolution} resolution.\n')
 

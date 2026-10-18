@@ -24,15 +24,11 @@ def get_response_delay(index):
     return RESPONSE_DELAYS.get(index,0)
 
 
-def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_col='V_x_GSE', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
+def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GSE', omni_vel_col='V_x_GSE', omni_pres_col='P_flow', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
     """
     Approximates the time it takes solar wind to reach the BSN using just the x components
     This is then added to the lag time from BSN to geomagnetic effect
     """
-
-    #### CHECK COMMENT in procedure below about large lags
-    #### Also check when the magnetosheath fractions are added that r_avg isn't, or remove at source
-
     pressure = P_SW # nPa
     speed    = {'sw': V_SW, 'msh': V_MSH} # km/s
 
@@ -46,26 +42,25 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', pres_col='P_flow', vel_c
     speeds[speeds > min_speeds.get(region)] = np.nan # Flag unreliable speeds
 
     # Bowshock
+    # Uses OMNI pressure and speed, and default if NaN
+    omni = df_omni.reindex(df.index) # reindexed so missing times don't return error
 
-    if region=='sw':
-        # x2 is because I define pressure with 1/2 prefactor
-        pressures = df.loc[valid_positions,pres_col].to_numpy() * 2 ### THIS NEEDS TO USE OMNI
+    pressures = omni[omni_pres_col].to_numpy() * 2 # I defined when processing with 1/2 prefactor
+    pressures[np.isnan(pressures)] = pressure # add clip check to function to prevent overflow?
+    bowshocks = bsn_jelinek2012(pressures)
 
-        pressures[np.isnan(pressures)] = pressure
-        bowshocks = bsn_jelinek2012(pressures)
-
-        solar_wind_speeds = speeds
-
-    else:
-        bowshocks = bsn_jelinek2012(pressure)
-
-        solar_wind_speeds = V_SW
+    sw_speeds = omni[omni_vel_col].to_numpy()
+    sw_speeds[np.isnan(sw_speeds)] = speed.get('sw')
 
     # simple rotation
+    bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=sw_speeds)
+    bowshocks = bowshocks[valid_positions.to_numpy()]
 
-    bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=solar_wind_speeds)
+    distances = positions - bowshocks
+    if region=='msh':
+        distances[distances>0] = 0 # when sc is in the sheath, bowshock has to be upstream of it
 
-    df.loc[valid_positions,lag_col] = -(positions - bowshocks) * R_E / speeds
+    df.loc[valid_positions,lag_col] = -distances * R_E / speeds
 
 def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
     """
@@ -76,7 +71,7 @@ def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
         df_ind = df_ind.loc[intersect]
         df_dep = df_dep.loc[intersect]
     """
-    total_lag = lag + np.rint(df1[lag_col].to_numpy()) # overflow being caused by possible large lags - inspect and fix
+    total_lag = lag + np.rint(df1[lag_col].to_numpy())
     rounded_lag = pd.to_timedelta(total_lag, unit='min').round(resolution)
 
     if 'lagged_time' in df1:

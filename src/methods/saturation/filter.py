@@ -24,7 +24,7 @@ all_spacecraft = ('c1','c3','mms1','tha','thb','thc','thd','the')
 sw_spacecraft  = ('c1','c3','mms1','thb','thc')
 msh_spacecraft = ('c1','c3','mms1','tha','thd','the')
 
-filter_spacecraft = {'sw': sw_spacecraft, 'msh': all_spacecraft}
+filter_spacecraft = {'sw': sw_spacecraft, 'msh': all_spacecraft, 'msh20': all_spacecraft}
 
 pos_cols  = ['r_MP','r_BS','r_phi','r_F']
 norm_vecs = {'field': ('B',), 'plasma': ('B','E','V','S')}
@@ -47,13 +47,20 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
 
     print(f'Importing {sc.upper()}.')
 
+    restricted = False
+    if region=='msh20':
+        restricted = True
+        region = 'msh'
+
     populations = get_data_populations(sc, data_pop, region)
 
     df_sc = import_processed_spacecraft(sc, populations, resolution)
 
     ###----------FILTERING----------###
 
-    df_merged, df_merged_attrs = filter_region(df_sc, df_omni, sc, region)
+    params = {'msh': {'r_F_max': 0.2}} if restricted else {}
+
+    df_merged, df_merged_attrs = filter_region(df_sc, df_omni, sc, region, params)
     if df_merged.empty:
         print(f'No {sc} data in {region}.')
         return
@@ -67,7 +74,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     vector_component_surface(df_merged, sc, region, data_pop)
 
     # Correction to time lag based on spacecraft position in solar wind
-    calc_flat_delay(df_merged, region=region, pos_col=f'r_x_GSE_{sc}', pres_col=f'P_flow_{sc}', vel_col=f'V_x_GSE_{sc}', lag_col=f'prop_time_s_{sc}')
+    calc_flat_delay(df_merged, df_omni, region=region, pos_col=f'r_x_GSE_{sc}', vel_col=f'V_x_GSE_{sc}', omni_vel_col='V_x_GSE', omni_pres_col='P_flow', lag_col=f'prop_time_s_{sc}')
 
     update_parameters(df_merged, sc, region)
 
@@ -85,6 +92,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
         return df_merged
 
     print(f'Writing {sc} to file...')
+    region = 'msh20' if restricted else region
     out_dir = get_proc_directory(region, dtype=data_pop, resolution=resolution, create=True) # output directory
     write_to_cdf(df_merged, directory=out_dir, file_name=f'{region}_times_{sc}', reset_index=True)
 

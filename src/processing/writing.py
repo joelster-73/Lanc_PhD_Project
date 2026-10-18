@@ -129,6 +129,54 @@ def add_columns_to_cdf(new_df, update_file, update=False):
 
     print('File has been updated.\n')
 
+def rename_cdf_variables(directory, rename_map, dry_run=True):
+    """Rename variables in existing CDF files using a {old_name: new_name} mapping.
+
+    An entry is skipped in a given file if old_name isn't present or new_name already is,
+    so files that don't need the change (or were already fixed) are left alone.
+    """
+
+    for cdf_file in get_processed_files(directory):
+
+        first_time = True
+
+        try:
+            with pycdf.CDF(cdf_file) as cdf:
+                cdf.readonly(False)
+
+                for i, (old, new) in enumerate(rename_map.items()):
+
+                    if old not in cdf:
+                        continue
+
+                    if new in cdf:
+                        print(f'{cdf_file}: skipping {old} -> {new} ({new} already exists)')
+                        continue
+
+                    if dry_run:
+                        print(f'{cdf_file}: would rename {old} -> {new}')
+                        continue
+
+                    cdf[old].rename(new)
+
+                    # Update any variable attributes (in any variable) that reference the old name
+                    for var_name in cdf:
+                        var_attrs = cdf[var_name].attrs
+
+                        for attr_name in list(var_attrs):
+                            value = var_attrs[attr_name]
+
+                            if isinstance(value, str) and value == old:
+                                var_attrs[attr_name] = new
+                    if first_time:
+                        print(f'{cdf_file} columns renamed:')
+                    print(f'{old} -> {new}')
+                    first_time = False
+
+        except Exception as e:
+            print(f'Error processing {cdf_file}: {e}')
+
+    print('Dry run complete, nothing changed.\n' if dry_run else 'Rename complete.\n')
 
 def update_cdf_attributes(directory, new_values, add=True):
 
@@ -137,17 +185,18 @@ def update_cdf_attributes(directory, new_values, add=True):
 
     # Use glob to find files matching the pattern
     for cdf_file in cdf_files:
-            try:
-                # Open the CDF file
-                with pycdf.CDF(cdf_file, create=False) as cdf:
-                    cdf.readonly(False)
-                    # Check if the attribute exists
-                    for key, value in new_values.items():
-                        if key in cdf.attrs or add:
-                            cdf.attrs[key] = value
 
-            except Exception as e:
-                print(f'Error processing {cdf_file}: {e}')
+        try:
+            # Open the CDF file
+            with pycdf.CDF(cdf_file, create=False) as cdf:
+                cdf.readonly(False)
+                # Check if the attribute exists
+                for key, value in new_values.items():
+                    if key in cdf.attrs or add:
+                        cdf.attrs[key] = value
+
+        except Exception as e:
+            print(f'Error processing {cdf_file}: {e}')
 
     print('Attribute update complete.')
 

@@ -161,12 +161,12 @@ def format_extracted_vector(dictionary, data, var_name, coords='GSE', suffix='',
         suffix = f'_{suffix}'
 
     if f'{var_name}_mag{suffix}' not in dictionary:
-        dictionary[f'{var_name}_mag{suffix}']   = np.sqrt(data[:,0]**2+data[:,1]**2+data[:,2]**2)
+        dictionary[f'{var_name}_mag{suffix}'] = np.linalg.norm(data[:, :3], axis=1)
 
-    if fourD:
+    if fourD and not var_name.startswith('r'):
         dictionary[f'{var_name}_avg{suffix}'] = data[:, 3]
 
-    if coords=='GSE' or f'{var_name}_x_GSE{suffix}' not in dictionary: # doesn't add X_GSM
+    if (coords=='GSE') or (f'{var_name}_x_GSE{suffix}' not in dictionary): # doesn't add X_GSM
         dictionary[f'{var_name}_x_{coords}{suffix}'] = data[:, 0]
 
     dictionary[f'{var_name}_y_{coords}{suffix}'] = data[:, 1]

@@ -368,6 +368,7 @@ def build_uarr(df, columns, with_unc):
     return unp.uarray(values, uncs)
 
 def cross_prod(a, b, with_unc):
+
     if with_unc:
         # Handles uncertainties
         return np.stack([
@@ -379,6 +380,7 @@ def cross_prod(a, b, with_unc):
     return np.cross(a,b)
 
 def safe_sqrt(x):
+
     nominal = unp.nominal_values(x)
 
     out = np.full(np.shape(x), np.nan, dtype=object)
@@ -388,6 +390,7 @@ def safe_sqrt(x):
     return out
 
 def safe_stds(x):
+
     nominal = unp.nominal_values(x)
 
     out = np.full(np.shape(x), np.nan, dtype=float)

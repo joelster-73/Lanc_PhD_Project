@@ -11,5 +11,3 @@ for index in ('Dst','SMR','AE','SME','SYM','ASY','PC','THL','SVS','ALE','NRD','D
 
     build_averaged_index(index)
 
-build_averaged_index('AE')
-
