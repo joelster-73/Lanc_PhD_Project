@@ -176,7 +176,7 @@ def rename_cdf_variables(directory, rename_map, dry_run=True):
         except Exception as e:
             print(f'Error processing {cdf_file}: {e}')
 
-    print('Dry run complete, nothing changed.\n' if dry_run else 'Rename complete.\n')
+    print('\nDry run complete, nothing changed.\n' if dry_run else '\nRename complete.\n')
 
 def update_cdf_attributes(directory, new_values, add=True):
 

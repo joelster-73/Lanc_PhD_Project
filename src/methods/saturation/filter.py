@@ -102,7 +102,7 @@ def filter_region(df, omni, sc, region, params={}):
     """
     Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath
     """
-    default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw': 275},
+    default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw':  275},
                       'msh': {'r_x': 5, 'r_theta': np.pi/4, 'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
 
     for reg, vals in params.items():

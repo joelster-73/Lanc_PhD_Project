@@ -45,7 +45,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     bin_width, limits, invert = get_variable_range(ind_var, region, dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
 
-    sc_colour = blue if region=='sw' else red
+    sc_colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
 
     kwargs.setdefault('min_count', minimum_counts[resolution])
     kwargs.setdefault('display', 'scatter_binned')
@@ -63,15 +63,15 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     ###----------CONFIG----------###
 
+    condition = kwargs.get('condition')
+    cond_col  = kwargs.get('cond_col')
+
     # Masks and slicing
-    df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution) # remove low sampling counts
+    df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution, condition, cond_col) # removes low sampling counts too
     df_dep = mask_df(df_pc, dep_var)
 
     if shift_centre:
         shift_angular_data(df_ind, ind_var)
-
-    if False: ## just for testinf, can delete after
-        df_ind = df_ind.loc[df_ind['B_z_GSM']<0]
 
     if invert:
         df_ind[ind_var] *= -1
@@ -126,8 +126,8 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         return fig, ax
 
     file_name = f'Response_from_{region}_{ind_var}_on_{dep_var}'
-    if df_sc is None:
-        file_name += '_OMNI'
+    if kwargs.get('file_suffix') is not None:
+        file_name += f'_{kwargs.get("file_suffix")}'
 
     plt.tight_layout()
     save_figure(fig, file_name=file_name, overwrite=True)
@@ -153,13 +153,13 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
+    df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
     for row, dep_var in enumerate(dep_vars):
 
         df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
 
         for col, ind_var in enumerate(ind_vars):
-
-            df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
             ax = axs[row, col]
 
@@ -174,7 +174,7 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
     file_name = f'Multi_Driver_Response_for_{region}'
 
     plt.tight_layout()
-    save_figure(fig, file_name=file_name, overwrite=True)
+    save_figure(fig, file_name=file_name)
     plt.show()
     plt.close()
 

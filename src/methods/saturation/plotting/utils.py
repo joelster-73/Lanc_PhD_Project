@@ -7,6 +7,8 @@ Created on Thu Nov 13 13:43:31 2025
 import warnings
 
 import numpy as np
+import re
+import operator
 
 from ....plotting.formatting import create_label, data_string
 from ....processing.mag.config import PC_STATIONS
@@ -17,7 +19,7 @@ minimum_sample = {'1min': 5, '5min': 25, '15min': 125} # at least 5 counts per m
 
 imf_cols = ['B_avg', 'B_x_GSE', 'B_y_GSE', 'B_z_GSE', 'B_y_GSM', 'B_z_GSM', 'B_avg_rms', 'B_vec_rms', 'R_x_BSN', 'R_y_BSN', 'R_z_BSN', 'prop_time_s', 'E_y', 'M_A', 'beta']
 
-plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSM', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSM', 'S_y_GSM', 'S_z_GSM', 'E_R']
+plasma_cols = ['P_flow', 'n_p', 'T_p', 'na_np_ratio', 'V_flow', 'V_x_GSE', 'V_y_GSE', 'V_z_GSE', 'R_x_GSE', 'R_y_GSE', 'R_z_GSE', 'E_y', 'M_A', 'M_ms', 'beta', 'E_mag', 'E_x_GSE', 'E_y_GSM', 'E_z_GSM', 'S_mag', 'S_x_GSE', 'S_y_GSM', 'S_z_GSM', 'E_R']
 
 def shift_angular_data(df, *cols, inplace=True):
     # Shift angular data to centre lies at +-180 rather than 0
@@ -35,7 +37,7 @@ def shift_angular_data(df, *cols, inplace=True):
     if not inplace:
         return df
 
-def mask_df(df, col, limits=None, count_col=None, resolution='1min'):
+def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=None, cond_col=None):
 
         mask = ~df[col].isna()
 
@@ -65,9 +67,39 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min'):
                 mask &= df[count_col] >= min_count
                 print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,}.')
 
+        if condition is not None:
+
+            cond_col = col if cond_col is None else cond_col
+
+            operation, value = parse_condition(condition)
+
+            mask &= operation(df[cond_col], value)
+
+
         return df.loc[mask].copy()
 
+def parse_condition(condition):
 
+    ops = {
+        '<': operator.lt,
+        '>': operator.gt,
+        '<=': operator.le,
+        '>=': operator.ge,
+        '==': operator.eq,
+        '!=': operator.ne
+    }
+
+    match = re.fullmatch(
+        r'\s*(<=|>=|==|!=|<|>)\s*(-?\d+(?:\.\d+)?)\s*',
+        condition
+    )
+
+    if not match:
+        raise ValueError(f'Invalid condition: {condition}')
+
+    op, value = match.groups()
+
+    return ops[op], float(value)
 
 # %% names
 
@@ -123,6 +155,7 @@ def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
     return bin_width, limits, invert
 
 # %% binwidths
+
 def get_var_bin_width(var, restrict):
 
     if var.startswith('AA'):
@@ -188,7 +221,7 @@ def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, s
 
     limits = [0, None]
 
-    if ind_var.startswith(('B_', 'V_', 'S_')) and not (ind_var.startswith(('B_avg','B_clock','B_parallel','B_y','V_flow','V_A')) or ind_var.endswith('_mag')):
+    if ind_var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
 
         limits = [None, 0] # Negative quantities
 

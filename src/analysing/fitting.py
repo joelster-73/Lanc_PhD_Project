@@ -264,6 +264,8 @@ def fit_with_errors(model_func, x, y, p0=None, bounds=None, yerr=None, xerr=None
                 eps = 1e-12 * np.median(yerr)
                 yerr += eps
 
+            # add floor
+
             popt, pcov = curve_fit(model_func, x, y, p0=p0, bounds=bounds, sigma=yerr, absolute_sigma=(yerr is not None))
 
             if yerr is None:
@@ -377,12 +379,12 @@ def saturation_fit(x, y, **kwargs):
     # Initial guesses
     ys_guess = np.percentile(y,90)
     x0_guess = np.median(x)
-    y0_guess = np.percentile(y,1)
+    y0_guess = np.median(y)
 
     p0 = (ys_guess, x0_guess, y0_guess)
 
-    bounds = ([0, 0, -0.5*np.median(y)], # lower bounds
-              [1.25*np.max(y), 1.25*np.max(x), np.median(y)]) # upper bounds
+    bounds = ([0,              0,              np.min(y)], # lower bounds
+              [1.25*np.max(y), 1.25*np.max(x), np.max(y)]) # upper bounds
 
     popt, perr = fit_with_errors(saturation, x, y, p0=p0, bounds=bounds, yerr=yerr, xerr=xerr)
     return popt, perr, ('ys', 'x0', 'y0'), ('{yunit}', '{xunit}', '{yunit}')
