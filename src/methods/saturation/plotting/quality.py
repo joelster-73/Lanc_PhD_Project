@@ -6,6 +6,7 @@ Created on Mon Aug  3 17:53:12 2026
 """
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy.stats import spearmanr
@@ -18,7 +19,7 @@ from ....plotting.config import blue, black, white
 
 from ....processing.reading import import_processed_data
 from ....processing.omni.analysis import calc_omni_uncertainty
-from ....config import INSTRUMENTS, CONSTELLATION
+from ....config import INSTRUMENTS, CONSTELLATION, SPACECRAFT, THEMIS_REGIONS
 
 def plot_calibration(df, ind_col, good_col, total_col):
 
@@ -46,17 +47,28 @@ def plot_calibration(df, ind_col, good_col, total_col):
     plt.show()
     plt.close()
 
+# %% averaging
 
-def plot_avg_counts(sc, region, *params, data_pop='plasma', resolution='5min'):
+def plot_avg_counts(sc, *params, resolution='5min', data_pop='plasma', region='sw', cut_off=25, dfs=None, fig=None, axs=None, return_objs=False):
 
-    spacecraft = CONSTELLATION.get(sc)
+    if sc in CONSTELLATION:
+        spacecraft = CONSTELLATION.get(sc)
+    else:
+        spacecraft = sc
 
-    df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+    # change so doesn't import filtered data but instrument data
+    # and if the data is separated sw/msh, combine
+    # should really combined spacecraft into missions
 
-    n_cols = len(params)
-    fig, axs = plt.subplots(nrows=1, ncols=n_cols, figsize=(n_cols*6, 3), dpi=800)
+    if fig is None:
+        n_cols = len(params)
+        fig, axs = plt.subplots(nrows=1, ncols=n_cols, figsize=(n_cols*6, 3), dpi=800)
 
-    for i, (ax, param) in enumerate(zip(axs, params)):
+    if dfs is None:
+        df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+        dfs = tuple(df for _ in range(len(params)))
+
+    for i, (ax, param, df) in enumerate(zip(axs, params, dfs)):
 
         if param.startswith('B_'):
             parameter = 'field'
@@ -70,8 +82,8 @@ def plot_avg_counts(sc, region, *params, data_pop='plasma', resolution='5min'):
 
         maximum = int(bins[np.argmax(counts)])
 
-        if (bins[-1]-bins[0])>80:
-            mask = ((bins[:-1] >= maximum-40) & (bins[:-1] <= maximum+40))
+        if (bins[-1]-bins[0])>100:
+            mask = ((bins[:-1] >= max(maximum-50,np.min(bins))) & (bins[:-1] <= min(maximum+50,np.max(bins))))
             bins = bins[:-1][mask]    # left edge of each remaining bin
             counts = counts[mask]
             bins += 0.5
@@ -85,17 +97,23 @@ def plot_avg_counts(sc, region, *params, data_pop='plasma', resolution='5min'):
         ax.set_xlabel(r'$N$ for '+f'{create_label(param)}')
         ax.set_yscale('log')
 
+        if ax.get_xlim()[0] < cut_off < ax.get_xlim()[1]:
+            ax.axvline(x=cut_off, ls='--', c='r', lw=0.5)
+
         label = f'$N_{{\\mathrm{{max}}}}$ = {maximum}'
-        ax.text(0.04, 0.96, label, transform=ax.transAxes, ha='left', va='top')
+        ax.text(0.03, 0.96, label, transform=ax.transAxes, ha='left', va='top', fontsize=12)
 
-        if i!= n_cols-1:
-            ax.set_title(f'{INSTRUMENTS.get(spacecraft).get(parameter).upper()}')
-        else:
-            ax.set_title(f'{sc.upper()}')
+        frac_below = (series<cut_off).mean() * 100
+        label = f'{frac_below:.1f} %'
+        ax.text(0.3, 0.96, label, transform=ax.transAxes, ha='left', va='top', fontsize=12, color='r')
 
+        ax.set_title(INSTRUMENTS.get(spacecraft,{}).get(parameter,'').upper())
 
+    axs[0].set_ylabel(f'{spacecraft.capitalize()} Counts')
 
-    axs[0].set_ylabel('Counts')
+    if return_objs:
+
+        return fig, axs
 
     plt.tight_layout()
     save_figure(fig, file_name=f'Counts_per_{resolution}_avg_{sc}_{region}', overwrite=True)
@@ -103,50 +121,107 @@ def plot_avg_counts(sc, region, *params, data_pop='plasma', resolution='5min'):
     plt.show()
     plt.close()
 
+def plot_avg_counts_grid(*spacecraft, resolution='5min', cut_off=25):
 
-def plot_compare_averaging(sc, region, *params, data_pop='plasma', resolutions=('1min','5min')):
+    n_rows = len(spacecraft)
+    fig, axs = plt.subplots(nrows=n_rows, ncols=2, figsize=(12, 3*n_rows), dpi=500, squeeze=False)
 
-    n_rows = len(resolutions)
-    n_cols = len(params)
+    for i, (spacecraft, ax_row) in enumerate(zip(spacecraft, axs)): # likely wrong due to squeeze
 
-    fig, axs = plt.subplots(nrows=len(params), ncols=len(resolutions), figsize=(6*n_cols, 4*(n_rows+1)), dpi=800, sharex='row')
+        field_dfs = []
+        plasma_dfs = []
 
-    for i, resolution in enumerate(resolutions):
+        field_instrument  = INSTRUMENTS.get(spacecraft,{}).get('field')
+        plasma_instrument = INSTRUMENTS.get(spacecraft,{}).get('plasma')
 
-        df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+        for sc in SPACECRAFT.get(spacecraft,[]):
+            print(sc)
+            df = import_processed_data(sc, field_instrument, resolution)
+            field_dfs.append(df)
 
-        for j, param in enumerate(params):
-
-            ax = axs[j][i]
-
-            series = df[param]
-
-            bins = calculate_bins(series,1)
-            counts, _ = np.histogram(series, bins=bins)
-
-            maximum = int(bins[np.argmax(counts)])
-
-            if (bins[-1]-bins[0])>80:
-                mask = ((bins[:-1] >= maximum-40) & (bins[:-1] <= maximum+40))
-                bins = bins[:-1][mask]    # left edge of each remaining bin
-                counts = counts[mask]
-                bins += 0.5
+            if sc in SPACECRAFT.get('mms'):
+                df = import_processed_data(sc, plasma_instrument, resolution)
+                plasma_dfs.append(df)
 
             else:
-                mask = counts>1
+                region_dfs = []
+                for region in ('sw','msh'):
+                    if spacecraft=='themis' and sc not in THEMIS_REGIONS.get(region):
+                        continue
+                    df = import_processed_data(sc, region, resolution)
+                    region_dfs.append(df)
+                df = pd.concat(region_dfs)
+                plasma_dfs.append(df)
+
+        field_df = pd.concat(field_dfs)
+        plasma_df = pd.concat(plasma_dfs)
+        dfs = (field_df, plasma_df)
+
+        _ = plot_avg_counts(spacecraft, 'B_avg', 'V_flow', resolution=resolution, cut_off=cut_off, dfs=dfs, fig=fig, axs=ax_row, return_objs=True)
+
+        for ax in ax_row:
+            ax.set_title(None)
+
+        if i!=(n_rows-1):
+            for ax in ax_row:
+                ax.set_xlabel(None)
+
+    fig.align_ylabels(axs[:,0])
+    plt.tight_layout()
+    save_figure(fig, file_name=f'Counts_each_{resolution}_average', overwrite=True)
+
+    plt.show()
+    plt.close()
+
+
+# %% distributions
+
+def plot_avg_distributions(sc, *params, data_pop='plasma', resolutions=('1min','5min'), regions=('sw','msh'), restrict=False):
+
+    n_rows = len(params)
+    n_cols = len(regions)
+
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(12*n_cols, 4*(n_rows+1)), dpi=800)
+
+    for i, region in enumerate(regions): # column
+
+        for j, (resolution, colour, alpha) in enumerate(zip(resolutions,(black,blue),(0.7,0.8))): # dataset
+
+            df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+
+            for k, param in enumerate(params):
+
+                ax = axs[k][i]
+
+                series = df[param].copy()
+                if restrict:
+                    lower, upper = series.quantile([0.01, 0.99])
+                    series = series[(series>=lower) & (series<=upper)]
+
+                bin_width = 1
+                bins = calculate_bins(series, bin_width)
+                counts, _ = np.histogram(series, bins=bins)
+
+                #mask = (counts>1) if restrict else (counts>10)
+                mask = counts>10
                 bins = bins[:-1][mask] # left edge
                 counts = counts[mask]
 
-            ax.bar(bins, counts, width=1, color=black, edgecolor=white)
-            ax.set_xlabel(create_label(param, units=df.attrs.get('units')))
-            ax.set_yscale('log')
+                ax.bar(bins, counts, width=1, color=colour, alpha=alpha, label=resolution)
+                ax.set_xlabel(create_label(param, units=df.attrs.get('units')))
+                ax.set_yscale('log')
 
-            if j==0:
-                ax.set_title(resolution)
+                if k==0:
+                    ax.set_title(region)
+                    if i==0:
+                        ax.legend()
+
+    fig.align_ylabels(axs[:,0])
 
     plt.tight_layout()
-    filename = f'Compare_distributions_{sc}_{region}'
+    filename = f'Compare_distributions_{sc}_'
     filename += '_'.join(resolutions)
+    filename += '_restricted' if restrict else ''
     save_figure(fig, file_name=filename, overwrite=True)
 
     plt.show()

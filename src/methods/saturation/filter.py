@@ -84,6 +84,10 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     df_merged.dropna(how='all',inplace=True)
     df_merged.drop(columns=[col for col in df_merged if (col.endswith('_sw') or col.endswith('_pc'))], inplace=True)
 
+    # These columns are naturally in mms data so removing for consistency
+    df_merged.drop(columns=[col for col in df_merged.columns if col.startswith('r_avg')], inplace=True)
+
+
     # Need suffix when combining but removing for individual file
     df_merged = df_merged.rename(columns={col: col[:-len(suffix)] for col in df_merged.columns if col.endswith(suffix)})
     update_attributes(df_merged, df_merged_attrs, region, suffix)
@@ -103,7 +107,7 @@ def filter_region(df, omni, sc, region, params={}):
     Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath
     """
     default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw':  275},
-                      'msh': {'r_x': 5, 'r_theta': np.pi/4, 'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
+                      'msh': {'r_x': 5, 'r_theta': np.pi/4, 'V_x_GSE': 0,'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
 
     for reg, vals in params.items():
         default_params[reg].update(vals)
@@ -132,6 +136,7 @@ def filter_region(df, omni, sc, region, params={}):
         mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':
+        Vx    = default_params['msh']['V_x_GSE']
         ntot  = default_params['msh']['N_tot']
         rFmin = default_params['msh']['r_F_min']
         rFmax = default_params['msh']['r_F_max']
@@ -139,6 +144,7 @@ def filter_region(df, omni, sc, region, params={}):
         mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
         mask &= (df_merged['r_F'] > rFmin) & (df_merged['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
         mask &= (df_merged[f'N_tot_{sc}'] >= ntot)  # test how sensitive results are to this
+        mask &= (df_merged[f'V_x_GSE_{sc}'] < Vx)  # to remove possible contamination
 
 
     df_merged = df_merged.loc[mask]
@@ -214,10 +220,12 @@ def update_parameters(df, sc, region):
         df[temp] /= 1e6 #convert to MK
 
     if region=='sw':
-        remove_extremes(df, {f'beta{suffix}': 100, f'P_flow{suffix}': 15, f'E_mag{suffix}': 20, f'E_y_GSM{suffix}': 20, f'V_flow{suffix}' : 1400, f'N_tot{suffix}': 300})
+        remove_extremes(df, {f'beta{suffix}': 100, f'N_tot{suffix}': 300, f'E_y_GSM{suffix}': 100}, {f'S_x_GSE{suffix}': 500})
 
     elif region=='msh':
-        remove_extremes(df, {f'B_avg{suffix}': 100}, {f'B_z_GSM{suffix}': 250, f'beta{suffix}': 100})
+        remove_extremes(df, {}, {f'S_x_GSE{suffix}': 500})
+
+
 
 def remove_extremes(df, mapping={}, abs_mapping={}):
 

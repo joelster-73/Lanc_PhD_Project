@@ -38,16 +38,16 @@ def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GS
 
     # Speed
     speeds = df.loc[valid_positions,vel_col].to_numpy()
-    speeds[np.isnan(speeds)] = speed.get(region)
     speeds[speeds > min_speeds.get(region)] = np.nan # Flag unreliable speeds
+    speeds[np.isnan(speeds)] = speed.get(region)
 
     # Bowshock
     # Uses OMNI pressure and speed, and default if NaN
     omni = df_omni.reindex(df.index) # reindexed so missing times don't return error
 
     pressures = omni[omni_pres_col].to_numpy() * 2 # I defined when processing with 1/2 prefactor
-    pressures[np.isnan(pressures)] = pressure # add clip check to function to prevent overflow?
     bowshocks = bsn_jelinek2012(pressures)
+    pressures[np.isnan(pressures)] = pressure # add clip check to function to prevent overflow?
 
     sw_speeds = omni[omni_vel_col].to_numpy()
     sw_speeds[np.isnan(sw_speeds)] = speed.get('sw')

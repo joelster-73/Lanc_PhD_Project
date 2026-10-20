@@ -200,6 +200,24 @@ def update_cdf_attributes(directory, new_values, add=True):
 
     print('Attribute update complete.')
 
+"""
+# %% renaming
+
+from src.processing.writing import rename_cdf_variables
+from src.config import get_proc_directory
+
+rename_map = {
+    'S_x_GSM': 'S_x_GSE',
+    'E_x_GSM': 'E_x_GSE',
+}
+
+for resolution in ('1min','5min','15min'):
+
+    direc = get_proc_directory('msh20', 'plasma', resolution)
+
+    rename_cdf_variables(direc, rename_map, dry_run=False)
+"""
+
 # %% resample
 
 def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, files_by_keys={}, resolution=None):

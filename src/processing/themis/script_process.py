@@ -64,3 +64,5 @@ if False:
 
     resample()
 
+
+### Note to self: all thb 2008 sw derived quantities (E, S) are NaN

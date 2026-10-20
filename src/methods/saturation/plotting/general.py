@@ -318,10 +318,13 @@ def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min', close=Tru
 
     file_name = f'lags_{sc}_{region}_{resolution}'
 
+    std = np.std(lags, ddof=1)
+
+    handles, labels = ax.get_legend_handles_labels()
+    legend = ax.get_legend()
+    legend.get_texts()[0].set_text(f'{legend.get_texts()[0].get_text()}\n$\\sigma = {std:.3g}$ mins')
+
     plt.tight_layout();
     save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
-
-    print(f'Standard deviation: {np.std(lags, ddof=1):.3f} mins')
-

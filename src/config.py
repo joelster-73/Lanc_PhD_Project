@@ -33,6 +33,9 @@ THEMIS_SPACECRAFT  = ('tha', 'thb', 'thc', 'thd', 'the')
 CONSTELLATION = {**{k: 'cluster' for k in CLUSTER_SPACECRAFT}, **{k: 'mms' for k in MMS_SPACECRAFT}, **{k: 'themis' for k in THEMIS_SPACECRAFT}}
 INSTRUMENTS   = {'cluster': {'field': 'fgm', 'plasma': 'hia'}, 'themis': {'field': 'FGM', 'plasma': 'MOM'}, 'mms': {'field': 'fgm', 'plasma': 'fpi'}}
 
+SPACECRAFT = {'cluster': ('c1','c3'), 'mms': ('mms1',), 'themis': THEMIS_SPACECRAFT}
+THEMIS_REGIONS = {'sw': ('thb','thc'), 'msh': ('tha','thb','thc','thd','the')}
+
 
 #####----------LUNA DIRECTORIES----------#####
 

@@ -69,7 +69,11 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
             df = read_spacepy_object(cdf_files)
 
         except Exception: # CDF files for different parameters
-            print(f'Different file structures: {source} {dtype} {resolution}.')
+            expected = False
+            if (source, dtype, resolution) in (('thb','sw','5min'),):
+                expected = True
+                # (1) All of E and S were NaN when resampling for 2008
+            print(f'Different file structures: {source} {dtype} {resolution}.' + ('(expected)' if expected else ''))
             df = pd.DataFrame()
             for f in cdf_files:
                 df_param = read_spacepy_object(f)

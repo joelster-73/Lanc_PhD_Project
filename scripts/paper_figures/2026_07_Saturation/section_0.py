@@ -13,14 +13,9 @@ from src.processing.reading import import_processed_data
 
 for resolution in ('1min','5min','15min'):
 
-    print(f'{resolution} resolution.\n')
-
     df_omni = import_processed_data('omni', resolution=resolution)
 
     for region in ('sw','msh','msh20'):
-
-        if resolution=='1min' and region in ('sw','msh'):
-            continue
 
         for spacecraft in filter_spacecraft.get(region):
 

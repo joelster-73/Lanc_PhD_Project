@@ -35,9 +35,9 @@ def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', 
     if not (year is None and start_year is None):
         if new_grouping=='yearly':
             if year is not None:
-                files_by_year = {year: files_by_year.get(year, [])}
+                files_by_year = {year: files_by_year.get(str(year), [])}
             else:
-                files_by_year = {k: v for k, v in files_by_year.items() if k >= start_year}
+                files_by_year = {k: v for k, v in files_by_year.items() if k >= start_year} # check str/int compatability
         else:
             files_by_year = {k: v for k, v in files_by_year.items()
                              if (year is None or int(k[:4])==year)
