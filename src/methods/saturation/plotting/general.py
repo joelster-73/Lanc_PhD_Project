@@ -7,20 +7,21 @@ Created on Mon Oct  6 10:55:08 2025
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import ticker as mticker
 
 from .utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df
 
 from ..delay import merge_with_lag, get_response_delay
 
 from ....analysing.fitting import fit_bootstrap, get_confidence_range
+from ....analysing.calculations import calc_mean_error
 
-from ....plotting.utils import save_figure, get_grid_shape
-from ....plotting.formatting import create_label, shifted_angle_ticks
+from ....plotting.utils import save_figure, calculate_bins
+from ....plotting.formatting import create_label, shifted_angle_ticks, format_string
 from ....plotting.comparing.parameter import compare_dataframes
-from ....plotting.config import black, blue, grey, green, white, red
-from ....plotting.distributions import plot_freq_hist
+from ....plotting.config import black, blue, grey, green, red
 
-from ....processing.reading import import_processed_data, import_updated_omni
+from ....processing.reading import import_processed_data
 from ....processing.mag.indices import import_processed_index
 
 def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='combined', resolution='5min', region='sw', restrict=True, second_x=False, fig=None, ax=None, return_objs=False, **kwargs):
@@ -67,16 +68,13 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     cond_col  = kwargs.get('cond_col')
 
     # Masks and slicing
-    df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution, condition, cond_col) # removes low sampling counts too
+    df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution, condition, cond_col, invert) # removes low sampling counts too
     df_dep = mask_df(df_pc, dep_var)
 
     if shift_centre:
         shift_angular_data(df_ind, ind_var)
 
     if invert:
-        df_ind[ind_var] *= -1
-        df_ind.rename(columns={ind_var: f'-{ind_var}'}, inplace=True) ##### I THINK I HAVE FUNCTON FOR THIS
-        df_ind.attrs.get('units',{})[f'-{ind_var}'] = df_ind.attrs.get('units',{}).get(ind_var)
         ind_var = f'-{ind_var}'
 
     lag = get_response_delay(dep_var)
@@ -181,14 +179,20 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
     The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
     """
 
-    #-----
-    # try importing all here, if too much memory, then keep import in each loop
-    #-----
-
     ###----------PLOT GRIDS----------###
     n_rows, n_cols = len(dep_vars), len(ind_vars)
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
+    if n_cols==1: # one driver
+
+        n_cols = len(dep_vars)
+        n_rows = 1
+
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='row', sharey='row', squeeze=False)
+        axs = axs.T
+
+    else:
+
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
     df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
@@ -201,10 +205,10 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
 
             ax = axs[row, col]
 
-            plot_driver_response(ind_var, dep_var, df_sc, df_pc, spacecraft, resolution, region, restrict, fig=fig, ax=ax, return_objs=True, **kwargs)
+            _ = plot_driver_response(ind_var, dep_var, df_sc, df_pc, spacecraft, resolution, region, restrict, fig=fig, ax=ax, return_objs=True, **kwargs)
 
             # Formatting
-            if row != (n_rows-1):
+            if row != (n_rows-1) and n_rows!=1:
                 ax.set_xlabel(None)
             if col != 0:
                 ax.set_ylabel(None)
@@ -216,151 +220,107 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
     plt.show()
     plt.close()
 
-# %% Pulk
-
-def plot_pulkkinen_grid(*params, ind_reg='sw', dep_reg='msh', resolution='5min', bounds=None, restrict=True, shift_centre=True, compare_colour=green, ind_src='combined', dep_src='combined', **kwargs):
+def plot_compare_systems(ind_vars, dep_var, spacecraft='combined', resolution='5min', region='sw', restrict=True, **kwargs):
     """
-    Pulkkinen comparisons
-
-    So plots OMNI vs sc (sw or msh) for range of parameters
+    Look at OMNI and in-situ data in driver-response
+    The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
     """
 
-    ###----------IMPORTS----------###
+    condition = kwargs.get('condition')
+    cond_col  = kwargs.get('cond_col')
 
-    ind_suff = ind_reg
-    if ind_reg=='omni':
-        df1 = import_updated_omni(resolution=resolution)
-    elif ind_reg in ('sw','msh'):
-        df1 = import_processed_data(ind_reg, dtype='plasma', resolution=resolution, file_name=f'{ind_reg}_times_{ind_src}')
-        ind_suff += f'_{ind_src}' if ind_src!='combined' else ''
-    else:
-        raise ValueError(f'"{ind_reg}" is not a valid source.')
-
-    dep_suff = dep_reg
-    if dep_reg=='omni':
-        df2 = import_updated_omni(resolution=resolution)
-    elif dep_reg in ('sw','msh'):
-        df2 = import_processed_data(dep_reg, dtype='plasma', resolution=resolution, file_name=f'{dep_reg}_times_{dep_src}')
-        dep_suff += f'_{dep_src}' if dep_src!='combined' else ''
-    else:
-        raise ValueError(f'"{dep_reg}" is not a valid source.')
-
-    kwargs['data_colour']  = compare_colour
-    kwargs['error_colour'] = compare_colour
-
-    enumerator = [p if isinstance(p,tuple) else (p,p) for p in params]
-
-    n_rows, n_cols = get_grid_shape(len(enumerator))
-
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=400)
+    if condition is None:
+        raise ValueError('Haven\'t passed in a condition.')
 
     ###----------PLOT GRIDS----------###
-
-    for i, (independent, dependent), in enumerate(enumerator):
-
-        col, row = i % n_cols, i // n_cols
-
-        if len(enumerator)>1:
-            ax = axs[row][col]
-        else:
-            ax = axs
-
-        ind_err, ind_count = def_param_names(df1, independent)
-        dep_err, dep_count = def_param_names(df2, dependent)
-
-        bin_width, limits, invert = get_variable_range(independent, ind_reg, dep_var=dependent, restrict=restrict, bounds=bounds, shift_centre=shift_centre)
-
-        # Shift angular data to centre lies at +-180 rather than 0
-        if independent=='B_clock' and shift_centre:
-            shift_angular_data(df1, independent)
-            shift_angular_data(df2, dependent)
-
-        df_ind = mask_df(df1, independent, limits)
-        df_dep = mask_df(df2, dependent)
-
-        if ind_reg in ('sw','msh'):
-            df_ind, df_dep = merge_with_lag(df_ind, df_dep, 0, resolution)
-        elif dep_reg in ('sw','msh') and ind_reg=='omni':
-            df_dep, df_ind = merge_with_lag(df_dep, df_ind, 0, resolution) # the spacecraft is the dependent variable
-        else:
-            raise ValueError('Not a valid combination.')
-
-        # Config
-        kwargs['window_width'] = bin_width
-        kwargs['data1_name'] = create_label(f'{independent}_{ind_suff}')
-        kwargs['data2_name'] = create_label(f'{dependent}_{dep_suff}')
-
-        if kwargs['display']=='scatter':
-            ind_err = None
-            dep_err = None
-            if f'sc_{dep_reg}' in df_dep:
-                kwargs['df3'] = df_dep
-                kwargs['col3'] = f'sc_{dep_reg}'
-                kwargs['data_colour'] = 'spacecraft'
-
-        objs = compare_dataframes(df_ind, df_dep, independent, dependent, col1_err=ind_err, col1_counts=ind_count, col2_err=dep_err, col2_counts=dep_count, fig=fig, ax=ax, return_objs=True, **kwargs)
-
-        ax.axline((limits[0],limits[0]), slope=1, c=black, ls='-')
-        ax.axline((limits[0],limits[0]), slope=1, c=white, ls=':')
-        ax.grid(ls=':', c=grey, lw=0.5)
-
-        if independent=='B_clock' and shift_centre:
-            ax.axvline(x=np.pi, c=grey, ls=':')
-            shifted_angle_ticks(ax, 'x')
-            shifted_angle_ticks(ax, 'y')
-            ax.set_xlim(limits[0], limits[1])
-            ax.set_ylim(limits[0], limits[1])
-
-        if independent.startswith('T_') and kwargs['display']!='heat':
-            ax.set_xscale('log')
-            ax.set_yscale('log')
-
-        if invert:
-            ax.invert_xaxis()
-            ax.invert_yaxis()
-
-        if len(objs)==3 and not (col==(n_cols-1) and row==0):
-            objs[2].set_label(None)
+    n_rows = len(ind_vars)
+    n_cols = 2
 
 
-    if len(enumerator)>1:
-        ax0 = axs[0][0]
-    else:
-        ax0 = axs
+    ###### can change this so it takes in multiple inds or multiple deps, but not both
+    ###### can also adapt to compare regions
 
-    ax0.text(0.02, 0.95, kwargs.get('region',''), transform=ax0.transAxes, va='top', ha='left')
 
-    plt.tight_layout();
-    save_figure(fig, file_name=f'{ind_suff}_vs_{dep_suff}_{kwargs["display"]}', sub_directory='Pulkkinen', overwrite=True)
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='row', sharey='row', squeeze=False)
+    # squeeze keeps axs as 2D even if n_cols or n_rows = 1
+
+    df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
+    df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
+
+    for row, ind_var in enumerate(ind_vars):
+
+        df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
+
+        ###-----WITHOUT-----###
+        ax = axs[row, 0]
+        kwargs_copy = kwargs.copy()
+        kwargs_copy['condition'] = None
+
+        _ = plot_driver_response(ind_var, dep_var, df_sc, df_pc, spacecraft, resolution, region, restrict, fig=fig, ax=ax, return_objs=True, **kwargs_copy)
+
+        ###-----WITH-----###
+        ax = axs[row, 1]
+
+        _ = plot_driver_response(ind_var, dep_var, df_sc, df_pc, spacecraft, resolution, region, restrict, fig=fig, ax=ax, return_objs=True, **kwargs)
+
+        ax.set_ylabel(None)
+
+    axs[0,0].set_title('Unrestricted')
+    axs[0,1].set_title(f'${format_string(cond_col)}${condition}')
+
+    file_name = f'Comparing_{dep_var}_responses_with_restriction_' + '_'.join(ind_vars)
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
 
 # %% Delay Histograms
 
-def plot_delay_hists(sc, region, data_pop='plasma', resolution='5min', close=True):
-
-    df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5min', close=True):
 
     limit = 30
     if close: # mainly to exclude artemis
-        df = df.loc[df['r_mag']<35]
         limit = 15
 
-    lags = df['prop_time_s'] / 60
-    lags.attrs['units']['prop_time_s'] = 'mins'
+    fig, ax = plt.subplots(figsize=(8,6))
 
-    fig, ax = plot_freq_hist(lags, bin_width=1, data_name='Lag to BSN', brief_title=region.upper(), return_objs=True)
+    for region in regions:
+
+        df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+        if close:# mainly to exclude artemis
+            df = df.loc[df['r_mag']<35]
+
+        lags = df.loc[~df['prop_time_s'].isna(),'prop_time_s'] / 60
+        unit = 'mins'
+        lags.attrs['units']['prop_time_s'] = unit
+
+        colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
+        location = {'sw': 'upper left', 'msh': 'upper right', 'msh20': 'right'}.get(region)
+
+        bins = calculate_bins(lags,1)
+        counts, _ = np.histogram(lags, bins=bins)
+        bins = bins[:-1]
+
+        mean = calc_mean_error(lags)
+        std = np.std(lags, ddof=1)
+        label = f'{region}\n$\\mu={mean:L}$ {unit}\n$\\sigma = {std:.3g}$ mins'
+
+        ax.bar(bins, counts, width=1, color=colour, alpha=0.7, label=label)
+
+        legend = ax.legend(handles=[ax.containers[-1]], labels=[label], loc=location, fontsize=10)
+        ax.add_artist(legend)
 
     ax.invert_xaxis() # so positive goes to the left resembling physical system
     ax.set_xlim(limit,-limit)
+    ax.set_xlabel('Lag to BSN [mins]')
 
-    file_name = f'lags_{sc}_{region}_{resolution}'
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:,.0f}'))
+    ax.set_ylabel('Counts', c=black)
 
-    std = np.std(lags, ddof=1)
+    file_name = f'lags_{sc}_{resolution}'
 
-    handles, labels = ax.get_legend_handles_labels()
-    legend = ax.get_legend()
-    legend.get_texts()[0].set_text(f'{legend.get_texts()[0].get_text()}\n$\\sigma = {std:.3g}$ mins')
 
     plt.tight_layout();
     save_figure(fig, file_name=file_name, overwrite=True)

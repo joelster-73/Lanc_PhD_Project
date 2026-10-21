@@ -37,7 +37,7 @@ def shift_angular_data(df, *cols, inplace=True):
     if not inplace:
         return df
 
-def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=None, cond_col=None):
+def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=None, cond_col=None, invert=False):
 
         mask = ~df[col].isna()
 
@@ -65,7 +65,7 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
                 min_count = minimum_sample.get(resolution, 5)
                 initial = np.sum(mask)
                 mask &= df[count_col] >= min_count
-                print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,}.')
+                print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,} ({col}).')
 
         if condition is not None:
 
@@ -75,8 +75,14 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
 
             mask &= operation(df[cond_col], value)
 
+        df_masked = df.loc[mask].copy()
 
-        return df.loc[mask].copy()
+        if invert:
+            df_masked[col] *= -1
+            df_masked.rename(columns={col: f'-{col}'}, inplace=True)
+            df_masked.attrs.get('units',{})[f'-{col}'] = df_masked.attrs.get('units',{}).get(col)
+
+        return df_masked
 
 def parse_condition(condition):
 
@@ -107,7 +113,11 @@ def def_param_names(df, variable, source=None):
 
     ###-----Error-----###
 
-    var_err = '_'.join((variable,'unc'))
+    if variable in ('RES','THL'): # extend to do full list
+        var_err = '_'.join((variable,'mag','unc'))
+
+    else:
+        var_err = '_'.join((variable,'unc'))
 
     if source is not None:
         var_err = '_'.join((var_err,source))
@@ -129,6 +139,12 @@ def def_param_names(df, variable, source=None):
         coords = parts[2]
 
         var_count = '_'.join((field,coords,'count'))
+
+        if coords=='GSE' and var_count not in df: # edge case of F_x_GSE being the column for F_GSM
+            var_count = '_'.join((field,'GSM','count'))
+
+    elif variable in ('RES','THL'):
+        var_count = '_'.join((variable,'mag','count'))
 
     else:
         var_count = '_'.join((variable,'count'))
