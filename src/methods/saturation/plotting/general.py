@@ -23,7 +23,7 @@ from ....plotting.distributions import plot_freq_hist
 from ....processing.reading import import_processed_data, import_updated_omni
 from ....processing.mag.indices import import_processed_index
 
-def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='combined', resolution='5min', region='sw', restrict=True, fig=None, ax=None, return_objs=False, **kwargs):
+def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='combined', resolution='5min', region='sw', restrict=True, second_x=False, fig=None, ax=None, return_objs=False, **kwargs):
     """
     Plots a driver-response function, and fits a model to the data.
     """
@@ -86,7 +86,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     ###----------PLOT ----------###
 
     if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(8, 5), dpi=400)
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6 if second_x else 5), dpi=400)
 
     x_range = np.linspace(np.min(df_ind[ind_var]), np.max(df_ind[ind_var]), 100)
 
@@ -105,22 +105,60 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     ###----------BOOTSTRAP----------###
 
-    df_boot = fit_bootstrap(df_ind, ind_var, dep_var, df_dep, **kwargs)
+    if False:
 
-    confidence = 95
-    param_intervals, (lower, upper) = get_confidence_range(df_boot, x_range, kwargs['fit_type'], confidence)
+        df_boot = fit_bootstrap(df_ind, ind_var, dep_var, df_dep, **kwargs)
 
-    ax.fill_between(x_range, lower, upper, color=black, alpha=0.2)
+        confidence = 95
+        param_intervals, (lower, upper) = get_confidence_range(df_boot, x_range, kwargs['fit_type'], confidence)
 
-    print(f'\nConfidence intervals ({confidence}%)')
-    for key, val in param_intervals.items():
-        print(f'{key}:\t{val[0]:.4g}\t| {val[1]:.4g}')
-    print()
+        ax.fill_between(x_range, lower, upper, color=black, alpha=0.2)
+
+        print(f'\nConfidence intervals ({confidence}%)')
+        for key, val in param_intervals.items():
+            print(f'{key}:\t{val[0]:.4g}\t| {val[1]:.4g}')
+        print()
+
+    ###----------FORMATTING----------###
+
+    if ind_var.startswith('-'):
+        ind_var = ind_var[1:]
 
     if shift_centre:
         ax.axvline(x=np.pi, c=grey, ls=':')
         shifted_angle_ticks(ax, 'x')
         ax.invert_xaxis()
+
+    if second_x:
+
+        Vx = -400 if region=='sw' else -200 # km/s
+
+        if ind_var.startswith('E_y'):
+
+            factor = -1000/Vx
+            functions = (lambda E: E * factor, lambda B: B / factor)
+
+        elif ind_var.startswith('S_x'):
+            mu0 = 4 * np.pi * 1e-7
+
+            # Using -S in figure
+            def S_to_B(S):
+                return 1e9 * np.sqrt(-S * 1e-6 * mu0 / (Vx * 1e3))
+
+            def B_to_S(B):
+                return -(B * 1e-9)**2 * Vx * 1e3 / mu0 * 1e6
+
+            functions = (S_to_B, B_to_S)
+
+        else:
+            second_x = False
+
+    if second_x:
+
+        ax.set_xlim(0)
+
+        ax2 = ax.secondary_xaxis(-0.2, functions=functions)
+        ax2.set_xlabel(f'$-B_z$ [nT] ($V_x$={Vx} km/s)', fontsize=12)
 
     if return_objs:
         return fig, ax

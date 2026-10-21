@@ -225,8 +225,6 @@ def update_parameters(df, sc, region):
     elif region=='msh':
         remove_extremes(df, {}, {f'S_x_GSE{suffix}': 500})
 
-
-
 def remove_extremes(df, mapping={}, abs_mapping={}):
 
     for col, limit in mapping.items():

@@ -44,6 +44,8 @@ for region in ('sw','msh'):
     plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', region=region, fit_type='saturation', iteration=500, condition='<0', cond_col='B_z_GSM')
 
 
+_ = plot_driver_response('E_y_GSM', 'SMU', spacecraft='combined', region='sw', fit_type='saturation', iteration=500, second_x=True)
+_ = plot_driver_response('S_x_GSE', 'SMU', spacecraft='combined', region='sw', fit_type='saturation', iteration=500, second_x=True)
 
 
 # %%

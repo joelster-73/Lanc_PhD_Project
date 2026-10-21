@@ -238,6 +238,9 @@ def process_plasma_data(df, ion_df, ion_source, with_unc=False, convert_fields=N
     E_mag = safe_sqrt(np.sum(E**2, axis=1))
     assign_values(df, 'E_mag', E_mag, with_unc, col_before=f'E_x_{vec_coords}')
 
+    E_yz = safe_sqrt(np.sum(E[:, 1:3]**2, axis=1))
+    assign_values(df, 'E_yz', E_yz, with_unc, col_before=f'E_x_{vec_coords}')
+
     # S = E x H = E x B / mu_0
     # E *= 1e-3, B *= 1e-9, and S *= 1e6 so S_gse *= 1e-6
     S = cross_u(E, B) * 1e-6 / mu_0
