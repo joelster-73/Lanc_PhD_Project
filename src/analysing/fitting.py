@@ -21,7 +21,7 @@ from .utils import save_statistics
 # %% Bootstrapper
 
 
-def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, iterations=1000, **kwargs):
+def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_counts=None, col2_counts=None, **kwargs):
 
     """
     Implemented to do a daily bootstrapping
@@ -38,7 +38,10 @@ def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_
     kwargs['quick_return'] = True
     results = []
 
-    print('Bootstrapping...')
+    iterations = kwargs.get('iterations',1000)
+    print(f'Bootstrapping N = {iterations}')
+    print(f'{len(df1):,} samples | {len(days):,} days...')
+
 
     for loop in range(iterations):
 

@@ -133,6 +133,7 @@ def filter_region(df, omni, sc, region, params={}):
         vflow = default_params['sw']['V_sw']
 
         mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
+        mask &= (df_merged[f'r_x_GSE_{sc}']<30) # remove ARTEMIS data
         mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':

@@ -16,7 +16,7 @@ from ....processing.reading import import_processed_data
 from ....plotting.space_time import plot_orbit_msh
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import add_figure_title
-from ....plotting.config import colour_dict, black, bar_hatches, colour_dict_simple
+from ....plotting.config import colour_dict, black, bar_hatches, colour_dict_simple, dark_mode
 #from ...plotting.distributions import plot_fit
 
 from ....config import INSTRUMENTS, CONSTELLATION
@@ -34,7 +34,7 @@ def plot_sc_orbits(sample_interval='1min', data_pop='plasma', region='msh', sc_k
     n_cols = len(sc_keys)
     n_rows = round(len(sc_keys)/n_cols)
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(3.5*(n_cols+0.5),6*(n_rows+1)), dpi=400)
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(3.5*(n_cols+0.5),6*(n_rows+1)), dpi=600)
 
     for i, sc_key in enumerate(sc_keys):
 
@@ -225,15 +225,15 @@ def plot_data_inventory(*spacecraft, region='msh', display='yearly', **kwargs):
     row_sep = 0.4
     row_labels = []
 
-    rows = len(spacecraft) * (2 if region=='all' else 1)
-    width = 8 * (2 if region=='all' else 1)
+    rows   = len(spacecraft) * (2 if region=='all' else 1)
+    width  = 8 * (2 if region=='all' else 1)
     height = (2*rows + 1)*row_sep if region=='all' else 10*row_sep
-    ys = np.arange(0, rows*row_sep-0.1, row_sep)
+    ys     = np.arange(0, rows*row_sep-0.1, row_sep)
 
-    field_col = 'B_avg'
+    field_col  = 'B_avg'
     plasma_col = 'V_flow'
 
-    def _draw_bar(ax, row, start, end, group, colour, row_sep, alpha_min=0.2, bar_scale=0.75):
+    def _draw_bar(ax, row, start, end, group, colour, row_sep, alpha_min=0.4 if dark_mode else 0.3, bar_scale=0.75):
         alpha = len(group) / (end - start).total_seconds() * 60
         alpha = alpha * (1 - alpha_min) + alpha_min
         ax.barh(row, end - start, left=start, height=row_sep*bar_scale, color=colour, alpha=alpha)

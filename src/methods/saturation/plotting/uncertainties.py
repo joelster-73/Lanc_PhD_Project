@@ -16,13 +16,13 @@ from ..delay import merge_with_lag, get_response_delay
 
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import create_label
-from ....plotting.config import black
+from ....plotting.config import black, blue, red, green
 
 from ....processing.reading import import_processed_data
 from ....processing.mag.indices import import_processed_index
 from ....processing.omni.analysis import calc_omni_uncertainty
 
-def binned_band(ax, x, y, nbins=40, color=black):
+def binned_band(ax, x, y, nbins=40, colour=black):
     """
     Median and 5th-95th percentile band of y in binned x.
     """
@@ -35,8 +35,8 @@ def binned_band(ax, x, y, nbins=40, color=black):
             q = np.percentile(yi, [5, 50, 95])
             cen.append(0.5 * (edges[i] + edges[i + 1]))
             lo.append(q[0]); med.append(q[1]); hi.append(q[2])
-    ax.fill_between(cen, lo, hi,  color=color, alpha=0.25, lw=0)
-    ax.plot(cen, med, color=color, lw=1)
+    ax.fill_between(cen, lo, hi,  color=colour, alpha=0.25, lw=0)
+    ax.plot(cen, med, color=colour, lw=1)
 
 def driver_uncertainty_stats(x, s, rel_floor=0.25, rel_cut=30):
     """
@@ -60,7 +60,6 @@ def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='com
     if spacecraft=='omni':
         regions = ('sw',)
 
-
     ncols = len(ind_vars)
     nrows = len(regions)
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(4*ncols, 3*nrows), dpi=300, squeeze=False)
@@ -71,8 +70,10 @@ def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='com
 
         if spacecraft=='omni':
             df = import_processed_data('omni', resolution=resolution)
+            colour = 'orange'
         else:
             df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+            colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
 
         dataset = 'OMNI' if spacecraft == 'omni' else f'{region.upper()}'
 
@@ -80,15 +81,27 @@ def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='com
 
             ax = axs[i][j]
 
+            ###-----INDEPENDENT DATA-----###
             _, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
 
             ind_err, ind_count = def_param_names(df, ind_var)
 
-            df_ind = mask_df(df, ind_var, limits, ind_count, resolution, invert=invert)
-            ind_vals = df_ind[ind_var].to_numpy()
+            if ind_var in ('E_yz','S_x_GSE'): # restrict to -ve Bz
+
+                condition = '<0'
+                cond_col  = 'B_z_GSM'
+
+            else:
+                condition, cond_col = None, None
+
+            df_ind = mask_df(df, ind_var, limits, ind_count, resolution, condition=condition, cond_col=cond_col, invert=invert)
 
             if invert:
                 ind_var = f'-{ind_var}'
+
+            ind_vals = df_ind[ind_var].to_numpy()
+
+            ###-----ERROR CALCULATIONS-----###
 
             if spacecraft == 'omni':
                 ind_err = calc_omni_uncertainty(df_ind, ind_var)
@@ -100,14 +113,16 @@ def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='com
                 continue
 
             mask = np.isfinite(ind_vals) & np.isfinite(ind_err)
+
             xs, errs = ind_vals[mask], ind_err[mask]
             ratio = np.mean(errs**2) / np.var(xs)
 
-            binned_band(ax, xs, errs)
+            ###-----PLOTTING-----###
+
+            binned_band(ax, xs, errs, colour=colour)
 
             if j==0:
-                ax.text(0.05, 0.95, region,
-                        transform=ax.transAxes, ha='left', va='top', fontsize=8)
+                ax.text(0.05, 0.95, region, transform=ax.transAxes, ha='left', va='top', fontsize=8)
 
             # eta = $\langle\sigma^2\rangle/\mathrm{{V}}[x]$
             ax.text(0.5, 0.95, rf'$\eta$ = {ratio:.2g}' '\n' rf'$\rho$ = {spearmanr(xs, errs)[0]:.3g}', transform=ax.transAxes, ha='center', va='top', fontsize=8)
@@ -146,6 +161,8 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
 
     for dep_var in dep_vars:
 
+        ###-----DEPENDENT DATA-----###
+
         df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
         df_pc = mask_df(df_pc, dep_var)
 
@@ -155,14 +172,26 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
 
         for ind_var in ind_vars:
 
+            ###-----INDEPENDENT DATA-----###
+
             bin_width, _, invert = get_variable_range(ind_var, region)
 
             ind_err, ind_count = def_param_names(df_sc, ind_var)
 
-            df_ind = mask_df(df_sc, ind_var, count_col=ind_count, resolution=resolution, invert=invert)
+            if ind_var in ('E_yz','S_x_GSE'): # restrict to -ve Bz
+
+                condition = '<0'
+                cond_col  = 'B_z_GSM'
+
+            else:
+                condition, cond_col = None, None
+
+            df_ind = mask_df(df_sc, ind_var, count_col=ind_count, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert)
 
             if invert:
                 ind_var = f'-{ind_var}'
+
+            ###-----MERGING AND SLICING-----###
 
             df_ind, df_dep = merge_with_lag(df_ind, df_pc, lag, resolution)
 
@@ -177,6 +206,8 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
             if np.all(ind_err == 0):
                 print(f'All errors are 0 for {ind_var}.')
                 continue
+
+            ###-----ERROR CALCULATIONS-----###
 
             idx = np.clip(np.digitize(ind_vals, bins) - 1, 0, len(bins) - 2)
 
@@ -197,6 +228,7 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
                              'count': count,
                              'ratio': np.mean(dep_err2[bin_mask]) / y_var})
 
+    ###-----SUMMARY-----###
     df_grid = pd.DataFrame(rows)
 
     def highest(g):

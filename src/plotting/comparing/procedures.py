@@ -259,7 +259,7 @@ def plot_scatter_binned(xs, ys, **kwargs):
             x = ufloat(xs.loc[mask].iloc[0],0)
             y = ufloat(ys.loc[mask].iloc[0],0)
 
-            #scatter_size *= 0.25
+            scatter_size = scat_size
 
         else:
             x = average_of_averages(xs, xs_unc, xs_counts, mask)
@@ -268,9 +268,10 @@ def plot_scatter_binned(xs, ys, **kwargs):
             if (isinstance(x, float) and np.isnan(x)) or (isinstance(y, float) and np.isnan(y)):
                 continue
 
-            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=1, capthick=0.2, lw=0.2, zorder=2)
+            scaling = int(np.log10(np.sum(mask)))
+            scatter_size = scat_size * scaling**2
 
-        scatter_size = scat_size * int(np.log10(np.sum(mask)))**2
+            ax.errorbar(x.n, y.n, xerr=x.s, yerr=y.s, fmt='.', ms=0, ecolor=error_colour, capsize=0.4*scaling, capthick=0.3*scaling, lw=0.3*scaling, zorder=2)
 
         if zs is not None:
             z = average_of_averages(zs, zs_unc, zs_counts, mask)

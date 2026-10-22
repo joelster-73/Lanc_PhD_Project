@@ -75,6 +75,8 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
 
             mask &= operation(df[cond_col], value)
 
+            print(f'Applied condition: {cond_col} {condition}.')
+
         df_masked = df.loc[mask].copy()
 
         if invert:
@@ -134,14 +136,10 @@ def def_param_names(df, variable, source=None):
             var_count   = 'imf_counts'
 
     elif '_GS' in variable:
-        parts = variable.split('_')
-        field = parts[0]
-        coords = parts[2]
+        parts  = variable.split('_')
+        field  = parts[0]
 
-        var_count = '_'.join((field,coords,'count'))
-
-        if coords=='GSE' and var_count not in df: # edge case of F_x_GSE being the column for F_GSM
-            var_count = '_'.join((field,'GSM','count'))
+        var_count = '_'.join((field,'mag','count'))
 
     elif variable in ('RES','THL'):
         var_count = '_'.join((variable,'mag','count'))

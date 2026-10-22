@@ -17,7 +17,7 @@ from ....analysing.fitting import fit_bootstrap, get_confidence_range
 from ....analysing.calculations import calc_mean_error
 
 from ....plotting.utils import save_figure, calculate_bins
-from ....plotting.formatting import create_label, shifted_angle_ticks, format_string
+from ....plotting.formatting import shifted_angle_ticks, format_string
 from ....plotting.comparing.parameter import compare_dataframes
 from ....plotting.config import black, blue, grey, green, red
 
@@ -53,19 +53,19 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     kwargs.setdefault('data_colour', sc_colour)
     kwargs.setdefault('error_colour', sc_colour)
     kwargs.setdefault('fit_type', 'saturation')
+    kwargs.setdefault('fit_colour', black)
     kwargs.setdefault('iterations', 2500)
 
     kwargs['bin_step'] = bin_width
-
-    if 'data1_name' in kwargs:
-        kwargs['data1_name'] = create_label(kwargs['data1_name'])
-    if 'data_name_map' in kwargs:
-        kwargs['data2_name'] = create_label(kwargs['data_name_map'].get(dep_var,dep_var))
 
     ###----------CONFIG----------###
 
     condition = kwargs.get('condition')
     cond_col  = kwargs.get('cond_col')
+
+    if ind_var in ('E_R', 'B_z_GSM'):
+        print(f'Condition doesn\'t apply to {ind_var}.')
+        condition = None
 
     # Masks and slicing
     df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution, condition, cond_col, invert) # removes low sampling counts too
@@ -84,7 +84,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     ###----------PLOT ----------###
 
     if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(8, 6 if second_x else 5), dpi=400)
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6.5 if second_x else 5), dpi=400)
 
     x_range = np.linspace(np.min(df_ind[ind_var]), np.max(df_ind[ind_var]), 100)
 
@@ -103,7 +103,8 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     ###----------BOOTSTRAP----------###
 
-    if False:
+    num_iters = kwargs['iterations']
+    if num_iters>0:
 
         df_boot = fit_bootstrap(df_ind, ind_var, dep_var, df_dep, **kwargs)
 
@@ -114,7 +115,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
         print(f'\nConfidence intervals ({confidence}%)')
         for key, val in param_intervals.items():
-            print(f'{key}:\t{val[0]:.4g}\t| {val[1]:.4g}')
+            print(f'{key}: \t{val[0]:.4g}\t| {val[1]:.4g}')
         print()
 
     ###----------FORMATTING----------###
@@ -161,7 +162,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     if return_objs:
         return fig, ax
 
-    file_name = f'Response_from_{region}_{ind_var}_on_{dep_var}'
+    file_name = f'Coupling_{region}_{ind_var}_driving_{dep_var}_{num_iters}'
     if kwargs.get('file_suffix') is not None:
         file_name += f'_{kwargs.get("file_suffix")}'
 
@@ -187,13 +188,16 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
         n_cols = len(dep_vars)
         n_rows = 1
 
-        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='row', sharey='row', squeeze=False)
-        axs = axs.T
+        sharex = 'col'
 
     else:
 
-        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
-    # squeeze keeps axs as 2D even if n_cols or n_rows = 1
+        sharex = 'row'
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows + 1.5), dpi=300, sharex=sharex, sharey='row', squeeze=False) # squeeze keeps axs as 2D even if n_cols or n_rows = 1
+
+    if n_rows == 1: # for iteration below
+        axs = axs.T
 
     df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
@@ -220,7 +224,7 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
     plt.show()
     plt.close()
 
-def plot_compare_systems(ind_vars, dep_var, spacecraft='combined', resolution='5min', region='sw', restrict=True, **kwargs):
+def plot_compare_systems(ind_vars, dep_vars, spacecraft='combined', resolution='5min', region='sw', restrict=True, **kwargs):
     """
     Look at OMNI and in-situ data in driver-response
     The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
@@ -233,24 +237,39 @@ def plot_compare_systems(ind_vars, dep_var, spacecraft='combined', resolution='5
         raise ValueError('Haven\'t passed in a condition.')
 
     ###----------PLOT GRIDS----------###
-    n_rows = len(ind_vars)
+    if len(dep_vars)>1 and len(ind_vars)>1:
+        raise Exception('Can\'t have more than one independent and dependent variable.')
+
+    elif len(dep_vars)==1:
+        n_rows     = len(ind_vars)
+        dep_var    = dep_vars[0]
+        enumerator = ind_vars
+        var_type   = 'ind'
+
+    elif len(ind_vars)==1:
+        n_rows     = len(dep_vars)
+        ind_var    = ind_vars[0]
+        enumerator = dep_vars
+        var_type   = 'dep'
+
     n_cols = 2
-
-
-    ###### can change this so it takes in multiple inds or multiple deps, but not both
-    ###### can also adapt to compare regions
-
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='row', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
     df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
-    df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
-
-    for row, ind_var in enumerate(ind_vars):
-
+    if var_type=='ind': # to prevent importing in the loop
         df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
+
+    for row, var in enumerate(enumerator):
+
+        if var_type=='ind':
+            ind_var = var
+        else:
+            dep_var = var
+
+            df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
 
         ###-----WITHOUT-----###
         ax = axs[row, 0]
@@ -270,6 +289,71 @@ def plot_compare_systems(ind_vars, dep_var, spacecraft='combined', resolution='5
     axs[0,1].set_title(f'${format_string(cond_col)}${condition}')
 
     file_name = f'Comparing_{dep_var}_responses_with_restriction_' + '_'.join(ind_vars)
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, overwrite=True)
+    plt.show()
+    plt.close()
+
+
+def plot_compare_regions(ind_vars, dep_vars, spacecraft='combined', resolution='5min', regions=('sw','msh'), restrict=True, **kwargs):
+    """
+    Look at OMNI and in-situ data in driver-response
+    The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
+    """
+
+    ###----------PLOT GRIDS----------###
+    if len(dep_vars)>1 and len(ind_vars)>1:
+        raise Exception('Can\'t have more than one independent and dependent variable.')
+
+    elif len(dep_vars)==1:
+        n_rows     = len(ind_vars)
+        dep_var    = dep_vars[0]
+        enumerator = ind_vars
+        var_type   = 'ind'
+
+    elif len(ind_vars)==1:
+        n_rows     = len(dep_vars)
+        ind_var    = ind_vars[0]
+        enumerator = dep_vars
+        var_type   = 'dep'
+
+    n_cols = len(regions)
+
+    second_x = kwargs.get('second_x',False)
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, (5.5 if second_x else 5)*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
+    # squeeze keeps axs as 2D even if n_cols or n_rows = 1
+
+    dfs = {}
+    for region in regions:
+        df = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+        dfs[region] = df
+
+    if var_type=='ind': # to prevent importing in the loop
+        df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
+
+    for row, var in enumerate(enumerator):
+
+        if var_type=='ind':
+            ind_var = var
+        else:
+            dep_var = var
+
+            df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
+
+        ###-----REGIONS-----###
+        for col, (region, df) in enumerate(dfs.items()):
+            ax = axs[row, col]
+
+            _ = plot_driver_response(ind_var, dep_var, df, df_pc, spacecraft, resolution, region, restrict, fig=fig, ax=ax, return_objs=True, **kwargs)
+
+            if col!=0:
+                ax.set_ylabel(None)
+            if row==0:
+                ax.text(0.025, 0.95, region, transform=ax.transAxes, ha='left', va='top', fontsize=8)
+
+    file_name = f'Comparing_{dep_var}_{ind_var}_for_regions_' + '_'.join(regions)
 
     plt.tight_layout()
     save_figure(fig, file_name=file_name, overwrite=True)

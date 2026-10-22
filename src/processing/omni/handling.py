@@ -88,9 +88,9 @@ def extract_omni_data(lst_file, omni_columns):
     df.loc[df['plasma_sc'] == 99, plasma_bad_cols] = np.nan
 
     # Times
-    years = df.loc[:,'Year'].astype(int)
-    days = df.loc[:,'Day']
-    hours = df.loc[:,'Hour']
+    years   = df.loc[:,'Year'].astype(int)
+    days    = df.loc[:,'Day']
+    hours   = df.loc[:,'Hour']
     minutes = df.loc[:,'Minute']
 
     dates = [
@@ -135,6 +135,8 @@ def extract_omni_data(lst_file, omni_columns):
     # E = -V x B = B x V
     e_gsm = cross_product(df, cross_name='E_GSM', var1_name='B_GSM', var2_name='V_GSM')
     df = pd.concat([df, e_gsm], axis=1)
+
+    ### Need to add Eyz in at some point
 
     # S = E x H = E x B / mu0
     s_gsm = cross_product(df, cross_name='S_GSM', var1_name='E_GSM', var2_name='B_GSM')

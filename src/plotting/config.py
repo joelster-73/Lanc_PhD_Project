@@ -8,28 +8,28 @@ Created on Fri May 16 10:21:52 2025
 import matplotlib.pyplot as plt
 
 
-dark_mode  = False
+dark_mode  = True
 large_text = True
 save_fig   = True
 
 
-white = 'w'
-black = 'k'
-blue = 'b'
-green = 'g'
-red = 'r'
-grey = 'grey'
+white  = 'w'
+black  = 'k'
+blue   = 'b'
+green  = 'g'
+red    = 'r'
+grey   = 'grey'
 purple = 'purple'
 plt.rcParams['legend.labelcolor'] = 'k'
 plt.rcParams['legend.facecolor']  = 'w'
 plt.style.use('default')
 if dark_mode:
-    blue = 'c'
-    white = 'k'
-    black = 'w'
-    red = 'deeppink'
-    green = 'lime'
-    grey = 'lightgrey'
+    blue   = 'c'
+    white  = 'k'
+    black  = 'w'
+    red    = 'deeppink'
+    green  = 'lime'
+    grey   = 'lightgrey'
     purple = 'fuchsia'
     plt.style.use('dark_background')
     plt.rcParams['legend.labelcolor'] = 'w'
@@ -80,25 +80,25 @@ colour_dict = {
 
 colour_dict_simple = {
     'OMNI': 'orange',
-    'C1':   'blue',
-    'C2':   'blue',
-    'C3':   'blue',
-    'C4':   'blue',
-    'TH':   'green',
-    'THA':  'green',
-    'THB':  'green',
-    'THC':  'green',
-    'THD':  'green',
-    'THE':  'green',
+    'C1':   blue,
+    'C2':   blue,
+    'C3':   blue,
+    'C4':   blue,
+    'TH':   green,
+    'THA':  green,
+    'THB':  green,
+    'THC':  green,
+    'THD':  green,
+    'THE':  green,
     'ACE':  'darkviolet',
     'DSC':  'deeppink',
     'GEO':  'cyan',
     'IMP8': 'crimson',
     'WIND': 'magenta',
-    'MMS1': 'red',
-    'MMS2': 'red',
-    'MMS3': 'red',
-    'MMS4': 'red'
+    'MMS1': red,
+    'MMS2': red,
+    'MMS3': red,
+    'MMS4': red
 }
 
 database_colour_dict = {'CFA': 'b', 'Donki': 'r', 'Helsink': 'g'}
