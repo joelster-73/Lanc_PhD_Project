@@ -42,6 +42,7 @@ def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=
 
     p = df[f'P_flow{key_d}'].to_numpy()
     p = np.where(np.isnan(p), P_SW, p) # default pressure from config (above)
+    p = np.maximum(p, 0.1) # prevent overflow from p^-1/6.55
 
     Bz = df[f'B_z_GSM{key_d}'].to_numpy()
     Bz = np.where(np.isnan(Bz), BZ_SW, Bz) # default field from config (above)
@@ -148,6 +149,7 @@ def calc_normal_for_sc(df, surface, model='shue', aberration='model', position_k
 
     p = df[f'P_flow{key_d}'].to_numpy()
     p = np.where(np.isnan(p), P_SW, p) # default pressure from config (above)
+    p = np.maximum(p, 0.1) # prevent overflow from p^-1/6.55
 
     Bz = df[f'B_z_GSM{key_d}'].to_numpy()
     Bz = np.where(np.isnan(Bz), BZ_SW, Bz) # default field from config (above)

@@ -16,7 +16,7 @@ from ...processing.writing import write_to_cdf
 
 # %%% Merge_sc
 
-def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=None, nose=False):
+def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=None, exc_artemis=True):
 
     """
     Merge spacecrafr pre-filtered to be in the solar wind or magnetosheath
@@ -41,7 +41,6 @@ def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=Non
             continue # there was no data in the filtered region using the filter() script
 
         print(f'Importing {sc.upper()}.')
-        imported_sc.append(sc)
 
         for key, val in df_sc.attrs.items():
             if key=='units':
@@ -49,9 +48,15 @@ def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=Non
             else:
                 attrs.update({key: val})
 
-        # Combining spacecraft with same column names so using '_sc' suffix to identify.
-        df_sc.rename(columns={col: f'{col}_{sc}' for col in df_sc.columns}, inplace=True)
-        dfs_combined.append(df_sc)
+        if sc in ('thb','thc') and region=='sw' and exc_artemis:
+            df_sc = df_sc.loc[df_sc['r_x_GSE']<30]
+
+        if len(df_sc)>0:
+            imported_sc.append(sc)
+
+            # Combining spacecraft with same column names so using '_sc' suffix to identify.
+            df_sc.rename(columns={col: f'{col}_{sc}' for col in df_sc.columns}, inplace=True)
+            dfs_combined.append(df_sc)
 
     attrs['units'] = units
 
@@ -77,7 +82,7 @@ def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=Non
     df_combined = pd.concat(result).sort_index()
     df_combined.index.name = 'epoch'
 
-    update_attributes(df_combined, attrs, region, '')
+    df_combined.attrs = attrs
 
     print('Merging')
     df_combined.attrs['units'][f'sc_{region}'] = 'STRING'
@@ -90,14 +95,3 @@ def merge_sc_in_region(region, data_pop='plasma', resolution='5min', sc_keys=Non
     write_to_cdf(df_combined, directory=out_dir, file_name=f'{region}_times_combined', reset_index=True)
 
 
-
-def update_attributes(df, attrs_dict, region='sw', suffix=''):
-
-    df.attrs = attrs_dict
-    for temp in (f'T_tot{suffix}',f'T_tot_unc{suffix}'):
-        df.attrs['units'][temp] = 'MK'
-
-    df.attrs['units']['prop_time_s'] = 's'
-    if region=='msh':
-        df.attrs['units']['Delta B_theta'] = 'rad'
-        df.attrs['units']['Delta B_z'] = '1'

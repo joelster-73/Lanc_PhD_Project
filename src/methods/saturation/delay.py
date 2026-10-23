@@ -33,34 +33,33 @@ def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GS
     speed    = {'sw': V_SW, 'msh': V_MSH} # km/s
 
     # Position
-    valid_positions = ~df[pos_col].isna()
-    positions = df.loc[valid_positions,pos_col].to_numpy()
+    valid     = df[pos_col].notna().to_numpy()
+    positions = df.loc[valid,pos_col].to_numpy()
 
-    # Speed
-    speeds = df.loc[valid_positions,vel_col].to_numpy()
-    speeds[speeds > min_speeds.get(region)] = np.nan # Flag unreliable speeds
-    speeds[np.isnan(speeds)] = speed.get(region)
+    # Speed measured by spacecraft
+    sc_speeds = df.loc[valid,vel_col].to_numpy()
+    sc_speeds = np.minimum(sc_speeds, min_speeds[region]) # negative
 
-    # Bowshock
-    # Uses OMNI pressure and speed, and default if NaN
+    # Bowshock position using OMNI
     omni = df_omni.reindex(df.index) # reindexed so missing times don't return error
 
-    pressures = omni[omni_pres_col].to_numpy() * 2 # I defined when processing with 1/2 prefactor
-    bowshocks = bsn_jelinek2012(pressures)
-    pressures[np.isnan(pressures)] = pressure # add clip check to function to prevent overflow?
+    omni_pres = omni[omni_pres_col].to_numpy() * 2 # I defined when processing with 1/2 prefactor
+    omni_pres = np.where(np.isnan(omni_pres), pressure, omni_pres)
+    omni_pres = np.maximum(omni_pres, 0.1) # prevent overflow from p^-1/6.55
+    bowshocks = bsn_jelinek2012(omni_pres)
 
-    sw_speeds = omni[omni_vel_col].to_numpy()
-    sw_speeds[np.isnan(sw_speeds)] = speed.get('sw')
+    omni_speed = omni[omni_vel_col].to_numpy()
+    omni_speed = np.where(np.isnan(omni_speed), speed['sw'], omni_speed)
 
-    # simple rotation
-    bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=sw_speeds)
-    bowshocks = bowshocks[valid_positions.to_numpy()]
+    # simple aberration
+    bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=omni_speed)
+    bowshocks = bowshocks[valid]
 
     distances = positions - bowshocks
     if region=='msh':
-        distances[distances>0] = 0 # when sc is in the sheath, bowshock has to be upstream of it
+        distances = np.where(distances>0, 0, distances) # when sc is in the sheath, bowshock has to be upstream of it
 
-    df.loc[valid_positions,lag_col] = -distances * R_E / speeds
+    df.loc[valid,lag_col] = -distances * R_E / sc_speeds
 
 def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
     """

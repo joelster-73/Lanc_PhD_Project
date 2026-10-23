@@ -4,14 +4,7 @@ Created on Thu Aug 28 12:29:26 2025
 
 @author: richarj2
 """
-from src.methods.saturation.plotting.general import plot_driver_response, plot_multi_driver_responses
-
-
-
-#### Do sensitive test of changing parameters and looking at fitted parameters
-
-### STILL GETTING core/fromnumeric.py:59: RuntimeWarning: overflow encountered in multiply WARNING
-
+from src.methods.saturation.plotting.general import plot_driver_response
 
 dep_vars    = ('SME', 'SMU', 'THL', 'RES')
 ind_vars    = ('E_R', 'E_yz', 'B_z_GSM', 'S_x_GSE')
@@ -30,7 +23,8 @@ for dep_var in dep_vars:
 
 # %% test
 
-### MOVE TO SECTION
+### MOVE TO "SECTION"
+### SOME FIGURES NEED TO BE PRODUCED BYT ONLY TO BE DESCRIBED AND NOT INCLUDED, CHECK COMMENTS IN MANUSCRIPT
 
 from src.methods.saturation.plotting.quality import plot_avg_counts_grid, plot_avg_distributions
 from src.methods.saturation.plotting.general import plot_delay_hists
@@ -39,7 +33,7 @@ plot_avg_counts_grid('cluster', 'themis', 'mms')
 
 
 
-plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_y_GSM', 'S_x_GSE', restrict=False)
-plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_y_GSM', 'S_x_GSE', restrict=True)
+plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=False)
+plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=True)
 plot_delay_hists('combined', ('msh','sw'))
 

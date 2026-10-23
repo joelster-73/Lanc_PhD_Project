@@ -115,7 +115,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
         print(f'\nConfidence intervals ({confidence}%)')
         for key, val in param_intervals.items():
-            print(f'{key}: \t{val[0]:.4g}\t| {val[1]:.4g}')
+            print(f'{key}:\t{val[0]:.4g}\t|\t{val[1]:.4g}')
         print()
 
     ###----------FORMATTING----------###
@@ -389,7 +389,7 @@ def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5m
 
         mean = calc_mean_error(lags)
         std = np.std(lags, ddof=1)
-        label = f'{region}\n$\\mu={mean:L}$ {unit}\n$\\sigma = {std:.3g}$ mins'
+        label = f'{region}: {len(lags):,}\n$\\mu={mean:L}$ {unit}\n$\\sigma = {std:.3g}$ mins'
 
         ax.bar(bins, counts, width=1, color=colour, alpha=0.7, label=label)
 

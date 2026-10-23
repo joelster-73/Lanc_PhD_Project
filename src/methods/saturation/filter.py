@@ -76,6 +76,8 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     # Correction to time lag based on spacecraft position in solar wind
     calc_flat_delay(df_merged, df_omni, region=region, pos_col=f'r_x_GSE_{sc}', vel_col=f'V_x_GSE_{sc}', omni_vel_col='V_x_GSE', omni_pres_col='P_flow', lag_col=f'prop_time_s_{sc}')
 
+    df_merged.dropna(subset=f'prop_time_s_{sc}', inplace=True)
+
     update_parameters(df_merged, sc, region)
 
     ###----------WRITING----------###
@@ -87,10 +89,9 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     # These columns are naturally in mms data so removing for consistency
     df_merged.drop(columns=[col for col in df_merged.columns if col.startswith('r_avg')], inplace=True)
 
-
     # Need suffix when combining but removing for individual file
     df_merged = df_merged.rename(columns={col: col[:-len(suffix)] for col in df_merged.columns if col.endswith(suffix)})
-    update_attributes(df_merged, df_merged_attrs, region, suffix)
+    update_attributes(df_merged, df_merged_attrs, region)
 
     if test_return:
         return df_merged
@@ -107,7 +108,7 @@ def filter_region(df, omni, sc, region, params={}):
     Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath
     """
     default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw':  275},
-                      'msh': {'r_x': 5, 'r_theta': np.pi/4, 'V_x_GSE': 0,'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
+                      'msh': {'r_x': 5, 'r_theta': np.pi/4, 'V_x_GSE': 0, 'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
 
     for reg, vals in params.items():
         default_params[reg].update(vals)
@@ -133,7 +134,7 @@ def filter_region(df, omni, sc, region, params={}):
         vflow = default_params['sw']['V_sw']
 
         mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
-        mask &= (df_merged[f'r_x_GSE_{sc}']<30) # remove ARTEMIS data
+        #mask &= (df_merged[f'r_x_GSE_{sc}']<30) # remove ARTEMIS data, moved to merge procedure
         mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':
@@ -240,8 +241,5 @@ def update_attributes(df, attrs_dict, region='sw', suffix=''):
     for temp in (f'T_tot{suffix}',f'T_tot_unc{suffix}'):
         df.attrs['units'][temp] = 'MK'
 
-    df.attrs['units']['prop_time_s'] = 's'
-    if region=='msh':
-        df.attrs['units']['Delta B_theta'] = 'rad'
-        df.attrs['units']['Delta B_z'] = '1'
+    df.attrs['units']['prop_time_s{suffix}'] = 's'
 

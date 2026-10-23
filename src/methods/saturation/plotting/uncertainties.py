@@ -239,5 +239,8 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
     df_summary['full_ratio'] = df_summary.apply(
         lambda row: full_data.get((row['driver'],row['response']), np.nan), axis=1)
 
+    print()
     print(df_summary.to_string(index=False, float_format=lambda v: f'{v:.3g}'))
+    print('\nOverall max:')
+    print(df_summary.loc[df_summary['max_ratio']==df_summary['max_ratio'].max()])
     return df_grid, df_summary

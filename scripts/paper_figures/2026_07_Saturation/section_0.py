@@ -11,6 +11,8 @@ Created on Sun Oct 26 15:37:29 2025
 from src.methods.saturation.filter import filter_sc_region, filter_spacecraft
 from src.processing.reading import import_processed_data
 
+print('REMINDER: check if any files aren\'t the same data structure - suggests data folders contain files that are outdated.')
+
 for resolution in ('1min','5min','15min'):
 
     df_omni = import_processed_data('omni', resolution=resolution)
