@@ -20,20 +20,3 @@ for dep_var in dep_vars:
             except:
                 continue
 
-
-# %% test
-
-### MOVE TO "SECTION"
-### SOME FIGURES NEED TO BE PRODUCED BYT ONLY TO BE DESCRIBED AND NOT INCLUDED, CHECK COMMENTS IN MANUSCRIPT
-
-from src.methods.saturation.plotting.quality import plot_avg_counts_grid, plot_avg_distributions
-from src.methods.saturation.plotting.general import plot_delay_hists
-
-plot_avg_counts_grid('cluster', 'themis', 'mms')
-
-
-
-plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=False)
-plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=True)
-plot_delay_hists('combined', ('msh','sw'))
-

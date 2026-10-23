@@ -1,35 +1,62 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jul 15 17:22:14 2026
+Created on Thu Aug 28 12:29:26 2025
 
 @author: richarj2
 """
 
-# %% lags
+# %% averaging
 
-from src.methods.saturation.plotting.lags import plot_lags_saturation
+from src.methods.saturation.plotting.quality import plot_avg_counts_grid, plot_avg_distributions
 
-lags = (15,16,17,18,19)
+# Describe in manuscript but don't include
 
-for sc, reg in (('omni','sw'),('combined','sw'),('combined','msh')):
+plot_avg_counts_grid('cluster', 'themis', 'mms')
 
-    plot_lags_saturation('E_R', 'THL', lags, spacecraft=sc, region=reg, resolution='1min', restrict=True)
+# Include one of the figures below (probs restricted but to a lesser extent)
 
+plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=False)
+plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=True)
 
-lags = (0,5,10,15,20,25,30)
+# %% sensitivity
 
-for sc, reg in (('omni','sw'),('combined','sw'),('combined','msh')):
+### Add plots that are to show sensitivty to filtering parameters
+### Won't include, perhaps in appendix, but need to say they're not sensitive
 
-    plot_lags_saturation('E_R', 'THL', lags, spacecraft=sc, region=reg, resolution='5min', restrict=True)
+# %% uncertainties
 
-# %% resolutions
+from src.methods.saturation.plotting.quality import plot_independent_uncertainties
 
-from src.methods.saturation.plotting_resolutions import plot_resolutions_saturation
-
-resolutions = ('1min','5min','15min')
-
-for sc, reg in (('omni','sw'),('combined','sw'),('combined','msh')):
-
-    plot_resolutions_saturation('E_R', 'THL', resolutions, spacecraft=sc, region=reg, lag=17, restrict=True)
+_ = plot_independent_uncertainties('B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE', regions=('sw','msh'))
 
 
+# %% distrubtions
+
+from src.methods.saturation.plotting.space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh, plot_data_inventory
+
+### None of these figures are to be included, but are used when describing the final solar wind and magnetosheath datasets
+
+### Make sure to print out somewhere how much data there actually is (how many minutes and how many five minute samples over how many unique days)
+
+resolution = '1min'
+
+all_keys = ('c1','c3','mms1','tha','thb','thc','thd','the')
+sw_keys  = ('c1','c3','mms1')
+msh_keys = ('c1','c3','mms1','tha','thd','the')
+
+
+# Solar Wind
+plot_sc_years(resolution, 'plasma', 'sw', sw_keys, combined=False)
+plot_sc_orbits(resolution, 'plasma', 'sw', sw_keys)
+
+
+# Magnetosheath
+plot_sc_years(resolution, 'plasma', 'msh', msh_keys, combined=False)
+plot_sc_orbits(resolution, 'plasma', 'msh', msh_keys)
+
+# Both
+plot_sc_sw_msh(resolution, 'plasma', sw_keys, msh_keys)
+
+plot_data_inventory(*all_keys, region='all')
+plot_data_inventory(*sw_keys, region='sw', display='monthly')
+plot_data_inventory(*msh_keys, region='msh', display='monthly')
