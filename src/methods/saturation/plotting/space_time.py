@@ -219,25 +219,27 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     plt.show()
     plt.close()
 
-def plot_data_inventory(*spacecraft, region='msh', display='yearly', **kwargs):
+def plot_data_inventory(*spacecraft, region='msh', display='yearly', print_info=True, **kwargs):
 
     row = 0
     row_sep = 0.4
     row_labels = []
+    row_counts = []
 
     rows   = len(spacecraft) * (2 if region=='all' else 1)
-    width  = 8 * (2 if region=='all' else 1)
+    width  = 9 * (2 if region=='all' else 1)
     height = (2*rows + 1)*row_sep if region=='all' else 10*row_sep
     ys     = np.arange(0, rows*row_sep-0.1, row_sep)
 
     field_col  = 'B_avg'
     plasma_col = 'V_flow'
 
-    def _draw_bar(ax, row, start, end, group, colour, row_sep, alpha_min=0.4 if dark_mode else 0.3, bar_scale=0.75):
+    def draw_bar(ax, row, start, end, group, colour, row_sep, alpha_min=0.4 if dark_mode else 0.3, bar_scale=0.7):
         alpha = len(group) / (end - start).total_seconds() * 60
         alpha = alpha * (1 - alpha_min) + alpha_min
         ax.barh(row, end - start, left=start, height=row_sep*bar_scale, color=colour, alpha=alpha)
 
+    all_times = []
 
     fig, ax = plt.subplots(figsize=(width, height))
 
@@ -247,17 +249,17 @@ def plot_data_inventory(*spacecraft, region='msh', display='yearly', **kwargs):
         if region=='all': # all spacecraft before region filtering
 
             constellation = CONSTELLATION.get(sc)
-            instruments = INSTRUMENTS.get(constellation)
+            instruments   = INSTRUMENTS.get(constellation)
 
-            field = instruments.get('field')
+            field  = instruments.get('field')
             plasma = instruments.get('plasma')
 
             print(field,plasma)
 
-            df_field = import_processed_data(sc, dtype=field, resolution='1min')
+            df_field  = import_processed_data(sc, dtype=field, resolution='1min')
             df_plasma = import_processed_data(sc, dtype=plasma, resolution='spin')
 
-            df_field = df_field.loc[df_field[field_col].notna(),[field_col]]
+            df_field  = df_field.loc[df_field[field_col].notna(),[field_col]]
             df_plasma = df_plasma.loc[df_plasma[plasma_col].notna(),[plasma_col]]
 
             plasma_times = df_plasma.index.floor('min').drop_duplicates()
@@ -274,38 +276,39 @@ def plot_data_inventory(*spacecraft, region='msh', display='yearly', **kwargs):
 
         for label, times in times_dict.items():
 
+            all_times.extend(times)
+
             times = pd.DatetimeIndex(times).floor('min').unique()
 
             if display=='scatter':
 
                 ax.scatter(times, np.full(len(times), row), marker='|', s=300, linewidths=0.5, facecolors=colour, alpha=0.1)
 
-            elif display == 'yearly':
-                times = pd.Series(times)
-                time_groups = times.groupby(times.dt.year)
-                for year, group in time_groups:
-                    start = pd.Timestamp(f'{year}-01-01')
-                    end = start + pd.DateOffset(years=1)
-                    _draw_bar(ax, row, start, end, group, colour, row_sep)
+            elif display in ('yearly', 'monthly'):
 
-            elif display == 'monthly':
                 times = pd.Series(times)
-                time_groups = times.groupby([times.dt.year, times.dt.month])
-                for (year, month), group in time_groups:
-                    start = pd.Timestamp(f'{year}-{month:02d}-01')
-                    end = start + pd.DateOffset(months=1)
-                    _draw_bar(ax, row, start, end, group, colour, row_sep)
+                periods = times.dt.to_period('Y' if display=='yearly' else 'M')
+
+                for period, group in times.groupby(periods):
+                    start = period.start_time
+                    end = period.end_time + pd.Timedelta(nanoseconds=1)
+                    draw_bar(ax, row, start, end, group, colour, row_sep)
 
             else:
                 continue
 
             row_labels.append(label)
+            row_counts.append(f'{len(times):,}')
             row += row_sep
 
-    ax.set_ylim(-row_sep, rows*row_sep)
-    ax.invert_yaxis()
-    ax.set_yticks(ys)
-    ax.set_yticklabels(row_labels)
+    ax2 = ax.twinx()
+
+    for axis, labels in zip((ax, ax2), (row_labels, row_counts)):
+
+        axis.set_ylim(-row_sep, rows*row_sep)
+        axis.invert_yaxis()
+        axis.set_yticks(ys)
+        axis.set_yticklabels(labels)
 
     if region=='all':
         # left-align all ticklabels
@@ -313,10 +316,21 @@ def plot_data_inventory(*spacecraft, region='msh', display='yearly', **kwargs):
             ticklabel.set_horizontalalignment('left')
         ax.tick_params('y', pad=90)
 
-    ax.set_title(region)
+    ax.text(0.95, 0.95, region, transform=ax.transAxes, ha='center', va='top', fontsize=14)
 
     plt.tight_layout()
     save_figure(fig, file_name=f'Data_Inventory_{region}', overwrite=True)
-
     plt.show()
     plt.close()
+
+    if print_info:
+
+        all_times = pd.DatetimeIndex(all_times).floor('min').unique()
+
+        n_unique_minutes = len(all_times)
+        n_unique_5mins = len(all_times.floor('5min').unique())
+        n_unique_days = len(all_times.normalize().unique())
+
+        print(f"Unique minutes:   {n_unique_minutes:,}")
+        print(f"Unique 5-minutes: {n_unique_5mins:,}")
+        print(f"Unique days:      {n_unique_days:,}")

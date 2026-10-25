@@ -22,7 +22,7 @@ from ...coordinates.boundaries import calc_msh_dist, vector_component_surface
 
 all_spacecraft = ('c1','c3','mms1','tha','thb','thc','thd','the')
 sw_spacecraft  = ('c1','c3','mms1','thb','thc')
-msh_spacecraft = ('c1','c3','mms1','tha','thd','the')
+msh_spacecraft = all_spacecraft
 
 filter_spacecraft = {'sw': sw_spacecraft, 'msh': all_spacecraft, 'msh20': all_spacecraft}
 
@@ -62,7 +62,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
 
     df_merged, df_merged_attrs = filter_region(df_sc, df_omni, sc, region, params)
     if df_merged.empty:
-        print(f'No {sc} data in {region}.')
+        print(f'No {sc} data in {region} after filtering.')
         return
 
     suffix = f'_{sc}'
@@ -105,7 +105,9 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
 
 def filter_region(df, omni, sc, region, params={}):
     """
-    Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath
+    Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath.
+
+    NOTE: This doesn't explicitly remove ARTEMIS Data. This is written to the file, but is removed when the files are merged into a complete file.
     """
     default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw':  275},
                       'msh': {'r_x': 5, 'r_theta': np.pi/4, 'V_x_GSE': 0, 'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
@@ -134,7 +136,6 @@ def filter_region(df, omni, sc, region, params={}):
         vflow = default_params['sw']['V_sw']
 
         mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
-        #mask &= (df_merged[f'r_x_GSE_{sc}']<30) # remove ARTEMIS data, moved to merge procedure
         mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':

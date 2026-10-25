@@ -128,16 +128,45 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         shifted_angle_ticks(ax, 'x')
         ax.invert_xaxis()
 
+    second_x, functions, Vx = convert_axis(second_x, ind_var, region)
+
     if second_x:
 
-        Vx = -400 if region=='sw' else -200 # km/s
+        ax.set_xlim(0)
 
-        if ind_var.startswith('E_y'):
+        ax2 = ax.secondary_xaxis(-0.2, functions=functions)
+        ax2.set_xlabel(f'$-B_z$ [nT] ($V_x$={Vx} km/s)', fontsize=12)
+
+    if return_objs:
+        return fig, ax
+
+    file_name = f'Coupling_{region}_{ind_var}_driving_{dep_var}_{num_iters}'
+    if kwargs['display'] != 'scatter_binned':
+        file_name += f'_{kwargs["display"]}'
+    if kwargs.get('file_suffix') is not None:
+        file_name += f'_{kwargs.get("file_suffix")}'
+
+    plt.tight_layout()
+    save_figure(fig, file_name=file_name, overwrite=True)
+    plt.show()
+    plt.close()
+
+    #return df_boot
+
+def convert_axis(second_x, var, region):
+
+    functions = []
+
+    Vx = -400 if region=='sw' else -200 # km/s
+
+    if second_x:
+
+        if var.startswith('E_y'):
 
             factor = -1000/Vx
             functions = (lambda E: E * factor, lambda B: B / factor)
 
-        elif ind_var.startswith('S_x'):
+        elif var.startswith('S_x'):
             mu0 = 4 * np.pi * 1e-7
 
             # Using -S in figure
@@ -152,27 +181,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         else:
             second_x = False
 
-    if second_x:
-
-        ax.set_xlim(0)
-
-        ax2 = ax.secondary_xaxis(-0.2, functions=functions)
-        ax2.set_xlabel(f'$-B_z$ [nT] ($V_x$={Vx} km/s)', fontsize=12)
-
-    if return_objs:
-        return fig, ax
-
-    file_name = f'Coupling_{region}_{ind_var}_driving_{dep_var}_{num_iters}'
-    if kwargs.get('file_suffix') is not None:
-        file_name += f'_{kwargs.get("file_suffix")}'
-
-    plt.tight_layout()
-    save_figure(fig, file_name=file_name, overwrite=True)
-    plt.show()
-    plt.close()
-
-    #return df_boot
-
+    return second_x, functions, Vx
 
 def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resolution='5min', region='sw', restrict=True, **kwargs):
     """
@@ -194,7 +203,9 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
 
         sharex = 'row'
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows + 1.5), dpi=300, sharex=sharex, sharey='row', squeeze=False) # squeeze keeps axs as 2D even if n_cols or n_rows = 1
+    height = (6.5 if kwargs.get('second_x',False) else 5)*n_rows
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, height), dpi=400, sharex=sharex, sharey='row', squeeze=False) # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
     if n_rows == 1: # for iteration below
         axs = axs.T
@@ -254,7 +265,9 @@ def plot_compare_systems(ind_vars, dep_vars, spacecraft='combined', resolution='
 
     n_cols = 2
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, 5*n_rows), dpi=300, sharex='row', sharey='row', squeeze=False)
+    height = (6.5 if kwargs.get('second_x',False) else 5)*n_rows + 1
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, height), dpi=400, sharex='row', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
     df_sc = import_processed_data(region, dtype='plasma', resolution=resolution, file_name=f'{region}_times_{spacecraft}')
@@ -320,9 +333,9 @@ def plot_compare_regions(ind_vars, dep_vars, spacecraft='combined', resolution='
 
     n_cols = len(regions)
 
-    second_x = kwargs.get('second_x',False)
+    height = (6.5 if kwargs.get('second_x',False) else 5)*n_rows + 1
 
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, (5.5 if second_x else 5)*n_rows), dpi=300, sharex='col', sharey='row', squeeze=False)
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, height), dpi=400, sharex='col', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
     dfs = {}
@@ -404,7 +417,6 @@ def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5m
     ax.set_ylabel('Counts', c=black)
 
     file_name = f'lags_{sc}_{resolution}'
-
 
     plt.tight_layout();
     save_figure(fig, file_name=file_name, overwrite=True)
