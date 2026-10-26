@@ -145,9 +145,6 @@ def extract_omni_data(lst_file, omni_columns):
     kan_lee_field(df)
 
     # Removing erroneous values
-    #df.loc[df['AE']>2000,'AE'] = np.nan
-    #df.loc[df['E_y']>20,'E_y'] = np.nan
-    #df.loc[df['S_mag']>150,'S_mag'] = np.nan
     df.loc[df['na_np_ratio']>1,'na_np_ratio'] = np.nan
 
     for index in ('AE', 'AL', 'AU', 'SYM_D', 'SYM_H', 'ASY_D', 'ASY_H'):

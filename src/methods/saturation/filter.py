@@ -14,7 +14,7 @@ m_a = physical_constants['alpha particle mass'][0]
 from .delay import calc_flat_delay
 
 from ...config import get_proc_directory, get_data_populations
-from ...processing.reading import import_processed_spacecraft, import_processed_data
+from ...processing.reading import import_processed_spacecraft, import_processed_omni
 from ...processing.dataframes import merge_dataframes
 from ...processing.writing import write_to_cdf
 
@@ -43,7 +43,8 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     ###----------IMPORTS----------###
     if df_omni is None:
         print('Importing OMNI.\n')
-        df_omni = import_processed_data('omni', resolution=resolution)
+        # contains updated flow pressure calculation
+        df_omni = import_processed_omni(resolution=resolution)
 
     print(f'Importing {sc.upper()}.')
 

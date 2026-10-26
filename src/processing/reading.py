@@ -37,7 +37,7 @@ def import_processed_spacecraft(spacecraft, populations=None, resolution='1min',
     return merge_dataframes(*all_data)
 
 
-def import_updated_omni(resolution='1min', file_name=None, year=None):
+def import_processed_omni(resolution='1min', file_name=None, year=None):
     """
     A wrapper to import omni data with the update procedure called to match the columns with the spacecraft data.
     """

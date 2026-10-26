@@ -43,7 +43,7 @@ def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GS
     # Bowshock position using OMNI
     omni = df_omni.reindex(df.index) # reindexed so missing times don't return error
 
-    omni_pres = omni[omni_pres_col].to_numpy() * 2 # I defined when processing with 1/2 prefactor
+    omni_pres = omni[omni_pres_col].to_numpy()
     omni_pres = np.where(np.isnan(omni_pres), pressure, omni_pres)
     omni_pres = np.maximum(omni_pres, 0.1) # prevent overflow from p^-1/6.55
     bowshocks = bsn_jelinek2012(omni_pres)

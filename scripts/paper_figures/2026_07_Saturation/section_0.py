@@ -9,13 +9,13 @@ Created on Sun Oct 26 15:37:29 2025
 # %% Filter
 
 from src.methods.saturation.filter import filter_sc_region, filter_spacecraft
-from src.processing.reading import import_processed_data
+from src.processing.reading import import_processed_omni
 
 print('REMINDER: check if any files aren\'t the same data structure - suggests data folders contain files that are outdated.')
 
 for resolution in ('1min','5min','15min'):
 
-    df_omni = import_processed_data('omni', resolution=resolution)
+    df_omni = import_processed_omni(resolution=resolution)
 
     for region in ('sw','msh','msh20'):
 

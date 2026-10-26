@@ -40,10 +40,8 @@ def update_omni(df, drop_cols=indices_columns):
     df['T_tot'] /= 1e6 #convert to MK
     df.attrs['units']['T_tot'] = 'MK'
 
-    # OMNI defines pressure as rhoV^2 for just the protons, so halving for consistency
-    df['P_flow'] = 0.5 * (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
-
-    df.loc[df['M_A']>100,'M_A'] = np.nan
+    # OMNI defines pressure as rhoV^2 for just the protons, so including other species
+    df['P_flow'] = (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
 
     df['N_tot'] = df['n_p'] * (1+df['na_np_ratio'])
     df.attrs['units']['N_tot'] = 'n/cc'
