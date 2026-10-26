@@ -367,3 +367,4 @@ def plot_metric(series, metric='mean', **kwargs):
         value = value.n if isinstance(value, UFloat) else value
         ax.axvline(value, lw=1, ls=ls, c=colour)
         ax.plot([], [], ' ', label=label)
+

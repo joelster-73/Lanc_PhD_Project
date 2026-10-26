@@ -13,10 +13,12 @@ from src.methods.saturation.plotting.quality import plot_avg_counts_grid, plot_a
 
 plot_avg_counts_grid('cluster', 'themis', 'mms')
 
-# Include one of the figures below (probs restricted but to a lesser extent)
+# Include unrestricted figure
+# Point is to say whether averaging affects distribution; it doesn't
+# Can then be used to inform any sensible cleaning retrictions
 
-plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=False)
-plot_avg_distributions('combined', 'V_x_GSE', 'B_z_GSM', 'E_yz', 'S_x_GSE', restrict=True)
+plot_avg_distributions('combined', 'V_x_GSE', 'V_y_GSM', 'V_z_GSM', 'N_tot', 'B_x_GSE', 'B_y_GSM', 'B_z_GSM', restrict=False)
+plot_avg_distributions('combined', 'B_z_GSM', 'E_yz', 'E_R', 'S_x_GSE', restrict=True)
 
 # %% sensitivity
 

@@ -81,6 +81,8 @@ def get_confidence_range(df_boot, x_range, model, confidence=95):
 
     columns = [col for col in df_boot.columns if not col.endswith('_err')]
 
+    # Confidence interval for each parameter
+
     param_intervals = {}
     for param in columns:
         lower  = np.percentile(df_boot[param].to_numpy(), low_p)
@@ -88,6 +90,8 @@ def get_confidence_range(df_boot, x_range, model, confidence=95):
         param_intervals[param] = (lower, higher)
 
     ### Probably save to a file??
+
+    # Confidence interval for full model over range of x
 
     func    = FIT_MAP[model]['func']
 

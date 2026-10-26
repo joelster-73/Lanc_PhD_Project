@@ -222,19 +222,23 @@ def update_parameters(df, sc, region):
     for temp in (f'T_tot{suffix}',f'T_tot_unc{suffix}'):
         df[temp] /= 1e6 #convert to MK
 
-    if region=='sw':
-        remove_extremes(df, {f'beta{suffix}': 100, f'N_tot{suffix}': 300, f'E_y_GSM{suffix}': 100}, {f'S_x_GSE{suffix}': 500})
+    # if region=='sw':
+    #     remove_extremes(df, {f'beta{suffix}': 100, f'N_tot{suffix}': 300})
 
-    elif region=='msh':
-        remove_extremes(df, {}, {f'S_x_GSE{suffix}': 500})
+    # elif region=='msh':
+    #     remove_extremes(df, {}, {})
 
 def remove_extremes(df, mapping={}, abs_mapping={}):
 
+    mask = np.ones_like(len(df))
+
     for col, limit in mapping.items():
-        df.loc[df[col]>limit,col] = np.nan
+        mask &= df[col] < limit
 
     for col, limit in abs_mapping.items():
-        df.loc[df[col].abs()>limit,col] = np.nan
+        mask &= df[col].abs() < limit
+
+    df = df.loc[mask]
 
 def update_attributes(df, attrs_dict, region='sw', suffix=''):
 

@@ -395,7 +395,7 @@ def process_hpca_data(plasma_df, time_col='index'):
         combined_df[col] = np.zeros(len(plasma_df))
 
     # All add linearly
-    # P_i  = 0.5 * rho_i * V_i^2    additive across species
+    # P_i  = rho_i * V_i^2    additive across species
     # P_th = n_i * kB * T_i         sums linearly, additive across species
     # N_tot = sum n_i               sums linearly
 
@@ -411,7 +411,7 @@ def process_hpca_data(plasma_df, time_col='index'):
 
         numerator_T   += plasma_df[f'N_{ion}'] * plasma_df[f'T_{ion}']
 
-    combined_df['P_flow'] *= 5e20 # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21, x0.5 for factor infront
+    combined_df['P_flow'] *= 1e21 # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
     combined_df['T_tot'] = numerator_T / combined_df['N_tot']
 
     # Bulk flow velocity is a mass-density-weighted average

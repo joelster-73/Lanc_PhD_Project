@@ -343,18 +343,6 @@ def update_hia_data(field_df, plasma_df):
     # For now treating all species together
     plasma_df.rename(columns={'P_ion': 'P_th', 'T_ion': 'T_tot', 'N_ion': 'N_tot'}, inplace=True)
 
-    field_df.loc[field_df['B_avg']>200,'B_avg'] = np.nan
-    for comp in ('x','y','z'):
-        field_df.loc[field_df[f'B_{comp}_GSE'].abs()>150,f'B_{comp}_GSE'] = np.nan
-
-    plasma_df.loc[plasma_df['V_mag']>2e3,'V_mag'] = np.nan
-    for comp, limit in zip(('x','y','z'),(2000,400,400)):
-        plasma_df.loc[np.abs(plasma_df[f'V_{comp}_GSE'])>limit,f'V_{comp}_GSE'] = np.nan
-
-    plasma_df.loc[plasma_df['N_tot']>500,'N_tot'] = np.nan
-    plasma_df.loc[plasma_df['P_th']>100,'P_th'] = np.nan
-    plasma_df.loc[plasma_df['T_tot']>2e8,'T_tot'] = np.nan
-
     merged_df = pd.concat([field_df, plasma_df], axis=1)
 
     return merged_df

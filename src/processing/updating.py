@@ -186,9 +186,9 @@ def process_plasma_data(df, ion_df, ion_source, with_unc=False, convert_fields=N
     else:
         rho_tot[rho_tot <= 0] = np.nan
 
-    # P = 0.5 * rho * V^2
+    # P =rho * V^2
     # N *= 1e6, V *= 1e6, P *= 1e9, so P_flow *= 1e21
-    p_flow = 0.5 * rho_tot * v_flow**2 * 1e21
+    p_flow = rho_tot * v_flow**2 * 1e21
     assign_values(df, 'P_flow', p_flow, with_unc)
 
     # Beta = p_th / p_mag, p_mag = B^2/2mu_0

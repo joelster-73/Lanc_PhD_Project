@@ -24,7 +24,7 @@ from ....plotting.config import black, blue, grey, green, red
 from ....processing.reading import import_processed_data
 from ....processing.mag.indices import import_processed_index
 
-def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='combined', resolution='5min', region='sw', restrict=True, second_x=False, fig=None, ax=None, return_objs=False, **kwargs):
+def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='combined', resolution='5min', region='sw', restrict=True, second_x=False, plot_histograms=False, fig=None, ax=None, return_objs=False, **kwargs):
     """
     Plots a driver-response function, and fits a model to the data.
     """
@@ -118,6 +118,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
             print(f'{key}:\t{val[0]:.4g}\t|\t{val[1]:.4g}')
         print()
 
+
     ###----------FORMATTING----------###
 
     if ind_var.startswith('-'):
@@ -139,6 +140,8 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     if return_objs:
         return fig, ax
+
+    ###----------SAVING----------###
 
     file_name = f'Coupling_{region}_{ind_var}_driving_{dep_var}_{num_iters}'
     if kwargs['display'] != 'scatter_binned':
