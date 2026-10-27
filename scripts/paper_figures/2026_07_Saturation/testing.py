@@ -20,3 +20,18 @@ for dep_var in dep_vars:
             except:
                 continue
 
+
+
+
+# %%
+
+from src.processing.reading import import_processed_data
+
+df = import_processed_data('msh', dtype='plasma', resolution='5min', file_name='msh_times_combined')
+
+df.plot('r_F', 'V_x_GSE', kind='scatter')
+df.plot('r_cone', 'V_x_GSE', kind='scatter')
+df['V_x_GSE'].plot()
+
+
+df_large = df.loc[df['V_x_GSE']<-600]

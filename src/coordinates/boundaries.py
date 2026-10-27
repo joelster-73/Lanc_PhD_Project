@@ -32,20 +32,18 @@ def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=
     ry = df[f'r_y_GSE{key_p}'].to_numpy()
     rz = df[f'r_z_GSE{key_p}'].to_numpy()
 
-    vx = df[f'V_x_GSE{key_d}'].to_numpy()
-    vy = df[f'V_y_GSE{key_d}'].to_numpy()
-    vz = df[f'V_z_GSE{key_d}'].to_numpy()
+    vx = interpolate_missing(df[f'V_x_GSE{key_d}']).to_numpy()
+    vy = interpolate_missing(df[f'V_y_GSE{key_d}']).to_numpy()
+    vz = interpolate_missing(df[f'V_z_GSE{key_d}']).to_numpy()
 
     # Rotated to aGSE
     coords_ab = car_to_aGSE(rx, ry, rz, vx, vy, vz, simple_ab, return_rotation=False)
     rx_ab = coords_ab[:,0]
 
-    p = df[f'P_flow{key_d}'].to_numpy()
-    p = np.where(np.isnan(p), P_SW, p) # default pressure from config (above)
+    p = interpolate_missing(df[f'P_flow{key_d}']).to_numpy()
     p = np.maximum(p, 0.1) # prevent overflow from p^-1/6.55
 
-    Bz = df[f'B_z_GSM{key_d}'].to_numpy()
-    Bz = np.where(np.isnan(Bz), BZ_SW, Bz) # default field from config (above)
+    Bz = interpolate_missing(df[f'B_z_GSM{key_d}']).to_numpy()
 
     theta_ps = np.arccos(rx_ab / r_mag) # cone angle
 
@@ -69,11 +67,32 @@ def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=
 
     data_ab.update({'r_MP': r_mp, 'r_BS': r_bs})
 
-    r_F = (r_mag - r_mp) / (r_bs - r_mp) # distance into MSH based on MP and BS at that cone angle
-    data_ab['r_F'] = r_F
+    data_ab['r_F'] = (r_mag - r_mp) / (r_bs - r_mp) # distance into MSH based on MP and BS at that cone angle
 
     return pd.DataFrame(data_ab, index=df.index)
 
+
+def interpolate_missing(series, max_gap=pd.Timedelta('1h')):
+    """
+    Interpolate NaN up to one hour.
+    """
+    original = series.copy()
+    interpolated = series.interpolate(method='time', limit_area='inside')
+
+    missing = original.isna()
+    valid_before = original.notna().cummax()
+    valid_after = original.notna()[::-1].cummax()[::-1]
+
+    # Distance to nearest valid observations on each side
+    times = pd.Series(original.index, index=original.index)
+    prev_time = times.where(original.notna()).ffill()
+    next_time = times.where(original.notna()).bfill()
+
+    within_gap = (valid_before & valid_after & ((next_time - prev_time) <= max_gap))
+
+    return original.where(~missing | ~within_gap, interpolated)
+
+# %% components
 
 def vector_component_surface(df, sc, region, data_pop):
     """

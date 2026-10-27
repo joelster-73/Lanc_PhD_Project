@@ -7,13 +7,9 @@ Created on Thu Nov  6 17:19:46 2025
 import numpy as np
 import pandas as pd
 
-from ...config import R_E, DEFAULT_VALUES
-from ...coordinates.boundaries import bsn_jelinek2012
+from ...config import R_E
+from ...coordinates.boundaries import bsn_jelinek2012, interpolate_missing
 from ...coordinates.spatial import aGSE_to_car
-
-P_SW  = DEFAULT_VALUES.get('sw',{}).get('p')
-V_SW   = DEFAULT_VALUES.get('sw',{}).get('v')
-V_MSH  = DEFAULT_VALUES.get('msh',{}).get('v')
 
 
 RESPONSE_DELAYS = {'AE': 53, 'SME': 53, 'AL': 53, 'SML': 53, 'AU': 53, 'SMU': 53,
@@ -29,8 +25,6 @@ def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GS
     Approximates the time it takes solar wind to reach the BSN using just the x components
     This is then added to the lag time from BSN to geomagnetic effect
     """
-    pressure = P_SW # nPa
-    speed    = {'sw': V_SW, 'msh': V_MSH} # km/s
 
     # Position
     valid     = df[pos_col].notna().to_numpy()
@@ -43,13 +37,11 @@ def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GS
     # Bowshock position using OMNI
     omni = df_omni.reindex(df.index) # reindexed so missing times don't return error
 
-    omni_pres = omni[omni_pres_col].to_numpy()
-    omni_pres = np.where(np.isnan(omni_pres), pressure, omni_pres)
+    omni_pres = interpolate_missing(omni[omni_pres_col]).to_numpy()
     omni_pres = np.maximum(omni_pres, 0.1) # prevent overflow from p^-1/6.55
     bowshocks = bsn_jelinek2012(omni_pres)
 
-    omni_speed = omni[omni_vel_col].to_numpy()
-    omni_speed = np.where(np.isnan(omni_speed), speed['sw'], omni_speed)
+    omni_speed = interpolate_missing(omni[omni_vel_col]).to_numpy()
 
     # simple aberration
     bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=omni_speed)

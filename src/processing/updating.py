@@ -167,11 +167,10 @@ def process_plasma_data(df, ion_df, ion_source, with_unc=False, convert_fields=N
 
     if with_unc and 'V_flow_unc' not in df:
         idx = df.columns.get_loc('V_flow')
-        df.insert(idx+1, 'V_flow_unc', (
-            df['V_x_GSE'].to_numpy()**2 * df['V_x_GSE_unc'].to_numpy()**2 +
-            df['V_y_GSE'].to_numpy()**2 * df['V_y_GSE_unc'].to_numpy()**2 +
-            df['V_z_GSE'].to_numpy()**2 * df['V_z_GSE_unc'].to_numpy()**2
-        ) ** 0.5 / df['V_flow'].to_numpy())
+        df.insert(idx+1, 'V_flow_unc', (df['V_x_GSE'].to_numpy()**2 * df['V_x_GSE_unc'].to_numpy()**2 +
+                                        df['V_y_GSE'].to_numpy()**2 * df['V_y_GSE_unc'].to_numpy()**2 +
+                                        df['V_z_GSE'].to_numpy()**2 * df['V_z_GSE_unc'].to_numpy()**2
+                                        ) ** 0.5 / df['V_flow'].to_numpy())
 
     v_flow = build_uarr(df, 'V_flow', with_unc)
 

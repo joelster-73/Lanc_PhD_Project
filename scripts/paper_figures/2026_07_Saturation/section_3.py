@@ -15,10 +15,30 @@ plot_avg_counts_grid('cluster', 'themis', 'mms')
 
 # Include unrestricted figure
 # Point is to say whether averaging affects distribution; it doesn't
-# Can then be used to inform any sensible cleaning retrictions
+# Not imposing restrictions as only fitting to a certain x range
 
-plot_avg_distributions('combined', 'V_x_GSE', 'V_y_GSM', 'V_z_GSM', 'N_tot', 'B_x_GSE', 'B_y_GSM', 'B_z_GSM', restrict=False)
-plot_avg_distributions('combined', 'B_z_GSM', 'E_yz', 'E_R', 'S_x_GSE', restrict=True)
+plot_avg_distributions('combined', 'data')
+plot_avg_distributions('combined', 'drivers', restrict=True)
+
+
+plot_avg_distributions('c1', 'data')
+plot_avg_distributions('c1', 'drivers')
+
+plot_avg_distributions('c3', 'data')
+plot_avg_distributions('c3', 'drivers')
+
+plot_avg_distributions('mms1', 'data')
+plot_avg_distributions('mms1', 'drivers')
+
+plot_avg_distributions('tha', 'data', regions=('msh',))
+plot_avg_distributions('thb', 'data', regions=('sw',))
+plot_avg_distributions('thc', 'data', regions=('sw',))
+plot_avg_distributions('thd', 'data', regions=('msh',))
+plot_avg_distributions('the', 'data', regions=('msh',))
+
+
+
+
 
 # %% sensitivity
 

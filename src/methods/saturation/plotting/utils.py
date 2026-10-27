@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 import re
 import operator
+from collections import defaultdict
 
 from ....plotting.formatting import create_label, data_string
 from ....processing.mag.config import PC_STATIONS
@@ -172,6 +173,8 @@ def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
 
 def get_var_bin_width(var, restrict):
 
+    ### Consider changing to take in series and look at range to determine the bin width, with possible exception of clock angle
+
     if var.startswith('AA'):
         bin_width = 20
 
@@ -225,106 +228,48 @@ def get_var_bin_width(var, restrict):
 
 # %% limits
 
-def get_var_limits(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
+def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
 
-    shift_centre = shift_centre and ind_var.startswith('B_clock')
-    restrict     = restrict and not ind_var.startswith('B_clock')
+    shift_centre = shift_centre and var.startswith('B_clock')
+    restrict     = restrict and not var.startswith('B_clock')
 
     if bounds is not None:
         return bounds
 
     limits = [0, None]
 
-    if ind_var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
+    if var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
 
         limits = [None, 0] # Negative quantities
 
-    elif ind_var=='B_clock':
+    if var=='B_clock':
         if shift_centre: # Ensures 180 degrees is in the centre
             limits = [0, 2*np.pi]
         else:
             limits = [-np.pi, np.pi]
 
-    if restrict:
+    elif restrict:
 
-        if ind_var.startswith('AA'):
-            limits[1] = 400
+        upper_limits = {'V_flow': 1000, 'V_A': 200, 'P_': 10, 'M_A': 50, 'beta': 30,
+                        'B_avg' : 15, 'B_para': 80, 'B_y': 25, 'E_': 20,
+                        'B_z'   : defaultdict(lambda: -100, {'sw': -40}),
+                        'S_x'   : defaultdict(lambda: -500, {'sw': -300}),
+                        'N_'    : defaultdict(lambda: 150, {'sw': 25}),
+                        'T_'    : defaultdict(lambda: 5, {'sw': 2}), # MK; Up to ~0.2keV in the sw (1eV = 11.604525 MK)
+                        }
 
-        elif ind_var.startswith(('PCN','PCC')):
-            limits[1] = 24
+        upper_limit = next((v for k, v in upper_limits.items() if k.startswith(var)), None)
+        if isinstance(upper_limit, dict):
+            upper_limit = upper_limit.get(region)
 
-        elif ind_var.startswith('SME'):
-            limits[1] = 2200
+        if var is None:
+            warnings.warn(f'No defined limit for {var}.')
 
-        elif ind_var.startswith('AE'):
-            limits[1] = 1800
+        else:
+            limits[1] = upper_limit
 
-        elif ind_var.startswith('SMC'):
-            limits[1] = 1000
-
-        elif ind_var.startswith('B_'):
-
-            if ind_var.startswith('B_avg'):
-                limits[1] = 15
-
-            elif ind_var.startswith('B_para'):
-                limits[1] = 80
-
-            elif ind_var.startswith('B_y'):
-                limits[1] = 25
-
-            else:
-                limits[0] = -30
-                if ind_src=='msh':
-                    limits[0] = -80
-                elif ind_var==dep_var:
-                    limits[0] = -20
-
-        elif ind_var.startswith('V_'):
-
-            if ind_var.startswith('V_flow'):
-                limits[1] = 1000
-
-            elif ind_var.startswith('V_A'):
-                limits[1] = 200
-
-        elif ind_var.startswith('E_'):
-            limits[1] = 20
-            if ind_src=='msh':
-                limits[1] = 30
-            elif ind_var.startswith('E_para'):
-                limits[1] = 15
-            elif (dep_var is not None) and ((ind_var==dep_var) or (dep_var.startswith('E_para'))):
-                limits[1] = 10
-
-        elif ind_var.startswith('N_'):
-            limits[1] = 50
-            if ind_src=='msh':
-                limits[1] = 100
-            elif ind_var==dep_var:
-                limits[1] = 40
-
-        elif ind_var.startswith('P_'):
-            limits[1] = 10
-
-        elif ind_var.startswith('T_'): # MK
-            # Up to ~0.2keV in the sw (1eV = 11.604525 MK)
-            limits[1] = 5
-            if ind_src in ('sw','omni'):
-                limits[1] = 2
-
-        elif ind_var.startswith('S_'):
-            limits[0] = -100
-            if ind_var.startswith('S_perp'):
-                limits[0] = -150
-            if ind_src=='msh':
-                limits[0] = -300
-
-        elif ind_var.startswith('M_A'):
-            limits[1] = 50
-
-        elif ind_var.startswith('beta'):
-            limits[1] = 30
+        if var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
+            limits = limits[::-1]
 
     return limits
 

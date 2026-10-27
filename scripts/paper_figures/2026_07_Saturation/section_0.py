@@ -19,6 +19,9 @@ for resolution in ('1min','5min','15min'):
 
     for region in ('sw','msh','msh20'):
 
+        # if region=='msh20':
+        #     continue ## TEMP
+
         for spacecraft in filter_spacecraft.get(region):
 
             filter_sc_region(spacecraft, region, resolution=resolution, df_omni=df_omni, test_return=False)

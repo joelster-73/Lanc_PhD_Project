@@ -19,7 +19,7 @@ from ....plotting.config import blue, black, white, red, green
 from ....processing.reading import import_processed_data
 from ....config import INSTRUMENTS, CONSTELLATION, SPACECRAFT, THEMIS_REGIONS
 
-def plot_calibration(df, ind_col, good_col, total_col):
+def plot_calibration(df, ind_col, good_col, total_col, buffer):
 
     independent     = df[ind_col]
     good_percentage = df[good_col]
@@ -27,18 +27,27 @@ def plot_calibration(df, ind_col, good_col, total_col):
 
     fig, ax = plt.subplots(figsize=(12,8), dpi=300)
 
-    ax.plot(independent, total_counts, c=black)
+    ax.plot(independent, total_counts, marker='s', c=black)
     ax.set_xlabel(create_label(ind_col, units=df.attrs.get('units',{})))
     ax.set_ylabel('Total Data')
     format_comma_integers(ax, 'y')
 
     ax2 = ax.twinx()
 
-    ax2.plot(independent, good_percentage, c=blue, ls='--')
+    ax2.plot(independent, good_percentage, marker='s', c=blue, ls='--')
     ax2.set_ylabel('overlap [%]', color=blue)
 
+    # highest percentage
 
-    file_name = f'Varying_{ind_col}'
+    position = good_percentage.idxmax()
+    param    = independent.loc[position]
+    count    = int(total_counts.loc[position])
+    percent  = good_percentage.max()
+
+    ax2.scatter(param, percent, s=100, facecolors='none', edgecolors=red, label=f'Highest overlap\n({param:.2f},{percent:.2f} %)\n{count:,}')
+    ax2.legend()
+
+    file_name = f'Varying_{ind_col}_{buffer}'
 
     plt.tight_layout()
     save_figure(fig, file_name=file_name, sub_directory='Calibration', overwrite=True)
@@ -174,27 +183,34 @@ def plot_avg_counts_grid(*spacecraft, resolution='5min', cut_off=25):
 
 # %% distributions
 
-def plot_avg_distributions(sc, *params, data_pop='plasma', resolutions=('1min','5min'), regions=('sw','msh'), restrict=False):
+def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=('1min','5min'), regions=('sw','msh'), restrict=False):
+
+    suffix = ''
+    if params==('data',):
+        params = 'V_x_GSE', 'V_y_GSM', 'V_z_GSM', 'N_tot', 'B_x_GSE', 'B_y_GSM', 'B_z_GSM'
+        suffix = '_data'
+    elif params==('drivers',):
+        params = 'B_z_GSM', 'E_yz', 'E_R', 'S_x_GSE'
+        suffix = '_drivers'
 
     n_rows = len(params)
     n_cols = len(regions)
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(12*n_cols, 4*(n_rows+1)), dpi=800)
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(12*n_cols, 4*(n_rows+1)), dpi=500, squeeze=False)
 
     for i, region in enumerate(regions): # column
 
         region_colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
         for j, (resolution, colour, alpha) in enumerate(zip(resolutions,(black,region_colour),(0.7,0.8))): # dataset
 
-            df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+            df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{spacecraft}')
 
             for k, param in enumerate(params):
 
                 ax = axs[k][i]
 
                 _, ind_count = def_param_names(df, param)
-                df_ind = mask_df(df, param, count_col=ind_count, resolution=resolution) # remove avgs with low sample size
-                series = df_ind[param]
+                series = mask_df(df, param, count_col=ind_count, resolution=resolution)[param] # remove avgs with low sample size
 
                 if restrict:
                     lower, upper = series.quantile([0.005, 0.995]) # 0.5% and 99.5%
@@ -207,14 +223,16 @@ def plot_avg_distributions(sc, *params, data_pop='plasma', resolutions=('1min','
                     bin_width = 5
                 elif data_range > 50:
                     bin_width = 2
-                else:
+                elif data_range > 20:
                     bin_width = 1
+                else:
+                    bin_width = 0.5
 
                 bins = calculate_bins(series, bin_width)
                 counts, _ = np.histogram(series, bins=bins)
 
-                mask = counts > 10
-                bins = bins[:-1][mask] # left edge
+                mask = counts > 5
+                bins = bins[:-1][mask] + bin_width/2 # left edge
                 counts = counts[mask]
 
                 ax.bar(bins, counts, width=bin_width, color=colour, alpha=alpha, label=resolution)
@@ -222,13 +240,17 @@ def plot_avg_distributions(sc, *params, data_pop='plasma', resolutions=('1min','
                 ax.set_yscale('log')
 
                 if k==0:
-                    ax.legend(title=region)
+                    title = region if spacecraft=='combined' else f'{spacecraft} {region}'
+                    ax.legend(title=title)
+
+                del series, counts, bins
 
     fig.align_ylabels(axs[:,0])
 
     plt.tight_layout()
-    filename = f'Compare_distributions_{sc}_'
+    filename = f'Compare_distributions_{spacecraft}_'
     filename += '_'.join(resolutions)
+    filename += suffix
     filename += '_restricted' if restrict else ''
     save_figure(fig, file_name=filename, overwrite=True)
 

@@ -111,7 +111,7 @@ def filter_region(df, omni, sc, region, params={}):
     NOTE: This doesn't explicitly remove ARTEMIS Data. This is written to the file, but is removed when the files are merged into a complete file.
     """
     default_params = {'sw':  {'r_x': 7, 'r_theta': np.pi/6, 'V_sw':  275},
-                      'msh': {'r_x': 5, 'r_theta': np.pi/4, 'V_x_GSE': 0, 'N_tot': 10, 'r_F_min': 0, 'r_F_max': 1}}
+                      'msh': {'r_theta': np.pi/4, 'N_tot': 6, 'r_F_min': 0.05, 'r_F_max': 0.85, 'buffer': 'relative'}}
 
     for reg, vals in params.items():
         default_params[reg].update(vals)
@@ -130,30 +130,41 @@ def filter_region(df, omni, sc, region, params={}):
     df_positions = calc_msh_dist(df_merged, position_key=sc, data_key='sw')
     df_merged    = pd.concat([df_merged, df_positions[pos_cols]], axis=1)
 
-    rx    = default_params[region]['r_x']
     rcone = default_params[region]['r_theta']
 
     if region=='sw':
+
+        # Region Filtering
+
+        rx    = default_params[region]['r_x']
         vflow = default_params['sw']['V_sw']
 
         mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
         mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':
-        Vx    = default_params['msh']['V_x_GSE']
-        ntot  = default_params['msh']['N_tot']
-        rFmin = default_params['msh']['r_F_min']
-        rFmax = default_params['msh']['r_F_max']
 
-        mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
-        mask &= (df_merged['r_F'] > rFmin) & (df_merged['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
-        mask &= (df_merged[f'N_tot_{sc}'] >= ntot)  # test how sensitive results are to this
-        mask &= (df_merged[f'V_x_GSE_{sc}'] < Vx)  # to remove possible contamination
+        # Region Filtering
+
+        ntot   = default_params['msh']['N_tot']
+        rFmin  = default_params['msh']['r_F_min']
+        rFmax  = default_params['msh']['r_F_max']
+        buffer = default_params['msh']['buffer']
+
+        mask =  (df_merged[f'r_cone_{sc}'] <= rcone)
+        mask &= (df_merged[f'N_tot_{sc}'] >= ntot)
+
+        if buffer=='relative':
+            mask &= (df_merged['r_F'] > rFmin) & (df_merged['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
+        # elif buffer=='absolute':
+        #     mask &= (df_merged[f'r_mag_{sc}'] > df_merged['r_MP'] + rFmin) & (df_merged[f'r_mag_{sc}'] < df_merged['r_BS'] - rFmax)
 
 
-    df_merged = df_merged.loc[mask]
+    # Post-processing Cleaning
+    mask &= (df_merged[f'S_x_GSE_{sc}'] > -1000)
+    mask &= (df_merged[f'V_x_GSE_{sc}'] < 0)
 
-    return df_merged, df_merged_attrs
+    return df_merged.loc[mask], df_merged_attrs
 
 
 # %% updates

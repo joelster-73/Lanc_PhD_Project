@@ -127,7 +127,7 @@ def extract_cluster_data(cdf_file, variables):
 
             data = cdf[var_code].copy()
             if var_name not in ('epoch','epoch_pos'):
-                spacepy.pycdf.istp.nanfill(data)
+                spacepy.pycdf.istp.nanfill(data) # sets in place
             data = data[...]
 
             if isinstance(data,float) or isinstance(data,int):

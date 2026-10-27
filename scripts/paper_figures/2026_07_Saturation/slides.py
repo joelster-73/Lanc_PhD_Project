@@ -5,6 +5,11 @@ Created on Thu Oct 22 09:14:59 2026
 @author: richarj2
 """
 
+import time
+
+time.sleep(1500)
+
+
 # %% inventory
 
 from src.methods.saturation.plotting.general import plot_delay_hists

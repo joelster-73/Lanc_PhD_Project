@@ -29,7 +29,7 @@ def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False):
         raise ValueError('suffixes length must match number of dataframes.')
 
     if all(s is None for s in suffices):
-        warnings.warn('All suffices are None; column collisions may occur.')
+        warnings.warn('All suffices for merge are None; column collisions may occur.')
 
     relabelled = [relabel_columns(df, suf) for df, suf in zip(dfs, suffices)]
 
@@ -123,6 +123,8 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
 
     #---Sorting columns---#
 
+    ### Consider adding columns that are all NaN regardless
+
     column_counts = df.count()
 
     scalar_columns  = []
@@ -134,11 +136,9 @@ def resample_data(df, time_col='epoch', sample_interval='1min', inc_info=True, c
         if column in ('utc','epoch',time_col) or column in columns_to_skip or column.endswith(('_unc','_count')):
             # columns that are meaningless to average, e.g. quality, mode
             print(f'Skipping {column}.')
-            continue
 
         elif column_counts[column]==0:
             print(f'Skipping {column} (all NaN).')
-            continue
 
         elif '_GS' in column:
             field, comp, coords = column.split('_')

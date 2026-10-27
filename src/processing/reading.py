@@ -70,7 +70,7 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
 
         except Exception: # CDF files for different parameters
             expected = False
-            if (source, dtype, resolution) in (('thb','sw','5min'),):
+            if (source, dtype) in (('thb','sw'),):
                 expected = True
                 # (1) All of E and S were NaN when resampling for 2008
             print(f'Different file structures: {source} {dtype} {resolution}.' + ('(expected)' if expected else ''))
