@@ -219,6 +219,8 @@ def plot_sc_years(sample_interval='1min', data_pop='plasma', region='msh', sc_ke
     plt.show()
     plt.close()
 
+# %% inventory
+
 def plot_data_inventory(*spacecraft, region='msh', display='yearly', print_info=True, **kwargs):
 
     row = 0
@@ -278,7 +280,7 @@ def plot_data_inventory(*spacecraft, region='msh', display='yearly', print_info=
 
             all_times.extend(times)
 
-            times = pd.DatetimeIndex(times).floor('min').unique()
+            times = pd.DatetimeIndex(times)
 
             if display=='scatter':
 

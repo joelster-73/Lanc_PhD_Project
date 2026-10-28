@@ -32,8 +32,11 @@ def calc_omni_uncertainty(df_omni, column, dt_err_col='rms_timeshift'):
 
 def update_omni(df, drop_cols=indices_columns):
 
+    # Drops columns where field and plasma spacecraft 99
+    df.drop(df[(df['imf_sc'] == 99) & (df['plasma_sc'] == 99)].index, inplace=True)
+
     # Rename temperature for consistency, assuming isothermal
-    df.rename(columns={'P_flow': 'P_p', 'T_p': 'T_tot'}, inplace=True)
+    df.rename(columns={'P_flow': 'P_p', 'T_p': 'T_tot', 'n_p': 'N_p'}, inplace=True)
     df.attrs['units']['P_p'] = 'nPa'
 
     df.loc[df['T_tot']>=9999999, 'T_tot'] = np.nan # replace fills
@@ -41,9 +44,11 @@ def update_omni(df, drop_cols=indices_columns):
     df.attrs['units']['T_tot'] = 'MK'
 
     # OMNI defines pressure as rhoV^2 for just the protons, so including other species
-    df['P_flow'] = (df['n_p']*m_p + (1+df['na_np_ratio'])*m_a) * df['V_flow']**2 * 1e21
+    # This is very often NaN
+    df['na_np_ratio'] = df['na_np_ratio'].fillna(0.05)
+    df['P_flow'] = df['N_p'] * (m_p + df['na_np_ratio']*m_a) * df['V_flow']**2 * 1e21
 
-    df['N_tot'] = df['n_p'] * (1+df['na_np_ratio'])
+    df['N_tot'] = df['N_p'] * (1+df['na_np_ratio'])
     df.attrs['units']['N_tot'] = 'n/cc'
 
     # Theta Bn angle - quasi-perp/quasi-para

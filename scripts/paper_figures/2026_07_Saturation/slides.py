@@ -5,10 +5,6 @@ Created on Thu Oct 22 09:14:59 2026
 @author: richarj2
 """
 
-import time
-
-time.sleep(1500)
-
 
 # %% inventory
 
@@ -53,7 +49,14 @@ plot_multi_driver_responses(('E_R',), ('AU','SMU'), spacecraft='combined', regio
 
 
 # Restricting Bz
+
 plot_compare_systems(('E_yz','S_x_GSE'), ('SME',), spacecraft='combined', region='sw', fit_type='saturation', iterations=0, condition='<0', cond_col='B_z_GSM')
+
+# tests
+plot_compare_systems(('E_yz','S_x_GSE'), ('SME',), spacecraft='combined', region='sw', fit_type='saturation', iterations=0, condition='<0', cond_col='B_z_GSM', display='scatter')
+
+plot_compare_systems(('E_yz','S_x_GSE'), ('AE',), spacecraft='combined', region='sw', fit_type='saturation', iterations=0, condition='<0', cond_col='B_z_GSM', display='scatter')
+
 
 
 # %% results

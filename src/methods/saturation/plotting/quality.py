@@ -9,8 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from .utils import def_param_names, mask_df
-
+from .utils import def_param_names, mask_df, get_variable_bin_width
 
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import create_label, format_comma_integers
@@ -216,17 +215,7 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
                     lower, upper = series.quantile([0.005, 0.995]) # 0.5% and 99.5%
                     series = series[(series>=lower) & (series<=upper)]
 
-                data_range = (series.max()-series.min())
-                if data_range > 400:
-                    bin_width = 10
-                elif data_range > 250:
-                    bin_width = 5
-                elif data_range > 50:
-                    bin_width = 2
-                elif data_range > 20:
-                    bin_width = 1
-                else:
-                    bin_width = 0.5
+                bin_width = get_variable_bin_width(series)
 
                 bins = calculate_bins(series, bin_width)
                 counts, _ = np.histogram(series, bins=bins)

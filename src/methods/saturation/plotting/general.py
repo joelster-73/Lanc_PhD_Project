@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import ticker as mticker
 
-from .utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df
+from .utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df, get_variable_bin_width
 
 from ..delay import merge_with_lag, get_response_delay
 
@@ -44,7 +44,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     shift_centre = ind_var=='B_clock'
 
-    bin_width, limits, invert = get_variable_range(ind_var, region, dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
+    limits, invert = get_variable_range(ind_var, region, dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
 
     sc_colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
 
@@ -55,8 +55,6 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     kwargs.setdefault('fit_type', 'saturation')
     kwargs.setdefault('fit_colour', black)
     kwargs.setdefault('iterations', 2500)
-
-    kwargs['bin_step'] = bin_width
 
     ###----------CONFIG----------###
 
@@ -70,6 +68,8 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     # Masks and slicing
     df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution, condition, cond_col, invert) # removes low sampling counts too
     df_dep = mask_df(df_pc, dep_var)
+
+    kwargs['bin_step'] = get_variable_bin_width(df_ind[ind_var])
 
     if shift_centre:
         shift_angular_data(df_ind, ind_var)

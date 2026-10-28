@@ -76,7 +76,7 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
 
             mask &= operation(df[cond_col], value)
 
-            print(f'Applied condition: {cond_col} {condition}.')
+            #print(f'Applied condition: {cond_col} {condition}.')
 
         df_masked = df.loc[mask].copy()
 
@@ -156,6 +156,31 @@ def def_param_names(df, variable, source=None):
 
     return var_err, var_count
 
+# %% binwidths
+
+def get_variable_bin_width(series):
+
+    data_range = (series.max()-series.min())
+
+    if data_range > 400:
+        bin_width = 10
+
+    elif data_range > 250:
+        bin_width = 5
+
+    elif data_range > 50:
+        bin_width = 2
+
+    elif data_range > 20:
+        bin_width = 1
+
+    else:
+        bin_width = 0.5
+
+    return bin_width
+
+# %% limits
+
 def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=None, shift_centre=True):
 
     invert = False
@@ -163,70 +188,9 @@ def get_variable_range(ind_var, ind_src, dep_var=None, restrict=True, bounds=Non
     if ind_var.startswith(('B_z','V_x','S_x')):
         invert = True
 
-    bin_width = get_var_bin_width(ind_var, restrict)
+    limits = get_var_limits(ind_var, ind_src, restrict, bounds, shift_centre)
 
-    limits = get_var_limits(ind_var, ind_src, dep_var, restrict, bounds, shift_centre)
-
-    return bin_width, limits, invert
-
-# %% binwidths
-
-def get_var_bin_width(var, restrict):
-
-    ### Consider changing to take in series and look at range to determine the bin width, with possible exception of clock angle
-
-    if var.startswith('AA'):
-        bin_width = 20
-
-    elif var.startswith(('PCN','PCC')):
-        bin_width = 0.5
-
-    elif var.startswith(('SME','AE')) or var.startswith(PC_STATIONS):
-        bin_width = 50
-
-    elif var.startswith('B_'):
-
-        if var.startswith(('B_avg', 'B_para','B_y')):
-            bin_width = 1 if restrict else 2
-        elif var.startswith('B_clock'):
-            bin_width = np.pi/20
-        else:
-            bin_width = 2 if restrict else 5
-
-    elif var.startswith('V_'):
-
-        if var.startswith('V_A'):
-            bin_width = 10 if restrict else 20
-        else:
-            bin_width = 50
-
-    elif var.startswith(('E_','Ey')):
-        bin_width = 1 if restrict else 2
-
-    elif var.startswith('N_'):
-        bin_width = 5 if restrict else 10
-
-    elif var.startswith('P_'):
-        bin_width = 1 if restrict else 5
-
-    elif var.startswith('T_'):
-        bin_width = 0.1 if restrict else 0.5
-
-    elif var.startswith('S_'):
-        bin_width = 5 if restrict or var.startswith('S_perp') else 10
-
-    elif var.startswith('M_A'):
-        bin_width = 5
-
-    elif var.startswith('beta'):
-        bin_width = 1
-
-    else:
-        raise ValueError(f'"{var} not implemented.')
-
-    return bin_width
-
-# %% limits
+    return limits, invert
 
 def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
 
@@ -237,10 +201,6 @@ def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
         return bounds
 
     limits = [0, None]
-
-    if var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
-
-        limits = [None, 0] # Negative quantities
 
     if var=='B_clock':
         if shift_centre: # Ensures 180 degrees is in the centre
@@ -258,18 +218,18 @@ def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
                         'T_'    : defaultdict(lambda: 5, {'sw': 2}), # MK; Up to ~0.2keV in the sw (1eV = 11.604525 MK)
                         }
 
-        upper_limit = next((v for k, v in upper_limits.items() if k.startswith(var)), None)
+        upper_limit = next((lim for lab, lim in upper_limits.items() if var.startswith(lab)), None)
         if isinstance(upper_limit, dict):
-            upper_limit = upper_limit.get(region)
+            upper_limit = upper_limit[region]
 
-        if var is None:
+        if upper_limit is None:
             warnings.warn(f'No defined limit for {var}.')
 
         else:
             limits[1] = upper_limit
 
-        if var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
-            limits = limits[::-1]
+    if var.startswith(('B_z', 'V_x', 'S_x', 'S_perp')):
+        limits = limits[::-1]
 
     return limits
 

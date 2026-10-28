@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from matplotlib import pyplot as plt
 
 from .spatial import car_to_aGSE, aGSE_to_car, cartesian_to_spherical
@@ -12,7 +13,7 @@ V_SW   = DEFAULT_VALUES.get('sw',{}).get('v')
 V_MSH  = DEFAULT_VALUES.get('msh',{}).get('v')
 BZ_SW  = DEFAULT_VALUES.get('sw',{}).get('Bz')
 
-def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=None, data_key=None):
+def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=None, data_key=None, inplace=False):
 
     simple_ab = False
     if aberration in ('simple','model'):
@@ -32,25 +33,25 @@ def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=
     ry = df[f'r_y_GSE{key_p}'].to_numpy()
     rz = df[f'r_z_GSE{key_p}'].to_numpy()
 
-    vx = interpolate_missing(df[f'V_x_GSE{key_d}']).to_numpy()
-    vy = interpolate_missing(df[f'V_y_GSE{key_d}']).to_numpy()
-    vz = interpolate_missing(df[f'V_z_GSE{key_d}']).to_numpy()
+    vx = df[f'V_x_GSE{key_d}'].to_numpy()
+    vy = df[f'V_y_GSE{key_d}'].to_numpy()
+    vz = df[f'V_z_GSE{key_d}'].to_numpy()
 
     # Rotated to aGSE
     coords_ab = car_to_aGSE(rx, ry, rz, vx, vy, vz, simple_ab, return_rotation=False)
     rx_ab = coords_ab[:,0]
 
-    p = interpolate_missing(df[f'P_flow{key_d}']).to_numpy()
-    p = np.maximum(p, 0.1) # prevent overflow from p^-1/6.55
+    # Models parameterised by lagged ACE data so using raw OMNI pressure not "corrected"
+    p = np.maximum(df[f'P_p{key_d}'].to_numpy(), 0.1) # prevent overflow from p^-1/6.55
 
-    Bz = interpolate_missing(df[f'B_z_GSM{key_d}']).to_numpy()
+    Bz = df[f'B_z_GSM{key_d}'].to_numpy()
 
     theta_ps = np.arccos(rx_ab / r_mag) # cone angle
 
     # Updating new dict
 
     data_ab = {}
-    data_ab.update({'r_x_aGSE{key_p}': coords_ab[:, 0], 'r_y_aGSE{key_p}': coords_ab[:, 1], 'r_z_aGSE{key_p}': coords_ab[:, 2], 'r_phi': theta_ps})
+    data_ab.update({f'r_x_aGSE{key_p}': coords_ab[:, 0], f'r_y_aGSE{key_p}': coords_ab[:, 1], f'r_z_aGSE{key_p}': coords_ab[:, 2], 'r_phi': theta_ps})
 
     # Compute the radial distances based on the selected model
 
@@ -69,28 +70,15 @@ def calc_msh_dist(df, mp='shue', bs='jelinek', aberration='model', position_key=
 
     data_ab['r_F'] = (r_mag - r_mp) / (r_bs - r_mp) # distance into MSH based on MP and BS at that cone angle
 
-    return pd.DataFrame(data_ab, index=df.index)
+    if not inplace:
+
+        return pd.DataFrame(data_ab, index=df.index)
+
+    for col, values in data_ab.items():
+        if col in ('r_F', 'r_MP', 'r_BS', 'r_phi'):
+            df[f'{col}{key_p}'] = values
 
 
-def interpolate_missing(series, max_gap=pd.Timedelta('1h')):
-    """
-    Interpolate NaN up to one hour.
-    """
-    original = series.copy()
-    interpolated = series.interpolate(method='time', limit_area='inside')
-
-    missing = original.isna()
-    valid_before = original.notna().cummax()
-    valid_after = original.notna()[::-1].cummax()[::-1]
-
-    # Distance to nearest valid observations on each side
-    times = pd.Series(original.index, index=original.index)
-    prev_time = times.where(original.notna()).ffill()
-    next_time = times.where(original.notna()).bfill()
-
-    within_gap = (valid_before & valid_after & ((next_time - prev_time) <= max_gap))
-
-    return original.where(~missing | ~within_gap, interpolated)
 
 # %% components
 

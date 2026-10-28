@@ -17,7 +17,7 @@ def add_df_units(df):
         unit_attrs[column] = add_unit(column)
     df.attrs['units'] = unit_attrs
 
-def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False):
+def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False, how='inner'):
 
     if len(dfs) < 2:
         raise ValueError('At least two dataframes are required.')
@@ -39,7 +39,7 @@ def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False):
 
     merged = relabelled[0]
     for df in relabelled[1:]:
-        merged = merged.merge(df, left_index=True, right_index=True)
+        merged = merged.merge(df, left_index=True, right_index=True, how=how)
 
     merged.attrs = {}
 
@@ -95,6 +95,22 @@ def relabel_columns(df, label):
 
         return new_df
     return df
+
+def interpolate_missing(df, max_gap=pd.Timedelta('1h')):
+    """
+    Interpolate NaN values within max_gap.
+    """
+
+    interpolated = df.interpolate(method='time', limit_area='inside')
+
+    times = pd.Series(df.index, index=df.index)
+    prev_time = df.notna().apply(lambda col: times.where(col).ffill())
+    next_time = df.notna().apply(lambda col: times.where(col).bfill())
+
+    gap = next_time - prev_time
+    fillable = df.notna() | gap.le(max_gap)
+
+    return interpolated.where(fillable)
 
 # %% resampling
 

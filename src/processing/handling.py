@@ -7,9 +7,12 @@ from datetime import datetime
 from .utils import create_directory
 from ..config import get_proc_directory
 
-def create_log_file(log_file_path, overwrite=True):
+def create_log_file(log_file_path, overwrite=True, direc=None):
 
     print('(Re)creating log file....')
+
+    if direc is not None:
+        log_file_path = os.path.join(direc, log_file_path)
 
     create_directory(os.path.dirname(log_file_path))
     if not os.path.exists(log_file_path) or overwrite:
@@ -27,6 +30,7 @@ def log_missing_file(log_file_path, file_path, e=None):
         log_file.write(f'{string}\n')
 
     print(string)
+
 
 def log_file_quality(log_file_path, file_name, reason=None):
 

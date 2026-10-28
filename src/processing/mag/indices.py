@@ -11,12 +11,10 @@ import glob
 import numpy as np
 import pandas as pd
 
-import warnings
-
 from spacepy import pycdf
 from datetime import datetime, timedelta
 
-from .config import PC_STATIONS
+from .config import PC_STATIONS, resolutions, native_resolutions
 
 from ..reading import import_processed_data
 from ..writing import write_to_cdf
@@ -256,9 +254,6 @@ def process_SME_data(index='sme'):
 
 # %% averaged_indices
 
-resolutions = ['1min','5min','15min','1hour','3hour']
-native_resolutions = {'AA': '3hour', 'Dst': '1hour'}
-
 def build_averaged_index(index, sample_intervals=('1min','5min','15min','1hour')):
 
     """
@@ -349,26 +344,4 @@ def clean_mag_data(df, index):
     rename_columns(df, columns_to_rename)
 
 
-def import_processed_index(index, resolution='1min', return_series=True, return_full=False):
-    """
-    Wrapper function to import a processed index as the structure depends on the index
-    """
-    native_res  = native_resolutions.get(index,'1min')
-    if resolutions.index(resolution) < resolutions.index(native_res):
-        warnings.warn(f'Resolution {resolution} is not available as the native resolution is {native_res}.')
-        resolution = native_res
-
-    index_parents = {'SYM_D': 'SYM', 'SYM_H': 'SYM', 'ASY_D': 'ASY', 'ASY_H': 'ASY', 'PCC': 'PC', 'PCN': 'PC', 'AL': 'AE', 'AU': 'AE', 'SMU': 'SME', 'SML': 'SME'}
-    index_parents |= {f'{station}_mag': station for station in PC_STATIONS} | {f'{station}_y_GSE': station for station in PC_STATIONS} | {f'{station}_y_GSM': station for station in PC_STATIONS}
-
-    df = import_processed_data('indices', resolution=resolution, file_name=index_parents.get(index,index))
-    df = df[[col for col in df.columns if col.startswith(index)]] # retains counts and errs, discards others
-
-    if return_full:
-        return df
-
-    elif return_series:
-        return df.loc[:,index]
-
-    return df.loc[:,[index]]
 

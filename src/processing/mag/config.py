@@ -14,6 +14,10 @@ lagged_indices = {'AE':  AE_times, 'AEc': AE_times,     'SME': AE_times,
                   'PCN': PC_times, 'PCC': PC_times,
                   'AA': (60,)}
 
+resolutions = ['1min','5min','15min','1hour','3hour']
+native_resolutions = {'AA': '3hour', 'Dst': '1hour'}
+
+
 for station in PC_STATIONS:
     for col in (station,f'{station}_unc',f'{station}_y_GSE',f'{station}_y_GSM'):
         lagged_indices[col] = PC_times

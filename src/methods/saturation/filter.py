@@ -5,6 +5,7 @@ Created on Tue Jul 28 15:52:33 2026
 @author: richarj2
 """
 
+import os
 import numpy as np
 import pandas as pd
 
@@ -38,15 +39,8 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     data_pop = 'plasma' means including plasma (so also field)
     """
 
-    print(f'Processing {resolution} {region} data.\n')
-
     ###----------IMPORTS----------###
-    if df_omni is None:
-        print('Importing OMNI.\n')
-        # contains updated flow pressure calculation
-        df_omni = import_processed_omni(resolution=resolution)
-
-    print(f'Importing {sc.upper()}.')
+    print(f'Importing {sc.upper()} {region} {resolution}.\n')
 
     restricted = False
     if region=='msh20':
@@ -57,56 +51,90 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
 
     df_sc = import_processed_spacecraft(sc, populations, resolution)
 
+    length0 = len(df_sc)
+
+    if df_omni is None:
+        print('Importing OMNI.\n')
+        # contains updated flow pressure calculation
+        df_omni = import_processed_omni(resolution=resolution)
+
+    df_merged_attrs = df_sc.attrs # stores
+    df_merged = merge_dataframes(df_omni, df_sc, suffices=('sw', sc))
+
+    length1 = len(df_merged)
+
     ###----------FILTERING----------###
 
     params = {'msh': {'r_F_max': 0.2}} if restricted else {}
 
-    df_merged, df_merged_attrs = filter_region(df_sc, df_omni, sc, region, params)
-    if df_merged.empty:
-        print(f'No {sc} data in {region} after filtering.')
+    times = filter_region(df_merged, sc, region, params)
+    if len(times)==0:
+        print(f'No {sc} data in {region} after filtering.\n')
         return
 
+    df_filtered = df_merged.loc[df_merged.index.isin(times)]
     suffix = f'_{sc}'
-    df_merged.rename(columns={col: f'{col}{suffix}' for col in pos_cols}, inplace=True) # adds _sc suffix
+
+    length2 = len(df_filtered)
+    del df_merged
 
     ###----------EXTRA PARAMETERS----------###
 
-    # Components parallel/perp to bs/mp surface
-    vector_component_surface(df_merged, sc, region, data_pop)
+    if region in ('msh', 'msh20'):
+
+        calc_msh_dist(df_filtered, position_key=sc, data_key='sw', inplace=True)
+
+        # Components parallel/perp to bs/mp surface
+        vector_component_surface(df_filtered, sc, region, data_pop)
 
     # Correction to time lag based on spacecraft position in solar wind
-    calc_flat_delay(df_merged, df_omni, region=region, pos_col=f'r_x_GSE_{sc}', vel_col=f'V_x_GSE_{sc}', omni_vel_col='V_x_GSE', omni_pres_col='P_flow', lag_col=f'prop_time_s_{sc}')
+    calc_flat_delay(df_filtered, region=region, pos_col=f'r_x_GSE_{sc}', vel_col=f'V_x_GSE_{sc}', omni_vel_col='V_x_GSE_sw', omni_pres_col='P_p_sw', lag_col=f'prop_time_s_{sc}')
 
-    df_merged.dropna(subset=f'prop_time_s_{sc}', inplace=True)
+    df_filtered.dropna(subset=f'prop_time_s_{sc}', inplace=True)
 
-    update_parameters(df_merged, sc, region)
+    update_parameters(df_filtered, sc, region)
+
+    length3 = len(df_filtered)
 
     ###----------WRITING----------###
 
     # Add to combined
-    df_merged.dropna(how='all',inplace=True)
-    df_merged.drop(columns=[col for col in df_merged if (col.endswith('_sw') or col.endswith('_pc'))], inplace=True)
+    df_filtered.drop(columns=[col for col in df_filtered if (col.endswith('_sw') or col.endswith('_pc'))], inplace=True)
 
     # These columns are naturally in mms data so removing for consistency
-    df_merged.drop(columns=[col for col in df_merged.columns if col.startswith('r_avg')], inplace=True)
+    df_filtered.drop(columns=[col for col in df_filtered.columns if col.startswith('r_avg')], inplace=True)
 
     # Need suffix when combining but removing for individual file
-    df_merged = df_merged.rename(columns={col: col[:-len(suffix)] for col in df_merged.columns if col.endswith(suffix)})
-    update_attributes(df_merged, df_merged_attrs, region)
+    df_filtered.rename(columns={col: col[:-len(suffix)] for col in df_filtered.columns if col.endswith(suffix)}, inplace=True)
+
+    df_filtered.dropna(how='all',inplace=True)
+    update_attributes(df_filtered, df_merged_attrs, region)
 
     if test_return:
-        return df_merged
+        return df_filtered
 
     print(f'Writing {sc} to file...')
     region = 'msh20' if restricted else region
     out_dir = get_proc_directory(region, dtype=data_pop, resolution=resolution, create=True) # output directory
-    write_to_cdf(df_merged, directory=out_dir, file_name=f'{region}_times_{sc}', reset_index=True)
+    write_to_cdf(df_filtered, directory=out_dir, file_name=f'{region}_times_{sc}', reset_index=True)
+
+    ###----------WRITING----------###
+
+    info  = f'\nFiltering {sc} in {region} using {resolution} data:\n'
+    info += f'Imported data (yearly region files): {length0:,}\n'
+    info += f'After merging with OMNI            : {length1:,}\n'
+    info += f'After applying region filtering    : {length2:,}\n'
+    info += f'After dropping NaN lag times       : {length3:,}\n'
+    with open(os.path.join(out_dir, 'Filtering_Information.txt'), 'a') as log_file:
+        log_file.write(f'{info}\n')
 
 
 
-def filter_region(df, omni, sc, region, params={}):
+def filter_region(df, sc, region, params={}):
     """
     Filter region of magnetosphere based on Blüthner et al. (2026) for solar wind and adapted for magnetosheath.
+    df contains both spacecraft and OMNI data for filtering conditions.
+    Returns the times when the spacecraft is in the region.
 
     NOTE: This doesn't explicitly remove ARTEMIS Data. This is written to the file, but is removed when the files are merged into a complete file.
     """
@@ -116,19 +144,11 @@ def filter_region(df, omni, sc, region, params={}):
     for reg, vals in params.items():
         default_params[reg].update(vals)
 
-    ###-----Location-----###
+    df = df.loc[df[f'r_x_GSE_{sc}']>0].copy()
 
-    df = df.loc[df['r_x_GSE']>0].copy()
-
-    spacecraft_distance(df)
-
-    df_merged_attrs = df.attrs # stores
-    df_merged = merge_dataframes(omni, df, suffices=('sw', sc))
+    spacecraft_distance(df, f'_{sc}')
 
     ###-----Parameter-----###
-
-    df_positions = calc_msh_dist(df_merged, position_key=sc, data_key='sw')
-    df_merged    = pd.concat([df_merged, df_positions[pos_cols]], axis=1)
 
     rcone = default_params[region]['r_theta']
 
@@ -136,13 +156,16 @@ def filter_region(df, omni, sc, region, params={}):
 
         # Region Filtering
 
-        rx    = default_params[region]['r_x']
+        rx    = default_params['sw']['r_x']
         vflow = default_params['sw']['V_sw']
 
-        mask =  (df_merged[f'r_x_GSE_{sc}']>=rx) & (df_merged[f'r_cone_{sc}']<=rcone)
-        mask &= (df_merged[f'V_flow_{sc}'] >= vflow)
+        mask =  (df[f'r_x_GSE_{sc}']>=rx) & (df[f'r_cone_{sc}']<=rcone)
+        mask &= (df[f'V_flow_{sc}'] >= vflow)
 
     elif region=='msh':
+
+        df_positions = calc_msh_dist(df, position_key=sc, data_key='sw')
+        df           = pd.concat([df, df_positions[pos_cols]], axis=1)
 
         # Region Filtering
 
@@ -151,60 +174,60 @@ def filter_region(df, omni, sc, region, params={}):
         rFmax  = default_params['msh']['r_F_max']
         buffer = default_params['msh']['buffer']
 
-        mask =  (df_merged[f'r_cone_{sc}'] <= rcone)
-        mask &= (df_merged[f'N_tot_{sc}'] >= ntot)
+        mask =  (df[f'r_cone_{sc}'] <= rcone)
+        mask &= (df[f'N_tot_{sc}'] >= ntot)
 
         if buffer=='relative':
-            mask &= (df_merged['r_F'] > rFmin) & (df_merged['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
+            mask &= (df['r_F'] > rFmin) & (df['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
         # elif buffer=='absolute':
         #     mask &= (df_merged[f'r_mag_{sc}'] > df_merged['r_MP'] + rFmin) & (df_merged[f'r_mag_{sc}'] < df_merged['r_BS'] - rFmax)
 
 
     # Post-processing Cleaning
-    mask &= (df_merged[f'S_x_GSE_{sc}'] > -1000)
-    mask &= (df_merged[f'V_x_GSE_{sc}'] < 0)
+    mask &= (df[f'S_x_GSE_{sc}'] > -1000)
+    mask &= (df[f'V_x_GSE_{sc}'] < 0)
 
-    return df_merged.loc[mask], df_merged_attrs
+    return df.index[mask]
 
 
 # %% updates
 
-def spacecraft_distance(df):
+def spacecraft_distance(df, suffix=''):
 
-    if 'r_mag' not in df:
-        cols     = [f'r_{comp}_GSE' for comp in ('x','y','z')]
+    if f'r_mag{suffix}' not in df:
+        cols     = [f'r_{comp}_GSE{suffix}' for comp in ('x','y','z')]
         r        = (df[cols].to_numpy()**2).sum(axis=1)**0.5
 
         try:
-            unc_cols = [f'r_{comp}_GSE_unc' for comp in ('x','y','z')]
+            unc_cols = [f'r_{comp}_GSE_unc{suffix}' for comp in ('x','y','z')]
             sigma_r = (((df[cols].to_numpy() / r)**2 * df[unc_cols].to_numpy()**2).sum(axis=1))**0.5
         except:
             sigma_r = np.nan
 
-        df.insert(0, 'r_mag', r)
-        df.insert(1, 'r_mag_unc', sigma_r)
+        df.insert(0, f'r_mag{suffix}', r)
+        df.insert(1, f'r_mag_unc{suffix}', sigma_r)
 
         df.attrs['units']['r_mag'] = 'Re'
         df.attrs['units']['r_mag_unc'] = 'Re'
 
-    if 'r_mag_count' in df:
-        df.drop(columns=['r_mag_count'],inplace=True)
+    if f'r_mag_count{suffix}' in df:
+        df.drop(columns=[f'r_mag_count{suffix}'],inplace=True)
 
-    if 'r_cone' not in df:
+    if f'r_cone{suffix}' not in df:
 
-        x = df['r_x_GSE'].to_numpy()
-        y = df['r_y_GSE'].to_numpy()
-        z = df['r_z_GSE'].to_numpy()
-        r = df['r_mag'].to_numpy()
+        x = df[f'r_x_GSE{suffix}'].to_numpy()
+        y = df[f'r_y_GSE{suffix}'].to_numpy()
+        z = df[f'r_z_GSE{suffix}'].to_numpy()
+        r = df[f'r_mag{suffix}'].to_numpy()
 
         cone = np.arccos(x / r)
 
-        df.insert(2, 'r_cone', cone)
+        df.insert(2, f'r_cone{suffix}', cone)
 
         try:
-            sx = df['r_x_GSE_unc'].to_numpy()
-            sy = df['r_y_GSE_unc'].to_numpy()
-            sz = df['r_z_GSE_unc'].to_numpy()
+            sx = df[f'r_x_GSE_unc{suffix}'].to_numpy()
+            sy = df[f'r_y_GSE_unc{suffix}'].to_numpy()
+            sz = df[f'r_z_GSE_unc{suffix}'].to_numpy()
 
             yz = np.sqrt(y**2 + z**2)
             yz = np.where(yz == 0, np.nan, yz) # if lies on Earth-Sun line
@@ -218,7 +241,7 @@ def spacecraft_distance(df):
         except:
             sigma_cone = np.full(len(df), np.nan)
 
-        df.insert(3, 'r_cone_unc', sigma_cone)
+        df.insert(3, f'r_cone_unc{suffix}', sigma_cone)
 
 
         df.attrs['units']['r_cone'] = 'rad'

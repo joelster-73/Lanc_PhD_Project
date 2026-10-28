@@ -8,9 +8,8 @@ import numpy as np
 import pandas as pd
 
 from ...config import R_E
-from ...coordinates.boundaries import bsn_jelinek2012, interpolate_missing
+from ...coordinates.boundaries import bsn_jelinek2012
 from ...coordinates.spatial import aGSE_to_car
-
 
 RESPONSE_DELAYS = {'AE': 53, 'SME': 53, 'AL': 53, 'SML': 53, 'AU': 53, 'SMU': 53,
                    'THL': 17, 'RES': 17}
@@ -20,10 +19,12 @@ def get_response_delay(index):
     return RESPONSE_DELAYS.get(index,0)
 
 
-def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GSE', omni_vel_col='V_x_GSE', omni_pres_col='P_flow', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
+def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', vel_col='V_x_GSE', omni_vel_col='V_x_GSE', omni_pres_col='P_p', lag_col='prop_time_s', min_speeds={'sw': -200, 'msh': -50}):
     """
     Approximates the time it takes solar wind to reach the BSN using just the x components
-    This is then added to the lag time from BSN to geomagnetic effect
+    This is then added to the lag time from BSN to geomagnetic effect.
+
+    Models parameterised by lagged ACE data so using raw OMNI pressure not "corrected"
     """
 
     # Position
@@ -35,17 +36,13 @@ def calc_flat_delay(df, df_omni, region='sw', pos_col='r_x_GSE', vel_col='V_x_GS
     sc_speeds = np.minimum(sc_speeds, min_speeds[region]) # negative
 
     # Bowshock position using OMNI
-    omni = df_omni.reindex(df.index) # reindexed so missing times don't return error
-
-    omni_pres = interpolate_missing(omni[omni_pres_col]).to_numpy()
-    omni_pres = np.maximum(omni_pres, 0.1) # prevent overflow from p^-1/6.55
+    omni_pres = np.maximum(df.loc[valid,omni_pres_col].to_numpy(), 0.1) # prevent overflow from p^-1/6.55
     bowshocks = bsn_jelinek2012(omni_pres)
 
-    omni_speed = interpolate_missing(omni[omni_vel_col]).to_numpy()
+    omni_speed = df.loc[valid,omni_vel_col].to_numpy()
 
     # simple aberration
     bowshocks, _, _ = aGSE_to_car(bowshocks, np.zeros_like(bowshocks), np.zeros_like(bowshocks), simple=True, v_x=omni_speed)
-    bowshocks = bowshocks[valid]
 
     distances = positions - bowshocks
     if region=='msh':
@@ -87,3 +84,28 @@ def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
 
     return df1_out, df2_out
 
+
+def interpolate_omni_to_spacecraft(omni_series, spacecraft_index, max_gap=pd.Timedelta('1h')):
+    """
+    This is used after the df_sc and df_omni were inner merged. So the times have to be in OMNI. If they're not, it will cause issues.
+    """
+    omni_series = omni_series.sort_index()
+
+    # Interpolate on the full OMNI timeline
+    interpolated = omni_series.interpolate(method='time', limit_area='inside')
+
+    # Original valid OMNI observation times
+    times = pd.Series(omni_series.index, index=omni_series.index)
+    valid = omni_series.notna()
+
+    prev_time = times.where(valid).ffill()
+    next_time = times.where(valid).bfill()
+
+    # Only fill gaps bounded by observations within max_gap
+    gap = next_time - prev_time
+    fillable = valid | (gap <= max_gap)
+
+    result = interpolated.where(fillable)
+
+    # Select spacecraft timestamps only after interpolation
+    return result.reindex(spacecraft_index)

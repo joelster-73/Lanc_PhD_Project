@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from scipy.stats import spearmanr
 
-from .utils import def_param_names, get_variable_range, mask_df
+from .utils import def_param_names, get_variable_range, mask_df, get_variable_bin_width
 from ..delay import merge_with_lag, get_response_delay
 
 from ....plotting.utils import save_figure, calculate_bins
@@ -174,22 +174,18 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
 
             ###-----INDEPENDENT DATA-----###
 
-            bin_width, _, invert = get_variable_range(ind_var, region)
+            _, invert = get_variable_range(ind_var, region)
 
             ind_err, ind_count = def_param_names(df_sc, ind_var)
 
-            if ind_var in ('E_yz','S_x_GSE'): # restrict to -ve Bz
-
-                condition = '<0'
-                cond_col  = 'B_z_GSM'
-
-            else:
-                condition, cond_col = None, None
+            condition, cond_col = '<0', 'B_z_GSM' if ind_var in ('E_yz','S_x_GSE') else None, None # restrict to -ve Bz
 
             df_ind = mask_df(df_sc, ind_var, count_col=ind_count, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert)
 
             if invert:
                 ind_var = f'-{ind_var}'
+
+            bin_width = get_variable_bin_width(df_ind[ind_var])
 
             ###-----MERGING AND SLICING-----###
 
