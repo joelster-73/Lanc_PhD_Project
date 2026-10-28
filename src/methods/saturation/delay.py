@@ -48,9 +48,9 @@ def calc_flat_delay(df, region='sw', pos_col='r_x_GSE', vel_col='V_x_GSE', omni_
     if region=='msh':
         distances = np.where(distances>0, 0, distances) # when sc is in the sheath, bowshock has to be upstream of it
 
-    df.loc[valid,lag_col] = -distances * R_E / sc_speeds
+    df.loc[valid,lag_col] = -distances * R_E / sc_speeds # seconds
 
-def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
+def merge_with_lag(df1, df2, delay, resolution, lag_col='prop_time_s'):
     """
     Aligns df1 and df2 based on the lagged time of df1 and time of df2.
     Importantly, duplicate rows in df1 are kept and matched with df2.
@@ -59,7 +59,8 @@ def merge_with_lag(df1, df2, lag, resolution, lag_col='prop_time_s'):
         df_ind = df_ind.loc[intersect]
         df_dep = df_dep.loc[intersect]
     """
-    total_lag = lag + np.rint(df1[lag_col].to_numpy())
+
+    total_lag = delay + np.rint(df1[lag_col].to_numpy()/60)
     rounded_lag = pd.to_timedelta(total_lag, unit='min').round(resolution)
 
     if 'lagged_time' in df1:

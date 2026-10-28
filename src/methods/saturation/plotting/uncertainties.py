@@ -18,8 +18,7 @@ from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import create_label
 from ....plotting.config import black, blue, red, green
 
-from ....processing.reading import import_processed_data
-from ....processing.mag.indices import import_processed_index
+from ....processing.reading import import_processed_data, import_processed_index
 from ....processing.omni.analysis import calc_omni_uncertainty
 
 def binned_band(ax, x, y, nbins=40, colour=black):
@@ -82,7 +81,7 @@ def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='com
             ax = axs[i][j]
 
             ###-----INDEPENDENT DATA-----###
-            _, limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
+            limits, invert = get_variable_range(ind_var, region, restrict=restrict, bounds=bounds)
 
             ind_err, ind_count = def_param_names(df, ind_var)
 
@@ -166,7 +165,7 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
         df_pc = import_processed_index(dep_var, resolution=resolution, return_series=False, return_full=True)
         df_pc = mask_df(df_pc, dep_var)
 
-        lag   = get_response_delay(dep_var)
+        delay = get_response_delay(dep_var)
 
         dep_err, _ = def_param_names(df_pc, dep_var)
 
@@ -178,7 +177,7 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
 
             ind_err, ind_count = def_param_names(df_sc, ind_var)
 
-            condition, cond_col = '<0', 'B_z_GSM' if ind_var in ('E_yz','S_x_GSE') else None, None # restrict to -ve Bz
+            (condition, cond_col) = ('<0', 'B_z_GSM') if ind_var in ('E_yz','S_x_GSE') else (None, None) # restrict to -ve Bz
 
             df_ind = mask_df(df_sc, ind_var, count_col=ind_count, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert)
 
@@ -189,7 +188,7 @@ def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', regi
 
             ###-----MERGING AND SLICING-----###
 
-            df_ind, df_dep = merge_with_lag(df_ind, df_pc, lag, resolution)
+            df_ind, df_dep = merge_with_lag(df_ind, df_pc, delay, resolution)
 
             ind_vals = df_ind[ind_var].to_numpy()
             ind_err  = df_ind[ind_err].to_numpy()

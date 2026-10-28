@@ -12,7 +12,6 @@ import operator
 from collections import defaultdict
 
 from ....plotting.formatting import create_label, data_string
-from ....processing.mag.config import PC_STATIONS
 
 minimum_counts = {'1min': 100, '5min': 50, '15min': 25}
 
@@ -211,9 +210,10 @@ def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
     elif restrict:
 
         upper_limits = {'V_flow': 1000, 'V_A': 200, 'P_': 10, 'M_A': 50, 'beta': 30,
-                        'B_avg' : 15, 'B_para': 80, 'B_y': 25, 'E_': 20,
+                        'B_avg' : 15, 'B_para': 80, 'B_y': 25,
+                        'E_'    : defaultdict(lambda: 20, {'sw': 15}),
                         'B_z'   : defaultdict(lambda: -100, {'sw': -40}),
-                        'S_x'   : defaultdict(lambda: -500, {'sw': -300}),
+                        'S_x'   : defaultdict(lambda: -200, {'sw': -100}),
                         'N_'    : defaultdict(lambda: 150, {'sw': 25}),
                         'T_'    : defaultdict(lambda: 5, {'sw': 2}), # MK; Up to ~0.2keV in the sw (1eV = 11.604525 MK)
                         }

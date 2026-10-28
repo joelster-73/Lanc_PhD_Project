@@ -21,8 +21,7 @@ from ....plotting.formatting import shifted_angle_ticks, format_string
 from ....plotting.comparing.parameter import compare_dataframes
 from ....plotting.config import black, blue, grey, green, red
 
-from ....processing.reading import import_processed_data
-from ....processing.mag.indices import import_processed_index
+from ....processing.reading import import_processed_data, import_processed_index
 
 def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='combined', resolution='5min', region='sw', restrict=True, second_x=False, plot_histograms=False, fig=None, ax=None, return_objs=False, **kwargs):
     """
@@ -69,17 +68,15 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     df_ind = mask_df(df_sc, ind_var, limits, ind_count, resolution, condition, cond_col, invert) # removes low sampling counts too
     df_dep = mask_df(df_pc, dep_var)
 
-    kwargs['bin_step'] = get_variable_bin_width(df_ind[ind_var])
-
     if shift_centre:
         shift_angular_data(df_ind, ind_var)
 
     if invert:
         ind_var = f'-{ind_var}'
 
-    lag = get_response_delay(dep_var)
+    delay = get_response_delay(dep_var)
 
-    df_ind, df_dep = merge_with_lag(df_ind, df_dep, lag, resolution)
+    df_ind, df_dep = merge_with_lag(df_ind, df_dep, delay, resolution)
 
     ###----------PLOT ----------###
 
@@ -89,11 +86,13 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     x_range = np.linspace(np.min(df_ind[ind_var]), np.max(df_ind[ind_var]), 100)
 
     # Binned scatter
+    kwargs['bin_step'] = get_variable_bin_width(df_ind[ind_var])
     fit_dict = compare_dataframes(df_ind, df_dep, ind_var, dep_var, fig=fig, ax=ax, return_objs=True, return_fit=True, **kwargs)[-1]
 
-    if fit_dict['params']['x0']>np.max(df_ind[ind_var]): # suggests no saturation in range
+    x0 = fit_dict['params']['x0']
+    if x0 > np.max(df_ind[ind_var]): # suggests no saturation in range
 
-        print('No saturation in range.')
+        print(f'No saturation in range (x0 = {x0:.4g}).')
         ax.clear()
         kwargs = kwargs.copy()
         kwargs['fit_type'] = 'straight'
@@ -231,10 +230,12 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
             if col != 0:
                 ax.set_ylabel(None)
 
-    file_name = f'Multi_Driver_Response_for_{region}'
+    file_name = f'Multi_Driver_Response_for_{region}_'
+    file_name += '_'.join(ind_vars) + '_'
+    file_name += '_'.join(dep_vars)
 
     plt.tight_layout()
-    save_figure(fig, file_name=file_name)
+    save_figure(fig, file_name=file_name, overwrite=True)
     plt.show()
     plt.close()
 
@@ -384,7 +385,7 @@ def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5m
     if close: # mainly to exclude artemis
         limit = 15
 
-    fig, ax = plt.subplots(figsize=(8,6))
+    fig, ax = plt.subplots(figsize=(10,6))
 
     for region in regions:
 
