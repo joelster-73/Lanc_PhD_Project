@@ -8,6 +8,7 @@ Created on Mon Oct  6 10:55:08 2025
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import ticker as mticker
+from datetime import datetime
 
 from .utils import minimum_counts, def_param_names, get_variable_range, shift_angular_data, mask_df, get_variable_bin_width
 
@@ -16,7 +17,7 @@ from ..delay import merge_with_lag, get_response_delay
 from ....analysing.fitting import fit_bootstrap, get_confidence_range
 from ....analysing.calculations import calc_mean_error
 
-from ....plotting.utils import save_figure, calculate_bins
+from ....plotting.utils import save_figure, calculate_bins, save_text
 from ....plotting.formatting import shifted_angle_ticks, format_string
 from ....plotting.comparing.parameter import compare_dataframes
 from ....plotting.config import black, blue, grey, green, red
@@ -83,7 +84,8 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6.5 if second_x else 5), dpi=400)
 
-    x_range = np.linspace(np.min(df_ind[ind_var]), np.max(df_ind[ind_var]), 100)
+    x_min, x_max = np.min(df_ind[ind_var]), np.max(df_ind[ind_var])
+    x_range = np.linspace(x_min, x_max, 100)
 
     # Binned scatter
     kwargs['bin_step'] = get_variable_bin_width(df_ind[ind_var])
@@ -98,7 +100,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         kwargs['fit_type'] = 'straight'
         kwargs['x_range'] = x_range
 
-        _ = compare_dataframes(df_ind, df_dep, ind_var, dep_var, fig=fig, ax=ax, return_objs=True, return_fit=True, **kwargs)
+        fit_dict = compare_dataframes(df_ind, df_dep, ind_var, dep_var, fig=fig, ax=ax, return_objs=True, return_fit=True, **kwargs)[-1]
 
     ###----------BOOTSTRAP----------###
 
@@ -108,14 +110,52 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         df_boot = fit_bootstrap(df_ind, ind_var, dep_var, df_dep, **kwargs)
 
         confidence = 95
-        param_intervals, (lower, upper) = get_confidence_range(df_boot, x_range, kwargs['fit_type'], confidence)
+        param_intervals, (y_lower, y_upper) = get_confidence_range(df_boot, x_range, kwargs['fit_type'], confidence)
 
-        ax.fill_between(x_range, lower, upper, color=black, alpha=0.2)
+        ax.fill_between(x_range, y_lower, y_upper, color=black, alpha=0.2)
 
         print(f'\nConfidence intervals ({confidence}%)')
-        for key, val in param_intervals.items():
-            print(f'{key}:\t{val[0]:.4g}\t|\t{val[1]:.4g}')
+        for param, quantiles in param_intervals.items():
+            print(f'{param}:\t{quantiles["low"]:.4g}\t|\t{quantiles["high"]:.4g}')
         print()
+
+        # Save to txt file
+
+        if kwargs.get('save_bootstrap',True):
+            time = datetime.now().strftime('%H%M%S')
+            txt_file_name = f'Bootstrap_{dep_var}_vs_{ind_var}_{region}_{time}'
+
+            n_samples = df_boot.attrs.get('samples')
+            n_days    = df_boot.attrs.get('days')
+
+            string  = f'Fitting to {region} {ind_var} data for {dep_var} response.\n'
+            string += '--------------------\n\n'
+
+            string += f'Fitted over {ind_var} in [{x_min:.4g}, {x_max:.4g}].\n'
+            string += ('No condition/restriction applied.\n\n') if condition is None else (f'Condition applied: {cond_col} {condition}.\n\n')
+
+            string += f'Bootstrapping N = {num_iters}.\n'
+            string += f'{n_samples:,} samples | {n_days:,} days.\n'
+            string += '--------------------\n'
+
+            string += '\nParameters from all data:\n'
+            for param, val in fit_dict['params'].items():
+                unit = fit_dict['units'][param]
+                string += f'{param}:\t {val.n:.5g} [{unit}]\n'
+
+            string += '\nMedian Values:\n'
+            for param, quantiles in param_intervals.items():
+                unit = fit_dict['units'][param]
+                string += f'{param}:\t{quantiles["med"]:.5g}\n'
+
+            string += f'\nConfidence intervals ({confidence}%):\n'
+            for param, quantiles in param_intervals.items():
+                unit = fit_dict['units'][param]
+                string += f'{param}:\t{quantiles["low"]:.5g}\t|\t{quantiles["high"]:.5g}\n'
+
+            string += '--------------------\n'
+
+            save_text(string, sub_directory='Bootstraps', file_name=txt_file_name)
 
 
     ###----------FORMATTING----------###
@@ -135,7 +175,8 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         ax.set_xlim(0)
 
         ax2 = ax.secondary_xaxis(-0.2, functions=functions)
-        ax2.set_xlabel(f'$-B_z$ [nT] ($V_x$={Vx} km/s)', fontsize=12)
+        B_label = r'|\boldsymbol{B}|'
+        ax2.set_xlabel(f'${B_label}$ [nT] ($V_x=${Vx} km/s)', fontsize=12)
 
     if return_objs:
         return fig, ax
@@ -159,31 +200,37 @@ def convert_axis(second_x, var, region):
 
     functions = []
 
-    Vx = -400 if region=='sw' else -200 # km/s
+    Vx = -400 if region=='sw' else -150 # km/s
 
     if second_x:
 
         if var.startswith('E_y'):
 
-            factor = -1000/Vx
-            functions = (lambda E: E * factor, lambda B: B / factor)
+            B_of_E = lambda E: E / (-Vx * 1e-3) # B = B(E)
+            E_of_B = lambda B: B * (-Vx * 1e-3) # E = E(B)
+
+            functions = (B_of_E, E_of_B)
 
         elif var.startswith('S_x'):
+
             mu0 = 4 * np.pi * 1e-7
 
             # Using -S in figure
-            def S_to_B(S):
-                return 1e9 * np.sqrt(-S * 1e-6 * mu0 / (Vx * 1e3))
+            # factor of 3 to account for cross terms
+            def B_of_S(S): # B = B(S)
+                return 1e9 * np.sqrt(-S * 1e-6 * mu0 / (Vx * 1e3)) * np.sqrt(3)
 
-            def B_to_S(B):
-                return -(B * 1e-9)**2 * Vx * 1e3 / mu0 * 1e6
+            def S_of_B(B): # S = S(B)
+                return -(B * 1e-9)**2 * (Vx * 1e3) /(mu0 * 1e-6) / np.sqrt(3)
 
-            functions = (S_to_B, B_to_S)
+            functions = (B_of_S, S_of_B)
 
         else:
             second_x = False
 
     return second_x, functions, Vx
+
+# %% grids
 
 def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resolution='5min', region='sw', restrict=True, **kwargs):
     """
@@ -205,7 +252,7 @@ def plot_multi_driver_responses(ind_vars, dep_vars, spacecraft='combined', resol
 
         sharex = 'row'
 
-    height = (6.5 if kwargs.get('second_x',False) else 5)*n_rows
+    height = (6 if kwargs.get('second_x',False) else 5)*n_rows
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, height), dpi=400, sharex=sharex, sharey='row', squeeze=False) # squeeze keeps axs as 2D even if n_cols or n_rows = 1
 
@@ -245,6 +292,7 @@ def plot_compare_systems(ind_vars, dep_vars, spacecraft='combined', resolution='
     The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
     """
 
+    kwargs.setdefault('display', 'scatter_binned')
     condition = kwargs.get('condition')
     cond_col  = kwargs.get('cond_col')
 
@@ -269,7 +317,7 @@ def plot_compare_systems(ind_vars, dep_vars, spacecraft='combined', resolution='
 
     n_cols = 2
 
-    height = (6.5 if kwargs.get('second_x',False) else 5)*n_rows + 1
+    height = (6 if kwargs.get('second_x',False) else 5)*n_rows + 1
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, height), dpi=400, sharex='row', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
@@ -306,6 +354,8 @@ def plot_compare_systems(ind_vars, dep_vars, spacecraft='combined', resolution='
     axs[0,1].set_title(f'${format_string(cond_col)}${condition}')
 
     file_name = f'Comparing_{dep_var}_responses_with_restriction_' + '_'.join(ind_vars)
+    if kwargs['display'] != 'scatter_binned':
+        file_name += f'_{kwargs["display"]}'
 
     plt.tight_layout()
     save_figure(fig, file_name=file_name, overwrite=True)
@@ -318,6 +368,8 @@ def plot_compare_regions(ind_vars, dep_vars, spacecraft='combined', resolution='
     Look at OMNI and in-situ data in driver-response
     The same ind_var is used for the omni and sc data, then a variety of dep_vars are shown in separate columns
     """
+
+    kwargs.setdefault('display', 'scatter_binned')
 
     ###----------PLOT GRIDS----------###
     if len(dep_vars)>1 and len(ind_vars)>1:
@@ -337,7 +389,7 @@ def plot_compare_regions(ind_vars, dep_vars, spacecraft='combined', resolution='
 
     n_cols = len(regions)
 
-    height = (6.5 if kwargs.get('second_x',False) else 5)*n_rows + 1
+    height = (6 if kwargs.get('second_x',False) else 5)*n_rows + 1
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(8*n_cols, height), dpi=400, sharex='col', sharey='row', squeeze=False)
     # squeeze keeps axs as 2D even if n_cols or n_rows = 1
@@ -371,6 +423,8 @@ def plot_compare_regions(ind_vars, dep_vars, spacecraft='combined', resolution='
                 ax.text(0.025, 0.95, region, transform=ax.transAxes, ha='left', va='top', fontsize=8)
 
     file_name = f'Comparing_{dep_var}_{ind_var}_for_regions_' + '_'.join(regions)
+    if kwargs['display'] != 'scatter_binned':
+        file_name += f'_{kwargs["display"]}'
 
     plt.tight_layout()
     save_figure(fig, file_name=file_name, overwrite=True)
@@ -381,17 +435,13 @@ def plot_compare_regions(ind_vars, dep_vars, spacecraft='combined', resolution='
 
 def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5min', close=True):
 
-    limit = 30
-    if close: # mainly to exclude artemis
-        limit = 15
-
     fig, ax = plt.subplots(figsize=(10,6))
 
     for region in regions:
 
         df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
-        if close:# mainly to exclude artemis
-            df = df.loc[df['r_mag']<35]
+        if close: # to exclude artemis
+            df = df.loc[df['r_x_GSE']<30]
 
         lags = df.loc[~df['prop_time_s'].isna(),'prop_time_s'] / 60
         unit = 'mins'
@@ -402,7 +452,7 @@ def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5m
 
         bins = calculate_bins(lags,1)
         counts, _ = np.histogram(lags, bins=bins)
-        bins = bins[:-1]
+        bins = bins[:-1] + 0.5
 
         mean = calc_mean_error(lags)
         std = np.std(lags, ddof=1)
@@ -414,7 +464,6 @@ def plot_delay_hists(sc, regions=('sw','msh'), data_pop='plasma', resolution='5m
         ax.add_artist(legend)
 
     ax.invert_xaxis() # so positive goes to the left resembling physical system
-    ax.set_xlim(limit,-limit)
     ax.set_xlabel('Lag to BSN [mins]')
 
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, _: f'{y:,.0f}'))

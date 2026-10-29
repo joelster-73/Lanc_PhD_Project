@@ -71,7 +71,10 @@ def fit_bootstrap(df1, col1, col2, df2=None, col1_err=None, col2_err=None, col1_
 
     print('Complete.')
 
-    return pd.DataFrame(results)
+    results = pd.DataFrame(results)
+    results.attrs = {'samples': len(df1), 'days': len(days)}
+
+    return results
 
 
 def get_confidence_range(df_boot, x_range, model, confidence=95):
@@ -86,10 +89,9 @@ def get_confidence_range(df_boot, x_range, model, confidence=95):
     param_intervals = {}
     for param in columns:
         lower  = np.percentile(df_boot[param].to_numpy(), low_p)
+        median = np.percentile(df_boot[param].to_numpy(), 50)
         higher = np.percentile(df_boot[param].to_numpy(), high_p)
-        param_intervals[param] = (lower, higher)
-
-    ### Probably save to a file??
+        param_intervals[param] = {'low': lower, 'med': median, 'high': higher}
 
     # Confidence interval for full model over range of x
 
@@ -97,8 +99,8 @@ def get_confidence_range(df_boot, x_range, model, confidence=95):
 
     y_boot  = np.array([func(x_range, *params) for params in df_boot[columns].to_numpy()])
 
-    y_lower   = np.percentile(y_boot, low_p, axis=0)
-    y_upper   = np.percentile(y_boot, high_p, axis=0)
+    y_lower  = np.percentile(y_boot, low_p, axis=0)
+    y_upper  = np.percentile(y_boot, high_p, axis=0)
 
     return param_intervals, (y_lower, y_upper)
 

@@ -330,8 +330,8 @@ def plot_data_inventory(*spacecraft, region='msh', display='yearly', print_info=
         all_times = pd.DatetimeIndex(all_times).floor('min').unique()
 
         n_unique_minutes = len(all_times)
-        n_unique_5mins = len(all_times.floor('5min').unique())
-        n_unique_days = len(all_times.normalize().unique())
+        n_unique_5mins   = len(all_times.floor('5min').unique())
+        n_unique_days    = len(all_times.normalize().unique())
 
         print(f"Unique minutes:   {n_unique_minutes:,}")
         print(f"Unique 5-minutes: {n_unique_5mins:,}")

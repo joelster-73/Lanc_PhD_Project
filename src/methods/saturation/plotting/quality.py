@@ -122,7 +122,8 @@ def plot_avg_counts(sc, *params, resolution='5min', data_pop='plasma', region='s
         return fig, axs
 
     plt.tight_layout()
-    save_figure(fig, file_name=f'Counts_per_{resolution}_avg_{sc}_{region}', overwrite=True)
+    file_name = f'Counts_per_{resolution}_avg_{sc}_{region}'
+    save_figure(fig, file_name=file_name, sub_directory='Quality', overwrite=True)
 
     plt.show()
     plt.close()
@@ -174,7 +175,7 @@ def plot_avg_counts_grid(*spacecraft, resolution='5min', cut_off=25):
 
     fig.align_ylabels(axs[:,0])
     plt.tight_layout()
-    save_figure(fig, file_name=f'Counts_each_{resolution}_average', overwrite=True)
+    save_figure(fig, file_name=f'Counts_each_{resolution}_average', sub_directory='Quality', overwrite=True)
 
     plt.show()
     plt.close()
@@ -241,7 +242,7 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
     filename += '_'.join(resolutions)
     filename += suffix
     filename += '_restricted' if restrict else ''
-    save_figure(fig, file_name=filename, overwrite=True)
+    save_figure(fig, file_name=filename, sub_directory='Quality', overwrite=True)
 
     plt.show()
     plt.close()

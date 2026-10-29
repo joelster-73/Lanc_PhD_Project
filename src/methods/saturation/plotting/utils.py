@@ -161,16 +161,10 @@ def get_variable_bin_width(series):
 
     data_range = (series.max()-series.min())
 
-    if data_range > 400:
-        bin_width = 10
+    if data_range > 20:
+        bin_width = data_range // 20
 
-    elif data_range > 250:
-        bin_width = 5
-
-    elif data_range > 50:
-        bin_width = 2
-
-    elif data_range > 20:
+    elif data_range > 10:
         bin_width = 1
 
     else:
@@ -211,9 +205,9 @@ def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
 
         upper_limits = {'V_flow': 1000, 'V_A': 200, 'P_': 10, 'M_A': 50, 'beta': 30,
                         'B_avg' : 15, 'B_para': 80, 'B_y': 25,
-                        'E_'    : defaultdict(lambda: 20, {'sw': 15}),
+                        'E_'    : defaultdict(lambda: 14, {'sw': 12}),
                         'B_z'   : defaultdict(lambda: -100, {'sw': -40}),
-                        'S_x'   : defaultdict(lambda: -200, {'sw': -100}),
+                        'S_x'   : defaultdict(lambda: -300, {'sw': -100}),
                         'N_'    : defaultdict(lambda: 150, {'sw': 25}),
                         'T_'    : defaultdict(lambda: 5, {'sw': 2}), # MK; Up to ~0.2keV in the sw (1eV = 11.604525 MK)
                         }

@@ -20,11 +20,12 @@ from ..config import FIGURES_DIR
 
 # %% saving
 
-def save_figure(figure, directory=None, sub_directory=None, file_name=None, overwrite=False):
+
+def save_file(obj, directory=None, sub_directory=None, file_name=None, overwrite=False, file_type='png'):
     """
-    Save a matplotlib figure as a PNG file with a timestamped name (HHMMSS.png).
-    Saves the file in a folder named YYMMDD within the specified directory.
-    Creates the folder if it does not exist.
+    Same functionality to save a figure or a text file.
+    Objs is either the fig or the string.
+    Functionality depends on file_type.
     """
     if save_fig:
         now = datetime.now()
@@ -45,18 +46,40 @@ def save_figure(figure, directory=None, sub_directory=None, file_name=None, over
 
         if file_name is None:
             file_name = now.strftime('%H%M%S')
-        file_name += '.png'
+
+        file_name += f'.{file_type}'
+
         file_path = os.path.join(full_directory, file_name)
-        base_name, extension = os.path.splitext(file_name)
 
         if not overwrite:
+            base_name, extension = os.path.splitext(file_name)
             counter = 2
             while os.path.exists(file_path):
                 file_path = os.path.join(full_directory, f'{base_name}_({counter}){extension}')
                 counter += 1
 
-        figure.savefig(file_path, format='png',bbox_inches='tight')
-        print(f'\nFigure saved as {file_path}\n')
+        if file_type=='png':
+            obj.savefig(file_path, format='png',bbox_inches='tight')
+            print(f'\nFigure saved as {file_path}\n')
+        elif file_type=='txt':
+            with open(file_path, 'a') as f:
+                f.write(obj)
+            print(f'\Text file saved as {file_path}\n')
+
+def save_figure(figure, directory=None, sub_directory=None, file_name=None, overwrite=False):
+    """
+    Save a matplotlib figure as a PNG file with a timestamped name (HHMMSS.png).
+    Saves the file in a folder named YYMMDD within the specified directory.
+    Creates the folder if it does not exist.
+    """
+    save_file(figure, directory=directory, sub_directory=sub_directory, file_name=file_name, overwrite=overwrite, file_type='png')
+
+
+def save_text(string, directory=None, sub_directory=None, file_name=None, overwrite=False):
+    """
+    Save a string of text to a file.
+    """
+    save_file(string, directory=directory, sub_directory=sub_directory, file_name=file_name, overwrite=overwrite, file_type='txt')
 
 def save_frame(frame, i, frame_files, directory='Figures'):
 

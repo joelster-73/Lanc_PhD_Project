@@ -52,19 +52,11 @@ plot_multi_driver_responses(('E_R',), ('AU','SMU'), spacecraft='combined', regio
 
 plot_compare_systems(('E_yz','S_x_GSE'), ('SME',), spacecraft='combined', region='sw', fit_type='saturation', iterations=0, condition='<0', cond_col='B_z_GSM')
 
-# tests
-plot_compare_systems(('E_yz','S_x_GSE'), ('SME',), spacecraft='combined', region='sw', fit_type='saturation', iterations=0, condition='<0', cond_col='B_z_GSM', display='scatter')
-
-plot_compare_systems(('E_yz','S_x_GSE'), ('AE',), spacecraft='combined', region='sw', fit_type='saturation', iterations=0, condition='<0', cond_col='B_z_GSM', display='scatter')
-
-
-
 # %% results
 
 from src.methods.saturation.plotting.general import plot_compare_regions
 
-# retrieve confidence intervals
-
 plot_compare_regions(('E_yz',), ('SME',), spacecraft='combined', regions=('sw','msh'), fit_type='saturation', iterations=2500, condition='<0', cond_col='B_z_GSM', second_x=True)
-
 plot_compare_regions(('S_x_GSE',), ('SME',), spacecraft='combined', regions=('sw','msh'), fit_type='saturation', iterations=2500, condition='<0', cond_col='B_z_GSM', second_x=True)
+
+
