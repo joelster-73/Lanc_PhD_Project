@@ -71,13 +71,20 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
 
             cond_col = col if cond_col is None else cond_col
 
-            operation, value = parse_condition(condition)
+            if condition == 'sine': # use Kan-Lee clock angle modification, applied after masking
+                mask &= df[cond_col].notna()
 
-            mask &= operation(df[cond_col], value)
+            else:
+                operation, value = parse_condition(condition)
 
-            #print(f'Applied condition: {cond_col} {condition}.')
+                mask &= operation(df[cond_col], value)
+
+                #print(f'Applied condition: {cond_col} {condition}.')
 
         df_masked = df.loc[mask].copy()
+
+        if condition == 'sine': # use Kan-Lee clock angle modification, applied after masking
+            df_masked[col] *= (np.sin(0.5*df_masked[cond_col]))**2
 
         if invert:
             df_masked[col] *= -1
@@ -157,18 +164,43 @@ def def_param_names(df, variable, source=None):
 
 # %% binwidths
 
-def get_variable_bin_width(series):
+def get_variable_bin_width(series, n=20):
 
     data_range = (series.max()-series.min())
 
-    if data_range > 20:
-        bin_width = data_range // 20
+    if n==-1: # consistent width
 
-    elif data_range > 10:
-        bin_width = 1
+        if data_range > 400:
+            bin_width = 25
 
-    else:
-        bin_width = 0.5
+        elif data_range > 200: # n = [10,20]
+            bin_width = 20
+
+        if data_range > 100: # n = [10,20]
+            bin_width = 10
+
+        elif data_range > 50: # n = [10,20]
+            bin_width = 5
+
+        elif data_range > 20: # n = [10,25]
+            bin_width = 2
+
+        elif data_range > 10: # n = [10,20]
+            bin_width = 1
+
+        else:
+            bin_width = 0.5
+
+    else: # fixed number of bins
+
+        if data_range > n:
+            bin_width = data_range // n
+
+        elif data_range > n/2:
+            bin_width = 1
+
+        else:
+            bin_width = 0.5
 
     return bin_width
 

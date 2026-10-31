@@ -122,41 +122,10 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
         # Save to txt file
 
         if kwargs.get('save_bootstrap',True):
-            time = datetime.now().strftime('%H%M%S')
-            txt_file_name = f'Bootstrap_{dep_var}_vs_{ind_var}_{region}_{time}'
 
-            n_samples = df_boot.attrs.get('samples')
-            n_days    = df_boot.attrs.get('days')
-
-            string  = f'Fitting to {region} {ind_var} data for {dep_var} response.\n'
-            string += '--------------------\n\n'
-
-            string += f'Fitted over {ind_var} in [{x_min:.4g}, {x_max:.4g}].\n'
-            string += ('No condition/restriction applied.\n\n') if condition is None else (f'Condition applied: {cond_col} {condition}.\n\n')
-
-            string += f'Bootstrapping N = {num_iters}.\n'
-            string += f'{n_samples:,} samples | {n_days:,} days.\n'
-            string += '--------------------\n'
-
-            string += '\nParameters from all data:\n'
-            for param, val in fit_dict['params'].items():
-                unit = fit_dict['units'][param]
-                string += f'{param}:\t {val.n:.5g} [{unit}]\n'
-
-            string += '\nMedian Values:\n'
-            for param, quantiles in param_intervals.items():
-                unit = fit_dict['units'][param]
-                string += f'{param}:\t{quantiles["med"]:.5g}\n'
-
-            string += f'\nConfidence intervals ({confidence}%):\n'
-            for param, quantiles in param_intervals.items():
-                unit = fit_dict['units'][param]
-                string += f'{param}:\t{quantiles["low"]:.5g}\t|\t{quantiles["high"]:.5g}\n'
-
-            string += '--------------------\n'
+            txt_file_name, string = bootstrap_string(df_boot, ind_var, dep_var, region, fit_dict, cond_col, condition, param_intervals, confidence, num_iters, x_min, x_max)
 
             save_text(string, sub_directory='Bootstraps', file_name=txt_file_name)
-
 
     ###----------FORMATTING----------###
 
@@ -195,6 +164,43 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
     plt.close()
 
     #return df_boot
+
+def bootstrap_string(df_boot, ind_var, dep_var, region, fit_dict, cond_col, condition, param_intervals, confidence, num_iters, x_min, x_max):
+
+    time = datetime.now().strftime('%H%M%S')
+    file_name = f'Bootstrap_{dep_var}_vs_{ind_var}_{region}_{time}'
+
+    n_samples = df_boot.attrs.get('samples')
+    n_days    = df_boot.attrs.get('days')
+
+    string  = f'Fitting to {region} {ind_var} data for {dep_var} response.\n'
+    string += '--------------------\n\n'
+
+    string += f'Fitted over {ind_var} in [{x_min:.4g}, {x_max:.4g}].\n'
+    string += ('No condition/restriction applied.\n\n') if condition is None else (f'Condition applied: {cond_col} {condition}.\n\n')
+
+    string += f'Bootstrapping N = {num_iters}.\n'
+    string += f'{n_samples:,} samples | {n_days:,} days.\n'
+    string += '--------------------\n'
+
+    string += '\nParameters from all data:\n'
+    for param, val in fit_dict['params'].items():
+        unit = fit_dict['units'][param]
+        string += f'{param}:\t {val.n:.5g} [{unit}]\n'
+
+    string += '\nMedian Values:\n'
+    for param, quantiles in param_intervals.items():
+        unit = fit_dict['units'][param]
+        string += f'{param}:\t{quantiles["med"]:.5g}\n'
+
+    string += f'\nConfidence intervals ({confidence}%):\n'
+    for param, quantiles in param_intervals.items():
+        unit = fit_dict['units'][param]
+        string += f'{param}:\t{quantiles["low"]:.5g}\t|\t{quantiles["high"]:.5g}\n'
+
+    string += '--------------------\n'
+
+    return file_name, string
 
 def convert_axis(second_x, var, region):
 
@@ -351,9 +357,13 @@ def plot_compare_systems(ind_vars, dep_vars, spacecraft='combined', resolution='
         ax.set_ylabel(None)
 
     axs[0,0].set_title('Unrestricted')
-    axs[0,1].set_title(f'${format_string(cond_col)}${condition}')
+    if condition=='sine':
+        title = f'$\\sin^2\\left({format_string(cond_col)}/2\\right)$'
+    else:
+        title = f'${format_string(cond_col)}${condition}'
+    axs[0,1].set_title(title)
 
-    file_name = f'Comparing_{dep_var}_responses_with_restriction_' + '_'.join(ind_vars)
+    file_name = f'Comparing_{dep_var}_responses_with_restriction_{cond_col}' + '_'.join(ind_vars)
     if kwargs['display'] != 'scatter_binned':
         file_name += f'_{kwargs["display"]}'
 

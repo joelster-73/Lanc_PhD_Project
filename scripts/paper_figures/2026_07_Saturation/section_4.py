@@ -3,6 +3,8 @@
 Created on Wed Jul 15 17:22:14 2026
 
 @author: richarj2
+
+Geomagentic response data.
 """
 
 # %% uncertainties
