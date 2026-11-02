@@ -8,7 +8,7 @@ Created on Fri May 16 10:21:52 2025
 import matplotlib.pyplot as plt
 
 
-dark_mode  = True
+dark_mode  = False
 large_text = True
 save_fig   = True
 

@@ -9,6 +9,8 @@ import warnings
 import numpy as np
 import re
 import operator
+from pandas.api.types import is_numeric_dtype
+
 from collections import defaultdict
 
 from ....plotting.formatting import create_label, data_string
@@ -41,6 +43,18 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
 
         mask = ~df[col].isna()
 
+        if count_col is not None:
+
+            if count_col not in df:
+
+                warnings.warn(f'Column {count_col} not in dataframe.')
+
+            else:
+                min_count = minimum_sample.get(resolution, 5)
+                initial = np.sum(mask)
+                mask &= df[count_col] >= min_count
+                print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,} ({col}).')
+
         if limits is not None:
 
             if limits[0] is not None:
@@ -54,18 +68,6 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
                     mask &= ((df[col] < 0) | ((df[col] == 0) & np.signbit(df[col])))
                 else:
                     mask &= df[col] <= limits[1]
-
-        if count_col is not None:
-
-            if count_col not in df:
-
-                warnings.warn(f'Column {count_col} not in dataframe.')
-
-            else:
-                min_count = minimum_sample.get(resolution, 5)
-                initial = np.sum(mask)
-                mask &= df[count_col] >= min_count
-                print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,} ({col}).')
 
         if condition is not None:
 

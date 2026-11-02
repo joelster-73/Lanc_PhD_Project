@@ -50,6 +50,8 @@ def driver_uncertainty_stats(x, s, rel_floor=0.25, rel_cut=30):
             'sigma (p95) %':     np.percentile(rel, 95),
             f'Amount >{rel_cut}%': 100 * np.mean(rel > rel_cut)}
 
+# %% driver
+
 def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='combined', regions=('sw','msh'), bounds=None, restrict=True, **kwargs):
     """
     Absolute uncertainty on each driver against the driver (one panel per driver, one row), and a table of <sigma^2>/var(x) as a measure of the regression dilution from the measurement uncertainty.
@@ -146,6 +148,7 @@ def plot_independent_uncertainties(*ind_vars, resolution='5min', spacecraft='com
     print(table.to_string(index=False, float_format=lambda v: f'{v:.3g}'))
     return table
 
+# %% response
 
 def table_response_uncertainties(ind_vars, dep_vars, spacecraft='combined', region='sw', resolution='5min', ref=0.01, file_name=None):
     """

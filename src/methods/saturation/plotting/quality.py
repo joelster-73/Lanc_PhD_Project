@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from .utils import def_param_names, mask_df, get_variable_bin_width
+from .utils import def_param_names, mask_df, get_variable_bin_width, get_variable_range
 
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import create_label, format_comma_integers
@@ -216,20 +216,25 @@ def plot_avg_counts_grid(*spacecraft, resolution='5min', cut_off=25):
 
 # %% distributions
 
-def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=('1min','5min'), regions=('sw','msh'), restrict=False, display='lines'):
+def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=('1min','5min'), regions=('sw','msh'), restrict=False, **kwargs):
 
     suffix = ''
     if params==('data',):
         params = 'V_x_GSE', 'V_y_GSM', 'V_z_GSM', 'N_tot', 'B_x_GSE', 'B_y_GSM', 'B_z_GSM'
         suffix = '_data'
     elif params==('drivers',):
-        params = 'B_z_GSM', 'E_yz', 'E_R', 'S_x_GSE'
+        params = 'B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE'
         suffix = '_drivers'
+    # elif params==('responses',):
+    #     params = 'SME', 'SMU', 'THL', 'RES'
+    #     suffix = '_responses'
 
     n_rows = len(params)
     n_cols = len(regions)
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(12*n_cols, 4*(n_rows+1)), dpi=500, squeeze=False)
+    display = kwargs.get('display','lines')
+
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(9*n_cols, 3*(n_rows+1)), dpi=200, squeeze=False)
 
     if isinstance(spacecraft, tuple) and len(spacecraft)==len(regions): # iterate through spacecraft and regions
         enumerator = zip(spacecraft, regions)
@@ -259,35 +264,43 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
 
                 ###----------COUNTS----------###
 
-                _, ind_count = def_param_names(df, param)
-                series = mask_df(df, param, count_col=ind_count, resolution=resolution)[param] # remove avgs with low sample size
+                condition = kwargs.get('condition')
+                cond_col  = kwargs.get('cond_col')
 
-                if restrict:
-                    lower, upper = series.quantile([0.005, 0.995]) # 0.5% and 99.5%
-                    series = series[(series>=lower) & (series<=upper)]
+                if param in ('E_R', 'B_z_GSM'):
+                    #print(f'Condition doesn\'t apply to {param}.')
+                    condition = None
+
+                limits, invert = get_variable_range(param, region, restrict=restrict)
+
+                _, param_count = def_param_names(df, param)
+
+                series = mask_df(df, param, limits=limits, count_col=param_count, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert)
+
+                if invert:
+                    param = f'-{param}'
+
+                series = series[param]
 
                 bin_width = get_variable_bin_width(series, -1)
 
                 bins = calculate_bins(series, bin_width)
                 counts, _ = np.histogram(series, bins=bins)
 
-                mask = counts > 5
+                mask = counts > (10 if restrict else 100)
                 bins = bins[:-1][mask]
+                counts = counts[mask]
 
                 ###----------STYLE----------###
 
                 if display == 'bars':
                     bins += bin_width/2 # left edge is aligned with ticks
-
-                counts = counts[mask]
-
-                if display == 'bars':
                     ax.bar(bins, counts, width=bin_width, color=colour, alpha=alpha, label=resolution)
                 elif display == 'lines':
-                    ax.plot(bins, counts, color=colour, lw=3, label=resolution)
-                    ax.axvline(np.median(series), color=colour, lw=3, ls='--')
+                    ax.plot(bins, counts, marker='|', markersize=10, color=colour, lw=3, label=resolution)
+                    ax.axvline(np.median(series), color=colour, lw=1.5, ls='--')
 
-                ax.set_xlabel(create_label(param, units=df.attrs.get('units')))
+                ax.set_xlabel(create_label(param, units=series.attrs.get('units')))
                 ax.set_yscale('log')
 
                 if k==0:
@@ -305,6 +318,7 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
     file_name += ('_'.join(spacecraft) + '_') if iterable=='both' else f'_{spacecraft}_'
     file_name += '_'.join(resolutions) + suffix
     file_name += '_restricted' if restrict else ''
+    file_name += f'_condition_{cond_col}' if cond_col is not None else ''
     file_name += f'_{display}' if display != 'lines' else ''
     save_figure(fig, file_name=file_name, sub_directory='Quality', overwrite=True)
 

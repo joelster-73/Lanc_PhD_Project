@@ -7,6 +7,20 @@ Created on Wed Jul 15 17:22:14 2026
 Geomagentic response data.
 """
 
+
+# %% distributions
+
+from src.methods.saturation.plotting.quality import plot_avg_distributions
+
+
+# Don't include figure, just to discuss
+# Probably can't use this will have to creata another
+# Create one column for entire dataset then have a column for times when have sw/msh/msh20 etc. data to see sampling bias
+
+plot_avg_distributions('combined', 'responses', restrict=True)
+
+
+
 # %% uncertainties
 
 from src.methods.saturation.plotting.uncertainties import table_response_uncertainties

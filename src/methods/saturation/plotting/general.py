@@ -44,7 +44,7 @@ def plot_driver_response(ind_var, dep_var, df_sc=None, df_pc=None, spacecraft='c
 
     shift_centre = ind_var=='B_clock'
 
-    limits, invert = get_variable_range(ind_var, region, dep_var=dep_var, restrict=restrict, shift_centre=shift_centre)
+    limits, invert = get_variable_range(ind_var, region, restrict=restrict, shift_centre=shift_centre)
 
     sc_colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
 

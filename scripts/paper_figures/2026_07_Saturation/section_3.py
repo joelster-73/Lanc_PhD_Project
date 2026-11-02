@@ -21,8 +21,8 @@ plot_avg_counts_grid('cluster', 'themis', 'mms')
 # See if any spacecraft under/over compares to other
 
 plot_avg_distributions('combined', 'data')
-
-plot_avg_distributions('combined', 'drivers', restrict=True)
+plot_avg_distributions('combined', 'drivers', restrict=True) # NOTE: Conditions still show same distribution shapes for resolutions
+plot_avg_distributions('combined', 'drivers')
 
 
 plot_avg_distributions('c1', 'data')
