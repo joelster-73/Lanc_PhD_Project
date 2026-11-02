@@ -6,7 +6,7 @@ Created on Thu May  8 18:08:23 2025
 """
 import warnings
 from spacepy.pycdf import CDFWarning
-from collections import Counter
+from collections import Counter, defaultdict
 
 import pandas as pd
 from spacepy import pycdf
@@ -15,7 +15,7 @@ from contextlib import ExitStack
 from .handling import get_processed_files, get_cdf_file
 from .dataframes import set_df_indices, merge_dataframes
 
-from .omni.analysis import update_omni
+from .omni.update import update_omni
 from .mag.config import PC_STATIONS, resolutions, native_resolutions
 
 from ..config import get_proc_directory, get_data_populations
@@ -90,63 +90,36 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         cdf_files = get_processed_files(directory, year)
         cdf_file  = cdf_files[0]
 
-        try:
-            df = read_spacepy_object(cdf_files)
+        if axis==1: # merging files with different columns
+            df = read_different_structures(cdf_files, axis)
 
-        except Exception: # CDF files for different parameters
+        else:
 
-            if (source, dtype) in (('thb','sw'),) or (source, resolution) in (('omni','15min'),):
+            # Groups cdf files by their column structure
+            groups = defaultdict(list)
 
-                # (1) All of E and S were NaN when resampling for 2008
-                # (2) 2020 AE/AL/AU values NaN in 1-min/5-min, which are dropped when averaged to 15 min
+            for f in cdf_files:
+                groups[get_cdf_structure(f)].append(f)
 
-                print(f'Different file structures: {source} {dtype} {resolution} (expected).')
-
-                # Come up with way to use above method for all but bad files then append last one
-
-                dfs = [read_spacepy_object(f) for f in cdf_files]
-                df = pd.concat(dfs, axis=axis, ignore_index=True)
-                print('test1')
-                print(df)
-                attrs = {}
-                for df in dfs:
-                    for key, value in df.attrs.items():
-                        if key == 'units':
-                            attrs.setdefault('units', {}).update(value)
-                        else:
-                            attrs[key] = value
-                df.attrs = attrs
+            if len(groups) == 1:
+                df = read_spacepy_object(cdf_files)
 
             else:
-                diagnose_different_file(cdf_files, read_spacepy_object)
-                raise Exception(f'Different file structures: {source} {dtype} {resolution}.')
+
+                if not ((source, dtype) == ('thb', 'sw') or (source, resolution) == ('omni', '15min')):
+
+                    # (1) All of E and S were NaN when resampling for 2008
+                    # (2) 2020 AE/AL/AU values NaN in 1-min/5-min, which are dropped when averaged to 15 min
+
+                    diagnose_different_file(cdf_files, read_spacepy_object)
+                    raise Exception(f'Different file structures: {source} {dtype} {resolution}.')
+
+                df = read_different_structures(groups.values(), axis)
 
 
-    print('test 2')
-    print(df)
-
-    # Wrapper functions for below?
-    for column in df.columns:
-        if df.attrs.get('units',{}).get(column, '') == 'STRING':
-            df[column] = df[column].str.strip()
-        elif df.attrs.get('units',{}).get(column,'') == 'LIST':
-            str_series = df[column].str.strip()
-            df[column] = [s.split(',') for s in str_series]
-
-    with pycdf.CDF(cdf_file) as cdf:
-        crossings_attrs = {}
-        for key, value in cdf.attrs.items():
-            if 'crossings' in key:
-                number = int(key.replace('crossings_', ''))
-                crossings_attrs[number] = str(value).strip()
-            else:
-                df.attrs[key] = str(value[0]) if isinstance(value, list) and len(value) == 1 else str(value)
-
-        if crossings_attrs:
-            df.attrs['crossings'] = crossings_attrs
-
-    print('test 3')
-    print(df)
+    # Tidying up
+    split_columns(df)
+    extract_crossing_attrs(cdf_file, df)
 
     # Removes any placeholder dates
     time_col = df.attrs.get('time_col','epoch')
@@ -155,19 +128,14 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         placeholder_date = pd.Timestamp('9999-12-31 23:59:59.999')
         set_df_indices(df, time_col)  # Sets the index as datetime
 
-    print('test 4')
-    print(df)
-
     df = df.loc[~df.index.duplicated(keep='last')]
-
-    print('test 5')
-    print(df)
 
     for placeholder_date in placeholder_dates:
         df = df.mask(df == placeholder_date, pd.NaT)
 
     return df
 
+# %% wrappers
 
 def read_spacepy_object(file_paths):
 
@@ -197,26 +165,70 @@ def read_spacepy_object(file_paths):
 
     return df
 
+def read_different_structures(cdf_files, axis):
+    """
+    When CDF files are expected to have different structures, this reads each file as a separate object and concats.
+    """
+
+    dfs = [read_spacepy_object(f) for f in cdf_files]
+
+    df = pd.concat(dfs, axis=axis, ignore_index=(axis==0))
+
+    attrs = {}
+    for df_file in dfs:
+        for key, value in df_file.attrs.items():
+            if key == 'units':
+                attrs.setdefault('units', {}).update(value)
+            else:
+                attrs[key] = value
+
+    df.attrs = attrs
+
+    return df
+
+# %% misc
+
+def get_cdf_structure(file):
+    with pycdf.CDF(file) as cdf:
+        return frozenset(cdf.keys())
 
 def diagnose_different_file(files, read_func):
-    """Print files whose columns differ from the most common structure."""
+    """
+    Print files with columns that are different to the rest.
+    """
     dfs = [(f, read_func(f)) for f in files]
-
-    structures = Counter(
-        frozenset(df.columns) for _, df in dfs
-    )
+    structures = Counter(frozenset(df.columns) for _, df in dfs)
     expected = structures.most_common(1)[0][0]
-
-    different = False
 
     for f, df in dfs:
         cols = set(df.columns)
-
         if cols != expected:
-            different = True
-            print(f"\nDifferent structure in file: {f}")
-            print(f"Missing columns: {expected - cols}")
-            print(f"Extra columns:   {cols - expected}")
+            print(f'\nDifferent structure in file: {f}')
+            print(f'Missing columns: {expected - cols}')
+            print(f'Extra columns:   {cols - expected}')
 
-    if not different:
-        print("All files have the same columns.")
+
+def split_columns(df):
+
+    for column in df.columns:
+
+        if df.attrs.get('units',{}).get(column, '') == 'STRING':
+            df[column] = df[column].str.strip()
+        elif df.attrs.get('units',{}).get(column,'') == 'LIST':
+            str_series = df[column].str.strip()
+            df[column] = [s.split(',') for s in str_series]
+
+
+def extract_crossing_attrs(cdf_file, df):
+
+    with pycdf.CDF(cdf_file) as cdf:
+        crossings_attrs = {}
+        for key, value in cdf.attrs.items():
+            if 'crossings' in key:
+                number = int(key.replace('crossings_', ''))
+                crossings_attrs[number] = str(value).strip()
+            else:
+                df.attrs[key] = str(value[0]) if isinstance(value, list) and len(value) == 1 else str(value)
+
+        if crossings_attrs:
+            df.attrs['crossings'] = crossings_attrs

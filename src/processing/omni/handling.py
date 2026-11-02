@@ -21,6 +21,7 @@ from ...config import get_luna_directory, get_proc_directory
 
 from ...z_archive.processing_omni_handling import extract_omni_data_old
 
+
 def process_omni_files(resolution='1min', year=None, overwrite=True, ext='lst'):
 
     print('Processing OMNI.\n')
@@ -199,4 +200,5 @@ def resample_omni_files(raw_res='1min', sample_intervals=('15min',), time_col='e
 
             attributes = {'sample_interval': sample_interval}
             write_to_cdf(sampled_df, directory=samp_dir, file_name=f'{dir_name}_{files_year}', attributes=attributes, reset_index=True)
+
 

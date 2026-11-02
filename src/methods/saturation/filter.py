@@ -49,9 +49,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
 
     populations = get_data_populations(sc, data_pop, region)
 
-    df_sc = import_processed_spacecraft(sc, populations, resolution)
-    print(df_sc)
-
+    df_sc   = import_processed_spacecraft(sc, populations, resolution)
     length0 = len(df_sc)
 
     if df_omni is None:
@@ -63,7 +61,6 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     df_merged = merge_dataframes(df_omni, df_sc, suffices=('sw', sc))
 
     length1 = len(df_merged)
-    print(df_merged)
 
     ###----------FILTERING----------###
 
@@ -147,7 +144,6 @@ def filter_region(df, sc, region, params={}):
         default_params[reg].update(vals)
 
     df = df.loc[df[f'r_x_GSE_{sc}']>0].copy()
-    print(df)
 
     spacecraft_distance(df, f'_{sc}')
 
@@ -167,7 +163,7 @@ def filter_region(df, sc, region, params={}):
 
     elif region=='msh':
 
-        df = calc_msh_dist(df, position_key=sc, data_key='sw', inplace=True)
+        calc_msh_dist(df, position_key=sc, data_key='sw', inplace=True)
 
         # Region Filtering
 
@@ -180,7 +176,7 @@ def filter_region(df, sc, region, params={}):
         mask &= (df[f'N_tot_{sc}'] >= ntot)
 
         if buffer=='relative':
-            mask &= (df['r_F'] > rFmin) & (df['r_F'] < rFmax) # tweak based on comparison with Toy-Edens
+            mask &= (df[f'r_F_{sc}'] > rFmin) & (df[f'r_F_{sc}'] < rFmax) # tweak based on comparison with Toy-Edens
         # elif buffer=='absolute':
         #     mask &= (df_merged[f'r_mag_{sc}'] > df_merged['r_MP'] + rFmin) & (df_merged[f'r_mag_{sc}'] < df_merged['r_BS'] - rFmax)
 

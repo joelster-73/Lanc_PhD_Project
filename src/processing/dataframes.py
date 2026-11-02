@@ -17,56 +17,11 @@ def add_df_units(df):
         unit_attrs[column] = add_unit(column)
     df.attrs['units'] = unit_attrs
 
-def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False, how='inner'):
-
-    if len(dfs) < 2:
-        raise ValueError('At least two dataframes are required.')
-
-    if suffices is None:
-        suffices = [None] * len(dfs)
-
-    if len(suffices) != len(dfs):
-        raise ValueError('suffixes length must match number of dataframes.')
-
-    if all(s is None for s in suffices):
-        warnings.warn('All suffices for merge are None; column collisions may occur.')
-
-    relabelled = [relabel_columns(df, suf) for df, suf in zip(dfs, suffices)]
-
-    if print_info:
-        for i, df in enumerate(relabelled, 1):
-            print(f'Length of df{i}: {len(df):,}')
-
-    merged = relabelled[0]
-    for df in relabelled[1:]:
-        merged = merged.merge(df, left_index=True, right_index=True, how=how)
-
-    merged.attrs = {}
-
-    for df in relabelled:
-        for k, v in df.attrs.items():
-            if k != 'units':
-                merged.attrs[k] = v
-
-    merged.attrs['units'] = {}
-    for df in relabelled:
-        merged.attrs['units'].update(df.attrs.get('units', {}))
-
-    if clean:
-        merged = merged.dropna(how='all')
-
-    if print_info:
-        print(f'Length of merged df: {len(merged):,}\n')
-
-    return merged
-
 def rename_columns(df, column_map):
-
     """
     Renames columns and the units in the attributes
     Works inplace
     """
-
     rename_map = {col: column_map[key] + col[len(key):] for col in df.columns for key in column_map if col.startswith(key)}
     df.rename(columns=rename_map, inplace=True)
 
@@ -111,6 +66,65 @@ def interpolate_missing(df, max_gap=pd.Timedelta('1h')):
     fillable = df.notna() | gap.le(max_gap)
 
     return interpolated.where(fillable)
+
+def set_df_indices(df, time_col):
+
+    # Converts epoch time to datetimes
+    if time_col not in df:
+        raise Exception(f'"{time_col}" not in df.')
+    try:
+        df[time_col] = cdf_epoch_to_datetime(df[time_col])
+    except:
+        print('Data already in datetime format')
+
+    df[time_col] = pd.to_datetime(df[time_col])
+    df.set_index(time_col, inplace=True)  # Set 'time_col' as the index
+    df.sort_index(inplace=True) # Important for when concat structures
+
+# %% merge
+
+def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False, how='inner'):
+
+    if len(dfs) < 2:
+        raise ValueError('At least two dataframes are required.')
+
+    if suffices is None:
+        suffices = [None] * len(dfs)
+
+    if len(suffices) != len(dfs):
+        raise ValueError('suffixes length must match number of dataframes.')
+
+    if all(s is None for s in suffices):
+        warnings.warn('All suffices for merge are None; column collisions may occur.')
+
+    relabelled = [relabel_columns(df, suf) for df, suf in zip(dfs, suffices)]
+
+    if print_info:
+        for i, df in enumerate(relabelled, 1):
+            print(f'Length of df{i}: {len(df):,}')
+
+    merged = relabelled[0]
+    for df in relabelled[1:]:
+        merged = merged.merge(df, left_index=True, right_index=True, how=how)
+
+    merged.attrs = {}
+
+    for df in relabelled:
+        for k, v in df.attrs.items():
+            if k != 'units':
+                merged.attrs[k] = v
+
+    merged.attrs['units'] = {}
+    for df in relabelled:
+        merged.attrs['units'].update(df.attrs.get('units', {}))
+
+    if clean:
+        merged = merged.dropna(how='all')
+
+    if print_info:
+        print(f'Length of merged df: {len(merged):,}\n')
+
+    return merged
 
 # %% resampling
 
@@ -432,6 +446,56 @@ def grouped_circular_mean(grouped, angular_columns):
 
     return mean, sem, count
 
+# %% utils
+
+def replace_inf(df, replace_large=False, threshold=1e28):
+    # Replace infinities with NaN, without using inplace=True
+    df = df.replace([np.inf, -np.inf], np.nan)
+
+    if replace_large:
+        numeric_cols = df.select_dtypes(include=[np.number])
+
+        mask = np.abs(numeric_cols) > threshold
+        df.loc[mask.index, mask.columns] = numeric_cols.where(~mask)
+
+    return df
+
+def safe_nominals(arr):
+    if len(arr) == 0:  # empty list
+        return [np.nan, np.nan, np.nan]
+    else:
+        return unp.nominal_values(arr)
+
+def safe_stddevs(arr):
+    if len(arr) == 0:  # empty list
+        return [np.nan, np.nan, np.nan]
+    else:
+        return unp.std_devs(arr)
+
+def next_index(df, index):
+    if index in df.index:
+        idx_position = df.index.get_loc(index)
+        if idx_position + 1 < len(df):
+            return df.index[idx_position + 1]
+
+    return None
+
+def previous_index(df, index):
+    if index in df.index:
+        idx_position = df.index.get_loc(index)
+        if idx_position > 0:
+            return df.index[idx_position - 1]
+
+    return None
+
+def print_dataframe(df, nrows=5, location='head'):
+
+    with pd.option_context('display.max_columns', None,'display.width', None,'display.max_colwidth', None,'display.max_rows', None):
+        if location in ('head','both'):
+            print(df.head(nrows))
+        if location in ('tail','both'):
+            print(df.tail(nrows))
+
 # %% weighted
 def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns_to_skip=SKIP_COLUMNS):
 
@@ -564,66 +628,3 @@ def resample_data_weighted(df, time_col='epoch', sample_interval='1min', columns
 
     return resampled_df
 
-# %% utils
-
-def replace_inf(df, replace_large=False, threshold=1e28):
-    # Replace infinities with NaN, without using inplace=True
-    df = df.replace([np.inf, -np.inf], np.nan)
-
-    if replace_large:
-        numeric_cols = df.select_dtypes(include=[np.number])
-
-        mask = np.abs(numeric_cols) > threshold
-        df.loc[mask.index, mask.columns] = numeric_cols.where(~mask)
-
-    return df
-
-def safe_nominals(arr):
-    if len(arr) == 0:  # empty list
-        return [np.nan, np.nan, np.nan]
-    else:
-        return unp.nominal_values(arr)
-
-def safe_stddevs(arr):
-    if len(arr) == 0:  # empty list
-        return [np.nan, np.nan, np.nan]
-    else:
-        return unp.std_devs(arr)
-
-def set_df_indices(df, time_col):
-
-    # Converts epoch time to datetimes
-    if time_col not in df:
-        raise Exception(f'"{time_col}" not in df.')
-    try:
-        df[time_col] = cdf_epoch_to_datetime(df[time_col])
-    except:
-        print('Data already in datetime format')
-
-    df[time_col] = pd.to_datetime(df[time_col])
-    df.set_index(time_col, inplace=True)  # Set 'time_col' as the index
-
-
-def next_index(df, index):
-    if index in df.index:
-        idx_position = df.index.get_loc(index)
-        if idx_position + 1 < len(df):
-            return df.index[idx_position + 1]
-
-    return None
-
-def previous_index(df, index):
-    if index in df.index:
-        idx_position = df.index.get_loc(index)
-        if idx_position > 0:
-            return df.index[idx_position - 1]
-
-    return None
-
-def print_dataframe(df, nrows=5, location='head'):
-
-    with pd.option_context('display.max_columns', None,'display.width', None,'display.max_colwidth', None,'display.max_rows', None):
-        if location in ('head','both'):
-            print(df.head(nrows))
-        if location in ('tail','both'):
-            print(df.tail(nrows))

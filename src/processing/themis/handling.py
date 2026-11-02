@@ -93,7 +93,7 @@ def get_themis_files(directory=None, year=None, start_year=None):
         for cdf_file in sorted(glob.glob(pattern)):
             files.append(cdf_file)
 
-        files_by_year[int(year_folder)] = files
+        files_by_year[int(year_folder)] = select_latest_versions(files)
 
     if year and str(year) not in files_by_year:
         raise ValueError(f'No files found for {year}.')
@@ -104,6 +104,25 @@ def get_themis_files(directory=None, year=None, start_year=None):
 
     return files_by_year
 
+def select_latest_versions(files):
+    file_map = {}
+
+    for file in files:
+        # Extract the date and version from the filename (e.g., "tha_l1_state_20160506_v01.cdf")
+        filename = os.path.basename(file)
+        match = re.search(r'_(\d{8})_v(\d{2})\.cdf$', filename)
+        if not match:
+            continue  # Skip files that don't match the expected pattern
+
+        date = match.group(1)
+        version = int(match.group(2))
+
+        # Keep only the latest version for each date
+        if date not in file_map or version > file_map[date][1]:
+            file_map[date] = (file, version)
+
+    # Extract only the file paths
+    return [file_version[0] for file_version in file_map.values()]
 
 def extract_themis_data(cdf_file, variables):
 
@@ -163,25 +182,6 @@ def extract_themis_data(cdf_file, variables):
 
     return info_dict, flag_dict
 
-def select_latest_versions(files):
-    file_map = {}
-
-    for file in files:
-        # Extract the date and version from the filename (e.g., "tha_l1_state_20160506_v01.cdf")
-        filename = os.path.basename(file)
-        match = re.search(r'_(\d{8})_v(\d{2})\.cdf$', filename)
-        if not match:
-            continue  # Skip files that don't match the expected pattern
-
-        date = match.group(1)
-        version = int(match.group(2))
-
-        # Keep only the latest version for each date
-        if date not in file_map or version > file_map[date][1]:
-            file_map[date] = (file, version)
-
-    # Extract only the file paths
-    return [file_version[0] for file_version in file_map.values()]
 
 # %% Process
 

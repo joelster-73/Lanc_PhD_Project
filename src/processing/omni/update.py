@@ -16,7 +16,6 @@ from .config import indices_columns
 from ...coordinates.magnetic import calc_GSE_to_GSM_angles
 from ...analysing.calculations import calc_angle_between_vecs
 
-
 def calc_omni_uncertainty(df_omni, column, dt_err_col='rms_timeshift'):
     """
     Estimate the uncertainty on a column in df_omni due to uncertainty in the applied time shift:

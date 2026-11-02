@@ -18,21 +18,22 @@ print('REMINDER: check if any files aren\'t the same data structure - suggests d
 resolutions = ('1min', '5min', '15min')
 regions     = ('sw', 'msh') # msh20
 
-resolutions = ('15min',)
-regions = ('sw', 'msh')
-
 for resolution in resolutions:
 
     df_omni = import_processed_omni(resolution=resolution) ## issue with importing 15 min OMNI
 
-    break
-
     for region in regions:
+
+        if region!='sw':
+            continue
 
         direc = get_proc_directory(region, dtype='plasma', resolution=resolution, create=True, empty=False)
         create_log_file('Filtering_Information.txt', overwrite=True, direc=direc)
 
         for spacecraft in filter_spacecraft.get(region):
+
+            if spacecraft!='thb':
+                continue
 
             filter_sc_region(spacecraft, region, data_pop='plasma', resolution=resolution, df_omni=df_omni, test_return=False)
 
