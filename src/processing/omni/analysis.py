@@ -6,6 +6,7 @@ Created on Sat Jul 18 11:37:36 2026
 """
 
 import numpy as np
+import itertools as it
 
 from scipy.constants import m_p, physical_constants
 m_a = physical_constants['alpha particle mass'][0]
@@ -61,4 +62,7 @@ def update_omni(df, drop_cols=indices_columns):
     df['gse_to_gsm_angle'] = calc_GSE_to_GSM_angles(df, ref='B')
 
     # Drop index columns
-    df.drop(columns=drop_cols,inplace=True,errors='ignore')
+    columns_to_drop = list(indices_columns)
+    columns_to_drop += [f'{col}_{suff}' for col, suff in it.product(indices_columns, ('unc','count')) if f'{col}_{suff}' in df]
+
+    df.drop(columns=columns_to_drop, inplace=True)

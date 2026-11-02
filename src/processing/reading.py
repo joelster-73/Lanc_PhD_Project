@@ -102,8 +102,12 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
 
                 print(f'Different file structures: {source} {dtype} {resolution} (expected).')
 
+                # Come up with way to use above method for all but bad files then append last one
+
                 dfs = [read_spacepy_object(f) for f in cdf_files]
-                df = pd.concat(dfs, axis=axis)
+                df = pd.concat(dfs, axis=axis, ignore_index=True)
+                print('test1')
+                print(df)
                 attrs = {}
                 for df in dfs:
                     for key, value in df.attrs.items():
@@ -118,8 +122,10 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
                 raise Exception(f'Different file structures: {source} {dtype} {resolution}.')
 
 
-    ### Check the order of the statements below, particularly regarding attributes
+    print('test 2')
+    print(df)
 
+    # Wrapper functions for below?
     for column in df.columns:
         if df.attrs.get('units',{}).get(column, '') == 'STRING':
             df[column] = df[column].str.strip()
@@ -139,6 +145,9 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         if crossings_attrs:
             df.attrs['crossings'] = crossings_attrs
 
+    print('test 3')
+    print(df)
+
     # Removes any placeholder dates
     time_col = df.attrs.get('time_col','epoch')
     placeholder_dates = [pd.Timestamp('9999-12-31 23:59:59.999'),pd.Timestamp('9999-12-31 23:59:59.998')]
@@ -146,7 +155,13 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
         placeholder_date = pd.Timestamp('9999-12-31 23:59:59.999')
         set_df_indices(df, time_col)  # Sets the index as datetime
 
+    print('test 4')
+    print(df)
+
     df = df.loc[~df.index.duplicated(keep='last')]
+
+    print('test 5')
+    print(df)
 
     for placeholder_date in placeholder_dates:
         df = df.mask(df == placeholder_date, pd.NaT)

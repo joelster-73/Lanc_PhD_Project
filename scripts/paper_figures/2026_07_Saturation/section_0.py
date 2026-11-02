@@ -15,16 +15,21 @@ from src.config import get_proc_directory
 
 print('REMINDER: check if any files aren\'t the same data structure - suggests data folders contain files that are outdated.')
 
-resolutions = ('1min', '5min') # 15min
+resolutions = ('1min', '5min', '15min')
 regions     = ('sw', 'msh') # msh20
+
+resolutions = ('15min',)
+regions = ('sw', 'msh')
 
 for resolution in resolutions:
 
-    df_omni = import_processed_omni(resolution=resolution)
+    df_omni = import_processed_omni(resolution=resolution) ## issue with importing 15 min OMNI
 
-    for region in regions: # excluding msh20 for now
+    break
 
-        direc = get_proc_directory(region, dtype='plasma', resolution=resolution, create=False, empty=False)
+    for region in regions:
+
+        direc = get_proc_directory(region, dtype='plasma', resolution=resolution, create=True, empty=False)
         create_log_file('Filtering_Information.txt', overwrite=True, direc=direc)
 
         for spacecraft in filter_spacecraft.get(region):

@@ -50,6 +50,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     populations = get_data_populations(sc, data_pop, region)
 
     df_sc = import_processed_spacecraft(sc, populations, resolution)
+    print(df_sc)
 
     length0 = len(df_sc)
 
@@ -62,6 +63,7 @@ def filter_sc_region(sc, region, data_pop='plasma', resolution='5min', df_omni=N
     df_merged = merge_dataframes(df_omni, df_sc, suffices=('sw', sc))
 
     length1 = len(df_merged)
+    print(df_merged)
 
     ###----------FILTERING----------###
 
@@ -145,6 +147,7 @@ def filter_region(df, sc, region, params={}):
         default_params[reg].update(vals)
 
     df = df.loc[df[f'r_x_GSE_{sc}']>0].copy()
+    print(df)
 
     spacecraft_distance(df, f'_{sc}')
 
@@ -164,8 +167,7 @@ def filter_region(df, sc, region, params={}):
 
     elif region=='msh':
 
-        df_positions = calc_msh_dist(df, position_key=sc, data_key='sw')
-        df           = pd.concat([df, df_positions[pos_cols]], axis=1)
+        df = calc_msh_dist(df, position_key=sc, data_key='sw', inplace=True)
 
         # Region Filtering
 
