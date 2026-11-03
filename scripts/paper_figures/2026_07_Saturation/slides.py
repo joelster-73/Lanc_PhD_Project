@@ -70,8 +70,3 @@ plot_compare_regions(('E_yz',), ('SME',), spacecraft='combined', regions=('sw','
 
 plot_compare_regions(('S_x_GSE',), ('SME',), spacecraft='combined', regions=('sw','msh'), fit_type='saturation', iterations=2500, condition='<0', cond_col='B_z_GSM', second_x=True)
 
-
-plot_compare_regions(('E_yz',), ('SME',), spacecraft='combined', regions=('sw','msh'), fit_type='saturation', iterations=2500, condition='sine', cond_col='B_clock', second_x=True)
-
-plot_compare_regions(('S_x_GSE',), ('SME',), spacecraft='combined', regions=('sw','msh'), fit_type='saturation', iterations=2500, condition='sine', cond_col='B_clock', second_x=True)
-

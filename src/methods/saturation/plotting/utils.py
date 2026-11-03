@@ -9,7 +9,6 @@ import warnings
 import numpy as np
 import re
 import operator
-from pandas.api.types import is_numeric_dtype
 
 from collections import defaultdict
 
@@ -39,22 +38,12 @@ def shift_angular_data(df, *cols, inplace=True):
     if not inplace:
         return df
 
-def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=None, cond_col=None, invert=False):
+def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=None, cond_col=None, invert=False, print_info=False):
 
         mask = ~df[col].isna()
+        non_nan = np.sum(mask)
 
-        if count_col is not None:
-
-            if count_col not in df:
-
-                warnings.warn(f'Column {count_col} not in dataframe.')
-
-            else:
-                min_count = minimum_sample.get(resolution, 5)
-                initial = np.sum(mask)
-                mask &= df[count_col] >= min_count
-                print(f'Removing low counts (below {min_count}); removed {initial-np.sum(mask):,} ({col}).')
-
+        # Restrict between limits
         if limits is not None:
 
             if limits[0] is not None:
@@ -63,12 +52,31 @@ def mask_df(df, col, limits=None, count_col=None, resolution='1min', condition=N
                 else:
                     mask &= df[col] >= limits[0]
 
-            if limits[-1] is not None:
+            if limits[1] is not None:
                 if limits[1]==0:
                     mask &= ((df[col] < 0) | ((df[col] == 0) & np.signbit(df[col])))
                 else:
                     mask &= df[col] <= limits[1]
 
+        # Remove low counts
+        if count_col is not None:
+
+            if count_col not in df:
+
+                warnings.warn(f'Column {count_col} not in dataframe.')
+
+            else:
+                min_count = minimum_sample.get(resolution, 5)
+                with_limits = np.sum(mask)
+                mask &= df[count_col] >= min_count
+                if print_info:
+                    retained = np.sum(mask)
+                    print(f'\nRemoving low counts (below {min_count}) for {col}:')
+                    print(f'\tOf all data:   removed {non_nan-retained:,} rows | {(1-retained/non_nan)*100:.3g} %')
+                    if limits is not None:
+                        print(f'\tWithin limits: removed {with_limits-retained:,} rows | {(1-retained/with_limits)*100:.3g} %')
+
+        # Apply condition
         if condition is not None:
 
             cond_col = col if cond_col is None else cond_col
@@ -239,9 +247,10 @@ def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
 
         upper_limits = {'V_flow': 1000, 'V_A': 200, 'P_': 10, 'M_A': 50, 'beta': 30,
                         'B_avg' : 15, 'B_para': 80, 'B_y': 25,
-                        'E_'    : defaultdict(lambda: 14, {'sw': 12}),
-                        'B_z'   : defaultdict(lambda: -100, {'sw': -40}),
-                        'S_x'   : defaultdict(lambda: -300, {'sw': -100}),
+                        'E_R'    : defaultdict(lambda: 8, {'sw': 10}),
+                        'E_'    : defaultdict(lambda: 8, {'sw': 8}),
+                        'B_z'   : defaultdict(lambda: -52, {'sw': -12}),
+                        'S_x'   : defaultdict(lambda: -360, {'sw': -120}),
                         'N_'    : defaultdict(lambda: 150, {'sw': 25}),
                         'T_'    : defaultdict(lambda: 5, {'sw': 2}), # MK; Up to ~0.2keV in the sw (1eV = 11.604525 MK)
                         }
@@ -261,6 +270,16 @@ def get_var_limits(var, region, restrict=True, bounds=None, shift_centre=True):
 
     return limits
 
+
+# Copy below
+# old_upper_limits = {'V_flow': 1000, 'V_A': 200, 'P_': 10, 'M_A': 50, 'beta': 30,
+#                 'B_avg' : 15, 'B_para': 80, 'B_y': 25,
+#                 'E_'    : defaultdict(lambda: 14, {'sw': 12}),
+#                 'B_z'   : defaultdict(lambda: -100, {'sw': -40}),
+#                 'S_x'   : defaultdict(lambda: -300, {'sw': -100}),
+#                 'N_'    : defaultdict(lambda: 150, {'sw': 25}),
+#                 'T_'    : defaultdict(lambda: 5, {'sw': 2}), # MK; Up to ~0.2keV in the sw (1eV = 11.604525 MK)
+#                 }
 # %% parameters
 
 def grp_param_splitting(df, grp_var, grp_param, grp_unit, **kwargs):

@@ -24,16 +24,10 @@ for resolution in resolutions:
 
     for region in regions:
 
-        if region!='sw':
-            continue
-
         direc = get_proc_directory(region, dtype='plasma', resolution=resolution, create=True, empty=False)
         create_log_file('Filtering_Information.txt', overwrite=True, direc=direc)
 
         for spacecraft in filter_spacecraft.get(region):
-
-            if spacecraft!='thb':
-                continue
 
             filter_sc_region(spacecraft, region, data_pop='plasma', resolution=resolution, df_omni=df_omni, test_return=False)
 

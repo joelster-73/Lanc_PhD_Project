@@ -13,7 +13,7 @@ from .utils import def_param_names, mask_df, get_variable_bin_width, get_variabl
 
 from ....plotting.utils import save_figure, calculate_bins
 from ....plotting.formatting import create_label, format_comma_integers
-from ....plotting.config import blue, black, white, red, green
+from ....plotting.config import blue, black, white, red, green, grey
 
 from ....processing.reading import import_processed_data
 from ....config import INSTRUMENTS, CONSTELLATION, SPACECRAFT, THEMIS_REGIONS
@@ -213,7 +213,33 @@ def plot_avg_counts_grid(*spacecraft, resolution='5min', cut_off=25):
     plt.show()
     plt.close()
 
+def check_removed_counts(spacecraft, *params, data_pop='plasma', resolution='5min', region='sw', restrict=False, **kwargs):
 
+    if params==('data',):
+        params = 'V_x_GSE', 'V_y_GSM', 'V_z_GSM', 'N_tot', 'B_x_GSE', 'B_y_GSM', 'B_z_GSM'
+    elif params==('drivers',):
+        params = 'B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE'
+
+    df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{spacecraft}')
+
+    for param in params:
+
+        ###----------COUNTS----------###
+
+        condition = kwargs.get('condition')
+        cond_col  = kwargs.get('cond_col')
+
+        if param in ('E_R', 'B_z_GSM'):
+            #print(f'Condition doesn\'t apply to {param}.')
+            condition = None
+
+        limits, invert = get_variable_range(param, region, restrict=restrict)
+
+        _, param_count = def_param_names(df, param)
+
+        _ = mask_df(df, param, limits=limits, count_col=param_count, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert)
+
+    return
 # %% distributions
 
 def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=('1min','5min'), regions=('sw','msh'), restrict=False, **kwargs):
@@ -243,6 +269,8 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
         enumerator = regions
         iterable = 'region'
 
+    colours = (black, grey) # allows three resolutions
+
     for i, enum in enumerate(enumerator): # column
 
         if iterable=='region':
@@ -254,7 +282,10 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
 
         region_colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
 
-        for j, (resolution, colour, alpha) in enumerate(zip(resolutions,(black,region_colour),(0.7,0.8))): # dataset
+        for j, resolution in enumerate(resolutions): # dataset
+
+            alpha = min((7+j)*0.1,1)
+            colour = region_colour if j==len(resolutions)-1 else colours[j]
 
             df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
 
@@ -297,7 +328,7 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
                     bins += bin_width/2 # left edge is aligned with ticks
                     ax.bar(bins, counts, width=bin_width, color=colour, alpha=alpha, label=resolution)
                 elif display == 'lines':
-                    ax.plot(bins, counts, marker='|', markersize=10, color=colour, lw=3, label=resolution)
+                    ax.plot(bins, counts, marker='2', markersize=10, color=colour, lw=3, label=resolution)
                     ax.axvline(np.median(series), color=colour, lw=1.5, ls='--')
 
                 ax.set_xlabel(create_label(param, units=series.attrs.get('units')))
@@ -315,7 +346,7 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
 
     plt.tight_layout()
     file_name  = 'Compare_distributions_'
-    file_name += ('_'.join(spacecraft) + '_') if iterable=='both' else f'_{spacecraft}_'
+    file_name += ('_'.join(spacecraft) + '_') if iterable=='both' else spacecraft
     file_name += '_'.join(resolutions) + suffix
     file_name += '_restricted' if restrict else ''
     file_name += f'_condition_{cond_col}' if cond_col is not None else ''
@@ -325,3 +356,119 @@ def plot_avg_distributions(spacecraft, *params, data_pop='plasma', resolutions=(
     plt.show()
     plt.close()
 
+# %% counts
+
+def plot_remove_low_counts(spacecraft, *params, data_pop='plasma', resolution='5min', regions=('sw','msh'), restrict=False, **kwargs):
+    """
+    Plotting for a resolution the distribution within the limits with and without removing low counts, for whether it's uniform or is weighted towards a tail.
+    """
+
+    suffix = ''
+    if params==('data',):
+        params = 'V_x_GSE', 'V_y_GSM', 'V_z_GSM', 'N_tot', 'B_x_GSE', 'B_y_GSM', 'B_z_GSM'
+        suffix = '_data'
+    elif params==('drivers',):
+        params = 'B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE'
+        suffix = '_drivers'
+    # elif params==('responses',):
+    #     params = 'SME', 'SMU', 'THL', 'RES'
+    #     suffix = '_responses'
+
+    n_rows = len(params)
+    n_cols = len(regions)
+
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(9*n_cols, 3*(n_rows+1)), dpi=200, squeeze=False)
+
+    if isinstance(spacecraft, tuple) and len(spacecraft)==len(regions): # iterate through spacecraft and regions
+        enumerator = zip(spacecraft, regions)
+        iterable = 'both'
+    else:
+        enumerator = regions
+        iterable = 'region'
+
+    for i, enum in enumerate(enumerator): # column
+
+        if iterable=='region':
+            region = enum
+            sc = spacecraft
+
+        elif iterable =='both':
+            sc, region = enum
+
+        region_colour = {'sw': blue, 'msh': red, 'msh20': green}.get(region)
+
+        df = import_processed_data(region, dtype=data_pop, resolution=resolution, file_name=f'{region}_times_{sc}')
+
+        for j, param in enumerate(params):
+
+            ax = axs[j][i]
+
+            limits, invert = get_variable_range(param, region, restrict=restrict)
+            _, param_count = def_param_names(df, param)
+
+            ###----------COUNTS----------###
+
+            condition = kwargs.get('condition')
+            cond_col  = kwargs.get('cond_col')
+
+            if param in ('E_R', 'B_z_GSM'):
+                #print(f'Condition doesn\'t apply to {param}.')
+                condition = None
+
+            counts_dict = {}
+            lengths     = {}
+            og_param = param
+            param = f'-{param}' if invert else og_param
+
+            for label in ('with','without'):
+
+                count_col = param_count if label=='without' else None
+
+                series = mask_df(df, og_param, limits=limits, count_col=count_col, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert, print_info=True)
+
+                series = series[param]
+
+                bin_width = get_variable_bin_width(series, -1)
+
+                bins = calculate_bins(series, bin_width)
+                counts, _ = np.histogram(series, bins=bins)
+
+                mask = counts > (10 if restrict else 100)
+                bins = bins[:-1][mask]
+                counts = counts[mask]
+
+                counts_dict[label] = counts
+                lengths[label] = len(series)
+
+            changes = (1-counts_dict['without']/counts_dict['with'])*100
+            full = (1-lengths['without']/lengths['with'])*100
+            ###----------STYLE----------###
+
+            ax.plot(bins, changes, marker='2', markersize=10, color=region_colour, lw=3)
+            ax.axhline(full, ls='--', label=f'{full:.3g} %')
+
+            ax.set_xlabel(create_label(param, units=series.attrs.get('units')))
+            if i==0 and j==0:
+                ax.set_ylabel('Removed [%]')
+
+            title = None
+            if j==0:
+                title = region if sc=='combined' else f'{sc} {region}'
+            ax.legend(title=title, loc='upper left')
+
+            del series, counts, bins
+
+    ###----------FORMATTING----------###
+
+    fig.align_ylabels(axs[:,0])
+
+    plt.tight_layout()
+    file_name  = 'Removing_low_counts_'
+    file_name += ('_'.join(spacecraft) + '_') if iterable=='both' else spacecraft
+    file_name += f'_{resolution}{suffix}'
+    file_name += '_restricted' if restrict else ''
+    file_name += f'_condition_{cond_col}' if cond_col is not None else ''
+    save_figure(fig, file_name=file_name, sub_directory='Quality', overwrite=True)
+
+    plt.show()
+    plt.close()

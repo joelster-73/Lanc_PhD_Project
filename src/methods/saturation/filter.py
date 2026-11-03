@@ -7,7 +7,6 @@ Created on Tue Jul 28 15:52:33 2026
 
 import os
 import numpy as np
-import pandas as pd
 
 from scipy.constants import physical_constants
 m_a = physical_constants['alpha particle mass'][0]

@@ -25,7 +25,9 @@ plot_avg_distributions('combined', 'responses', restrict=True)
 
 from src.methods.saturation.plotting.uncertainties import table_response_uncertainties
 
-# Include as one combined table, think about how to combine into text file such that it can be loaded and formatted in overleaf
+# Create a figure like the driver uncertainties one, to aid with description
+
+# Include as one combined table
 
 _, df_sw = table_response_uncertainties(('B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE'), ('SME', 'SMU', 'THL', 'RES'), region='sw')
 _, df_msh = table_response_uncertainties(('B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE'), ('SME', 'SMU', 'THL', 'RES'), region='msh')

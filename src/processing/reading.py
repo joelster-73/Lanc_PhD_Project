@@ -116,7 +116,6 @@ def import_processed_data(source, dtype=' ', resolution=' ', file_name=None, yea
 
                 df = read_different_structures(groups.values(), axis)
 
-
     # Tidying up
     split_columns(df)
     extract_crossing_attrs(cdf_file, df)

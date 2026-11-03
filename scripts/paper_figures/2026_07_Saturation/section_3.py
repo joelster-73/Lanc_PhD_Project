@@ -7,88 +7,97 @@ Created on Thu Aug 28 12:29:26 2025
 Spacecraft data.
 """
 
-# %% averaging
-
-from src.methods.saturation.plotting.quality import plot_avg_counts_grid, plot_avg_distributions
-
-# Describe in manuscript but don't include
-
-plot_avg_counts_grid('cluster', 'themis', 'mms')
-
-# Include unrestricted figure
-# Point is to say whether averaging affects distribution; it doesn't
-# Not imposing restrictions as only fitting to a certain x range
-# See if any spacecraft under/over compares to other
-
-plot_avg_distributions('combined', 'data')
-plot_avg_distributions('combined', 'drivers', restrict=True) # NOTE: Conditions still show same distribution shapes for resolutions
-plot_avg_distributions('combined', 'drivers')
-
-
-plot_avg_distributions('c1', 'data')
-
-plot_avg_distributions('c3', 'data')
-
-plot_avg_distributions('mms1', 'data')
-
-plot_avg_distributions(('tha','thd','the'), 'data', regions=('msh','msh','msh'))
-
-plot_avg_distributions(('thb','thc'), 'data', regions=('sw','sw'))
-
-
-
-
-# %% sensitivity
-
-# Add plots that are to show sensitivty to filtering parameters
-# Won't include, perhaps in appendix, but need to say they're not sensitive
-# All in the `calibration.py' file
-
 # %% uncertainties
 
-from src.methods.saturation.plotting.quality import plot_independent_uncertainties
+from src.methods.saturation.plotting.uncertainties import plot_independent_uncertainties
 
 _ = plot_independent_uncertainties('B_z_GSM', 'E_R', 'E_yz', 'S_x_GSE', regions=('sw','msh'))
 
 
+# %% summary
 
-# %% inventory
+# Information at end of Section
+# For each region, say spacecraft used
 
-from src.methods.saturation.plotting.general import plot_delay_hists
-from src.methods.saturation.plotting.space_time import plot_data_inventory
+from src.processing.reading import import_processed_data
 
-# Plots not to be included, but numbers are.
+region = 'sw'
+resolution = '5min'
+df_sw = import_processed_data(region, 'plasma', resolution, f'{region}_times_combined')
 
-sw_keys  = ('c1','c3','mms1')
-msh_keys = ('c1','c3','mms1','tha','thd','the')
+region = 'msh'
+df_msh = import_processed_data(region, 'plasma', resolution, f'{region}_times_combined')
 
-plot_data_inventory(*sw_keys, region='sw', display='monthly', print_info=True)
-plot_data_inventory(*msh_keys, region='msh', display='monthly', print_info=True)
+# %%
+import numpy as np
+import pandas as pd
 
-plot_delay_hists('combined', ('msh','sw'), resolution='5min')
-
-# %% distrubtions
-
-from src.methods.saturation.plotting.space_time import plot_sc_years, plot_sc_orbits, plot_sc_sw_msh
-
-# None of these figures are to be included, but are used when describing the final solar wind and magnetosheath datasets
-
-resolution = '1min'
-
-all_keys = ('c1','c3','mms1','tha','thb','thc','thd','the')
-sw_keys  = ('c1','c3','mms1')
-msh_keys = ('c1','c3','mms1','tha','thd','the')
+def upper_limit_by_days(x, days, n_days=30):
+    """Largest driver value that is reached on at least n_days distinct days."""
+    daily_max = pd.Series(np.asarray(x)).groupby(np.asarray(days)).max()
+    return daily_max.sort_values(ascending=False).iloc[n_days - 1]
 
 
-# Solar Wind
-plot_sc_years(resolution, 'plasma', 'sw', sw_keys, combined=False)
-plot_sc_orbits(resolution, 'plasma', 'sw', sw_keys)
+from scipy.stats import percentileofscore
 
 
-# Magnetosheath
-plot_sc_years(resolution, 'plasma', 'msh', msh_keys, combined=False)
-plot_sc_orbits(resolution, 'plasma', 'msh', msh_keys)
+from collections import Counter
 
-# Both
-plot_sc_sw_msh(resolution, 'plasma', sw_keys, msh_keys)
+from src.methods.saturation.plotting.utils import def_param_names, mask_df, get_variable_range
 
+from src.processing.reading import import_processed_data
+def info(df, region='sw'):
+
+    print(region)
+
+    print(f'\nRows: {len(df):,}')
+    print(f'Days: {len(df.index.normalize().unique()):,}\n')
+
+    print('Spacecraft:')
+    for sc, num in Counter(df[f'sc_{region}']).items():
+        print(f'{sc}: \t{num:,}\t| {num/len(df)*100:.3g} %')
+        times = df.loc[df[f'sc_{region}']==sc].index
+        start = times.min().year
+        end   = times.max().year
+        print(f'      \t{start} - {end}')
+
+    for param in ('B_z_GSM','E_R','E_yz','S_x_GSE'):
+        unit = df.attrs.get('units').get(param)
+
+        #condition = '<0'
+        condition = None
+        cond_col = 'B_z_GSM'
+
+        _, param_count = def_param_names(df, param)
+
+        if param in ('E_R', ):
+            #print(f'Condition doesn\'t apply to {param}.')
+            condition = None
+
+        length_before = np.sum(~df[param].isna())
+
+        limits, invert = get_variable_range(param, region, restrict=True)
+        series = mask_df(df, param, limits=None, count_col=param_count, resolution=resolution, condition=condition, cond_col=cond_col, invert=invert)
+        if invert:
+            param = f'-{param}'
+        series = series[param]
+
+        length_after = np.sum(~series.isna())
+
+        print(f'\n{param}\n----------')
+        print(f'Low counts removed:\n\t{length_before-length_after:,} | {(1-length_after/length_before)*100:.3g} %')
+        print(f'Percentiles [{unit}]:')
+        for label, q in (('50th',50),('95.0',95),('99.0',99),('99.5',99.5),('max',100)):
+            print(f'\t{label}: \t{series.quantile(q/100):.4g}')
+
+        if invert:
+            limits = [limits[-1], -limits[0]]
+        print('Limits:', limits)
+
+
+
+        print(f'         {percentileofscore(series,limits[1]):.4g} %')
+
+
+info(df_sw, 'sw')
+info(df_msh, 'msh')

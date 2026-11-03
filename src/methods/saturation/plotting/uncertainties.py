@@ -19,7 +19,7 @@ from ....plotting.formatting import create_label
 from ....plotting.config import black, blue, red, green
 
 from ....processing.reading import import_processed_data, import_processed_index
-from ....processing.omni.analysis import calc_omni_uncertainty
+from ....processing.omni.update import calc_omni_uncertainty
 
 def binned_band(ax, x, y, nbins=40, colour=black):
     """
