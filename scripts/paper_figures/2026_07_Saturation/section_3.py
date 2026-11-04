@@ -28,7 +28,8 @@ df_sw = import_processed_data(region, 'plasma', resolution, f'{region}_times_com
 region = 'msh'
 df_msh = import_processed_data(region, 'plasma', resolution, f'{region}_times_combined')
 
-# %%
+
+## %%
 import numpy as np
 import pandas as pd
 

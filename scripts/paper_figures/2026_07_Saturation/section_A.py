@@ -14,17 +14,18 @@ from src.methods.saturation.plotting.space_time import plot_data_inventory
 
 # Plots not to be included, but numbers are.
 
-sw_keys  = ('c1','c3','mms1')
-msh_keys = ('c1','c3','mms1','tha','thd','the')
+sw_keys  = ('c1','c3','mms1','thb','thc')
+msh_keys = ('c1','c3','mms1','tha','thb','thc','thd','the')
 
 plot_data_inventory(*sw_keys, region='sw', display='monthly', print_info=True)
 plot_data_inventory(*msh_keys, region='msh', display='monthly', print_info=True)
 
 plot_delay_hists('combined', ('msh','sw'), resolution='5min')
 
-from src.methods.saturation.plotting.quality import plot_avg_counts_grid, check_removed_counts, plot_remove_low_counts
 
 # %% averaging
+
+from src.methods.saturation.plotting.quality import plot_avg_counts_grid, check_removed_counts, plot_remove_low_counts
 
 # Describe in manuscript but don't include
 

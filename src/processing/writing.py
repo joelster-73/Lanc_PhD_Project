@@ -218,6 +218,38 @@ for resolution in ('1min','5min','15min'):
     rename_cdf_variables(direc, rename_map, dry_run=False)
 """
 
+def delete_cdf_variables(directory, variables_to_delete, dry_run=True):
+
+    for cdf_file in get_processed_files(directory):
+
+        first_time = True
+
+        try:
+            with pycdf.CDF(cdf_file) as cdf:
+                cdf.readonly(False)
+
+                for var_name in variables_to_delete:
+
+                    if var_name not in cdf:
+                        continue
+
+                    if dry_run:
+                        print(f'{cdf_file}: would delete {var_name}')
+                        continue
+
+                    del cdf[var_name]
+
+                    if first_time:
+                        print(f'{cdf_file} columns deleted:')
+                        first_time = False
+
+                    print(f'{var_name}')
+
+        except Exception as e:
+            print(f'Error processing {cdf_file}: {e}')
+
+    print('\nDry run complete, nothing changed.\n' if dry_run else '\nDeletion complete.\n')
+
 # %% resample
 
 def resample_cdf_files(spacecraft, data=' ', raw_res='spin', sample_intervals=('1min',), time_col='epoch', overwrite=True, files_by_keys={}, resolution=None):

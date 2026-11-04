@@ -21,28 +21,34 @@ from .writing import resample_cdf_files
 from .handling import get_file_keys, refactor_keys
 
 
-def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', year=None, start_year=None, **kwargs):
+def resample_files(spacecraft, data=' ', raw_res='spin', new_grouping='yearly', year=None, start_year=None, end_year=None, **kwargs):
     """
     Resample monthly files (as well as yearly files) into yearly files at a lower resolution, e.g. 1min, 5min.
     """
 
     files_by_keys = get_file_keys(spacecraft, data, raw_res)
-    if len(files_by_keys)==0:
-        return # no keys to refactor
+    if len(files_by_keys) == 0:
+        return  # no keys to refactor
 
     files_by_year = refactor_keys(files_by_keys, new_grouping)
 
-    if not (year is None and start_year is None):
-        if new_grouping=='yearly':
+    if not (year is None and start_year is None and end_year is None):
+        if new_grouping == 'yearly':
             if year is not None:
-                files_by_year = {year: files_by_year.get(str(year), [])}
+                files_by_year = {str(year): files_by_year.get(str(year), [])}
             else:
-                files_by_year = {k: v for k, v in files_by_year.items() if k >= start_year} # check str/int compatability
+                files_by_year = {
+                    k: v for k, v in files_by_year.items()
+                    if (start_year is None or int(k) >= start_year)
+                    and (end_year is None or int(k) <= end_year)
+                }
         else:
-            files_by_year = {k: v for k, v in files_by_year.items()
-                             if (year is None or int(k[:4])==year)
-                             and (start_year is None or int(k[:4])>=start_year)
-                             }
+            files_by_year = {
+                k: v for k, v in files_by_year.items()
+                if (year is None or int(k[:4]) == year)
+                and (start_year is None or int(k[:4]) >= start_year)
+                and (end_year is None or int(k[:4]) <= end_year)
+            }
 
     kwargs['files_by_keys'] = files_by_year
 

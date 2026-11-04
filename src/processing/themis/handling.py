@@ -20,7 +20,7 @@ from ...config import R_E, get_luna_directory
 
 THEMIS_RESOLUTIONS = {'spin': '3s', 'STATE': '1min'}
 
-def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='epoch', year=None, start_year=None, overwrite=True, **kwargs):
+def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='epoch', year=None, start_year=None, end_year=None, overwrite=True, **kwargs):
 
     directory = get_luna_directory(spacecraft, instrument=data)
 
@@ -37,7 +37,7 @@ def process_themis_files(spacecraft, data, sample_intervals=('raw',), time_col='
     else:
         filtering = None
 
-    files_dict = get_themis_files(directory, year, start_year)
+    files_dict = get_themis_files(directory, year, start_year, end_year)
     variables  = VARIABLES_DICT.get(data,{}).get(spacecraft,{})
 
     # Sample intervals
@@ -62,7 +62,7 @@ def is_int(s):
         return False
 
 
-def get_themis_files(directory=None, year=None, start_year=None):
+def get_themis_files(directory=None, year=None, start_year=None, end_year=None):
 
     """
     Obtains a list of all files in the directory
@@ -85,6 +85,9 @@ def get_themis_files(directory=None, year=None, start_year=None):
             continue
 
         elif start_year and int(year_folder)<start_year:
+            continue
+
+        elif end_year and int(year_folder)>end_year:
             continue
 
         files = []

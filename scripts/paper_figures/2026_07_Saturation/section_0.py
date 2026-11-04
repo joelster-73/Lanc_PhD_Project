@@ -13,14 +13,15 @@ from src.processing.reading import import_processed_omni
 from src.processing.handling import create_log_file
 from src.config import get_proc_directory
 
-print('REMINDER: check if any files aren\'t the same data structure - suggests data folders contain files that are outdated.')
+print('\nREMINDER: check if any files aren\'t the same data structure - suggests data folders contain files that are outdated.\n\n')
 
 resolutions = ('1min', '5min', '15min')
 regions     = ('sw', 'msh') # msh20
 
+
 for resolution in resolutions:
 
-    df_omni = import_processed_omni(resolution=resolution) ## issue with importing 15 min OMNI
+    df_omni = import_processed_omni(resolution=resolution)
 
     for region in regions:
 

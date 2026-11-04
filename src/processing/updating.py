@@ -74,6 +74,7 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
     plasma_res  = kwargs.get('plasma_res','raw')
 
     start_year = kwargs.get('start_year',None)
+    end_year   = kwargs.get('end_year',None)
 
     if ion_source == 'omni':
         heavy_ions = import_processed_data('omni', resolution='5min')
@@ -98,6 +99,10 @@ def update_plasma_data(spacecraft, field='fgm', plasma='mom', ion_source='omni',
         if start_year:
             year = key.split('-')[0] if '-' in key else key
             if int(year) < start_year:
+                continue
+        if end_year:
+            year = key.split('-')[0] if '-' in key else key
+            if int(year) > end_year:
                 continue
 
         print(f'Updating {key}...')

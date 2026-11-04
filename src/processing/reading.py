@@ -36,7 +36,7 @@ def import_processed_spacecraft(spacecraft, populations=None, resolution='1min',
         df_sc = import_processed_data(spacecraft, dtype=data, resolution=resolution, year=year)
         all_data.append(df_sc)
 
-    return merge_dataframes(*all_data)
+    return merge_dataframes(*all_data, warn=False)
 
 def import_processed_omni(resolution='1min', file_name=None, year=None):
     """

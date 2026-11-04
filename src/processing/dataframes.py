@@ -83,7 +83,7 @@ def set_df_indices(df, time_col):
 
 # %% merge
 
-def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False, how='inner'):
+def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False, how='inner', warn=True):
 
     if len(dfs) < 2:
         raise ValueError('At least two dataframes are required.')
@@ -94,7 +94,7 @@ def merge_dataframes(*dfs, suffices=None, clean=True, print_info=False, how='inn
     if len(suffices) != len(dfs):
         raise ValueError('suffixes length must match number of dataframes.')
 
-    if all(s is None for s in suffices):
+    if warn and all(s is None for s in suffices):
         warnings.warn('All suffices for merge are None; column collisions may occur.')
 
     relabelled = [relabel_columns(df, suf) for df, suf in zip(dfs, suffices)]
